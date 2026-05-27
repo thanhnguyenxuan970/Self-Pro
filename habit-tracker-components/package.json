@@ -1,0 +1,16 @@
+{
+  "name": "habit-tracker-components",
+  "version": "0.2.0",
+  "description": "Habit Tracker +1% UI component library — React Native + NativeWind, Atomic Design (Atoms · Molecules · Organisms)",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "peerDependencies": {
+    "react": ">=18",
+    "react-native": ">=0.74",
+    "nativewind": "^4.0.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.4.0"
+  }
+}

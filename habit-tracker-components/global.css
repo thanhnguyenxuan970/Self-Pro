@@ -1,0 +1,4 @@
+/* Tailwind / NativeWind entry — import from App.tsx */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

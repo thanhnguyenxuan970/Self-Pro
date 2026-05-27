@@ -1,0 +1,1008 @@
+<!doctype html>
+<html lang="vi" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Habit Tracker +1% — Hi-Fi Prototype</title>
+<style>
+  /* ============ THEME TOKENS ============ */
+  :root{
+    /* sage scale */
+    --sage-50:#EEF7F2; --sage-100:#D5EDE0; --sage-200:#ADDBC4;
+    --sage-300:#7DC4A1; --sage-400:#4FAC82; --sage-500:#2E9C6A;
+    --sage-600:#248057; --sage-700:#1E6646; --sage-800:#1A5039; --sage-900:#15402E;
+    /* light semantic */
+    --bg:#F5F6F5; --surface:#FFFFFF; --surface-2:#F4F5F4; --surface-3:#ECEEEC;
+    --ink:#1B1F1D; --ink-2:#3F4642; --muted:#6E7672; --faint:#A5ABA7;
+    --line:#E5E8E6; --line-2:#D5D9D6;
+    --primary:#2E9C6A; --primary-hover:#248057; --primary-press:#1E6646;
+    --primary-soft:#DCEDE3; --primary-ink:#1E6646;
+    --star:#D9952B; --star-soft:#FBEFD3;
+    --danger:#D74045; --danger-soft:#FBE2E3;
+    --warning:#E0892B;
+    /* elevations */
+    --sh-1:0 1px 2px rgba(20,30,25,.06), 0 1px 1px rgba(20,30,25,.04);
+    --sh-2:0 8px 24px rgba(20,30,25,.10), 0 2px 8px rgba(20,30,25,.05);
+    --sh-fab:0 10px 24px rgba(46,156,106,.36), 0 4px 8px rgba(46,156,106,.22);
+    --sh-hero:0 12px 32px rgba(30,102,70,.18);
+    /* radii */
+    --r-xs:6px; --r-sm:10px; --r-md:14px; --r-lg:18px; --r-xl:22px; --r-2xl:26px; --r-pill:999px;
+    /* typography */
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter","Segoe UI",Roboto,sans-serif;
+    /* hero gradient */
+    --hero-grad:linear-gradient(135deg,#1A5039 0%, #2E9C6A 100%);
+    --hero-debt-grad:linear-gradient(135deg,#5C1D1E 0%, #B0383C 100%);
+  }
+  [data-theme="dark"]{
+    --bg:#0E1311; --surface:#161B18; --surface-2:#1D231F; --surface-3:#252C28;
+    --ink:#ECEEEC; --ink-2:#C7CCC9; --muted:#8B928F; --faint:#5F6663;
+    --line:#262C29; --line-2:#323933;
+    --primary:#4FAC82; --primary-hover:#7DC4A1; --primary-press:#ADDBC4;
+    --primary-soft:#1F3D2D; --primary-ink:#ADDBC4;
+    --star:#F0BD5A; --star-soft:#3A2F18;
+    --danger:#F26F73; --danger-soft:#3A1E20;
+    --warning:#F0A248;
+    --sh-1:0 1px 2px rgba(0,0,0,.5);
+    --sh-2:0 10px 28px rgba(0,0,0,.55), 0 4px 10px rgba(0,0,0,.35);
+    --sh-fab:0 10px 24px rgba(46,156,106,.42), 0 4px 8px rgba(0,0,0,.4);
+    --sh-hero:0 14px 38px rgba(0,0,0,.55);
+    --hero-grad:linear-gradient(135deg,#15402E 0%, #2E9C6A 100%);
+    --hero-debt-grad:linear-gradient(135deg,#3A1518 0%, #8B2F33 100%);
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{transition:background .25s ease,color .25s ease}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);
+    display:flex;flex-direction:column;align-items:center;padding:28px 16px 60px;min-height:100vh;
+    font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+
+  /* ============ DOC HEAD ============ */
+  .doc-head{text-align:center;max-width:440px;margin-bottom:18px}
+  .doc-head h1{font-size:18px;font-weight:800;letter-spacing:-.3px}
+  .doc-head p{font-size:13px;color:var(--muted);margin-top:5px;line-height:1.5}
+  .doc-tags{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+  .doc-tag{font-size:10.5px;background:var(--surface);border:1px solid var(--line-2);
+    color:var(--muted);padding:4px 10px;border-radius:var(--r-pill);font-weight:600}
+
+  /* ============ PHONE FRAME ============ */
+  .phone{width:390px;height:844px;background:var(--surface);border-radius:46px;
+    border:11px solid #0B0E0C;position:relative;overflow:hidden;
+    box-shadow:0 30px 70px rgba(0,0,0,.3),0 10px 24px rgba(0,0,0,.2),inset 0 0 0 1px rgba(255,255,255,.04)}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);
+    width:140px;height:28px;background:#0B0E0C;border-radius:0 0 18px 18px;z-index:60}
+  .statusbar{height:48px;display:flex;align-items:flex-end;justify-content:space-between;
+    padding:0 28px 8px;font-size:14px;font-weight:600;color:var(--ink)}
+  .statusbar .glyphs{display:flex;gap:6px;align-items:center;font-size:11px}
+
+  /* ============ VIEWPORT ============ */
+  .viewport{position:absolute;top:48px;left:0;right:0;bottom:86px;overflow:hidden;background:var(--bg)}
+  .screen{position:absolute;inset:0;overflow-y:auto;display:none;
+    padding:6px 18px 28px;-webkit-overflow-scrolling:touch}
+  .screen.active{display:block;animation:fade .22s ease}
+  .screen::-webkit-scrollbar{width:0}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  /* ============ GENERIC ============ */
+  .row{display:flex;align-items:center}
+  .between{justify-content:space-between}
+  .scr-title{font-size:24px;font-weight:800;letter-spacing:-.5px;margin:10px 2px 14px;color:var(--ink)}
+  .section-label{font-size:11px;font-weight:700;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.7px;margin:20px 2px 9px}
+  .card{background:var(--surface);border:1px solid var(--line);
+    border-radius:var(--r-lg);padding:15px;box-shadow:var(--sh-1)}
+  .muted{color:var(--muted)}
+
+  /* ============ HOME — HEADER ============ */
+  .topbar{display:flex;align-items:center;gap:10px;padding:6px 2px 2px}
+  .avatar{width:42px;height:42px;border-radius:50%;background:var(--primary-soft);
+    color:var(--primary-ink);font-weight:800;display:flex;align-items:center;
+    justify-content:center;font-size:16px;flex:0 0 auto;cursor:pointer;
+    border:1px solid var(--line);transition:transform .15s}
+  .avatar:active{transform:scale(.95)}
+  .greet{flex:1;min-width:0}
+  .greet .hi{font-size:15px;font-weight:800;letter-spacing:-.2px;color:var(--ink)}
+  .greet .date{font-size:12px;color:var(--muted);margin-top:1px}
+  .head-actions{display:flex;gap:6px;align-items:center;flex:0 0 auto}
+  .icon-btn{width:34px;height:34px;border-radius:50%;background:var(--surface);
+    border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--ink-2);transition:background .15s,transform .12s}
+  .icon-btn:hover{background:var(--surface-2)}
+  .icon-btn:active{transform:scale(.93)}
+  .icon-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;
+    stroke-linecap:round;stroke-linejoin:round}
+  .lang-toggle{display:flex;border:1px solid var(--line-2);border-radius:var(--r-pill);
+    overflow:hidden;font-size:11px;font-weight:800;cursor:pointer;background:var(--surface)}
+  .lang-toggle span{padding:6px 10px;color:var(--faint);transition:.15s}
+  .lang-toggle span.on{background:var(--ink);color:var(--surface)}
+
+  /* ============ HOME — HERO ============ */
+  .hero{margin-top:14px;background:var(--hero-grad);color:#fff;border-radius:var(--r-xl);
+    padding:20px;position:relative;overflow:hidden;box-shadow:var(--sh-hero)}
+  .hero::after{content:"";position:absolute;right:-30px;top:-30px;width:160px;height:160px;
+    background:radial-gradient(circle,rgba(255,255,255,.18) 0%,transparent 70%);pointer-events:none}
+  .hero.debt{background:var(--hero-debt-grad)}
+  .hero .h-label{font-size:12px;opacity:.85;font-weight:600;letter-spacing:.3px}
+  .hero .h-bal{font-size:40px;font-weight:800;letter-spacing:-1.2px;margin-top:6px;
+    display:flex;align-items:center;gap:10px;line-height:1}
+  .hero .h-bal svg{width:32px;height:32px;fill:var(--star);filter:drop-shadow(0 2px 4px rgba(0,0,0,.25))}
+  .hero .h-foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+  .h-delta{font-size:12px;background:rgba(255,255,255,.16);padding:5px 11px;border-radius:var(--r-pill);
+    font-weight:700;backdrop-filter:blur(6px)}
+  .h-delta.up{color:#B5F0CE}.h-delta.down{color:#FFB9BB}
+  .rank-chip{font-size:12.5px;font-weight:800;background:rgba(255,255,255,.18);
+    padding:6px 12px;border-radius:var(--r-pill);display:flex;gap:6px;align-items:center;
+    backdrop-filter:blur(6px)}
+  .demo-link{font-size:11px;opacity:.7;text-decoration:underline;text-underline-offset:2px;
+    cursor:pointer;margin-top:12px;display:inline-block;font-weight:600}
+  .demo-link:hover{opacity:1}
+
+  /* ============ HOME — PROGRESS ============ */
+  .prog-card{margin-top:12px}
+  .prog-top{display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:var(--ink)}
+  .prog-top .pts{font-size:14px}
+  .prog-top .pts b{font-size:16px;font-weight:800;color:var(--primary)}
+  .bar{height:10px;background:var(--surface-2);border-radius:var(--r-pill);margin-top:10px;overflow:hidden;
+    position:relative}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--primary),var(--sage-300));
+    border-radius:var(--r-pill);transition:width .4s ease}
+  .prog-cap{font-size:11.5px;color:var(--muted);margin-top:8px}
+
+  /* ============ CATEGORY CHIPS ============ */
+  .chips{display:flex;gap:7px;overflow-x:auto;padding:2px 2px 4px;margin:0 -2px}
+  .chips::-webkit-scrollbar{height:0}
+  .chip{flex:0 0 auto;font-size:12.5px;font-weight:600;padding:8px 13px;
+    border-radius:var(--r-pill);background:var(--surface);color:var(--muted);
+    border:1px solid var(--line-2);cursor:pointer;white-space:nowrap;
+    transition:all .15s;user-select:none}
+  .chip:hover:not(.on){background:var(--surface-2)}
+  .chip:active{transform:scale(.96)}
+  .chip.on{background:var(--primary-soft);color:var(--primary-ink);border-color:var(--primary-soft);font-weight:700}
+
+  /* ============ TASK LIST ============ */
+  .tl{padding:6px 15px}
+  .task{display:flex;align-items:center;gap:13px;padding:14px 0;
+    border-bottom:1px solid var(--line)}
+  .task:last-child{border-bottom:none}
+  .check{width:26px;height:26px;border-radius:50%;border:2px solid var(--line-2);
+    flex:0 0 auto;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    background:var(--surface);transition:.18s;color:transparent;font-size:13px;font-weight:800}
+  .check:hover{border-color:var(--primary)}
+  .check:active{transform:scale(.92)}
+  .check.done{background:var(--primary);border-color:var(--primary);color:#fff;
+    box-shadow:0 4px 10px rgba(46,156,106,.35)}
+  .check.bad{background:var(--danger);border-color:var(--danger);color:#fff;cursor:default}
+  .t-body{flex:1;min-width:0}
+  .t-name{font-size:14.5px;font-weight:600;color:var(--ink)}
+  .task.done .t-name{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)}
+  .t-meta{font-size:11.5px;color:var(--muted);margin-top:3px;display:flex;gap:9px;align-items:center}
+  .t-meta .dot{width:3px;height:3px;background:var(--faint);border-radius:50%}
+  .t-pts{font-size:13px;font-weight:800;flex:0 0 auto;display:flex;align-items:center;gap:3px}
+  .t-pts.pos{color:var(--primary)}.t-pts.neg{color:var(--danger)}
+  .t-pts.idle{color:var(--faint)}
+
+  /* ---- empty state ---- */
+  .empty{padding:36px 12px;text-align:center}
+  .empty .em{font-size:42px;margin-bottom:8px;opacity:.6}
+  .empty .et{font-size:14px;font-weight:700;color:var(--ink-2)}
+  .empty .ed{font-size:12px;color:var(--muted);margin-top:4px}
+
+  /* ============ BOTTOM TABBAR ============ */
+  .tabbar{position:absolute;bottom:0;left:0;right:0;height:86px;background:var(--surface);
+    border-top:1px solid var(--line);display:flex;align-items:flex-start;
+    padding:9px 6px 0;z-index:50;box-shadow:0 -8px 24px rgba(0,0,0,.04)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;
+    cursor:pointer;color:var(--faint);font-size:10px;font-weight:700;padding:4px 0;
+    transition:.15s;user-select:none}
+  .tab svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.9;
+    stroke-linecap:round;stroke-linejoin:round;transition:.18s}
+  .tab:hover{color:var(--ink-2)}
+  .tab.on{color:var(--primary)}
+  .tab.on svg{stroke-width:2.3}
+  .fab{flex:0 0 auto;width:58px;height:58px;border-radius:50%;background:var(--primary);
+    color:#fff;display:flex;align-items:center;justify-content:center;
+    margin-top:-18px;box-shadow:var(--sh-fab);cursor:pointer;border:none;transition:.15s}
+  .fab:hover{background:var(--primary-hover);transform:translateY(-2px)}
+  .fab:active{transform:scale(.95)}
+  .fab svg{width:28px;height:28px;stroke:#fff;stroke-width:2.6;fill:none;stroke-linecap:round}
+
+  /* ============ MODAL / SHEET ============ */
+  .overlay{position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:70;
+    display:none;align-items:flex-end;backdrop-filter:blur(2px)}
+  .overlay.show{display:flex;animation:overlay-in .2s ease}
+  @keyframes overlay-in{from{opacity:0}to{opacity:1}}
+  .sheet{background:var(--surface);width:100%;border-radius:var(--r-2xl) var(--r-2xl) 0 0;
+    padding:12px 22px 26px;max-height:92%;overflow-y:auto;box-shadow:0 -20px 60px rgba(0,0,0,.25);
+    animation:sheet-in .28s cubic-bezier(.2,.8,.2,1)}
+  @keyframes sheet-in{from{transform:translateY(100%)}to{transform:none}}
+  .handle{width:40px;height:4px;background:var(--line-2);border-radius:4px;margin:4px auto 16px}
+  .sheet h3{font-size:19px;font-weight:800;margin-bottom:14px;letter-spacing:-.3px}
+  .seg{display:flex;background:var(--surface-2);border-radius:var(--r-md);padding:3px;margin-bottom:14px}
+  .seg button{flex:1;border:none;background:none;font-family:var(--font);
+    font-size:13px;font-weight:700;padding:10px;border-radius:var(--r-sm);
+    color:var(--muted);cursor:pointer;transition:.15s}
+  .seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--sh-1)}
+  .seg button.on.bad{color:var(--danger)}
+  .field-label{font-size:11.5px;font-weight:700;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.5px;margin:14px 2px 7px}
+  .input{width:100%;border:1.5px solid var(--line-2);border-radius:var(--r-md);padding:13px;
+    font-family:var(--font);font-size:14px;background:var(--surface-2);color:var(--ink);
+    transition:.18s}
+  .input:focus{outline:none;border-color:var(--primary);background:var(--surface);
+    box-shadow:0 0 0 4px var(--primary-soft)}
+  .input.err{border-color:var(--danger);box-shadow:0 0 0 4px var(--danger-soft)}
+  .err-msg{font-size:11.5px;color:var(--danger);margin-top:5px;display:none;font-weight:600}
+  .err-msg.show{display:block}
+  .stepper{display:flex;align-items:center;justify-content:space-between;
+    border:1.5px solid var(--line-2);border-radius:var(--r-md);padding:6px 10px;background:var(--surface)}
+  .stepper button{width:36px;height:36px;border-radius:var(--r-sm);border:none;
+    background:var(--surface-2);font-size:20px;cursor:pointer;color:var(--ink);font-weight:700;transition:.15s}
+  .stepper button:hover{background:var(--surface-3)}
+  .stepper button:active{transform:scale(.92)}
+  .stepper .val{font-size:15px;font-weight:800;color:var(--ink)}
+  .preview{margin-top:14px;background:var(--primary-soft);border-radius:var(--r-md);
+    padding:13px;font-size:14px;font-weight:700;color:var(--primary-ink);text-align:center}
+  .preview.bad{background:var(--danger-soft);color:var(--danger)}
+  .btn-primary{width:100%;margin-top:16px;border:none;background:var(--primary);
+    color:#fff;font-family:var(--font);font-size:15px;font-weight:700;
+    padding:15px;border-radius:var(--r-md);cursor:pointer;transition:.15s;
+    box-shadow:0 4px 14px rgba(46,156,106,.32)}
+  .btn-primary:hover{background:var(--primary-hover);transform:translateY(-1px);
+    box-shadow:0 8px 20px rgba(46,156,106,.42)}
+  .btn-primary:active{transform:scale(.98)}
+  .btn-primary.bad{background:var(--danger);box-shadow:0 4px 14px rgba(215,64,69,.32)}
+  .btn-primary.bad:hover{background:#B83438}
+  .btn-primary:disabled{background:var(--surface-3);color:var(--faint);box-shadow:none;
+    cursor:not-allowed;transform:none}
+
+  /* ============ ANALYTICS ============ */
+  .segbar{display:flex;background:var(--surface-2);border-radius:var(--r-md);padding:3px;margin-bottom:14px}
+  .segbar button{flex:1;border:none;background:none;font-family:var(--font);font-size:12px;
+    font-weight:700;padding:9px 0;border-radius:var(--r-sm);color:var(--muted);cursor:pointer;transition:.15s}
+  .segbar button.on{background:var(--surface);color:var(--ink);box-shadow:var(--sh-1)}
+  .chart{display:flex;align-items:flex-end;gap:6px;height:148px;padding:6px 2px 0}
+  .chart .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%}
+  .chart .col .fill{width:100%;background:var(--primary-soft);border-radius:var(--r-xs) var(--r-xs) 0 0;
+    display:flex;align-items:flex-end;justify-content:center;position:relative;overflow:hidden}
+  .chart .col .fill > i{width:100%;background:linear-gradient(180deg,var(--primary) 0%,var(--sage-400) 100%);
+    border-radius:var(--r-xs) var(--r-xs) 0 0;transition:height .5s cubic-bezier(.2,.8,.2,1)}
+  .chart .col .xl{font-size:9.5px;color:var(--muted);font-weight:600}
+  /* skeleton */
+  .chart.skeleton .col .fill > i{
+    background:linear-gradient(90deg,var(--surface-2) 0%,var(--surface-3) 50%,var(--surface-2) 100%);
+    background-size:200% 100%;animation:shimmer 1.4s linear infinite}
+  @keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);
+    padding:14px;box-shadow:var(--sh-1)}
+  .stat .v{font-size:22px;font-weight:800;letter-spacing:-.5px;color:var(--ink)}
+  .stat .l{font-size:11px;color:var(--muted);font-weight:700;margin-top:3px}
+  .stat.sk .v{background:var(--surface-2);color:transparent;border-radius:6px;
+    width:60%;height:22px;animation:shimmer 1.4s linear infinite;
+    background:linear-gradient(90deg,var(--surface-2) 0%,var(--surface-3) 50%,var(--surface-2) 100%);
+    background-size:200% 100%}
+  .stat.sk .l{background:var(--surface-2);color:transparent;border-radius:4px;
+    height:11px;width:80%;margin-top:6px}
+  .catrow{display:flex;align-items:center;gap:11px;margin-top:11px;font-size:13px}
+  .catrow .nm{width:90px;flex:0 0 auto;font-weight:600;color:var(--ink-2)}
+  .catrow .tk{flex:1;height:10px;background:var(--surface-2);border-radius:var(--r-pill);overflow:hidden}
+  .catrow .tk > i{display:block;height:100%;background:linear-gradient(90deg,var(--primary),var(--sage-300));
+    border-radius:var(--r-pill)}
+  .catrow .pc{width:38px;text-align:right;color:var(--muted);font-weight:700;font-size:11.5px}
+
+  /* ============ REWARDS ============ */
+  .fund{background:linear-gradient(135deg,#15402E 0%,#1E6646 100%);color:#fff;
+    border-radius:var(--r-xl);padding:20px;box-shadow:var(--sh-hero);position:relative;overflow:hidden}
+  [data-theme="dark"] .fund{background:linear-gradient(135deg,#15402E 0%,#2E9C6A 100%)}
+  .fund::after{content:"";position:absolute;left:-40px;bottom:-40px;width:200px;height:200px;
+    background:radial-gradient(circle,rgba(217,149,43,.22) 0%,transparent 70%);pointer-events:none}
+  .fund .fl{font-size:12px;opacity:.85;font-weight:700;letter-spacing:.3px}
+  .fund .fv{font-size:36px;font-weight:800;letter-spacing:-1px;margin-top:6px;line-height:1}
+  .fund .fc{font-size:11.5px;opacity:.75;margin-top:6px}
+  .tier{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .tier:last-child{border-bottom:none}
+  .tier .badge{width:38px;height:38px;border-radius:var(--r-sm);flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:800}
+  .tier .badge.crossed{background:var(--star-soft);color:var(--star)}
+  .tier .badge.locked{background:var(--surface-2);color:var(--faint)}
+  .tier .ti{flex:1}
+  .tier .ti .a{font-size:14px;font-weight:700;color:var(--ink)}
+  .tier .ti .b{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .tier .st{font-size:11px;font-weight:800;padding:4px 10px;border-radius:var(--r-pill);
+    text-transform:uppercase;letter-spacing:.4px}
+  .tier .st.crossed{background:var(--primary-soft);color:var(--primary-ink)}
+  .tier .st.locked{background:var(--surface-2);color:var(--faint)}
+  .ledger{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}
+  .ledger:last-child{border-bottom:none}
+  .ldot{width:34px;height:34px;border-radius:var(--r-sm);flex:0 0 auto;display:flex;
+    align-items:center;justify-content:center;font-size:15px}
+  .ldot.in{background:var(--primary-soft);color:var(--primary-ink)}
+  .ldot.out{background:var(--surface-2);color:var(--ink-2)}
+  .ledger .li{flex:1;min-width:0}
+  .ledger .li .a{font-size:14px;font-weight:600;color:var(--ink)}
+  .ledger .li .b{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .ledger .amt{font-size:13.5px;font-weight:800;text-align:right;flex:0 0 auto}
+  .ledger .amt.in{color:var(--primary)}.ledger .amt.out{color:var(--ink)}
+  .ledger .amt small{display:block;font-size:10px;color:var(--faint);font-weight:600;margin-top:2px}
+
+  /* ============ RANK ============ */
+  .rankhero{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);
+    padding:22px;text-align:center;box-shadow:var(--sh-1);position:relative;overflow:hidden}
+  .rankhero::before{content:"";position:absolute;inset:0;
+    background:radial-gradient(ellipse at top,var(--primary-soft) 0%,transparent 60%);
+    opacity:.6;pointer-events:none}
+  .rankhero > *{position:relative}
+  .rankhero .em{font-size:54px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.15))}
+  .rankhero .nm{font-size:25px;font-weight:800;letter-spacing:-.5px;margin-top:6px;color:var(--ink)}
+  .rankhero .en{font-size:12.5px;color:var(--muted);margin-top:2px;font-style:italic}
+  .rankhero .wk{font-size:13px;font-weight:800;margin-top:12px;
+    background:var(--star-soft);color:var(--star);display:inline-block;
+    padding:6px 14px;border-radius:var(--r-pill)}
+  .rankhero .nextcap{font-size:12px;color:var(--muted);margin-top:13px;font-weight:600}
+  .reset-chip{display:flex;align-items:center;justify-content:center;gap:7px;
+    font-size:12px;font-weight:700;color:var(--ink-2);background:var(--surface-2);
+    border-radius:var(--r-md);padding:11px;margin-top:12px}
+  .rk{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .rk:last-child{border-bottom:none}
+  .rk.cur{background:var(--primary-soft);margin:0 -8px;padding:12px 14px;
+    border-radius:var(--r-md);border-bottom:none}
+  .rk .em{font-size:24px;width:32px;text-align:center;flex:0 0 auto}
+  .rk .ri{flex:1}
+  .rk .ri .a{font-size:14px;font-weight:800;color:var(--ink)}
+  .rk.cur .ri .a{color:var(--primary-ink)}
+  .rk .ri .b{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .rk .thr{font-size:11.5px;font-weight:800;color:var(--muted)}
+  .rk.cur .thr{color:var(--primary-ink)}
+  .rk.debt .ri .a{color:var(--danger)}
+  .philo{background:linear-gradient(135deg,var(--ink) 0%,var(--ink-2) 100%);color:#fff;
+    border-radius:var(--r-lg);padding:18px;margin-top:8px;box-shadow:var(--sh-1)}
+  [data-theme="dark"] .philo{background:linear-gradient(135deg,#0A100D 0%,#1B231F 100%);
+    border:1px solid var(--line)}
+  .philo .pq{font-size:14px;line-height:1.55;font-weight:600}
+  .philo .pa{font-size:11.5px;opacity:.65;margin-top:8px;font-weight:600}
+
+  /* ============ PROFILE ============ */
+  .prof-head{text-align:center;padding:14px 0 6px}
+  .prof-head .pa{width:80px;height:80px;border-radius:50%;background:var(--primary-soft);
+    color:var(--primary-ink);font-size:32px;font-weight:800;display:flex;align-items:center;
+    justify-content:center;margin:0 auto;border:1px solid var(--line);
+    box-shadow:0 8px 20px rgba(46,156,106,.18)}
+  .prof-head .pn{font-size:20px;font-weight:800;margin-top:10px;letter-spacing:-.3px}
+  .prof-head .pj{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .life{display:flex;background:var(--surface);border:1px solid var(--line);
+    border-radius:var(--r-md);margin-top:14px;overflow:hidden;box-shadow:var(--sh-1)}
+  .life > div{flex:1;text-align:center;padding:14px 6px;border-right:1px solid var(--line)}
+  .life > div:last-child{border-right:none}
+  .life .v{font-size:17px;font-weight:800;color:var(--ink)}
+  .life .l{font-size:10px;color:var(--muted);font-weight:700;margin-top:3px;
+    text-transform:uppercase;letter-spacing:.4px}
+  .set{display:flex;align-items:center;gap:13px;padding:15px 0;border-bottom:1px solid var(--line);
+    cursor:pointer;transition:.12s}
+  .set:hover{background:var(--surface-2);margin:0 -10px;padding:15px 10px;border-radius:var(--r-sm)}
+  .set:last-child{border-bottom:none}
+  .set .si{font-size:18px;width:26px;text-align:center}
+  .set .sl{flex:1;font-size:14px;font-weight:600;color:var(--ink)}
+  .set .sv{font-size:12.5px;color:var(--muted);font-weight:700}
+  .set .chev{color:var(--faint);font-size:18px}
+  .set.danger .sl{color:var(--danger)}
+
+  /* component states gallery */
+  .states-card{padding:14px 15px}
+  .states-card .st-grp{margin-top:10px}
+  .states-card .st-grp:first-child{margin-top:0}
+  .st-lab{font-size:10.5px;font-weight:700;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px}
+  .st-row{display:flex;gap:7px;flex-wrap:wrap}
+  .pill{font-size:11.5px;padding:6px 11px;border-radius:var(--r-pill);
+    border:1px solid var(--line-2);font-weight:700;background:var(--surface)}
+  .pill.default{color:var(--ink-2)}
+  .pill.hover{background:var(--surface-2);color:var(--ink)}
+  .pill.pressed{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .pill.disabled{background:var(--surface-2);color:var(--faint);border-color:var(--line)}
+  .pill.focus{box-shadow:0 0 0 3px var(--primary-soft);border-color:var(--primary)}
+  .pill.error{background:var(--danger-soft);color:var(--danger);border-color:var(--danger)}
+
+  .ver{text-align:center;font-size:11px;color:var(--faint);margin-top:18px;font-weight:600}
+  .hint{font-size:12px;color:var(--muted);margin-top:14px;text-align:center;
+    max-width:380px;line-height:1.5}
+</style>
+</head>
+<body>
+
+<div class="doc-head">
+  <h1>Habit Tracker +1% — Hi-Fi Prototype</h1>
+  <p>Sage Green design system · Light + Dark · component states đầy đủ</p>
+  <div class="doc-tags">
+    <span class="doc-tag">Hi-Fi v0.2</span>
+    <span class="doc-tag">Mobile (iOS/Android)</span>
+    <span class="doc-tag">Light · Dark</span>
+    <span class="doc-tag">VI / EN</span>
+    <span class="doc-tag">6 màn hình</span>
+  </div>
+</div>
+
+<div class="phone">
+  <div class="notch"></div>
+
+  <!-- status bar -->
+  <div class="statusbar">
+    <span>9:41</span>
+    <span class="glyphs">
+      <svg width="16" height="11" viewBox="0 0 16 11"><path fill="currentColor" d="M0 9h2v2H0zM3 7h2v4H3zM6 5h2v6H6zM9 3h2v8H9zM12 1h2v10h-2z"/></svg>
+      <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor"><path d="M7 0a9 9 0 0 1 6.4 2.6l-1 1A7.6 7.6 0 0 0 7 1.4 7.6 7.6 0 0 0 1.6 3.6l-1-1A9 9 0 0 1 7 0zm0 3a6 6 0 0 1 4.2 1.7l-1 1A4.6 4.6 0 0 0 7 4.4 4.6 4.6 0 0 0 3.8 5.7l-1-1A6 6 0 0 1 7 3zm0 3a3 3 0 0 1 2.1.9l-1 1A1.6 1.6 0 0 0 7 7.4a1.6 1.6 0 0 0-1.1.5l-1-1A3 3 0 0 1 7 6zm0 3a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg>
+      <svg width="24" height="11" viewBox="0 0 24 11"><rect x="0" y="0" width="22" height="11" rx="3" stroke="currentColor" fill="none" opacity=".5"/><rect x="2" y="2" width="16" height="7" rx="1.5" fill="currentColor"/><rect x="23" y="3.5" width="1" height="4" fill="currentColor" opacity=".5"/></svg>
+    </span>
+  </div>
+
+  <div class="viewport">
+
+  <!-- ============ HOME ============ -->
+  <section class="screen active" id="s-home">
+    <div class="topbar">
+      <div class="avatar" onclick="go('profile')">J</div>
+      <div class="greet">
+        <div class="hi" data-vi="Chào, James" data-en="Hi, James">Chào, James</div>
+        <div class="date" data-vi="Thứ Hai, 25 tháng 5" data-en="Monday, May 25">Thứ Hai, 25 tháng 5</div>
+      </div>
+      <div class="head-actions">
+        <div class="icon-btn" onclick="toggleTheme()" id="theme-btn" title="Theme">
+          <svg id="theme-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        </div>
+        <div class="lang-toggle" onclick="toggleLang()">
+          <span id="lg-vi" class="on">VI</span><span id="lg-en">EN</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- HERO -->
+    <div class="hero" id="hero">
+      <div class="h-label" data-vi="SỐ DƯ SAO" data-en="STAR BALANCE">SỐ DƯ SAO</div>
+      <div class="h-bal">
+        <svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.9 7.6.6-5.8 5 1.8 7.4L12 18l-6.5 3.9 1.8-7.4-5.8-5 7.6-.6z"/></svg>
+        <span id="hero-bal">128</span>
+      </div>
+      <div class="h-foot">
+        <span class="h-delta up" id="hero-delta" data-vi="▲ +5 hôm nay" data-en="▲ +5 today">▲ +5 hôm nay</span>
+        <span class="rank-chip"><span id="hero-rank-em">🔥</span><span id="hero-rank" data-vi="Đỉnh Chóp" data-en="Goated">Đỉnh Chóp</span></span>
+      </div>
+      <span class="demo-link" onclick="toggleDebt()" id="demo-link"
+        data-vi="⚠ Demo: trạng thái nợ Sao" data-en="⚠ Demo: debt state">⚠ Demo: trạng thái nợ Sao</span>
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="card prog-card">
+      <div class="prog-top">
+        <span data-vi="Điểm hôm nay" data-en="Today's points">Điểm hôm nay</span>
+        <span class="pts"><b>32</b> / 50</span>
+      </div>
+      <div class="bar"><i style="width:64%"></i></div>
+      <div class="prog-cap" data-vi="Đạt 50 điểm/ngày → +1 ★ Streak bonus"
+        data-en="Hit 50 points/day → +1 ★ Streak bonus">Đạt 50 điểm/ngày → +1 ★ Streak bonus</div>
+    </div>
+
+    <!-- CATEGORIES -->
+    <div class="section-label" data-vi="Bộ lọc danh mục" data-en="Category filter">Bộ lọc danh mục</div>
+    <div class="chips">
+      <div class="chip on" data-vi="Tất cả" data-en="All">Tất cả</div>
+      <div class="chip">📚 <span data-vi="Học" data-en="Study">Học</span></div>
+      <div class="chip">🏃 <span data-vi="Thể thao" data-en="Sports">Thể thao</span></div>
+      <div class="chip">👨‍👩‍👧 <span data-vi="Gia đình" data-en="Family">Gia đình</span></div>
+      <div class="chip">💼 <span data-vi="Công việc" data-en="Work">Công việc</span></div>
+    </div>
+
+    <!-- TASKS -->
+    <div class="section-label row between">
+      <span data-vi="Hôm nay" data-en="Today">Hôm nay</span>
+      <span class="demo-link" style="font-size:11px;color:var(--muted);text-decoration:underline;cursor:pointer" onclick="toggleEmpty()"
+        id="empty-link" data-vi="Demo: empty state" data-en="Demo: empty state">Demo: empty state</span>
+    </div>
+    <div class="card tl" id="task-list">
+      <div class="task done">
+        <div class="check done" onclick="toggleCheck(this)">✓</div>
+        <div class="t-body">
+          <div class="t-name" data-vi="Đọc sách" data-en="Reading">Đọc sách</div>
+          <div class="t-meta"><span>📚</span><span class="dot"></span><span>60′</span><span class="dot"></span><span data-vi="= 2 điểm" data-en="= 2 pts">= 2 điểm</span></div>
+        </div>
+        <div class="t-pts pos">+1 ★</div>
+      </div>
+      <div class="task done">
+        <div class="check done" onclick="toggleCheck(this)">✓</div>
+        <div class="t-body">
+          <div class="t-name" data-vi="Chạy bộ" data-en="Running">Chạy bộ</div>
+          <div class="t-meta"><span>🏃</span><span class="dot"></span><span>30′</span><span class="dot"></span><span data-vi="= 1 điểm" data-en="= 1 pt">= 1 điểm</span></div>
+        </div>
+        <div class="t-pts pos">+1 ★</div>
+      </div>
+      <div class="task">
+        <div class="check" onclick="toggleCheck(this)"></div>
+        <div class="t-body">
+          <div class="t-name" data-vi="Học tiếng Anh" data-en="English study">Học tiếng Anh</div>
+          <div class="t-meta"><span>📚</span><span class="dot"></span><span>90′</span><span class="dot"></span><span data-vi="= 3 điểm" data-en="= 3 pts">= 3 điểm</span></div>
+        </div>
+        <div class="t-pts idle">+1 ★</div>
+      </div>
+      <div class="task">
+        <div class="check" onclick="toggleCheck(this)"></div>
+        <div class="t-body">
+          <div class="t-name" data-vi="Gọi điện gia đình" data-en="Call family">Gọi điện gia đình</div>
+          <div class="t-meta"><span>👨‍👩‍👧</span><span class="dot"></span><span>30′</span><span class="dot"></span><span data-vi="= 1 điểm" data-en="= 1 pt">= 1 điểm</span></div>
+        </div>
+        <div class="t-pts idle">+1 ★</div>
+      </div>
+      <div class="task">
+        <div class="check bad">✕</div>
+        <div class="t-body">
+          <div class="t-name" data-vi="Ngủ muộn (đã ghi)" data-en="Slept late (logged)">Ngủ muộn (đã ghi)</div>
+          <div class="t-meta"><span>⚠️</span><span class="dot"></span><span data-vi="Thói xấu" data-en="Bad habit">Thói xấu</span></div>
+        </div>
+        <div class="t-pts neg">−50 ★</div>
+      </div>
+    </div>
+    <div class="card tl" id="task-empty" style="display:none">
+      <div class="empty">
+        <div class="em">🌱</div>
+        <div class="et" data-vi="Hôm nay vẫn chưa có gì" data-en="Nothing logged today">Hôm nay vẫn chưa có gì</div>
+        <div class="ed" data-vi="Chạm + để ghi hoạt động đầu tiên"
+          data-en="Tap + to log your first activity">Chạm + để ghi hoạt động đầu tiên</div>
+      </div>
+    </div>
+    <div style="height:14px"></div>
+  </section>
+
+  <!-- ============ ANALYTICS ============ -->
+  <section class="screen" id="s-stats">
+    <div class="scr-title" data-vi="Phân tích" data-en="Analytics">Phân tích</div>
+    <div class="segbar" id="segbar">
+      <button class="on" onclick="setPeriod('day',this)" data-vi="Ngày" data-en="Day">Ngày</button>
+      <button onclick="setPeriod('week',this)" data-vi="Tuần" data-en="Week">Tuần</button>
+      <button onclick="setPeriod('month',this)" data-vi="Tháng" data-en="Month">Tháng</button>
+      <button onclick="setPeriod('year',this)" data-vi="Năm" data-en="Year">Năm</button>
+    </div>
+
+    <div class="card">
+      <div class="row between">
+        <span style="font-size:13px;font-weight:800" data-vi="Điểm theo thời gian" data-en="Points over time">Điểm theo thời gian</span>
+        <span class="demo-link" style="font-size:11px;color:var(--muted);text-decoration:underline;cursor:pointer"
+          onclick="toggleSkeleton()" id="skel-link"
+          data-vi="Demo: loading" data-en="Demo: loading">Demo: loading</span>
+      </div>
+      <div class="row between" style="margin-top:6px"><span></span>
+        <span class="muted" style="font-size:11px" id="chart-sum">Σ 41</span>
+      </div>
+      <div class="chart" id="chart"></div>
+    </div>
+
+    <div class="section-label" data-vi="Tổng quan" data-en="Overview">Tổng quan</div>
+    <div class="stat-grid" id="stats-grid">
+      <div class="stat"><div class="v">92 ★</div><div class="l" data-vi="Sao tuần này" data-en="Stars this week">Sao tuần này</div></div>
+      <div class="stat"><div class="v">41</div><div class="l" data-vi="TB điểm / ngày" data-en="Avg points / day">TB điểm / ngày</div></div>
+      <div class="stat"><div class="v">12 🔥</div><div class="l" data-vi="Streak dài nhất" data-en="Best streak">Streak dài nhất</div></div>
+      <div class="stat"><div class="v">86%</div><div class="l" data-vi="Tỉ lệ hoàn thành" data-en="Completion rate">Tỉ lệ hoàn thành</div></div>
+    </div>
+
+    <div class="section-label" data-vi="Theo danh mục" data-en="By category">Theo danh mục</div>
+    <div class="card">
+      <div class="catrow"><span class="nm">📚 <span data-vi="Học" data-en="Study">Học</span></span><span class="tk"><i style="width:74%"></i></span><span class="pc">37%</span></div>
+      <div class="catrow"><span class="nm">🏃 <span data-vi="Thể thao" data-en="Sports">Thể thao</span></span><span class="tk"><i style="width:52%"></i></span><span class="pc">26%</span></div>
+      <div class="catrow"><span class="nm">💼 <span data-vi="Việc" data-en="Work">Việc</span></span><span class="tk"><i style="width:46%"></i></span><span class="pc">23%</span></div>
+      <div class="catrow"><span class="nm">👨‍👩‍👧 <span data-vi="Gia đình" data-en="Family">Gia đình</span></span><span class="tk"><i style="width:28%"></i></span><span class="pc">14%</span></div>
+    </div>
+    <div style="height:14px"></div>
+  </section>
+
+  <!-- ============ REWARDS ============ -->
+  <section class="screen" id="s-rewards">
+    <div class="scr-title" data-vi="Quỹ Tự Thưởng" data-en="Self-Reward Fund">Quỹ Tự Thưởng</div>
+
+    <div class="fund">
+      <div class="fl" data-vi="SỐ DƯ KHẢ DỤNG" data-en="AVAILABLE BALANCE">SỐ DƯ KHẢ DỤNG</div>
+      <div class="fv">₫175.000</div>
+      <div class="fc" data-vi="Tích luỹ từ 5 mốc Sao đã vượt qua"
+        data-en="Accrued from 5 milestones crossed">Tích luỹ từ 5 mốc Sao đã vượt qua</div>
+    </div>
+
+    <div class="card" style="margin-top:12px;background:var(--star-soft);border-color:var(--star)">
+      <div style="font-size:12.5px;font-weight:800;color:var(--star)"
+        data-vi="Tuần 21 · 92 ★ → mở khoá 5 / 10 / 20 / 40 / 80 (cộng dồn ₫155k)"
+        data-en="Week 21 · 92 ★ → unlocked 5 / 10 / 20 / 40 / 80 (stacked ₫155k)">Tuần 21 · 92 ★ → mở khoá 5 / 10 / 20 / 40 / 80 (cộng dồn ₫155k)</div>
+    </div>
+
+    <div class="section-label" data-vi="Các mốc thưởng (luỹ tiến)" data-en="Reward milestones">Các mốc thưởng (luỹ tiến)</div>
+    <div class="card" style="padding:6px 15px">
+      <div class="tier"><div class="badge crossed">5★</div><div class="ti"><div class="a">₫5.000</div><div class="b" data-vi="Mốc 1" data-en="Tier 1">Mốc 1</div></div><div class="st crossed" data-vi="Đã vượt" data-en="Crossed">Đã vượt</div></div>
+      <div class="tier"><div class="badge crossed">10★</div><div class="ti"><div class="a">₫10.000</div><div class="b" data-vi="Mốc 2" data-en="Tier 2">Mốc 2</div></div><div class="st crossed" data-vi="Đã vượt" data-en="Crossed">Đã vượt</div></div>
+      <div class="tier"><div class="badge crossed">20★</div><div class="ti"><div class="a">₫20.000</div><div class="b" data-vi="Mốc 3" data-en="Tier 3">Mốc 3</div></div><div class="st crossed" data-vi="Đã vượt" data-en="Crossed">Đã vượt</div></div>
+      <div class="tier"><div class="badge crossed">40★</div><div class="ti"><div class="a">₫40.000</div><div class="b" data-vi="Mốc 4" data-en="Tier 4">Mốc 4</div></div><div class="st crossed" data-vi="Đã vượt" data-en="Crossed">Đã vượt</div></div>
+      <div class="tier"><div class="badge crossed">80★</div><div class="ti"><div class="a">₫80.000</div><div class="b" data-vi="Mốc 5" data-en="Tier 5">Mốc 5</div></div><div class="st crossed" data-vi="Đã vượt" data-en="Crossed">Đã vượt</div></div>
+      <div class="tier"><div class="badge locked">160★</div><div class="ti"><div class="a">₫160.000</div><div class="b" data-vi="Mốc 6 · còn 68 ★" data-en="Tier 6 · 68 ★ to go">Mốc 6 · còn 68 ★</div></div><div class="st locked" data-vi="Khoá" data-en="Locked">Khoá</div></div>
+    </div>
+
+    <div class="section-label row between">
+      <span data-vi="Sổ giao dịch" data-en="Transaction Ledger">Sổ giao dịch</span>
+      <span style="color:var(--primary);font-weight:800;cursor:pointer" data-vi="+ Ghi chi tiêu" data-en="+ Log spending">+ Ghi chi tiêu</span>
+    </div>
+    <div class="card" style="padding:4px 15px">
+      <div class="ledger">
+        <div class="ldot in">★</div>
+        <div class="li"><div class="a" data-vi="Cộng dồn mốc 80 ★ — Tuần 21" data-en="Stacked milestone 80 ★ — Week 21">Cộng dồn mốc 80 ★ — Tuần 21</div><div class="b">25/05</div></div>
+        <div class="amt in">+₫80.000<small>₫175.000</small></div>
+      </div>
+      <div class="ledger">
+        <div class="ldot out">☕</div>
+        <div class="li"><div class="a" data-vi="Cà phê tự thưởng" data-en="Reward coffee">Cà phê tự thưởng</div><div class="b">22/05</div></div>
+        <div class="amt out">−₫45.000<small>₫95.000</small></div>
+      </div>
+      <div class="ledger">
+        <div class="ldot in">★</div>
+        <div class="li"><div class="a" data-vi="Mốc 40 ★ — Tuần 20" data-en="Milestone 40 ★ — Week 20">Mốc 40 ★ — Tuần 20</div><div class="b">18/05</div></div>
+        <div class="amt in">+₫40.000<small>₫140.000</small></div>
+      </div>
+      <div class="ledger">
+        <div class="ldot out">📖</div>
+        <div class="li"><div class="a" data-vi="Mua sách mới" data-en="New book">Mua sách mới</div><div class="b">15/05</div></div>
+        <div class="amt out">−₫120.000<small>₫100.000</small></div>
+      </div>
+    </div>
+    <div style="height:14px"></div>
+  </section>
+
+  <!-- ============ RANK ============ -->
+  <section class="screen" id="s-rank">
+    <div class="scr-title" data-vi="Bảng Rank" data-en="Rank">Bảng Rank</div>
+
+    <div class="rankhero">
+      <div class="em">🔥</div>
+      <div class="nm" data-vi="Đỉnh Chóp" data-en="Goated">Đỉnh Chóp</div>
+      <div class="en" data-vi="“đỉnh của chóp rồi đó”" data-en="“peak of the peak”">“đỉnh của chóp rồi đó”</div>
+      <div class="wk">★ 92 · <span data-vi="Tuần 21" data-en="Week 21">Tuần 21</span></div>
+      <div class="bar" style="margin:14px 0 0"><i style="width:15%"></i></div>
+      <div class="nextcap" data-vi="Còn 68 ★ → U Là Trời 👑"
+        data-en="68 ★ to Main Character 👑">Còn 68 ★ → U Là Trời 👑</div>
+    </div>
+
+    <div class="reset-chip">
+      <span>♻</span>
+      <span data-vi="Reset T2 · 00:00 — Sao tuần về ngưỡng sàn hạng (rank retention)"
+        data-en="Reset Mon · 00:00 — weekly stars retain at rank floor">Reset T2 · 00:00 — Sao tuần về ngưỡng sàn hạng (rank retention)</span>
+    </div>
+
+    <div class="section-label" data-vi="Thang bậc Rank" data-en="Rank ladder">Thang bậc Rank</div>
+    <div class="card" style="padding:4px 15px">
+      <div class="rk"><div class="em">👑</div><div class="ri"><div class="a">U Là Trời</div><div class="b">Main Character</div></div><div class="thr">160+ ★</div></div>
+      <div class="rk cur"><div class="em">🔥</div><div class="ri"><div class="a">Đỉnh Chóp</div><div class="b">Goated</div></div><div class="thr">80–159 ★</div></div>
+      <div class="rk"><div class="em">✨</div><div class="ri"><div class="a">Xịn Sò</div><div class="b">Certified Fresh</div></div><div class="thr">40–79 ★</div></div>
+      <div class="rk"><div class="em">🌀</div><div class="ri"><div class="a">Cuốn Phết</div><div class="b">On a Roll</div></div><div class="thr">20–39 ★</div></div>
+      <div class="rk"><div class="em">🤡</div><div class="ri"><div class="a">Tấu Hài</div><div class="b">Clown Arc</div></div><div class="thr">10–19 ★</div></div>
+      <div class="rk"><div class="em">🐣</div><div class="ri"><div class="a">Non Tơ</div><div class="b">Rookie</div></div><div class="thr">5–9 ★</div></div>
+      <div class="rk"><div class="em">🎮</div><div class="ri"><div class="a">NPC</div><div class="b">NPC</div></div><div class="thr">0–4 ★</div></div>
+      <div class="rk debt"><div class="em">💀</div><div class="ri"><div class="a">Toang Rồi Ông Giáo</div><div class="b">Game Over</div></div><div class="thr">&lt; 0 ★</div></div>
+    </div>
+
+    <div class="philo">
+      <div class="pq" data-vi="“Không có bảng xếp hạng người khác. Bạn chỉ đua với chính mình của hôm qua.”"
+        data-en="“No leaderboards. You only race against yesterday's you.”">“Không có bảng xếp hạng người khác. Bạn chỉ đua với chính mình của hôm qua.”</div>
+      <div class="pa" data-vi="Triết lý: process-focused · zero FOMO · zero so sánh độc hại"
+        data-en="Philosophy: process-focused · zero FOMO · zero toxic comparison">Triết lý: process-focused · zero FOMO · zero so sánh độc hại</div>
+    </div>
+
+    <div class="section-label" data-vi="Lịch sử các tuần" data-en="Weekly history">Lịch sử các tuần</div>
+    <div class="card" style="padding:4px 15px">
+      <div class="rk"><div class="em">✨</div><div class="ri"><div class="a" data-vi="Tuần 20" data-en="Week 20">Tuần 20</div><div class="b">Xịn Sò</div></div><div class="thr">78 ★</div></div>
+      <div class="rk"><div class="em">🌀</div><div class="ri"><div class="a" data-vi="Tuần 19" data-en="Week 19">Tuần 19</div><div class="b">Cuốn Phết</div></div><div class="thr">34 ★</div></div>
+      <div class="rk"><div class="em">🌀</div><div class="ri"><div class="a" data-vi="Tuần 18" data-en="Week 18">Tuần 18</div><div class="b">Cuốn Phết</div></div><div class="thr">21 ★</div></div>
+    </div>
+    <div style="height:14px"></div>
+  </section>
+
+  <!-- ============ PROFILE ============ -->
+  <section class="screen" id="s-profile">
+    <div class="scr-title" data-vi="Hồ sơ" data-en="Profile">Hồ sơ</div>
+    <div class="prof-head">
+      <div class="pa">J</div>
+      <div class="pn">James</div>
+      <div class="pj" data-vi="Tham gia 18/03/2026 · 🔥 Đỉnh Chóp"
+        data-en="Joined Mar 18, 2026 · 🔥 Goated">Tham gia 18/03/2026 · 🔥 Đỉnh Chóp</div>
+    </div>
+    <div class="life">
+      <div><div class="v">128 ★</div><div class="l" data-vi="Tổng Sao" data-en="Total stars">Tổng Sao</div></div>
+      <div><div class="v">12 🔥</div><div class="l" data-vi="Streak" data-en="Streak">Streak</div></div>
+      <div><div class="v">₫175k</div><div class="l" data-vi="Quỹ thưởng" data-en="Fund">Quỹ thưởng</div></div>
+    </div>
+
+    <div class="section-label" data-vi="Cài đặt" data-en="Settings">Cài đặt</div>
+    <div class="card" style="padding:4px 15px">
+      <div class="set" onclick="toggleLang()">
+        <span class="si">🌐</span><span class="sl" data-vi="Ngôn ngữ" data-en="Language">Ngôn ngữ</span>
+        <span class="sv" id="set-lang">Tiếng Việt</span><span class="chev">›</span>
+      </div>
+      <div class="set" onclick="toggleTheme()">
+        <span class="si">🌓</span><span class="sl" data-vi="Giao diện" data-en="Theme">Giao diện</span>
+        <span class="sv" id="set-theme">Sáng</span><span class="chev">›</span>
+      </div>
+      <div class="set"><span class="si">🏷️</span><span class="sl" data-vi="Quản lý danh mục" data-en="Manage categories">Quản lý danh mục</span><span class="chev">›</span></div>
+      <div class="set"><span class="si">🔔</span><span class="sl" data-vi="Nhắc nhở" data-en="Reminders">Nhắc nhở</span><span class="sv">08:00</span><span class="chev">›</span></div>
+      <div class="set"><span class="si">🧮</span><span class="sl" data-vi="Quy tắc tính điểm" data-en="Scoring rules">Quy tắc tính điểm</span><span class="chev">›</span></div>
+      <div class="set"><span class="si">🎯</span><span class="sl" data-vi="Mục tiêu cá nhân" data-en="Personal goals">Mục tiêu cá nhân</span><span class="chev">›</span></div>
+      <div class="set"><span class="si">ℹ️</span><span class="sl" data-vi="Giới thiệu ứng dụng" data-en="About">Giới thiệu ứng dụng</span><span class="chev">›</span></div>
+      <div class="set danger"><span class="si">↺</span><span class="sl" data-vi="Đặt lại dữ liệu" data-en="Reset data">Đặt lại dữ liệu</span><span class="chev">›</span></div>
+    </div>
+
+    <!-- COMPONENT STATES GALLERY -->
+    <div class="section-label" data-vi="Trạng thái component (xem nhanh)" data-en="Component states (preview)">Trạng thái component (xem nhanh)</div>
+    <div class="card states-card">
+      <div class="st-grp">
+        <div class="st-lab">Chip</div>
+        <div class="st-row">
+          <span class="pill default" data-vi="Mặc định" data-en="Default">Mặc định</span>
+          <span class="pill hover">Hover</span>
+          <span class="pill pressed">Pressed</span>
+          <span class="pill focus">Focus</span>
+          <span class="pill disabled">Disabled</span>
+          <span class="pill error">Error</span>
+        </div>
+      </div>
+      <div class="st-grp">
+        <div class="st-lab">Button</div>
+        <div class="st-row">
+          <button class="btn-primary" style="width:auto;padding:8px 14px;font-size:12px;margin:0">Default</button>
+          <button class="btn-primary" style="width:auto;padding:8px 14px;font-size:12px;margin:0;background:var(--primary-hover)">Hover</button>
+          <button class="btn-primary" style="width:auto;padding:8px 14px;font-size:12px;margin:0;background:var(--primary-press);transform:scale(.98)">Pressed</button>
+          <button class="btn-primary" style="width:auto;padding:8px 14px;font-size:12px;margin:0" disabled>Disabled</button>
+        </div>
+      </div>
+    </div>
+    <div class="ver">Habit Tracker +1% · v0.2 · Hi-Fi prototype</div>
+    <div style="height:14px"></div>
+  </section>
+
+  </div><!-- /viewport -->
+
+  <!-- ============ BOTTOM NAV ============ -->
+  <nav class="tabbar">
+    <div class="tab on" id="tab-home" onclick="go('home')">
+      <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h6v-6h2v6h6V10"/></svg>
+      <span data-vi="Trang chủ" data-en="Home">Trang chủ</span>
+    </div>
+    <div class="tab" id="tab-stats" onclick="go('stats')">
+      <svg viewBox="0 0 24 24"><path d="M3 20h18M6 20v-7M12 20V5M18 20v-10"/></svg>
+      <span data-vi="Phân tích" data-en="Stats">Phân tích</span>
+    </div>
+    <button class="fab" onclick="openSheet()" aria-label="Add">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <div class="tab" id="tab-rewards" onclick="go('rewards')">
+      <svg viewBox="0 0 24 24"><rect x="3.5" y="9" width="17" height="11" rx="1.5"/><path d="M3.5 13h17M12 9v11M12 9c-1-3-7-3-5 0M12 9c1-3 7-3 5 0"/></svg>
+      <span data-vi="Quỹ thưởng" data-en="Rewards">Quỹ thưởng</span>
+    </div>
+    <div class="tab" id="tab-rank" onclick="go('rank')">
+      <svg viewBox="0 0 24 24"><path d="M7 4h10v5a5 5 0 01-10 0V4zM7 6H4v2a3 3 0 003 3M17 6h3v2a3 3 0 01-3 3M9 20h6M12 14v6"/></svg>
+      <span data-vi="Rank" data-en="Rank">Rank</span>
+    </div>
+  </nav>
+
+  <!-- ============ ADD TASK SHEET ============ -->
+  <div class="overlay" id="overlay" onclick="if(event.target===this)closeSheet()">
+    <div class="sheet">
+      <div class="handle"></div>
+      <h3 data-vi="Ghi nhận hoạt động" data-en="Log activity">Ghi nhận hoạt động</h3>
+
+      <div class="seg" id="kind-seg">
+        <button class="on" id="k-good" onclick="setKind('good')" data-vi="Việc tốt +" data-en="Good +">Việc tốt +</button>
+        <button id="k-bad" onclick="setKind('bad')" data-vi="Thói xấu −" data-en="Bad −">Thói xấu −</button>
+      </div>
+
+      <div class="field-label" data-vi="Tên hoạt động" data-en="Activity name">Tên hoạt động</div>
+      <input class="input" id="task-name" data-vi-ph="VD: Đọc sách, học, thể thao…"
+        data-en-ph="e.g. Reading, study, sports…" placeholder="VD: Đọc sách, học, thể thao…"
+        oninput="document.getElementById('err-name').classList.remove('show');this.classList.remove('err')">
+      <div class="err-msg" id="err-name" data-vi="Tên hoạt động không được để trống"
+        data-en="Activity name is required">Tên hoạt động không được để trống</div>
+
+      <div class="field-label" data-vi="Danh mục" data-en="Category">Danh mục</div>
+      <div class="chips">
+        <div class="chip on">📚 <span data-vi="Học" data-en="Study">Học</span></div>
+        <div class="chip">🏃 <span data-vi="Thể thao" data-en="Sports">Thể thao</span></div>
+        <div class="chip">👨‍👩‍👧 <span data-vi="Gia đình" data-en="Family">Gia đình</span></div>
+        <div class="chip">💼 <span data-vi="Việc" data-en="Work">Việc</span></div>
+      </div>
+
+      <div id="dur-block">
+        <div class="field-label" data-vi="Thời lượng (bước 30 phút)" data-en="Duration (30-min steps)">Thời lượng (bước 30 phút)</div>
+        <div class="stepper">
+          <button onclick="stepDur(-30)">−</button>
+          <span class="val" id="dur-val">60′</span>
+          <button onclick="stepDur(30)">+</button>
+        </div>
+      </div>
+
+      <div class="preview" id="preview">= 2 điểm · +1 ★</div>
+      <button class="btn-primary" id="save-btn" onclick="trySave()"
+        data-vi="Lưu hoạt động" data-en="Save activity">Lưu hoạt động</button>
+    </div>
+  </div>
+
+</div><!-- /phone -->
+
+<div class="hint" data-vi="Light/Dark switch ở header · (+) ghi hoạt động · Demo states inline: nợ Sao, empty, loading, validation. Validation: bấm Lưu khi tên trống để xem error."
+  data-en="Light/Dark switch in header · (+) to log activity · inline state demos: debt, empty, loading, validation. Tap Save with empty name to see the error state.">
+  Light/Dark switch ở header · (+) ghi hoạt động · Demo states inline: nợ Sao, empty, loading, validation. Validation: bấm Lưu khi tên trống để xem error.
+</div>
+
+<script>
+/* ============ STATE ============ */
+var state = { lang:'vi', theme:'light', screen:'home', kind:'good', dur:60, debt:false, empty:false, skel:false, period:'day' };
+
+/* ============ I18N ============ */
+function applyLang(){
+  document.querySelectorAll('[data-vi]').forEach(function(el){
+    el.textContent = state.lang==='vi' ? el.getAttribute('data-vi') : el.getAttribute('data-en');
+  });
+  document.querySelectorAll('[data-vi-ph]').forEach(function(el){
+    el.placeholder = state.lang==='vi' ? el.getAttribute('data-vi-ph') : el.getAttribute('data-en-ph');
+  });
+  document.getElementById('lg-vi').className = state.lang==='vi'?'on':'';
+  document.getElementById('lg-en').className = state.lang==='en'?'on':'';
+  document.getElementById('set-lang').textContent = state.lang==='vi'?'Tiếng Việt':'English';
+  document.getElementById('set-theme').textContent =
+    state.theme==='light' ? (state.lang==='vi'?'Sáng':'Light') : (state.lang==='vi'?'Tối':'Dark');
+  document.documentElement.lang = state.lang;
+  updatePreview(); renderChart();
+}
+function toggleLang(){ state.lang = state.lang==='vi'?'en':'vi'; applyLang(); }
+
+/* ============ THEME ============ */
+function toggleTheme(){
+  state.theme = state.theme==='light'?'dark':'light';
+  document.documentElement.setAttribute('data-theme', state.theme);
+  var icon = document.getElementById('theme-icon');
+  if(state.theme==='dark'){
+    icon.innerHTML = '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>';
+  }
+  applyLang();
+}
+
+/* ============ NAVIGATION ============ */
+function go(name){
+  state.screen = name;
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  document.getElementById('s-'+name).classList.add('active');
+  ['home','stats','rewards','rank'].forEach(function(t){
+    var el = document.getElementById('tab-'+t);
+    if(el) el.classList.toggle('on', t===name);
+  });
+  document.getElementById('s-'+name).scrollTop = 0;
+}
+
+/* ============ TASK CHECK ============ */
+function toggleCheck(el){
+  if(el.classList.contains('bad')) return;
+  var task = el.closest('.task'); var pts = task.querySelector('.t-pts');
+  if(el.classList.contains('done')){
+    el.classList.remove('done'); el.textContent='';
+    task.classList.remove('done'); pts.classList.remove('pos'); pts.classList.add('idle');
+  } else {
+    el.classList.add('done'); el.textContent='✓';
+    task.classList.add('done'); pts.classList.remove('idle'); pts.classList.add('pos');
+  }
+}
+
+/* ============ DEMO TOGGLES ============ */
+function toggleDebt(){
+  state.debt = !state.debt;
+  var hero=document.getElementById('hero'), bal=document.getElementById('hero-bal'),
+      delta=document.getElementById('hero-delta'), rank=document.getElementById('hero-rank'),
+      em=document.getElementById('hero-rank-em'), link=document.getElementById('demo-link');
+  if(state.debt){
+    hero.classList.add('debt'); bal.textContent='−22';
+    delta.className='h-delta down';
+    delta.setAttribute('data-vi','▼ −50 hôm nay'); delta.setAttribute('data-en','▼ −50 today');
+    rank.setAttribute('data-vi','Toang Rồi Ông Giáo'); rank.setAttribute('data-en','Game Over');
+    em.textContent='💀';
+    link.setAttribute('data-vi','↩ Quay lại trạng thái thường'); link.setAttribute('data-en','↩ Back to normal');
+  } else {
+    hero.classList.remove('debt'); bal.textContent='128';
+    delta.className='h-delta up';
+    delta.setAttribute('data-vi','▲ +5 hôm nay'); delta.setAttribute('data-en','▲ +5 today');
+    rank.setAttribute('data-vi','Đỉnh Chóp'); rank.setAttribute('data-en','Goated');
+    em.textContent='🔥';
+    link.setAttribute('data-vi','⚠ Demo: trạng thái nợ Sao'); link.setAttribute('data-en','⚠ Demo: debt state');
+  }
+  applyLang();
+}
+function toggleEmpty(){
+  state.empty=!state.empty;
+  document.getElementById('task-list').style.display = state.empty?'none':'block';
+  document.getElementById('task-empty').style.display = state.empty?'block':'none';
+  var link=document.getElementById('empty-link');
+  if(state.empty){ link.setAttribute('data-vi','↩ Quay lại danh sách'); link.setAttribute('data-en','↩ Back to list'); }
+  else { link.setAttribute('data-vi','Demo: empty state'); link.setAttribute('data-en','Demo: empty state'); }
+  applyLang();
+}
+function toggleSkeleton(){
+  state.skel=!state.skel;
+  document.getElementById('chart').classList.toggle('skeleton', state.skel);
+  document.querySelectorAll('#stats-grid .stat').forEach(function(el){ el.classList.toggle('sk', state.skel); });
+  var link=document.getElementById('skel-link');
+  if(state.skel){ link.setAttribute('data-vi','↩ Hiện dữ liệu'); link.setAttribute('data-en','↩ Show data'); }
+  else { link.setAttribute('data-vi','Demo: loading'); link.setAttribute('data-en','Demo: loading'); }
+  applyLang();
+}
+
+/* ============ SHEET ============ */
+function openSheet(){ document.getElementById('overlay').classList.add('show'); }
+function closeSheet(){
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('err-name').classList.remove('show');
+  document.getElementById('task-name').classList.remove('err');
+}
+function setKind(k){
+  state.kind=k;
+  document.getElementById('k-good').className = k==='good'?'on':'';
+  document.getElementById('k-bad').className  = k==='bad'?'on bad':'';
+  document.getElementById('dur-block').style.display = k==='good'?'block':'none';
+  document.getElementById('save-btn').className = 'btn-primary' + (k==='bad'?' bad':'');
+  updatePreview();
+}
+function stepDur(d){
+  state.dur = Math.max(30, state.dur+d);
+  document.getElementById('dur-val').textContent = state.dur+'′';
+  updatePreview();
+}
+function updatePreview(){
+  var p=document.getElementById('preview');
+  if(state.kind==='bad'){
+    p.className='preview bad';
+    p.textContent = state.lang==='vi' ? 'Trừ 50 ★ khỏi số dư (có thể âm)' : '−50 ★ from balance (can go negative)';
+  } else {
+    p.className='preview';
+    var pts = state.dur <= 30 ? 1 : Math.floor(state.dur/30);
+    p.textContent = state.lang==='vi'
+      ? '= ' + pts + ' điểm · +1 ★ (1 việc = 1 Sao)'
+      : '= ' + pts + ' points · +1 ★ (1 task = 1 Star)';
+  }
+}
+function trySave(){
+  var input=document.getElementById('task-name');
+  if(!input.value.trim()){
+    input.classList.add('err');
+    document.getElementById('err-name').classList.add('show');
+    input.focus(); return;
+  }
+  closeSheet();
+  input.value='';
+}
+
+/* ============ CHART ============ */
+var CHART = {
+  day:   { sum:41, x:['6h','9h','12h','15h','18h','21h'], v:[1,3,2,0,3,4] },
+  week:  { sum:287, x:['T2','T3','T4','T5','T6','T7','CN'], v:[38,52,41,33,49,44,30] },
+  month: { sum:1180, x:['W1','W2','W3','W4'], v:[260,310,287,323] },
+  year:  { sum:13400, x:['1','2','3','4','5','6','7','8','9','10','11','12'],
+           v:[820,910,1050,1180,1240,0,0,0,0,0,0,0] }
+};
+function setPeriod(p,btn){
+  state.period=p;
+  document.querySelectorAll('#segbar button').forEach(function(b){ b.classList.remove('on'); });
+  btn.classList.add('on');
+  renderChart();
+}
+function renderChart(){
+  var d = CHART[state.period||'day'];
+  var max = Math.max.apply(null, d.v) || 1;
+  var html='';
+  for(var i=0;i<d.v.length;i++){
+    var h = d.v[i]===0 ? 2 : Math.round(d.v[i]/max*100);
+    html += '<div class="col"><div class="fill" style="height:100%">'
+          + '<i style="height:'+h+'%"></i></div>'
+          + '<div class="xl">'+d.x[i]+'</div></div>';
+  }
+  document.getElementById('chart').innerHTML = html;
+  document.getElementById('chart-sum').textContent = 'Σ ' + d.sum;
+}
+
+/* ============ INIT ============ */
+renderChart();
+applyLang();
+</script>
+</body>
+</html>
