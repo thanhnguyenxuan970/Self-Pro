@@ -47,7 +47,7 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 A **workspace of agent prompt files and design specs** — not a buildable project itself. Two active projects live here:
 
 - **PokeScan** — Pokémon card scanning app. Code lives in sibling `android/` and `backend/` dirs (outside this workspace). Agent prompts here drive development of that code.
-- **Habit Tracker** — Gamified habit tracking React Native app. Day 2 COMPLETE (2026-05-28).
+- **Habit Tracker** — Gamified habit tracking React Native app. Day 3 COMPLETE (2026-05-28).
 
 ---
 
@@ -155,15 +155,15 @@ Test requirements:
 
 ## Habit Tracker Architecture
 
-**Status:** Day 2 COMPLETE (2026-05-28). Code lives at `c:\Users\Admin\Desktop\habit-tracker\` (sibling to this workspace).
+**Status:** Day 3 COMPLETE (2026-05-28). Code lives at `c:\Users\Admin\Desktop\habit-tracker\` (sibling to this workspace).
 
 **Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29
 
 **Data model:** append-only `activity_log` as source of truth; derived rollups via `daily_summary` / `weekly_summary`.
 
-**Navigation:** 4 bottom tabs — Today (✅), Progress (📊 stub), Fund (💰 live), Me (👤 live).
+**Navigation:** 4 bottom tabs — Today (✅), Progress (📊 D/W/M/Y chart), Fund (💰 deposit+withdrawal), Me (👤 live).
 
-**State:** TanStack Query over local DB; each log mutation invalidates `today`, `week`, `fund` queries.
+**State:** TanStack Query over local DB; each log mutation invalidates `today`, `week`, `fund`, `progress` queries.
 
 **Rank system:** 8-tier Gen Z rank ladder. Weekly reset Monday 00:00 user-local. Self-treat fund in VND.
 
@@ -214,22 +214,43 @@ habit-tracker/
 Total: 14/14 tests pass
 ```
 
-### Day 2 Test Command
-```bash
-cd C:\Users\Admin\Desktop\habit-tracker
-npx jest          # 14/14 pass
-npx tsc --noEmit  # 0 errors
-npx expo run:android
+### Key Decisions (Day 3)
+- `streak_count` computed by reading yesterday's `daily_summary` row BEFORE the transaction (outside `withTransactionAsync`). Guard is `daily === null` (first log of day). `ON CONFLICT DO UPDATE` intentionally omits `streak_count` — set once on INSERT, never overwritten.
+- `victory-native@^36` pinned (NOT v40+). v40 switched to `@shopify/react-native-skia` — different API. v36 uses `react-native-svg` (SVG-based, compatible with Expo SDK 56).
+- `useProgressData` queryKey uses `rangeKey` scoped to the active range (`today` for D, `weekStart` for W, `monthPrefix` for M, `year` for Y) — avoids stale cache across date boundaries.
+- `ProgressScreen` uses named export `export function ProgressScreen()` (not default) — matches existing `import { ProgressScreen }` in `RootNavigator.tsx`.
+- `FundScreen.handleSpend` uses `mutateAsync` wrapped in try/catch — surfaces DB errors via `Alert` without crashing.
+- `react-native-svg` is a native module — requires `npx expo run:android` (not Expo Go).
+
+### Day 3 Files Created/Modified
+```
+habit-tracker/
+├── src/logic/formatters.ts       ← ADD getLocalDateFor(date: Date)
+├── src/queries/useToday.ts       ← streak logic, +progress invalidation
+├── src/queries/useProgress.ts    ← NEW: useProgressData, useStreakCount, useStarsToNextTier
+├── src/queries/useFund.ts        ← ADD useSpendFund mutation
+├── src/screens/ProgressScreen.tsx← REPLACE: D/W/M/Y chart + StatStrip
+├── src/screens/FundScreen.tsx    ← ADD withdrawal modal
+└── __tests__/streak.test.ts      ← NEW: 3 tests
+Total: 17/17 tests pass
 ```
 
-### Day 3 Next Steps
-- Progress screen: weekly star chart via `victory-native` + `react-native-svg`
-- Streak tracking: populate `streak_count` in `daily_summary` on each log
-- Manual spending: WITHDRAWAL entry in Fund screen
+### Day 3 Test Command
+```bash
+cd C:\Users\Admin\Desktop\habit-tracker
+npx jest          # 17/17 pass
+npx tsc --noEmit  # 0 errors
+npx expo run:android  # requires native build (react-native-svg)
+```
+
+### Day 4 Next Steps (not yet planned)
+- Categories: implement `CategoryChips` filter on TodayScreen
+- Weekly reset UI: show "Week reset!" toast on Monday first open
+- Push notifications: daily reminder at configurable time
 
 ### Known Deferred
-- `victory-native` + `react-native-svg` deferred to Day 3 (charts on Progress screen)
 - Concurrent tap race condition in `useLogTask` (TOCTOU on reads before transaction) — MVP-acceptable, fix pre-multi-user
+- `starsToNextTier` shows 0 when at max tier — could show "MAX TIER" message on MeScreen
 
 Key constants: `src/constants.ts`
 Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.md` | Prototype: `Habit-Tracker-Wireframe-Prototype.html`
