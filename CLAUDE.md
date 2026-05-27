@@ -47,7 +47,7 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 A **workspace of agent prompt files and design specs** — not a buildable project itself. Two active projects live here:
 
 - **PokeScan** — Pokémon card scanning app. Code lives in sibling `android/` and `backend/` dirs (outside this workspace). Agent prompts here drive development of that code.
-- **Habit Tracker** — Gamified habit tracking React Native app currently in design phase. Schema + UI architecture fully specified; code not yet written.
+- **Habit Tracker** — Gamified habit tracking React Native app. Day 2 COMPLETE (2026-05-28).
 
 ---
 
@@ -155,13 +155,13 @@ Test requirements:
 
 ## Habit Tracker Architecture
 
-**Status:** Day 1 COMPLETE (2026-05-27). Code lives at `c:\Users\Admin\Desktop\habit-tracker\` (sibling to this workspace).
+**Status:** Day 2 COMPLETE (2026-05-28). Code lives at `c:\Users\Admin\Desktop\habit-tracker\` (sibling to this workspace).
 
 **Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29
 
 **Data model:** append-only `activity_log` as source of truth; derived rollups via `daily_summary` / `weekly_summary`.
 
-**Navigation:** 4 bottom tabs — Today (✅), Progress (📊 stub), Fund (💰 stub), Me (👤 stub).
+**Navigation:** 4 bottom tabs — Today (✅), Progress (📊 stub), Fund (💰 live), Me (👤 live).
 
 **State:** TanStack Query over local DB; each log mutation invalidates `today`, `week`, `fund` queries.
 
@@ -170,7 +170,7 @@ Test requirements:
 ### Key Decisions (Day 1)
 - `drizzle-orm` used for TypeScript type inference only — NOT for query execution. All runtime queries use raw expo-sqlite API (`db.runAsync`, `db.getAllAsync`, `db.getFirstAsync`).
 - `getDb()` returns `Promise<SQLiteDatabase>` (singleton pattern caching the promise). App.tsx awaits it before mounting navigator.
-- All 5 DB writes in `useLogTask` wrapped in `db.withTransactionAsync` for atomicity.
+- All DB writes in `useLogTask` wrapped in `db.withTransactionAsync` for atomicity (includes activity, daily/weekly summary, tier unlocks, fund deposits).
 - Default seed: user_id=1 (`me`), 8 tiers, 1 task (`Exercise`) seeded in `runMigrations`.
 - `jest.config.js` uses `transform` (not deprecated `globals`) for ts-jest. `tsconfig.json` has `"types": ["jest"]`.
 
@@ -188,24 +188,48 @@ habit-tracker/
 └── __tests__/logTask.test.ts  ← 6/6 pass
 ```
 
-### Day 1 Test Command
-```bash
-cd C:\Users\Admin\Desktop\habit-tracker
-npx jest  # 6/6 pass
-npx expo run:android  # verify tap → star persists
+### Key Decisions (Day 2)
+- `App.tsx` weekly reset: single `UPDATE weekly_summary SET finalized=1 WHERE week_start < ?` — handles multi-week gaps in one SQL call. Dropped `computeWeeklyReset` from App.tsx (pure fn kept for tests, no longer called at startup).
+- Tier unlock detection reads `oldStars` BEFORE transaction, uses `INSERT OR IGNORE` + `r.changes > 0` guard to prevent duplicate `fund_transactions` deposits.
+- `starPenalty` validation in `MeScreen.handleSave` now gated on `form.kind === 'BAD'` to avoid confusing errors when kind toggled after entering BAD values.
+- `archiveTask` uses `mutateAsync().catch()` in Alert callback for error surfacing.
+- `renderRow` in `FundScreen` moved to module level (no closure captures → stable ref).
+
+### Day 2 Files Created/Modified
+```
+habit-tracker/
+├── src/constants.ts              ← SOURCE_TASK, SOURCE_DAILY_BONUS, SOURCE_PENALTY
+├── src/logic/logTask.ts          ← use SOURCE_* constants
+├── src/logic/weeklyReset.ts      ← NEW: computeWeeklyReset()
+├── src/logic/tierUnlocks.ts      ← NEW: computeTierUnlocks()
+├── src/queries/useToday.ts       ← tier unlock + fund deposit in transaction
+├── src/queries/useFund.ts        ← NEW: useFundBalance, useFundLedger
+├── src/queries/useTasks.ts       ← NEW: useCreateTask, useUpdateTask, useArchiveTask
+├── src/screens/FundScreen.tsx    ← balance header + ledger
+├── src/screens/MeScreen.tsx      ← task CRUD with create/edit/archive modal
+├── App.tsx                       ← weekly reset on startup
+└── __tests__/
+    ├── weeklyReset.test.ts       ← 3 tests
+    └── tierUnlocks.test.ts       ← 5 tests
+Total: 14/14 tests pass
 ```
 
-### Day 2 Next Steps
-- `weeklyReset()` + TDD tests (`__tests__/weeklyReset.test.ts`)
-- `checkTierUnlocks()` + TDD tests
-- Fund Screen: balance display + ledger
-- Me Screen: task CRUD (create/edit/archive task_types)
-- Weekly reset trigger: check on app open if `week_start` differs from current Monday
+### Day 2 Test Command
+```bash
+cd C:\Users\Admin\Desktop\habit-tracker
+npx jest          # 14/14 pass
+npx tsc --noEmit  # 0 errors
+npx expo run:android
+```
+
+### Day 3 Next Steps
+- Progress screen: weekly star chart via `victory-native` + `react-native-svg`
+- Streak tracking: populate `streak_count` in `daily_summary` on each log
+- Manual spending: WITHDRAWAL entry in Fund screen
 
 ### Known Deferred
 - `victory-native` + `react-native-svg` deferred to Day 3 (charts on Progress screen)
-- Magic string constants `'TASK'`, `'DAILY_BONUS'` in `logTask.ts` — add `SOURCE_TASK`, `SOURCE_DAILY_BONUS` to `constants.ts` (Day 2)
-- Concurrent tap race condition in `useLogTask` (bonus double-award) — MVP-acceptable, fix pre-multi-user
+- Concurrent tap race condition in `useLogTask` (TOCTOU on reads before transaction) — MVP-acceptable, fix pre-multi-user
 
 Key constants: `src/constants.ts`
 Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.md` | Prototype: `Habit-Tracker-Wireframe-Prototype.html`
