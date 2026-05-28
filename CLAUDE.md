@@ -324,18 +324,40 @@ npx tsc --noEmit  # 0 errors
 npx expo run:android  # requires native build
 ```
 
-### Day 6 Next Steps
-- FAB → full log-activity bottom sheet (wire center FAB to task selector + duration input)
-- `starsToNextTier` shows 0 at max tier — show "MAX TIER" label in RankScreen/ProgressScreen
-- Archive categories UI in ProfileScreen
-- Concurrent tap race condition fix in `useLogTask` (pre-multi-user)
+### Key Decisions (Day 6)
+- `LogActivitySheet`: React Native `Modal`-based bottom sheet (no external library). Nested `Modal` for duration sub-prompt (higher z-index, fade animation). `fabVisible` state in `AppStack` was discarded (`[, setFabVisible]`) since Day 5 — fixed to `[fabVisible, setFabVisible]`.
+- `AppStack` return wrapped in `<>` fragment to render `<LogActivitySheet>` alongside `<Stack.Navigator>`. Modal is a portal — does not need to be inside NavigationContainer.
+- `useArchiveCategory` in `useTasks.ts`: invalidates `['categories', userId]` (TodayScreen filter chips) + `['today', 'tasks']` (defensive). SQL scoped with `AND user_id = ?`.
+- Max-tier display already worked in both screens (`starsNeeded=0` is falsy → 'MAX' in ProgressScreen; `starsToNext > 0` guard in RankScreen). Day 6 added 2 boundary tests (159→1, 161→0) to confirm.
+- `ProfileScreen` categories section uses existing `row`/`sectionHeader`/`archiveBtn`/`sectionTitle` styles — no new StyleSheet entries.
+- `MeScreen.tsx` deleted — orphaned since Day 5 ProfileScreen refactor.
+
+### Day 6 Files Created/Modified
+```
+habit-tracker/
+├── src/screens/LogActivitySheet.tsx  ← NEW: FAB bottom sheet + nested duration modal
+├── src/navigation/RootNavigator.tsx  ← fix fabVisible destructure, add LogActivitySheet
+├── src/queries/useTasks.ts           ← ADD useArchiveCategory mutation
+├── src/screens/ProfileScreen.tsx     ← ADD categories section + useArchiveCategory
+├── src/screens/MeScreen.tsx          ← DELETED (orphaned)
+└── __tests__/
+    ├── logActivitySheet.test.ts      ← NEW: 3 tests (needsDurationPrompt)
+    └── rankUtils.test.ts             ← ADD 2 boundary tests (max-tier)
+Total: 55/55 tests pass
+```
+
+### Day 6 Test Command
+```bash
+cd C:\Users\Admin\Desktop\habit-tracker
+npx jest          # 55/55 pass
+npx tsc --noEmit  # 0 errors
+npx expo run:android  # requires native build for LogActivitySheet
+```
 
 ### Known Deferred
 - Concurrent tap race condition in `useLogTask` (TOCTOU on reads before transaction) — MVP-acceptable, fix pre-multi-user
-- `starsToNextTier` shows 0 when at max tier — RankScreen shows "Đã đạt hạng cao nhất" text but ProgressScreen shows `0★` label
-- `handleSaveNotif` in MeScreen/ProfileScreen: DB write before native schedule — if native call fails, DB has time but no active notification (user can retry)
-- FAB currently triggers `setFabVisible(true)` but `fabVisible` never read — deferred log-activity sheet Day 6
-- MeScreen.tsx on disk at `src/screens/MeScreen.tsx` but not imported anywhere — safe to delete in Day 6 cleanup
+- `handleSaveNotif` in ProfileScreen: DB write before native schedule — if native call fails, DB has time but no active notification (user can retry)
+- Nested `Modal` inside `Modal` (LogActivitySheet duration sub-prompt): known z-index issue on Android <9 / some manufacturer skins — test on target devices
 
 Key constants: `src/constants.ts`
 Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.md` | Prototype: `Habit-Tracker-Wireframe-Prototype.html`
