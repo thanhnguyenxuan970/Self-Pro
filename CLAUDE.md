@@ -47,7 +47,7 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 A **workspace of agent prompt files and design specs** — not a buildable project itself. Two active projects live here:
 
 - **PokeScan** — Pokémon card scanning app. Code lives in sibling `android/` and `backend/` dirs (outside this workspace). Agent prompts here drive development of that code.
-- **Habit Tracker** — Gamified habit tracking React Native app. Day 3 COMPLETE (2026-05-28).
+- **Habit Tracker** — Gamified habit tracking React Native app. Day 5 COMPLETE (2026-05-28).
 
 ---
 
@@ -155,13 +155,13 @@ Test requirements:
 
 ## Habit Tracker Architecture
 
-**Status:** Day 3 COMPLETE (2026-05-28). Code lives at `c:\Users\Admin\Desktop\habit-tracker\` (sibling to this workspace).
+**Status:** Day 4 COMPLETE (2026-05-28). Code lives at `c:\Users\Admin\Desktop\habit-tracker\` (sibling to this workspace).
 
 **Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29
 
 **Data model:** append-only `activity_log` as source of truth; derived rollups via `daily_summary` / `weekly_summary`.
 
-**Navigation:** 4 bottom tabs — Today (✅), Progress (📊 D/W/M/Y chart), Fund (💰 deposit+withdrawal), Me (👤 live).
+**Navigation:** 5 bottom tabs + center FAB — Home (🏠), Analytics (📊), [+FAB], Fund (💰), Rank (🏆). ProfileScreen accessed via avatar tap (modal). Auth flow: AsyncStorage flag gates SignIn→Onboarding vs MainTabs.
 
 **State:** TanStack Query over local DB; each log mutation invalidates `today`, `week`, `fund`, `progress` queries.
 
@@ -243,14 +243,99 @@ npx tsc --noEmit  # 0 errors
 npx expo run:android  # requires native build (react-native-svg)
 ```
 
-### Day 4 Next Steps (not yet planned)
-- Categories: implement `CategoryChips` filter on TodayScreen
-- Weekly reset UI: show "Week reset!" toast on Monday first open
-- Push notifications: daily reminder at configurable time
+### Key Decisions (Day 4)
+- `ALTER TABLE users ADD COLUMN` wrapped in try/catch — SQLite has no `ADD COLUMN IF NOT EXISTS`; only expected error is "duplicate column name" on re-run.
+- `scheduleHabitReminder` validates time BEFORE calling `cancelAllScheduledNotificationsAsync` — prevents cancelling existing notification when called with invalid input.
+- expo-notifications v56 trigger requires `type: SchedulableTriggerInputTypes.DAILY` (not old `{ hour, minute, repeats: true }` shape). `NotificationBehavior` requires `shouldShowBanner` + `shouldShowList` fields.
+- `expo-notifications` imported dynamically inside `scheduleHabitReminder`/`cancelHabitReminder` so pure `parseNotificationTime` tests run without native modules.
+- Category picker chips in modal use `[styles.kindBtn, { flex: 0 }, ...]` — `kindBtn` has `flex: 1` which collapses in unbounded horizontal ScrollView without the override.
+- `useCategories` queryKey `['categories', userId]` — separate from `['today']` tree, not invalidated by task mutations (categories are static).
+- Toast shown via `setTimeout(500)` AFTER `dbReady` state — ensures `<Toast />` component is mounted before `Toast.show()` is called.
+- Week-reset detection reads/writes `last_seen_week_start` column on `users` table (added via migration) — no AsyncStorage dependency.
+
+### Day 4 Files Created/Modified
+```
+habit-tracker/
+├── src/db/migrations.ts          ← ALTER TABLE users (last_seen_week_start, notification_time), seed 5 categories
+├── src/queries/useToday.ts       ← ADD useCategories hook; useTodayTasks includes category_id
+├── src/queries/useTasks.ts       ← ADD categoryId to TaskFormParams, INSERT/UPDATE SQL
+├── src/queries/useSettings.ts    ← NEW: useNotificationTime, useSetNotificationTime
+├── src/logic/weekReset.ts        ← NEW: shouldShowWeekResetToast()
+├── src/logic/notifications.ts    ← NEW: parseNotificationTime, scheduleHabitReminder, cancelHabitReminder
+├── src/screens/TodayScreen.tsx   ← CategoryChips horizontal scroll filter
+├── src/screens/MeScreen.tsx      ← Category picker in task modal + Notifications section
+├── App.tsx                       ← Week reset detection + toast + notification permissions
+└── __tests__/
+    ├── weekResetToast.test.ts    ← NEW: 3 tests
+    └── notifications.test.ts     ← NEW: 5 tests
+Total: 50/50 tests pass (includes pre-existing seedTemplates tests)
+```
+
+### Day 4 Test Command
+```bash
+cd C:\Users\Admin\Desktop\habit-tracker
+npx jest          # 50/50 pass
+npx tsc --noEmit  # 0 errors
+npx expo run:android  # requires native build
+```
+
+### Key Decisions (Day 5)
+- Auth flow via AsyncStorage key `'habit_tracker_onboarded'`. No real auth — MVP offline. `parseOnboarded(null) = false` → safe default = show SignIn.
+- `AppInner` pattern in App.tsx: `App()` provides `QueryClientProvider`, `AppInner` holds db+auth hooks. `RootNavigator` owns the single `<NavigationContainer>`. Prevents double-container React Navigation error.
+- Center FAB: `tabBarButton: () => <FABButton/>` + `tabPress: e.preventDefault()`. Slot occupied, action deferred to Day 6 (log-activity sheet).
+- `ProfileScreen` replaces `MeScreen` — accessed via avatar tap as modal (`presentation: 'modal'`). `MeScreen.tsx` on disk but no longer imported anywhere.
+- `useRankData` imports `USER_ID` directly (no param) — single-user MVP, query always scoped to user 1.
+- `useDepositFund` invalidates `['fund']` prefix → hits both `['fund', 'balance', userId]` and `['fund', 'ledger', userId]`.
+- `useAuth` `.catch(() => {}).finally(() => setIsLoading(false))` — AsyncStorage failure treated as "not onboarded" (user sees SignIn; safe default).
+
+### Day 5 Files Created/Modified
+```
+habit-tracker/
+├── src/theme.ts                     ← NEW: sage green design tokens
+├── src/hooks/useAuth.ts             ← NEW: AsyncStorage onboarding flag
+├── src/constants.ts                 ← ADD USER_ID, TemplateTask, TemplateCategory, TEMPLATE_CATEGORIES
+├── src/logic/seedTemplates.ts       ← NEW: buildTemplateTasks(selectedKeys)
+├── src/logic/rankUtils.ts           ← NEW: getCurrentTier, getStarsToNextTier
+├── src/logic/fundDeposit.ts         ← NEW: validateDeposit
+├── src/queries/useFund.ts           ← ADD useDepositFund mutation
+├── src/queries/useRank.ts           ← NEW: useRankData
+├── src/screens/SignInScreen.tsx     ← NEW: email+password sign-in UI
+├── src/screens/OnboardingScreen.tsx ← NEW: template category grid
+├── src/screens/RankScreen.tsx       ← NEW: tier ladder, progress bar, weekly history
+├── src/screens/ProfileScreen.tsx    ← NEW: task CRUD + profile header (replaces MeScreen)
+├── src/screens/FundScreen.tsx       ← REWRITE: deposit modal + sage green theme
+├── src/screens/TodayScreen.tsx      ← REWRITE: sage green theme + avatar nav
+├── src/screens/ProgressScreen.tsx   ← REWRITE: sage green theme
+├── src/navigation/RootNavigator.tsx ← REWRITE: 5-tab + FAB + auth gating
+├── App.tsx                          ← REWRITE: AppInner pattern + useAuth
+└── __tests__/
+    ├── auth.test.ts                 ← NEW: 4 tests (parseOnboarded)
+    ├── seedTemplates.test.ts        ← NEW: 6 tests (buildTemplateTasks)
+    ├── rankUtils.test.ts            ← NEW: 9 tests (getCurrentTier, getStarsToNextTier)
+    └── fundDeposit.test.ts          ← NEW: 6 tests (validateDeposit)
+Total: 50/50 tests pass
+```
+
+### Day 5 Test Command
+```bash
+cd C:\Users\Admin\Desktop\habit-tracker
+npx jest          # 50/50 pass
+npx tsc --noEmit  # 0 errors
+npx expo run:android  # requires native build
+```
+
+### Day 6 Next Steps
+- FAB → full log-activity bottom sheet (wire center FAB to task selector + duration input)
+- `starsToNextTier` shows 0 at max tier — show "MAX TIER" label in RankScreen/ProgressScreen
+- Archive categories UI in ProfileScreen
+- Concurrent tap race condition fix in `useLogTask` (pre-multi-user)
 
 ### Known Deferred
 - Concurrent tap race condition in `useLogTask` (TOCTOU on reads before transaction) — MVP-acceptable, fix pre-multi-user
-- `starsToNextTier` shows 0 when at max tier — could show "MAX TIER" message on MeScreen
+- `starsToNextTier` shows 0 when at max tier — RankScreen shows "Đã đạt hạng cao nhất" text but ProgressScreen shows `0★` label
+- `handleSaveNotif` in MeScreen/ProfileScreen: DB write before native schedule — if native call fails, DB has time but no active notification (user can retry)
+- FAB currently triggers `setFabVisible(true)` but `fabVisible` never read — deferred log-activity sheet Day 6
+- MeScreen.tsx on disk at `src/screens/MeScreen.tsx` but not imported anywhere — safe to delete in Day 6 cleanup
 
 Key constants: `src/constants.ts`
 Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.md` | Prototype: `Habit-Tracker-Wireframe-Prototype.html`
