@@ -155,7 +155,7 @@ Test requirements:
 
 ## Habit Tracker Architecture
 
-**Status:** Day 4 COMPLETE (2026-05-28). Code lives at `c:\Users\Admin\Desktop\habit-tracker\` (sibling to this workspace).
+**Status:** Day 7 COMPLETE (2026-05-28). Code lives at `c:\Users\Admin\Desktop\habit-tracker\` (sibling to this workspace).
 
 **Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29
 
@@ -354,8 +354,29 @@ npx tsc --noEmit  # 0 errors
 npx expo run:android  # requires native build for LogActivitySheet
 ```
 
+### Key Decisions (Day 7)
+- `useLogTask` TOCTOU fix: all 4 volatile reads (`daily`, `weeklyRow`, `alreadyUnlocked`, `yesterdayRow`) moved INSIDE `withTransactionAsync`. `tiers` stays outside (static lookup, never written). `nowMs`/`yesterday`/`yesterdayDate` declared before transaction — safe closure captures, not reads.
+- `Toast.show()` called before `onClose()` in `submitLog` — toast fires during Modal slide-down animation (Toast is mounted at App root, independent of Modal lifecycle).
+- 2 new logTask.test.ts tests: boundary (40+10=50 → bonus fires exactly at threshold) and BAD kind guard (bonusRow never fires for BAD — confirmed by `kind === 'GOOD'` guard in logTask.ts:77).
+
+### Day 7 Files Created/Modified
+```
+habit-tracker/
+├── src/queries/useToday.ts          ← useLogTask: volatile reads moved inside withTransactionAsync
+├── src/screens/LogActivitySheet.tsx ← ADD Toast.show() on success
+└── __tests__/logTask.test.ts        ← ADD 2 tests (boundary + BAD-task guard)
+Total: 57/57 tests pass
+```
+
+### Day 7 Test Command
+```bash
+cd C:\Users\Admin\Desktop\habit-tracker
+npx jest          # 57/57 pass
+npx tsc --noEmit  # 0 errors
+npx expo run:android  # native build — tap FAB, log task, verify toast + sheet closes
+```
+
 ### Known Deferred
-- Concurrent tap race condition in `useLogTask` (TOCTOU on reads before transaction) — MVP-acceptable, fix pre-multi-user
 - `handleSaveNotif` in ProfileScreen: DB write before native schedule — if native call fails, DB has time but no active notification (user can retry)
 - Nested `Modal` inside `Modal` (LogActivitySheet duration sub-prompt): known z-index issue on Android <9 / some manufacturer skins — test on target devices
 
