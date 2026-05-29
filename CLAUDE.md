@@ -89,7 +89,7 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 
 ## Habit Tracker Architecture
 
-**Status:** Day 7 COMPLETE (2026-05-28). Code lives at `c:\Users\Admin\Desktop\habit-tracker\` (sibling to this workspace).
+**Status:** Day 8 COMPLETE (2026-05-29). Code lives at `c:\Users\Admin\Desktop\habit-tracker\` (sibling to this workspace).
 
 **Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29
 
@@ -310,27 +310,49 @@ npx tsc --noEmit  # 0 errors
 npx expo run:android  # native build — tap FAB, log task, verify toast + sheet closes
 ```
 
-### Known Deferred
-- `handleSaveNotif` in ProfileScreen: native-first, DB-second — if `cancelAllScheduledNotificationsAsync` fires but `scheduleNotificationAsync` throws, all notifications cancelled and DB retains old time (no active reminder). User can retry. No atomic rollback.
-- `OnboardingScreen.handleStart` seeds tasks in serial `await` loop — partial failure leaves committed rows; retry creates duplicates (no UNIQUE on task name).
-- `requestPermissionsAsync()` result discarded in App.tsx — if user denies, `scheduleHabitReminder` succeeds silently but notification never fires.
-- Nested `Modal` inside `Modal` (LogActivitySheet duration sub-prompt) replaced with absolute View overlay — known z-index issue on Android <9 / some manufacturer skins — test on target devices.
+### Key Decisions (Day 8)
+- Nested `Modal` inside `Modal` (LogActivitySheet duration sub-prompt) **fixed**: inner Modal replaced with absolute-positioned `<View>` inside outer Modal. No z-index compounding — single stacking context on all Android versions.
+- Notification race condition **fixed**: `handleSaveNotif` in ProfileScreen calls `scheduleHabitReminder` (native) FIRST, then `setNotifTimeMutation.mutateAsync` (DB) only if native succeeds. DB never written on native failure; user can retry.
+- Display name stored in AsyncStorage at `'habit_tracker_display_name'` — no DB schema change. Read via `useQuery({ staleTime: Infinity })` in ProfileScreen; written during SignIn `onPress` before `onSignIn()`.
+- Streak freeze mechanism: `canPurchaseFreeze` pure validator (priority: HAS_ACTIVITY > ALREADY_FROZEN > NO_STREAK > INSUFFICIENT_FUNDS). Transaction inserts fund WITHDRAWAL + `streak_freezes` row + synthetic `daily_summary` row (`INSERT OR IGNORE`, `streak_count = currentStreak` from day before). `useLogTask` unchanged — reads yesterday's row, increments naturally.
+- `useStreakFreezeEligibility`: `yesterday`/`dayBefore` computed at render time (not inside queryFn) — captured in queryKey so cache invalidates at midnight.
+- `getRangeLabel` week calc: `(now.getDay() + 6) % 7` maps Sunday=6, Monday=0 correctly for ISO week.
+- `useAllTimeStats` uses `Promise.all` for 3 parallel read-only queries (WAL mode safe).
+- `useSpendFund` wraps INSERT in `withTransactionAsync`, reads balance inside transaction — atomic guard, no race. Throws `INSUFFICIENT_FUNDS` if `balance < amount`.
+- `submittingRef` / `spendingRef` (useRef<boolean>) pattern: synchronous in-flight guard set before any async work, cleared in `.finally()`. Applied to LogActivitySheet (both tap + time paths) and FundScreen.
+- `migrations.ts` ALTER TABLE catch narrowed: `catch (e: any) { if (!e?.message?.includes('duplicate column')) throw e; }` — real DB errors propagate.
 
-### Key Decisions (Post-Day-7 Milestone Audit — 2026-05-29)
-- `useSpendFund` now wraps INSERT in `withTransactionAsync`, reads balance inside transaction, throws `INSUFFICIENT_FUNDS` if `balance < amount`. Guard is atomic — no race between read and write. `FundScreen.handleSpend` surfaces this error as "Số dư không đủ".
-- `LogActivitySheet.handleTaskPress` uses `submittingRef` (useRef<boolean>) as synchronous in-flight guard. Ref set before any async work; cleared in `.finally()`. Prevents double-tap submitting two activity rows before `isPending` re-renders. Linter also applied same guard to `handleLogTime` for time-based tasks.
-- `FundScreen.handleSpend` uses `spendingRef` (same pattern) to prevent double withdrawal. Ref cleared in `finally`.
-- `migrations.ts` ALTER TABLE catch narrowed: `catch (e: any) { if (!e?.message?.includes('duplicate column')) throw e; }` — real DB errors (disk full, schema corruption) now propagate instead of being silently swallowed.
-
-### Post-Audit Files Modified (2026-05-29)
+### Day 8 Files Created/Modified
 ```
 habit-tracker/
-├── src/queries/useFund.ts              ← useSpendFund: balance check + withTransactionAsync
-├── src/screens/LogActivitySheet.tsx    ← submittingRef double-tap guard (non-time + time tasks)
-├── src/screens/FundScreen.tsx          ← spendingRef guard + INSUFFICIENT_FUNDS error surface
-└── src/db/migrations.ts               ← narrow catch {} on ALTER TABLE
+├── src/constants.ts                     ← ADD STREAK_FREEZE_COST = 10_000
+├── src/db/migrations.ts                 ← ADD streak_freezes table; narrow ALTER TABLE catch
+├── src/logic/streakFreeze.ts            ← NEW: canPurchaseFreeze() pure validator
+├── src/logic/formatters.ts              ← ADD getRangeLabel(range, now?)
+├── src/queries/useFund.ts               ← ADD useStreakFreezeEligibility, usePurchaseStreakFreeze; useSpendFund withTransaction
+├── src/queries/useProgress.ts           ← ADD useAllTimeStats
+├── src/screens/LogActivitySheet.tsx     ← fix nested Modal → absolute View; submittingRef both paths
+├── src/screens/ProfileScreen.tsx        ← ADD notification settings (native-first); display name from AsyncStorage
+├── src/screens/SignInScreen.tsx         ← ADD displayName TextInput; save to AsyncStorage on submit
+├── src/screens/FundScreen.tsx           ← ADD streak freeze card; spendingRef guard; formatVND for cost
+├── src/screens/ProgressScreen.tsx       ← ADD rangeLabel below toggle; all-time stats strip; ScrollView wrap
+└── __tests__/
+    ├── streakFreeze.test.ts             ← NEW: 5 tests (canPurchaseFreeze)
+    └── analyticsRangeLabel.test.ts      ← NEW: 4 tests (getRangeLabel D/W/M/Y)
 Total: 66/66 tests pass
 ```
+
+### Day 8 Test Command
+```bash
+cd C:\Users\Admin\Desktop\habit-tracker
+npx jest          # 66/66 pass
+npx tsc --noEmit  # 0 errors
+npx expo run:android  # native build required
+```
+
+### Known Deferred
+- `OnboardingScreen.handleStart` seeds tasks in serial `await` loop — partial failure leaves committed rows; retry creates duplicates (no UNIQUE on task name).
+- `requestPermissionsAsync()` result discarded in App.tsx — if user denies, `scheduleHabitReminder` succeeds silently but notification never fires.
 
 Key constants: `src/constants.ts`
 Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.md` | Prototype: `Habit-Tracker-Wireframe-Prototype.html`
