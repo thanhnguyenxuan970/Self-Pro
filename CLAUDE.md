@@ -89,7 +89,7 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 
 ## Habit Tracker Architecture
 
-**Status:** Day 9 COMPLETE (2026-05-29). Code lives at `c:\Users\Admin\Desktop\habit-tracker\` (sibling to this workspace).
+**Status:** Day 9 COMPLETE (2026-05-29). Code lives at `c:\Users\Admin\Desktop\Self-Pro\habit-tracker\`.
 
 **Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29 + expo-auth-session v5 + expo-web-browser
 
@@ -171,7 +171,7 @@ Total: 17/17 tests pass
 
 ### Day 3 Test Command
 ```bash
-cd C:\Users\Admin\Desktop\habit-tracker
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
 npx jest          # 17/17 pass
 npx tsc --noEmit  # 0 errors
 npx expo run:android  # requires native build (react-native-svg)
@@ -207,7 +207,7 @@ Total: 50/50 tests pass (includes pre-existing seedTemplates tests)
 
 ### Day 4 Test Command
 ```bash
-cd C:\Users\Admin\Desktop\habit-tracker
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
 npx jest          # 50/50 pass
 npx tsc --noEmit  # 0 errors
 npx expo run:android  # requires native build
@@ -252,7 +252,7 @@ Total: 50/50 tests pass
 
 ### Day 5 Test Command
 ```bash
-cd C:\Users\Admin\Desktop\habit-tracker
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
 npx jest          # 50/50 pass
 npx tsc --noEmit  # 0 errors
 npx expo run:android  # requires native build
@@ -282,7 +282,7 @@ Total: 55/55 tests pass
 
 ### Day 6 Test Command
 ```bash
-cd C:\Users\Admin\Desktop\habit-tracker
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
 npx jest          # 55/55 pass
 npx tsc --noEmit  # 0 errors
 npx expo run:android  # requires native build for LogActivitySheet
@@ -304,7 +304,7 @@ Total: 57/57 tests pass
 
 ### Day 7 Test Command
 ```bash
-cd C:\Users\Admin\Desktop\habit-tracker
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
 npx jest          # 57/57 pass
 npx tsc --noEmit  # 0 errors
 npx expo run:android  # native build — tap FAB, log task, verify toast + sheet closes
@@ -344,7 +344,7 @@ Total: 66/66 tests pass
 
 ### Day 8 Test Command
 ```bash
-cd C:\Users\Admin\Desktop\habit-tracker
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
 npx jest          # 66/66 pass
 npx tsc --noEmit  # 0 errors
 npx expo run:android  # native build required
@@ -375,7 +375,7 @@ Total: 71/71 tests pass
 
 ### Day 9 Test Command
 ```bash
-cd C:\Users\Admin\Desktop\habit-tracker
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
 npx jest          # 71/71 pass
 npx tsc --noEmit  # 0 errors
 npx expo run:android  # requires native build + OAuth client IDs in .env.local
