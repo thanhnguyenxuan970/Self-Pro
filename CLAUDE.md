@@ -311,8 +311,26 @@ npx expo run:android  # native build — tap FAB, log task, verify toast + sheet
 ```
 
 ### Known Deferred
-- `handleSaveNotif` in ProfileScreen: DB write before native schedule — if native call fails, DB has time but no active notification (user can retry)
-- Nested `Modal` inside `Modal` (LogActivitySheet duration sub-prompt): known z-index issue on Android <9 / some manufacturer skins — test on target devices
+- `handleSaveNotif` in ProfileScreen: native-first, DB-second — if `cancelAllScheduledNotificationsAsync` fires but `scheduleNotificationAsync` throws, all notifications cancelled and DB retains old time (no active reminder). User can retry. No atomic rollback.
+- `OnboardingScreen.handleStart` seeds tasks in serial `await` loop — partial failure leaves committed rows; retry creates duplicates (no UNIQUE on task name).
+- `requestPermissionsAsync()` result discarded in App.tsx — if user denies, `scheduleHabitReminder` succeeds silently but notification never fires.
+- Nested `Modal` inside `Modal` (LogActivitySheet duration sub-prompt) replaced with absolute View overlay — known z-index issue on Android <9 / some manufacturer skins — test on target devices.
+
+### Key Decisions (Post-Day-7 Milestone Audit — 2026-05-29)
+- `useSpendFund` now wraps INSERT in `withTransactionAsync`, reads balance inside transaction, throws `INSUFFICIENT_FUNDS` if `balance < amount`. Guard is atomic — no race between read and write. `FundScreen.handleSpend` surfaces this error as "Số dư không đủ".
+- `LogActivitySheet.handleTaskPress` uses `submittingRef` (useRef<boolean>) as synchronous in-flight guard. Ref set before any async work; cleared in `.finally()`. Prevents double-tap submitting two activity rows before `isPending` re-renders. Linter also applied same guard to `handleLogTime` for time-based tasks.
+- `FundScreen.handleSpend` uses `spendingRef` (same pattern) to prevent double withdrawal. Ref cleared in `finally`.
+- `migrations.ts` ALTER TABLE catch narrowed: `catch (e: any) { if (!e?.message?.includes('duplicate column')) throw e; }` — real DB errors (disk full, schema corruption) now propagate instead of being silently swallowed.
+
+### Post-Audit Files Modified (2026-05-29)
+```
+habit-tracker/
+├── src/queries/useFund.ts              ← useSpendFund: balance check + withTransactionAsync
+├── src/screens/LogActivitySheet.tsx    ← submittingRef double-tap guard (non-time + time tasks)
+├── src/screens/FundScreen.tsx          ← spendingRef guard + INSUFFICIENT_FUNDS error surface
+└── src/db/migrations.ts               ← narrow catch {} on ALTER TABLE
+Total: 66/66 tests pass
+```
 
 Key constants: `src/constants.ts`
 Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.md` | Prototype: `Habit-Tracker-Wireframe-Prototype.html`
