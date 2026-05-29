@@ -46,7 +46,7 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 
 A **workspace of agent prompt files and design specs** — not a buildable project itself. Two active projects live here:
 
-- **Habit Tracker** — Gamified habit tracking React Native app. Day 7 COMPLETE (2026-05-28).
+- **Habit Tracker** — Gamified habit tracking React Native app. Day 9 COMPLETE (2026-05-29).
 
 ---
 
@@ -89,13 +89,13 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 
 ## Habit Tracker Architecture
 
-**Status:** Day 8 COMPLETE (2026-05-29). Code lives at `c:\Users\Admin\Desktop\habit-tracker\` (sibling to this workspace).
+**Status:** Day 9 COMPLETE (2026-05-29). Code lives at `c:\Users\Admin\Desktop\habit-tracker\` (sibling to this workspace).
 
-**Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29
+**Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29 + expo-auth-session v5 + expo-web-browser
 
 **Data model:** append-only `activity_log` as source of truth; derived rollups via `daily_summary` / `weekly_summary`.
 
-**Navigation:** 5 bottom tabs + center FAB — Home (🏠), Analytics (📊), [+FAB], Fund (💰), Rank (🏆). ProfileScreen accessed via avatar tap (modal). Auth flow: AsyncStorage flag gates SignIn→Onboarding vs MainTabs.
+**Navigation:** 5 bottom tabs + center FAB — Home (🏠), Analytics (📊), [+FAB], Fund (💰), Rank (🏆). ProfileScreen accessed via avatar tap (modal). Auth gate: `googleUser !== null && isOnboarded` → AppStack; else → SignIn → Onboarding.
 
 **State:** TanStack Query over local DB; each log mutation invalidates `today`, `week`, `fund`, `progress` queries.
 
@@ -350,9 +350,41 @@ npx tsc --noEmit  # 0 errors
 npx expo run:android  # native build required
 ```
 
+### Key Decisions (Day 9)
+- Google Sign-In via `expo-auth-session` + `expo-web-browser` (PKCE flow). `WebBrowser.maybeCompleteAuthSession()` required at module level of `SignInScreen.tsx` to handle OAuth redirect.
+- `GoogleUser` stored in AsyncStorage at `'habit_tracker_google_user'`. `parseGoogleUser` validates all 3 fields (email, name, picture) as strings — rejects partial objects to prevent `<Image uri={undefined}>`.
+- Auth gate changed from `isOnboarded` alone to `googleUser !== null && isOnboarded`. Existing onboarded users see SignIn on first launch after update (one-time re-auth).
+- `signOut` clears both `ONBOARDED_KEY` and `GOOGLE_USER_KEY` — full reset, re-login shows Onboarding again (intentional for MVP).
+- `signInWithGoogle` also writes `'habit_tracker_display_name'` for forward-compatibility with any code still reading that key.
+- `userinfo/v2/me` endpoint used for profile fetch — no API enablement needed in GCP (core OAuth2 infrastructure). SHA-1 debug key: `18:38:B7:BC:9E:95:24:98:ED:FE:5B:71:A4:F2:74:FE:4F:19:70:91`.
+- ProfileScreen no longer reads display name from AsyncStorage — name/email/picture come from `googleUser` prop drilled from `useAuth`.
+
+### Day 9 Files Created/Modified
+```
+habit-tracker/
+├── src/hooks/useAuth.ts             ← ADD GoogleUser interface, parseGoogleUser, signInWithGoogle, signOut
+├── src/screens/SignInScreen.tsx     ← REWRITE: Google OAuth button only (removed email/password form)
+├── src/navigation/RootNavigator.tsx ← UPDATE: googleUser gate, pass googleUser/onSignOut to AppStack/ProfileScreen
+├── App.tsx                          ← UPDATE: destructure + pass googleUser/signInWithGoogle/signOut
+├── src/screens/ProfileScreen.tsx    ← UPDATE: Google photo/name/email in header, sign-out button, remove displayName query
+├── app.json                         ← ADD scheme "habittracker" + android intentFilters
+├── .env.local                       ← CREATE: placeholder OAuth client IDs (gitignored)
+└── __tests__/auth.test.ts           ← ADD 5 tests (parseGoogleUser: null, invalid JSON, missing email, missing picture, valid)
+Total: 71/71 tests pass
+```
+
+### Day 9 Test Command
+```bash
+cd C:\Users\Admin\Desktop\habit-tracker
+npx jest          # 71/71 pass
+npx tsc --noEmit  # 0 errors
+npx expo run:android  # requires native build + OAuth client IDs in .env.local
+```
+
 ### Known Deferred
 - `OnboardingScreen.handleStart` seeds tasks in serial `await` loop — partial failure leaves committed rows; retry creates duplicates (no UNIQUE on task name).
 - `requestPermissionsAsync()` result discarded in App.tsx — if user denies, `scheduleHabitReminder` succeeds silently but notification never fires.
+- **[BLOCKED]** Day 9 smoke test: requires Google Cloud Console OAuth client IDs. Steps: (1) create Android client (package `com.anonymous.habittracker`, SHA-1 `18:38:B7:BC:9E:95:24:98:ED:FE:5B:71:A4:F2:74:FE:4F:19:70:91`), (2) create Web client (redirect URI `habittracker://`), (3) fill `.env.local`, (4) `npx expo run:android`.
 
 Key constants: `src/constants.ts`
 Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.md` | Prototype: `Habit-Tracker-Wireframe-Prototype.html`
