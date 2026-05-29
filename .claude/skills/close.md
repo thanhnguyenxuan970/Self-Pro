@@ -1,13 +1,18 @@
 ---
 name: close
-description: Cập nhật CLAUDE.md với những gì đã hoàn thành, trạng thái từng phần, bước tiếp theo, và quyết định quan trọng
+description: Update CLAUDE.md with session completion status, key decisions, and next steps. Final step before ending a session.
 ---
 
-Trước khi kết thúc hãy cập nhật CLAUDE.md với những gì hoàn thành ở trong session này. Trạng thái cập nhật của từng phần, bước tiếp theo cần làm trong session sau. Những quyết định quan trọng đã đưa ra và lý do tại sao.
+Before ending the session, update CLAUDE.md with:
+
+1. **Completed work** — what was implemented or fixed this session (specific, not vague)
+2. **Section status** — mark each feature/milestone as: COMPLETE / IN_PROGRESS / BLOCKED
+3. **Next steps** — concrete, specific tasks for the next session
+4. **Key decisions** — architectural decisions made this session and the rationale
 
 ## Error Logging Rule
 
-If any errors were encountered during this session, append them to CLAUDE.md under a `## Known Errors & Fixes` section:
+If errors were encountered this session, append to CLAUDE.md under `## Known Errors & Fixes`:
 
 ```markdown
 ## Known Errors & Fixes
@@ -17,4 +22,12 @@ If any errors were encountered during this session, append them to CLAUDE.md und
 | `<exact error message>` | <root cause> | <solution> |
 ```
 
-**Constraint:** Keep CLAUDE.md total length under 500 lines. Before appending, check `wc -l CLAUDE.md`. If adding errors would exceed 500 lines, remove the oldest/resolved entries first.
+**Constraint:** CLAUDE.md must stay under 500 lines. Before appending, check line count:
+```bash
+wc -l CLAUDE.md
+```
+If at limit: remove oldest resolved entries first, then append.
+
+## Final Step
+
+After CLAUDE.md is updated: run `/compact` to compress conversation context.

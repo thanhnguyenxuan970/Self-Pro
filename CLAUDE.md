@@ -46,8 +46,7 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 
 A **workspace of agent prompt files and design specs** — not a buildable project itself. Two active projects live here:
 
-- **PokeScan** — Pokémon card scanning app. Code lives in sibling `android/` and `backend/` dirs (outside this workspace). Agent prompts here drive development of that code.
-- **Habit Tracker** — Gamified habit tracking React Native app. Day 5 COMPLETE (2026-05-28).
+- **Habit Tracker** — Gamified habit tracking React Native app. Day 7 COMPLETE (2026-05-28).
 
 ---
 
@@ -75,81 +74,16 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 
 ---
 
-## Multi-Agent Workflow (dev-workflow.md — PokeScan)
-
-For PokeScan tasks, dispatch agents in parallel then chain reviewers:
-
-**Step 1 — parallel:** invoke `android-agent` + `backend-agent` simultaneously (two Agent tool calls in one response).
-
-**Step 2a** — after both finish: `test-runner` (paste both outputs)
-
-**Step 2b** — after test-runner: `code-reviewer`
-
-**Step 2c** — after code-reviewer approves: `pr-preparer`
-
-Gate rules — do not proceed to next step if current step reports failures.
-
----
-
 ## Agent Files
 
 | File | Role |
 |---|---|
-| `android-agent.md` | PokeScan Android (Kotlin/Compose/Hilt/Room) |
-| `backend-agent.md` | PokeScan backend (FastAPI/SQLAlchemy async) |
-| `code-reviewer.md` | Code review with CRITICAL/WARNING/INFO classification |
-| `pr-preparer.md` | Commit message + PR description + CLAUDE.md flag check |
-| `test-runner.md` | Run all tests, report results |
-| `qa-tester.md` | QA checklist per file |
-| `ux-tester.md` | UX review |
-| `web-designer.md` | Web design review |
+| `stress-test-agent.md` | Adversarial probe — concurrency, auth, input, boundaries |
+| `code-reviewer.md` | Code review — correctness, security, invariant compliance |
+| `pr-preparer.md` | Commit message + PR description + sensitive file check |
+| `test-runner.md` | Run all tests, report results with file/line context |
 | `check_code.md` | Iterative review→fix→optimize loop |
 | `check_plan.md` | Iterative plan→fix loop (target ≥95% confidence) |
-
----
-
-## PokeScan Architecture
-
-### Backend (`backend/app/`)
-FastAPI + SQLAlchemy async + pydantic-settings v2. Entry: `main.py`.
-
-Key invariants:
-- `get_current_user_id` lives **only** in `dependencies.py` — never import from routers
-- eBay uses `SECURITY-APPNAME` query param, not OAuth Bearer
-- JP SKU detection: `endswith("-jp")` or `"-jp-" in sku` — not `"jp" in sku`
-- `tier=pro` validated server-side via Bearer JWT; forced `free` if absent/invalid
-- `SELECT ... FOR UPDATE` in `get_or_create_user` — do not remove
-- `server_default` AND `default` both required on `User.tier`
-- Guard `if not settings.apple_bundle_id` before building `valid_ids` → 503 on misconfiguration
-
-### Android (`android/app/src/main/java/com/pokescan/app/`)
-Kotlin + Jetpack Compose + Hilt + Room + Retrofit + Moshi.
-
-Key invariants:
-- `collectAsStateWithLifecycle` not `collectAsState`
-- `SwipeToDismissBox` not deprecated `SwipeToDismiss`
-- `SupervisorJob` required in `SetDatabaseService` scope
-- `AuthEventBus`: `SharedFlow<Unit>(replay=0, extraBufferCapacity=1)`
-- No singleton ViewModels
-
-### Test Commands
-```bash
-# Android — all tests
-cd android && ./gradlew test --tests "com.pokescan.app.*" 2>&1
-
-# Android — single class
-cd android && ./gradlew test --tests "com.pokescan.app.ClassName" 2>&1
-
-# Backend — all tests
-cd backend && python -m pytest tests/ -v 2>&1
-
-# Backend — single file
-cd backend && python -m pytest tests/test_file.py -v 2>&1
-```
-
-Test requirements:
-- Android: `testOptions { unitTests.isReturnDefaultValues = true }` in `build.gradle.kts`
-- Backend: `POKESCAN_USE_MOCK=1` env var to skip external API calls
 
 ---
 
