@@ -388,3 +388,108 @@ npx expo run:android  # requires native build + OAuth client IDs in .env.local
 
 Key constants: `src/constants.ts`
 Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.md` | Prototype: `Habit-Tracker-Wireframe-Prototype.html`
+
+---
+
+## Habit Tracker Day 10 — COMPLETE (2026-05-30)
+
+### What Was Built
+Full "App Fixes & Enhancements" pass across all 5 phases:
+
+**Phase 0 — Foundation:**
+- `expo-av`, `@supabase/supabase-js`, `react-native-url-polyfill` installed
+- `LanguageContext` (vi/en toggle, AsyncStorage key `habit_lang`)
+- `ThemeContext` (dark/light, AsyncStorage key `habit_theme`, `DarkColors` in `theme.ts`)
+- DB migration: `users.google_sub`, `users.email` columns; tier ladder updated to 320-star max via `UPDATE WHERE tier_order=?` (preserves FKs)
+- `useAuth.ts` rewritten: `AuthProvider` context, `AuthUser` type, `resolveUserRow()` (claims legacy `id=1` row, inserts new if needed), `useAuthUser()` convenience hook
+
+**Phase 1 — USER_ID removal:**
+- `USER_ID` deleted from `constants.ts`; all 8 files updated to `useAuthUser()` / userId param
+
+**Phase 2 — Auth + Onboarding + Settings:**
+- `SignInScreen`: skip button removed — Google Sign-In only
+- `OnboardingScreen`: two-step flow (`categories` → `consent`), consent checkbox gates CTA
+- `SettingsScreen` (new): dark/light toggle, language toggle, notification time, sign-out
+- `RootNavigator`: SettingsScreen added as modal; gear icon `⚙️` in Home header; Fund tab relabeled → "🏦 Tiết Kiệm"
+- `ProfileScreen`: categories section, sign-out, notifications removed (moved to Settings)
+
+**Phase 3 — LogActivitySheet bulk rewrite:**
+- Multi-select checklist: `Map<taskId, SelectedEntry>`, category filter chips at top
+- Already-logged tasks dimmed + badge; re-log prompt via Alert
+- Time-based tasks expand inline duration input
+- "Ghi lại (N)" button; sequential `mutateAsync` loop (serial, preserves star logic)
+- `celebrateSound.ts` + 4 placeholder `.mp3` files (user replaces with real CC0 audio)
+- `playCelebration(totalMinutes)` after successful log: level 1–4 based on total duration
+
+**Phase 4 — Screen fixes:**
+- `ProgressScreen`: `SafeAreaView edges=['top']`, chart height 240→190
+- `FundScreen`: copy → "Tiết Kiệm" / "Tự thưởng"
+- `RankScreen`: bilingual tiers via `TIER_NAMES[tier_order][lang]`; leaderboard stub with 🚧 overlay
+
+**Phase 5 — Sync service:**
+- `supabase.ts` + `syncService.ts` written; guarded by `EXPO_PUBLIC_SUPABASE_URL` env var (no-op until credentials added)
+
+### Key Decisions (Day 10)
+- `google_sub` = `googleUser.email` (workaround: expo-auth-session returns `access_token` not `id_token` by default — no Google user ID available without extra config)
+- Legacy `id=1` row claimed by first Google sign-in via `UPDATE users SET google_sub=? WHERE id=1 AND google_sub IS NULL` — preserves all existing device data
+- `AuthProvider` context replaces prop-drilling; `useAuthUser()` throws if called outside auth gate (safe — all callers are behind `googleUser !== null && isOnboarded` gate)
+- `AuthState.value` wrapped in `useMemo` — prevents all-consumer re-renders on unrelated parent renders
+- `doToggle` side-effects (`setExpandedTimeTask`) moved outside `setSelected` updater — no side-effect-in-updater anti-pattern
+- Tier seed UPDATE uses `WHERE tier_order=?` (not `INSERT OR REPLACE`) — `INSERT OR REPLACE` changes ROWID, breaking `reward_unlocks.tier_id` FK refs
+- MP3 files: placeholder empty files committed so Metro bundler succeeds; user replaces with real CC0 audio
+
+### Day 10 Files Created/Modified
+```
+habit-tracker/
+├── index.ts                              ← ADD react-native-url-polyfill/auto (first import)
+├── App.tsx                               ← AuthProvider + LanguageProvider + ThemeProvider wrap; init runs once
+├── src/constants.ts                      ← ADD TIER_NAMES; REMOVE USER_ID
+├── src/theme.ts                          ← ADD DarkColors
+├── src/db/migrations.ts                  ← ADD google_sub/email columns; UPDATE tier ladder
+├── src/db/schema.ts                      ← ADD google_sub/email to users type
+├── src/hooks/useAuth.ts                  ← REWRITE: AuthProvider context, resolveUserRow, useMemo value
+├── src/contexts/LanguageContext.tsx      ← NEW
+├── src/contexts/ThemeContext.tsx         ← NEW
+├── src/i18n/strings.ts                   ← NEW
+├── src/lib/supabase.ts                   ← NEW
+├── src/services/syncService.ts           ← NEW
+├── src/navigation/RootNavigator.tsx      ← ADD SettingsScreen, gear icon, bilingual tab labels
+├── src/screens/SignInScreen.tsx          ← REMOVE skip button
+├── src/screens/OnboardingScreen.tsx      ← REWRITE: two-step categories→consent
+├── src/screens/SettingsScreen.tsx        ← NEW: dark mode, language, notif, sign-out
+├── src/screens/ProfileScreen.tsx         ← STRIP: remove categories/notif/sign-out sections
+├── src/screens/LogActivitySheet.tsx      ← REWRITE: bulk checklist + categories + SFX
+├── src/screens/TodayScreen.tsx           ← USER_ID → useAuthUser()
+├── src/screens/ProgressScreen.tsx        ← SafeAreaView + chart height fix + USER_ID
+├── src/screens/FundScreen.tsx            ← Copy changes + USER_ID
+├── src/screens/RankScreen.tsx            ← Bilingual tiers + leaderboard stub + USER_ID
+├── src/queries/useRank.ts                ← userId param + TierRow export
+├── src/logic/celebrateSound.ts           ← NEW: playCelebration(totalMinutes)
+├── src/assets/sounds/level{1-4}.mp3     ← NEW: placeholder stubs (replace with CC0 audio)
+├── src/assets/sounds/CREDITS.txt         ← NEW
+└── __tests__/auth.test.ts               ← ADD jest.mock('../src/db/client')
+Total: 71/71 tests pass
+```
+
+### Day 10 Test Command
+```bash
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
+npx jest          # 71/71 pass
+npx tsc --noEmit  # 0 errors
+npx expo run:android  # requires native build + OAuth client IDs in .env.local
+```
+
+### Known Deferred / Blocked
+- **[BLOCKED P5.1]** Supabase sync: requires Supabase project URL + anon key in `.env.local` (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`). `syncService.ts` is written but no-ops until set.
+- **[USER ACTION]** Real celebration SFX: replace `src/assets/sounds/level{1-4}.mp3` with CC0 audio (≤100KB each) from freesound.org
+- **[DONE]** `@react-native-google-signin/google-signin` v16 native SDK in use (replaced `expo-auth-session`). `GoogleSignin.configure({})` intentionally has no `webClientId` — client-side profile-only auth. Redirect URI `habittracker://` must be in Web OAuth client "Authorized redirect URIs" in GCP Console.
+- Language toggle affects tab labels via `RootNavigator` — requires app re-mount to pick up (not live). Acceptable for MVP.
+
+## Known Errors & Fixes
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `ConfigError: Cannot determine the project's Expo SDK version` | `node_modules` empty, `expo` not installed | `npm install expo` |
+| `Cannot read properties of undefined (reading 'transformFile')` | `@expo/metro-config` + `babel-preset-expo` missing, no `metro.config.js` | `npm install @expo/metro-config babel-preset-expo` + create `metro.config.js` |
+| `Client Id property 'androidClientId' must be defined` | `.env.local` missing → env var `undefined` at build time | Create `.env.local` with real OAuth client IDs, rebuild |
+| `SignInScreen` profile fields silently null | `GoogleSignin.signIn()` returns nullable `email/name/photo`; `?? ''` bypassed validation | Guard: `if (!email \|\| !name \|\| !photo) { Alert...; return; }` before `onSignInWithGoogle` |

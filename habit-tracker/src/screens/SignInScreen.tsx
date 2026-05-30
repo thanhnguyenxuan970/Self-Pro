@@ -1,11 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
+import {
+  GoogleSignin,
+  isSuccessResponse,
+  isErrorWithCode,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
 import { GoogleUser } from '../hooks/useAuth';
 import { Colors, Typography, Radii, Spacing, Shadows } from '../theme';
 
-WebBrowser.maybeCompleteAuthSession();
+// webClientId not needed for client-side-only auth (profile info only)
+GoogleSignin.configure({});
 
 type Props = {
   onSignIn: () => void;
@@ -14,27 +19,36 @@ type Props = {
 
 export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
   const [loading, setLoading] = useState(false);
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-  });
 
-  useEffect(() => {
-    if (response?.type !== 'success') return;
-    const token = response.authentication?.accessToken;
-    if (!token) return;
+  async function handleGoogleSignIn() {
     setLoading(true);
-    fetch('https://www.googleapis.com/userinfo/v2/me', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(async (profile: { email: string; name: string; picture: string }) => {
-        await onSignInWithGoogle({ email: profile.email, name: profile.name, picture: profile.picture });
+    try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      if (isSuccessResponse(response)) {
+        const { email, name, photo } = response.data.user;
+        if (!email || !name) {
+          Alert.alert('Lỗi', 'Tài khoản Google thiếu thông tin (email/tên).');
+          return;
+        }
+        await onSignInWithGoogle({ email, name, picture: photo ?? '' });
         onSignIn();
-      })
-      .catch(() => Alert.alert('Lỗi', 'Không thể lấy thông tin Google.'))
-      .finally(() => setLoading(false));
-  }, [response]);
+      }
+    } catch (error) {
+      if (isErrorWithCode(error)) {
+        if (error.code === statusCodes.SIGN_IN_CANCELLED) return;
+        if (error.code === statusCodes.IN_PROGRESS) return;
+        if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+          Alert.alert('Lỗi', 'Google Play Services không khả dụng.');
+          return;
+        }
+      }
+      const msg = error instanceof Error ? `${(error as any).code ?? ''}: ${error.message}` : String(error);
+      Alert.alert('Lỗi', msg);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <View style={styles.container}>
@@ -47,9 +61,9 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
           <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: Spacing.xl }} />
         ) : (
           <TouchableOpacity
-            style={[styles.googleButton, !request && styles.buttonDisabled]}
-            onPress={() => promptAsync()}
-            disabled={!request || loading}
+            style={styles.googleButton}
+            onPress={handleGoogleSignIn}
+            disabled={loading}
             activeOpacity={0.8}
           >
             <Text style={styles.googleIcon}>G</Text>
@@ -100,7 +114,6 @@ const styles = StyleSheet.create({
   },
   googleIcon: { fontSize: 18, fontWeight: '700', color: '#4285F4', marginRight: 10 },
   googleButtonText: { color: Colors.inkDark, fontWeight: '600', fontSize: 16 },
-  buttonDisabled: { opacity: 0.4 },
   hint: {
     ...Typography.caption,
     color: Colors.faint,
