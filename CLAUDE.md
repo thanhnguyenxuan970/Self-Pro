@@ -485,11 +485,16 @@ npx expo run:android  # requires native build + OAuth client IDs in .env.local
 - **[DONE]** `@react-native-google-signin/google-signin` v16 native SDK in use (replaced `expo-auth-session`). `GoogleSignin.configure({})` intentionally has no `webClientId` — client-side profile-only auth. Redirect URI `habittracker://` must be in Web OAuth client "Authorized redirect URIs" in GCP Console.
 - Language toggle affects tab labels via `RootNavigator` — requires app re-mount to pick up (not live). Acceptable for MVP.
 
+## Habit Tracker Day 11 — Auth Fixes COMPLETE (2026-05-30)
+- `signOut()`: dynamic `import('@react-native-google-signin/google-signin')` + `try/finally` state reset → account chooser on re-login; state always cleared even on AsyncStorage failure
+- `migrations.ts`: dedup DELETE (keeps `MIN(id)` per user/name) + `CREATE UNIQUE INDEX IF NOT EXISTS idx_task_types_user_name ON task_types (user_id, name)` runs on every startup (idempotent)
+- `useCreateTask`: `INSERT OR IGNORE INTO task_types` → onboarding idempotent on re-login; no duplicate tasks
+- Tests: 71/71 pass, 0 TS errors
+
 ## Known Errors & Fixes
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `ConfigError: Cannot determine the project's Expo SDK version` | `node_modules` empty, `expo` not installed | `npm install expo` |
-| `Cannot read properties of undefined (reading 'transformFile')` | `@expo/metro-config` + `babel-preset-expo` missing, no `metro.config.js` | `npm install @expo/metro-config babel-preset-expo` + create `metro.config.js` |
 | `Client Id property 'androidClientId' must be defined` | `.env.local` missing → env var `undefined` at build time | Create `.env.local` with real OAuth client IDs, rebuild |
 | `SignInScreen` profile fields silently null | `GoogleSignin.signIn()` returns nullable `email/name/photo`; `?? ''` bypassed validation | Guard: `if (!email \|\| !name \|\| !photo) { Alert...; return; }` before `onSignInWithGoogle` |
+| `SyntaxError: Unexpected token 'export'` in `@react-native-google-signin` (Jest) | Jest can't parse ESM module from `node_modules` | Use dynamic `import()` inside the function body, not top-level import |

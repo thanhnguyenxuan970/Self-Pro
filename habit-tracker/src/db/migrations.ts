@@ -170,13 +170,24 @@ export async function runMigrations(db: SQLiteDatabase) {
     );
   `);
 
+  // Remove duplicate task names per user (keep lowest id), then enforce uniqueness
+  await db.execAsync(`
+    DELETE FROM task_types WHERE id NOT IN (
+      SELECT MIN(id) FROM task_types GROUP BY user_id, name
+    );
+  `);
+  await db.execAsync(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_task_types_user_name
+    ON task_types (user_id, name);
+  `);
+
   // Seed default task_type for Day 1 verification
   const taskCount = await db.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM task_types'
   );
   if (!taskCount || taskCount.count === 0) {
     await db.execAsync(
-      `INSERT INTO task_types (user_id, name, kind, is_time_based, base_points, star_penalty, archived)
+      `INSERT OR IGNORE INTO task_types (user_id, name, kind, is_time_based, base_points, star_penalty, archived)
        VALUES (1, 'Exercise', 'GOOD', 0, 10, 50, 0)`
     );
   }

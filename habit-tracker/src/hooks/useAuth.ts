@@ -59,13 +59,22 @@ export function useAuth() {
   }, []);
 
   const signOut = useCallback(async () => {
-    await AsyncStorage.multiRemove([
-      ONBOARDED_KEY,
-      GOOGLE_USER_KEY,
-      'habit_tracker_display_name',
-    ]);
-    setIsOnboarded(false);
-    setGoogleUser(null);
+    try {
+      const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+      await GoogleSignin.signOut();
+    } catch {
+      // ignore — native sign-out failure doesn't affect local state
+    }
+    try {
+      await AsyncStorage.multiRemove([
+        ONBOARDED_KEY,
+        GOOGLE_USER_KEY,
+        'habit_tracker_display_name',
+      ]);
+    } finally {
+      setIsOnboarded(false);
+      setGoogleUser(null);
+    }
   }, []);
 
   return { isLoading, isOnboarded, googleUser, completeOnboarding, signInWithGoogle, signOut };

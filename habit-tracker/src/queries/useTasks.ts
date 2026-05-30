@@ -17,7 +17,7 @@ export function useCreateTask(userId: number) {
     mutationFn: async (params: TaskFormParams) => {
       const db = await getDb();
       await db.runAsync(
-        `INSERT INTO task_types
+        `INSERT OR IGNORE INTO task_types
          (user_id, name, kind, is_time_based, base_points, star_penalty, icon, category_id, archived)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
         [userId, params.name, params.kind, params.isTimeBased ? 1 : 0,
