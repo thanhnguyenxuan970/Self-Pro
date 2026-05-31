@@ -1,0 +1,231 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getDb } from '../db/client';
+import { computeLogTaskRows } from '../logic/logTask';
+import { getLocalDate, getLocalDateFor, getWeekStart } from '../logic/formatters';
+import { computeTierUnlocks, TierRow } from '../logic/tierUnlocks';
+
+export function useTodayTasks(userId: number) {
+  return useQuery({
+    queryKey: ['today', 'tasks', userId],
+    queryFn: async () => {
+      const db = await getDb();
+      return db.getAllAsync<{
+        id: number; name: string; kind: string; is_time_based: number;
+        base_points: number; star_penalty: number; icon: string | null;
+        category_id: number | null;
+      }>(
+        `SELECT id, name, kind, is_time_based, base_points, star_penalty, icon, category_id
+         FROM task_types WHERE user_id = ? AND archived = 0 ORDER BY kind, name`,
+        [userId]
+      );
+    },
+  });
+}
+
+export function useDailySummary(userId: number) {
+  const today = getLocalDate();
+  return useQuery({
+    queryKey: ['today', 'summary', userId, today],
+    queryFn: async () => {
+      const db = await getDb();
+      return db.getFirstAsync<{
+        total_points: number; bonus_star_awarded: number; streak_count: number;
+      }>(
+        `SELECT total_points, bonus_star_awarded, streak_count
+         FROM daily_summary WHERE user_id = ? AND local_date = ?`,
+        [userId, today]
+      );
+    },
+  });
+}
+
+export function useWeeklySummary(userId: number) {
+  const weekStart = getWeekStart();
+  return useQuery({
+    queryKey: ['week', userId, weekStart],
+    queryFn: async () => {
+      const db = await getDb();
+      return db.getFirstAsync<{
+        weekly_stars: number; peak_stars: number; current_tier_id: number | null;
+      }>(
+        `SELECT weekly_stars, peak_stars, current_tier_id
+         FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
+        [userId, weekStart]
+      );
+    },
+  });
+}
+
+export function useLogTask(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      taskTypeId: number;
+      kind: 'GOOD' | 'BAD';
+      isTimeBased: boolean;
+      basePoints: number;
+      starPenalty: number;
+      durationMin?: number;
+    }) => {
+      const db = await getDb();
+      const today = getLocalDate();
+      const weekStart = getWeekStart();
+      const now = new Date();
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayDate = getLocalDateFor(yesterday);
+      const nowMs = now.getTime();
+
+      // tiers is a static lookup — never written, safe to read outside transaction
+      const tiers = await db.getAllAsync<TierRow>(
+        `SELECT id, stars_required, reward_amount, reward_currency
+         FROM tiers ORDER BY stars_required ASC`
+      );
+
+      // All volatile reads + computation + writes inside one transaction.
+      // This prevents TOCTOU: two concurrent mutateAsync calls can no longer
+      // read the same stale daily/weekly rows before either commits.
+      await db.withTransactionAsync(async () => {
+        const daily = await db.getFirstAsync<{
+          total_points: number; bonus_star_awarded: number; streak_count: number;
+        }>(
+          `SELECT total_points, bonus_star_awarded, streak_count FROM daily_summary
+           WHERE user_id = ? AND local_date = ?`,
+          [userId, today]
+        );
+
+        const weeklyRow = await db.getFirstAsync<{ weekly_stars: number }>(
+          `SELECT weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
+          [userId, weekStart]
+        );
+
+        const alreadyUnlocked = await db.getAllAsync<{ tier_id: number }>(
+          `SELECT tier_id FROM reward_unlocks WHERE user_id = ? AND week_start = ?`,
+          [userId, weekStart]
+        );
+        const alreadyUnlockedIds = alreadyUnlocked.map(r => r.tier_id);
+
+        let todayStreak = 1;
+        if (daily === null) {
+          const yesterdayRow = await db.getFirstAsync<{ streak_count: number }>(
+            `SELECT streak_count FROM daily_summary WHERE user_id = ? AND local_date = ?`,
+            [userId, yesterdayDate]
+          );
+          todayStreak = (yesterdayRow?.streak_count ?? 0) + 1;
+        }
+
+        const { activityRow, bonusRow } = computeLogTaskRows({
+          userId,
+          taskTypeId: params.taskTypeId,
+          kind: params.kind,
+          isTimeBased: params.isTimeBased,
+          basePoints: params.basePoints,
+          starPenalty: params.starPenalty,
+          durationMin: params.durationMin,
+          currentDayPoints: daily?.total_points ?? 0,
+          bonusAlreadyAwarded: !!daily?.bonus_star_awarded,
+          loggedAt: now,
+          localDate: today,
+          weekStart,
+        });
+
+        const newDayPts = (daily?.total_points ?? 0) + activityRow.points_earned;
+        const totalStarsDelta = activityRow.stars_delta + (bonusRow?.stars_delta ?? 0);
+        const oldStars = weeklyRow?.weekly_stars ?? 0;
+        const newStars = oldStars + totalStarsDelta;
+        const newUnlocks = computeTierUnlocks({
+          userId,
+          weekStart,
+          oldStars,
+          newStars,
+          tiers,
+          alreadyUnlockedTierIds: alreadyUnlockedIds,
+        });
+
+        // Insert main activity row
+        await db.runAsync(
+          `INSERT INTO activity_log
+           (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [activityRow.user_id, activityRow.task_type_id, activityRow.kind,
+           activityRow.duration_min, activityRow.points_earned, activityRow.stars_delta,
+           activityRow.source, activityRow.logged_at, activityRow.local_date, activityRow.week_start]
+        );
+
+        // Insert bonus row if earned
+        if (bonusRow) {
+          await db.runAsync(
+            `INSERT INTO activity_log
+             (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [bonusRow.user_id, bonusRow.task_type_id, bonusRow.kind, bonusRow.duration_min,
+             bonusRow.points_earned, bonusRow.stars_delta, bonusRow.source,
+             bonusRow.logged_at, bonusRow.local_date, bonusRow.week_start]
+          );
+        }
+
+        // Upsert daily_summary
+        await db.runAsync(
+          `INSERT INTO daily_summary (user_id, local_date, total_points, bonus_star_awarded, streak_count)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(user_id, local_date) DO UPDATE SET
+             total_points = total_points + ?,
+             bonus_star_awarded = CASE WHEN ? THEN 1 ELSE bonus_star_awarded END`,
+          [userId, today, newDayPts, bonusRow ? 1 : 0, todayStreak,
+           activityRow.points_earned, bonusRow ? 1 : 0]
+        );
+
+        // Upsert weekly_summary
+        await db.runAsync(
+          `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars, peak_stars)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(user_id, week_start) DO UPDATE SET
+             total_points = total_points + ?,
+             weekly_stars = weekly_stars + ?,
+             peak_stars = MAX(peak_stars, weekly_stars + ?)`,
+          [userId, weekStart, activityRow.points_earned, totalStarsDelta,
+           Math.max(0, totalStarsDelta),
+           activityRow.points_earned, totalStarsDelta, totalStarsDelta]
+        );
+
+        // Insert tier unlocks + fund deposits
+        for (const unlock of newUnlocks) {
+          const r = await db.runAsync(
+            `INSERT OR IGNORE INTO reward_unlocks
+             (user_id, tier_id, week_start, stars_at_unlock, reward_amount, claimed)
+             VALUES (?, ?, ?, ?, ?, 0)`,
+            [unlock.user_id, unlock.tier_id, unlock.week_start,
+             unlock.stars_at_unlock, unlock.reward_amount]
+          );
+          if (r.changes > 0) {
+            await db.runAsync(
+              `INSERT INTO fund_transactions
+               (user_id, type, amount, currency, source_unlock_id, occurred_at)
+               VALUES (?, 'DEPOSIT', ?, ?, ?, ?)`,
+              [userId, unlock.reward_amount, unlock.reward_currency, r.lastInsertRowId, nowMs]
+            );
+          }
+        }
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['today'] });
+      qc.invalidateQueries({ queryKey: ['week'] });
+      qc.invalidateQueries({ queryKey: ['fund'] });
+      qc.invalidateQueries({ queryKey: ['progress'] });
+    },
+  });
+}
+
+export function useCategories(userId: number) {
+  return useQuery({
+    queryKey: ['categories', userId],
+    queryFn: async () => {
+      const db = await getDb();
+      return db.getAllAsync<{ id: number; name: string; icon: string | null }>(
+        `SELECT id, name, icon FROM categories WHERE user_id = ? AND archived = 0 ORDER BY sort_order`,
+        [userId]
+      );
+    },
+  });
+}
