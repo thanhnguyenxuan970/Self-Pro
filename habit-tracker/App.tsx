@@ -35,12 +35,14 @@ function AppInner() {
     signOut,
   } = useAuth();
 
+  // Wait for auth to finish loading (AsyncStorage is async) so googleUser is
+  // available before we resolve the DB row. Without this guard, init() runs
+  // with googleUser=null and userId stays 1 for all returning users.
   useEffect(() => {
+    if (authLoading) return;
     async function init() {
       const db = await getDb();
 
-      // Resolve which DB row belongs to the current Google account.
-      // This is the source of truth for all per-user queries.
       let resolvedUserId = 1;
       if (googleUser?.email) {
         resolvedUserId = await resolveUserRow(db, googleUser.email);
@@ -71,7 +73,7 @@ function AppInner() {
       setDbReady(true);
     }
     init().catch(err => console.error('DB init failed:', err));
-  }, []);
+  }, [authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (dbReady && weekReset) {

@@ -475,3 +475,23 @@ cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
 npx jest          # 71/71 pass
 npx tsc --noEmit  # 0 errors
 ```
+
+## Habit Tracker Day 13 — Multi-Tenant Isolation + Init Race Fix COMPLETE (2026-05-31)
+
+### What Was Fixed
+- **Multi-tenant data isolation** (critical): `USER_ID=1` constant replaced with `UserIdContext` + `resolveUserRow()`. Google email → DB row mapping via `google_sub` column. Account A claims legacy `id=1` row; Account B gets new row with seeded categories.
+- **Init closure race bug** (critical): `App.tsx` `init()` effect had `[]` deps — captured `googleUser=null` at mount before AsyncStorage loaded. Returning users always got `userId=1`. Fixed: `authLoading` added to deps so `init()` runs after auth resolves.
+- All 8 query consumers switched from `USER_ID` to `useAuthUser()` hook.
+
+### Key Decisions (Day 13)
+- `UserIdContext` default `1` is safe — fallback before provider mounts (never reached by signed-in users).
+- `resolveUserRow` three-way: SELECT existing → UPDATE legacy id=1 claim → INSERT new + seed categories. Idempotent.
+- `init()` uses `[authLoading]` dep (not `[googleUser]`) — fires once when auth finishes, closure has settled `googleUser`.
+- `resolveUserRow` in `signInWithGoogle` retained for new sign-in immediacy.
+
+### Test Command
+```bash
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
+npx jest          # 71/71 pass
+npx tsc --noEmit  # 0 errors
+```
