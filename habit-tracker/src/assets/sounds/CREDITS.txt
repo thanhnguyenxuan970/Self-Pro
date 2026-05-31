@@ -1,0 +1,8 @@
+Celebration sound effects
+Replace level1.mp3 through level4.mp3 with CC0-licensed audio from freesound.org
+Keep files under 100KB each for bundle size
+
+level1.mp3 — short soft chime (1-29 min logged)
+level2.mp3 — medium success sound (30-59 min logged)
+level3.mp3 — upbeat fanfare (60-89 min logged)
+level4.mp3 — big celebration (90+ min logged)

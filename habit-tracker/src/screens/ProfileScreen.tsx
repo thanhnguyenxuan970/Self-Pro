@@ -169,10 +169,18 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
     <View style={styles.container}>
       {/* Profile Header */}
       <View style={profileHeaderStyles.card}>
-        <Image
-          source={{ uri: googleUser.picture }}
-          style={profileHeaderStyles.avatar}
-        />
+        {googleUser.picture ? (
+          <Image
+            source={{ uri: googleUser.picture }}
+            style={profileHeaderStyles.avatar}
+          />
+        ) : (
+          <View style={[profileHeaderStyles.avatar, profileHeaderStyles.avatarPlaceholder]}>
+            <Text style={profileHeaderStyles.avatarInitial}>
+              {googleUser.name.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
         <View style={profileHeaderStyles.info}>
           <Text style={profileHeaderStyles.name}>{googleUser.name}</Text>
           <Text style={profileHeaderStyles.email}>{googleUser.email}</Text>
@@ -420,6 +428,15 @@ const profileHeaderStyles = StyleSheet.create({
     borderRadius: 26,
     marginRight: Spacing.md,
     backgroundColor: Colors.primarySoft,
+  },
+  avatarPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitial: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.primary,
   },
   info: { flex: 1 },
   name: { ...Typography.bodyStrong, color: Colors.inkDark },
