@@ -66,6 +66,10 @@ export function useAuth() {
       // ignore — native sign-out failure doesn't affect local state
     }
     try {
+      const { resetSyncCursors } = await import('../services/syncService');
+      await resetSyncCursors();
+    } catch { }
+    try {
       await AsyncStorage.multiRemove([
         ONBOARDED_KEY,
         GOOGLE_USER_KEY,

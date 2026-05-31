@@ -9,6 +9,7 @@ import { getDb } from './src/db/client';
 import { getWeekStart } from './src/logic/formatters';
 import { shouldShowWeekResetToast } from './src/logic/weekReset';
 import { useAuth } from './src/hooks/useAuth';
+import { syncToSupabase, resetSyncCursors } from './src/services/syncService';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -48,6 +49,10 @@ function AppInner() {
       }
 
       await Notifications.requestPermissionsAsync();
+
+      if (googleUser?.email) {
+        syncToSupabase(googleUser.email);
+      }
 
       setDbReady(true);
     }
