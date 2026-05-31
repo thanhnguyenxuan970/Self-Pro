@@ -6,7 +6,7 @@ import {
 import Toast from 'react-native-toast-message';
 import { useTodayTasks, useLogTask } from '../queries/useToday';
 import { playCelebration } from '../logic/celebrateSound';
-import { USER_ID } from '../constants';
+import { useAuthUser } from '../hooks/useAuth';
 import { Colors, Typography, Radii, Spacing, Shadows } from '../theme';
 
 type Task = {
@@ -18,8 +18,9 @@ type Task = {
 interface Props { visible: boolean; onClose: () => void; }
 
 export function LogActivitySheet({ visible, onClose }: Props) {
-  const { data: tasks = [], isLoading } = useTodayTasks(USER_ID);
-  const logTask = useLogTask(USER_ID);
+  const userId = useAuthUser();
+  const { data: tasks = [], isLoading } = useTodayTasks(userId);
+  const logTask = useLogTask(userId);
   const [durationTask, setDurationTask] = useState<Task | null>(null);
   const [duration, setDuration] = useState('');
   const submittingRef = useRef(false);

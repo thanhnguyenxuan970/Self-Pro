@@ -35,7 +35,7 @@ interface FundRow {
 async function syncActivity(userEmail: string): Promise<void> {
   const db = await getDb();
   const raw = await AsyncStorage.getItem(KEY_LAST_ACTIVITY);
-  const lastId = raw ? parseInt(raw, 10) : 0;
+  const lastId = raw ? (parseInt(raw, 10) || 0) : 0;
 
   const rows = await db.getAllAsync<ActivityRow>(
     'SELECT * FROM activity_log WHERE id > ? ORDER BY id ASC LIMIT ?',
@@ -55,7 +55,7 @@ async function syncActivity(userEmail: string): Promise<void> {
 async function syncFund(userEmail: string): Promise<void> {
   const db = await getDb();
   const raw = await AsyncStorage.getItem(KEY_LAST_FUND);
-  const lastId = raw ? parseInt(raw, 10) : 0;
+  const lastId = raw ? (parseInt(raw, 10) || 0) : 0;
 
   const rows = await db.getAllAsync<FundRow>(
     'SELECT * FROM fund_transactions WHERE id > ? ORDER BY id ASC LIMIT ?',
@@ -78,10 +78,9 @@ async function syncFund(userEmail: string): Promise<void> {
  */
 export async function syncToSupabase(userEmail: string): Promise<void> {
   if (!supabase) return;
-  try {
-    await Promise.all([syncActivity(userEmail), syncFund(userEmail)]);
-  } catch (e) {
-    console.warn('[sync] failed:', e);
+  const results = await Promise.allSettled([syncActivity(userEmail), syncFund(userEmail)]);
+  for (const r of results) {
+    if (r.status === 'rejected') console.warn('[sync] failed:', r.reason);
   }
 }
 

@@ -105,10 +105,11 @@ export async function runMigrations(db: SQLiteDatabase) {
     );
   `);
 
-  // Day 4 migrations: new user columns
+  // Day 4 / Day 9+ migrations: new user columns
   for (const sql of [
     `ALTER TABLE users ADD COLUMN last_seen_week_start TEXT`,
     `ALTER TABLE users ADD COLUMN notification_time TEXT`,
+    `ALTER TABLE users ADD COLUMN google_sub TEXT`,
   ]) {
     try { await db.runAsync(sql); } catch (e: any) {
       if (!e?.message?.includes('duplicate column')) throw e;

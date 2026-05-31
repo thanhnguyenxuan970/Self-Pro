@@ -4,7 +4,7 @@ import { VictoryChart, VictoryBar, VictoryStack, VictoryAxis } from 'victory-nat
 import { useProgressData, useStreakCount, useStarsToNextTier, useAllTimeStats } from '../queries/useProgress';
 import { getRangeLabel } from '../logic/formatters';
 import { Colors, Typography, Radii, Spacing } from '../theme';
-import { USER_ID } from '../constants';
+import { useAuthUser } from '../hooks/useAuth';
 
 type Range = 'D' | 'W' | 'M' | 'Y';
 const RANGES: Range[] = ['D', 'W', 'M', 'Y'];
@@ -22,11 +22,12 @@ function formatBucket(bucket: string, range: Range): string {
 }
 
 export function ProgressScreen() {
+  const userId = useAuthUser();
   const [range, setRange] = useState<Range>('W');
-  const { data: chartData = [], isLoading } = useProgressData(USER_ID, range);
-  const { data: streak = 0 } = useStreakCount(USER_ID);
-  const { data: tierInfo } = useStarsToNextTier(USER_ID);
-  const { data: allTime } = useAllTimeStats(USER_ID);
+  const { data: chartData = [], isLoading } = useProgressData(userId, range);
+  const { data: streak = 0 } = useStreakCount(userId);
+  const { data: tierInfo } = useStarsToNextTier(userId);
+  const { data: allTime } = useAllTimeStats(userId);
   const rangeLabel = getRangeLabel(range);
 
   const goodData = chartData.map((r, i) => ({ x: i + 1, y: r.goodStars }));

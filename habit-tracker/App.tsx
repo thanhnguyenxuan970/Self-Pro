@@ -8,8 +8,8 @@ import { RootNavigator } from './src/navigation/RootNavigator';
 import { getDb } from './src/db/client';
 import { getWeekStart } from './src/logic/formatters';
 import { shouldShowWeekResetToast } from './src/logic/weekReset';
-import { useAuth } from './src/hooks/useAuth';
-import { syncToSupabase, resetSyncCursors } from './src/services/syncService';
+import { useAuth, resolveUserRow, UserIdContext } from './src/hooks/useAuth';
+import { syncToSupabase } from './src/services/syncService';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -24,36 +24,50 @@ Notifications.setNotificationHandler({
 function AppInner() {
   const [dbReady, setDbReady] = useState(false);
   const [weekReset, setWeekReset] = useState(false);
-  const { isLoading: authLoading, isOnboarded, googleUser, completeOnboarding, signInWithGoogle, signOut } = useAuth();
+  const {
+    isLoading: authLoading,
+    isOnboarded,
+    googleUser,
+    userId,
+    setResolvedUserId,
+    completeOnboarding,
+    signInWithGoogle,
+    signOut,
+  } = useAuth();
 
   useEffect(() => {
     async function init() {
       const db = await getDb();
-      const currentWeekStart = getWeekStart();
 
+      // Resolve which DB row belongs to the current Google account.
+      // This is the source of truth for all per-user queries.
+      let resolvedUserId = 1;
+      if (googleUser?.email) {
+        resolvedUserId = await resolveUserRow(db, googleUser.email);
+        setResolvedUserId(resolvedUserId);
+        syncToSupabase(googleUser.email);
+      }
+
+      const currentWeekStart = getWeekStart();
       await db.runAsync(
         `UPDATE weekly_summary SET finalized = 1
-         WHERE user_id = 1 AND finalized = 0 AND week_start < ?`,
-        [currentWeekStart]
+         WHERE user_id = ? AND finalized = 0 AND week_start < ?`,
+        [resolvedUserId, currentWeekStart]
       );
 
       const user = await db.getFirstAsync<{ last_seen_week_start: string | null }>(
-        'SELECT last_seen_week_start FROM users WHERE id = 1'
+        'SELECT last_seen_week_start FROM users WHERE id = ?',
+        [resolvedUserId]
       );
       if (shouldShowWeekResetToast(currentWeekStart, user?.last_seen_week_start ?? null)) {
         setWeekReset(true);
         await db.runAsync(
-          'UPDATE users SET last_seen_week_start = ? WHERE id = 1',
-          [currentWeekStart]
+          'UPDATE users SET last_seen_week_start = ? WHERE id = ?',
+          [currentWeekStart, resolvedUserId]
         );
       }
 
       await Notifications.requestPermissionsAsync();
-
-      if (googleUser?.email) {
-        syncToSupabase(googleUser.email);
-      }
-
       setDbReady(true);
     }
     init().catch(err => console.error('DB init failed:', err));
@@ -82,16 +96,18 @@ function AppInner() {
   }
 
   return (
-    <>
-      <RootNavigator
-        isOnboarded={isOnboarded}
-        googleUser={googleUser}
-        onCompleteOnboarding={completeOnboarding}
-        onSignInWithGoogle={signInWithGoogle}
-        onSignOut={signOut}
-      />
-      <Toast />
-    </>
+    <UserIdContext.Provider value={userId}>
+      <>
+        <RootNavigator
+          isOnboarded={isOnboarded}
+          googleUser={googleUser}
+          onCompleteOnboarding={completeOnboarding}
+          onSignInWithGoogle={signInWithGoogle}
+          onSignOut={signOut}
+        />
+        <Toast />
+      </>
+    </UserIdContext.Provider>
   );
 }
 

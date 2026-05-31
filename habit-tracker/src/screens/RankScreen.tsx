@@ -9,6 +9,7 @@ import {
 import { Colors, Typography, Radii, Spacing, Shadows } from '../theme';
 import { useRankData } from '../queries/useRank';
 import { getCurrentTier, getStarsToNextTier } from '../logic/rankUtils';
+import { useAuthUser } from '../hooks/useAuth';
 
 const RANK_EMOJIS: Record<string, string> = {
   'NPC': '🎮',
@@ -21,7 +22,8 @@ const RANK_EMOJIS: Record<string, string> = {
 };
 
 export function RankScreen() {
-  const { data, isLoading } = useRankData();
+  const userId = useAuthUser();
+  const { data, isLoading } = useRankData(userId);
 
   if (isLoading || !data) {
     return (

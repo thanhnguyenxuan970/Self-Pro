@@ -7,7 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTodayTasks, useDailySummary, useWeeklySummary, useLogTask, useCategories } from '../queries/useToday';
 import { getLocalDate } from '../logic/formatters';
 import { Colors, Typography, Radii, Spacing, Shadows } from '../theme';
-import { USER_ID } from '../constants';
+import { useAuthUser } from '../hooks/useAuth';
 
 type Task = {
   id: number;
@@ -21,11 +21,12 @@ type Task = {
 
 export function TodayScreen() {
   const navigation = useNavigation();
-  const { data: tasks, isLoading, isError } = useTodayTasks(USER_ID);
-  const { data: daily } = useDailySummary(USER_ID);
-  const { data: weekly } = useWeeklySummary(USER_ID);
-  const { data: categories } = useCategories(USER_ID);
-  const logTask = useLogTask(USER_ID);
+  const userId = useAuthUser();
+  const { data: tasks, isLoading, isError } = useTodayTasks(userId);
+  const { data: daily } = useDailySummary(userId);
+  const { data: weekly } = useWeeklySummary(userId);
+  const { data: categories } = useCategories(userId);
+  const logTask = useLogTask(userId);
 
   const [modalTask, setModalTask] = useState<Task | null>(null);
   const [duration, setDuration] = useState('');

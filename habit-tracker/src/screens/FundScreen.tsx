@@ -9,7 +9,7 @@ import Toast from 'react-native-toast-message';
 import { validateDeposit } from '../logic/fundDeposit';
 import { formatVND } from '../logic/formatters';
 import { Colors, Typography, Radii, Spacing, Shadows } from '../theme';
-import { USER_ID } from '../constants';
+import { useAuthUser } from '../hooks/useAuth';
 
 function renderRow({ item }: { item: LedgerRow }) {
   const isDeposit = item.type === 'DEPOSIT';
@@ -32,12 +32,13 @@ function renderRow({ item }: { item: LedgerRow }) {
 }
 
 export function FundScreen() {
-  const { data: balance, isLoading: balanceLoading } = useFundBalance(USER_ID);
-  const { data: ledger, isLoading: ledgerLoading } = useFundLedger(USER_ID);
-  const spendFund = useSpendFund(USER_ID);
-  const depositFund = useDepositFund(USER_ID);
-  const freezeEligibility = useStreakFreezeEligibility(USER_ID);
-  const purchaseFreeze = usePurchaseStreakFreeze(USER_ID);
+  const userId = useAuthUser();
+  const { data: balance, isLoading: balanceLoading } = useFundBalance(userId);
+  const { data: ledger, isLoading: ledgerLoading } = useFundLedger(userId);
+  const spendFund = useSpendFund(userId);
+  const depositFund = useDepositFund(userId);
+  const freezeEligibility = useStreakFreezeEligibility(userId);
+  const purchaseFreeze = usePurchaseStreakFreeze(userId);
 
   const [spendModal, setSpendModal] = useState(false);
   const [spendAmount, setSpendAmount] = useState('');

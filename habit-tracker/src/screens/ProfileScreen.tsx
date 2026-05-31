@@ -10,7 +10,7 @@ import Toast from 'react-native-toast-message';
 import { useCreateTask, useUpdateTask, useArchiveTask, useArchiveCategory } from '../queries/useTasks';
 import { useFundBalance } from '../queries/useFund';
 import { Colors, Typography, Radii, Spacing, Shadows } from '../theme';
-import { USER_ID } from '../constants';
+import { useAuthUser } from '../hooks/useAuth';
 
 type Task = {
   id: number;
@@ -47,18 +47,19 @@ type Props = {
 };
 
 export function ProfileScreen({ googleUser, onSignOut }: Props) {
-  const { data: tasks } = useTodayTasks(USER_ID);
-  const { data: weekly } = useWeeklySummary(USER_ID);
-  const { data: daily } = useDailySummary(USER_ID);
-  const { data: fundBalance = 0 } = useFundBalance(USER_ID);
-  const createTask = useCreateTask(USER_ID);
-  const updateTask = useUpdateTask(USER_ID);
-  const archiveTask = useArchiveTask(USER_ID);
-  const { data: categories = [] } = useCategories(USER_ID);
-  const archiveCategory = useArchiveCategory(USER_ID);
+  const userId = useAuthUser();
+  const { data: tasks } = useTodayTasks(userId);
+  const { data: weekly } = useWeeklySummary(userId);
+  const { data: daily } = useDailySummary(userId);
+  const { data: fundBalance = 0 } = useFundBalance(userId);
+  const createTask = useCreateTask(userId);
+  const updateTask = useUpdateTask(userId);
+  const archiveTask = useArchiveTask(userId);
+  const { data: categories = [] } = useCategories(userId);
+  const archiveCategory = useArchiveCategory(userId);
 
-  const { data: savedNotifTime } = useNotificationTime(USER_ID);
-  const setNotifTimeMutation = useSetNotificationTime(USER_ID);
+  const { data: savedNotifTime } = useNotificationTime(userId);
+  const setNotifTimeMutation = useSetNotificationTime(userId);
   const [notifInput, setNotifInput] = useState('');
   const [savingNotif, setSavingNotif] = useState(false);
 
@@ -177,7 +178,7 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
         ) : (
           <View style={[profileHeaderStyles.avatar, profileHeaderStyles.avatarPlaceholder]}>
             <Text style={profileHeaderStyles.avatarInitial}>
-              {googleUser.name.charAt(0).toUpperCase()}
+              {(googleUser.name.charAt(0) || '?').toUpperCase()}
             </Text>
           </View>
         )}

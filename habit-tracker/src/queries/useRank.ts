@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDb } from '../db/client';
-import { USER_ID } from '../constants';
 import { getWeekStart } from '../logic/formatters';
 
 type TierRow = {
@@ -12,23 +11,23 @@ type TierRow = {
 };
 type WeekHistory = { week_start: string; weekly_stars: number; current_tier_id: number | null };
 
-export function useRankData() {
+export function useRankData(userId: number) {
   return useQuery({
-    queryKey: ['rank', USER_ID],
+    queryKey: ['rank', userId],
     queryFn: async () => {
       const db = await getDb();
       const weekStart = getWeekStart();
 
       const weekly = await db.getFirstAsync<{ weekly_stars: number; current_tier_id: number | null }>(
         `SELECT weekly_stars, current_tier_id FROM weekly_summary WHERE user_id=? AND week_start=?`,
-        [USER_ID, weekStart]
+        [userId, weekStart]
       );
       const tiers = await db.getAllAsync<TierRow>(
         `SELECT id, tier_order, rank_name, stars_required, reward_amount FROM tiers ORDER BY tier_order`
       );
       const history = await db.getAllAsync<WeekHistory>(
         `SELECT week_start, weekly_stars, current_tier_id FROM weekly_summary WHERE user_id=? ORDER BY week_start DESC LIMIT 8`,
-        [USER_ID]
+        [userId]
       );
       return {
         currentStars: weekly?.weekly_stars ?? 0,

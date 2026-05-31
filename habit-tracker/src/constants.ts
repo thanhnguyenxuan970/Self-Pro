@@ -11,7 +11,6 @@ export const SOURCE_TASK = 'TASK';
 export const SOURCE_DAILY_BONUS = 'DAILY_BONUS';
 export const SOURCE_PENALTY = 'PENALTY';
 
-export const USER_ID = 1;
 export const STREAK_FREEZE_COST = 10_000;
 
 export type TemplateTask = {

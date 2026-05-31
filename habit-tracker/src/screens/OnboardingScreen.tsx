@@ -9,16 +9,18 @@ import {
   Alert,
 } from 'react-native';
 import { Colors, Typography, Radii, Spacing, Shadows } from '../theme';
-import { TEMPLATE_CATEGORIES, USER_ID } from '../constants';
+import { TEMPLATE_CATEGORIES } from '../constants';
+import { useAuthUser } from '../hooks/useAuth';
 import { buildTemplateTasks } from '../logic/seedTemplates';
 import { useCreateTask } from '../queries/useTasks';
 
 type Props = { onComplete: () => Promise<void> };
 
 export function OnboardingScreen({ onComplete }: Props) {
+  const userId = useAuthUser();
   const [selected, setSelected] = useState<Set<string>>(new Set(['sports']));
   const [loading, setLoading] = useState(false);
-  const createTask = useCreateTask(USER_ID);
+  const createTask = useCreateTask(userId);
 
   const toggle = (key: string) => {
     setSelected((prev) => {

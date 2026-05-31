@@ -438,51 +438,8 @@ Full "App Fixes & Enhancements" pass across all 5 phases:
 - Tier seed UPDATE uses `WHERE tier_order=?` (not `INSERT OR REPLACE`) — `INSERT OR REPLACE` changes ROWID, breaking `reward_unlocks.tier_id` FK refs
 - MP3 files: placeholder empty files committed so Metro bundler succeeds; user replaces with real CC0 audio
 
-### Day 10 Files Created/Modified
-```
-habit-tracker/
-├── index.ts                              ← ADD react-native-url-polyfill/auto (first import)
-├── App.tsx                               ← AuthProvider + LanguageProvider + ThemeProvider wrap; init runs once
-├── src/constants.ts                      ← ADD TIER_NAMES; REMOVE USER_ID
-├── src/theme.ts                          ← ADD DarkColors
-├── src/db/migrations.ts                  ← ADD google_sub/email columns; UPDATE tier ladder
-├── src/db/schema.ts                      ← ADD google_sub/email to users type
-├── src/hooks/useAuth.ts                  ← REWRITE: AuthProvider context, resolveUserRow, useMemo value
-├── src/contexts/LanguageContext.tsx      ← NEW
-├── src/contexts/ThemeContext.tsx         ← NEW
-├── src/i18n/strings.ts                   ← NEW
-├── src/lib/supabase.ts                   ← NEW
-├── src/services/syncService.ts           ← NEW
-├── src/navigation/RootNavigator.tsx      ← ADD SettingsScreen, gear icon, bilingual tab labels
-├── src/screens/SignInScreen.tsx          ← REMOVE skip button
-├── src/screens/OnboardingScreen.tsx      ← REWRITE: two-step categories→consent
-├── src/screens/SettingsScreen.tsx        ← NEW: dark mode, language, notif, sign-out
-├── src/screens/ProfileScreen.tsx         ← STRIP: remove categories/notif/sign-out sections
-├── src/screens/LogActivitySheet.tsx      ← REWRITE: bulk checklist + categories + SFX
-├── src/screens/TodayScreen.tsx           ← USER_ID → useAuthUser()
-├── src/screens/ProgressScreen.tsx        ← SafeAreaView + chart height fix + USER_ID
-├── src/screens/FundScreen.tsx            ← Copy changes + USER_ID
-├── src/screens/RankScreen.tsx            ← Bilingual tiers + leaderboard stub + USER_ID
-├── src/queries/useRank.ts                ← userId param + TierRow export
-├── src/logic/celebrateSound.ts           ← NEW: playCelebration(totalMinutes)
-├── src/assets/sounds/level{1-4}.mp3     ← NEW: placeholder stubs (replace with CC0 audio)
-├── src/assets/sounds/CREDITS.txt         ← NEW
-└── __tests__/auth.test.ts               ← ADD jest.mock('../src/db/client')
-Total: 71/71 tests pass
-```
-
-### Day 10 Test Command
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # 71/71 pass
-npx tsc --noEmit  # 0 errors
-npx expo run:android  # requires native build + OAuth client IDs in .env.local
-```
-
 ### Known Deferred / Blocked
-- **[BLOCKED P5.1]** Supabase sync: requires Supabase project URL + anon key in `.env.local` (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`). `syncService.ts` is written but no-ops until set.
 - **[USER ACTION]** Real celebration SFX: replace `src/assets/sounds/level{1-4}.mp3` with CC0 audio (≤100KB each) from freesound.org
-- **[DONE]** `@react-native-google-signin/google-signin` v16 native SDK in use (replaced `expo-auth-session`). `GoogleSignin.configure({})` intentionally has no `webClientId` — client-side profile-only auth. Redirect URI `habittracker://` must be in Web OAuth client "Authorized redirect URIs" in GCP Console.
 - Language toggle affects tab labels via `RootNavigator` — requires app re-mount to pick up (not live). Acceptable for MVP.
 
 ## Habit Tracker Day 11 — Auth Fixes COMPLETE (2026-05-30)
@@ -498,3 +455,23 @@ npx expo run:android  # requires native build + OAuth client IDs in .env.local
 | `Client Id property 'androidClientId' must be defined` | `.env.local` missing → env var `undefined` at build time | Create `.env.local` with real OAuth client IDs, rebuild |
 | `SignInScreen` profile fields silently null | `GoogleSignin.signIn()` returns nullable `email/name/photo`; `?? ''` bypassed validation | Guard: `if (!email \|\| !name \|\| !photo) { Alert...; return; }` before `onSignInWithGoogle` |
 | `SyntaxError: Unexpected token 'export'` in `@react-native-google-signin` (Jest) | Jest can't parse ESM module from `node_modules` | Use dynamic `import()` inside the function body, not top-level import |
+
+## Habit Tracker Day 12 — Code Review Fixes COMPLETE (2026-05-31)
+
+### What Was Fixed
+- `App.tsx` — removed dead `resetSyncCursors` import (never called here; only used in `useAuth.ts` via dynamic import)
+- `syncService.ts` — `parseInt(raw, 10) || 0` NaN guard for corrupted AsyncStorage cursor values
+- `syncService.ts` — `Promise.allSettled` replaces `Promise.all` so activity/fund streams fail independently (prevents cursor desync when one stream succeeds and the other fails)
+- `celebrateSound.ts` — `setAudioModeAsync` called once (module-level `audioModeSet` flag) instead of per-play; `setOnPlaybackStatusUpdate` attached before `playAsync` (eliminates unload leak on play failure)
+- `ProfileScreen.tsx` — `(name.charAt(0) || '?').toUpperCase()` guards empty name string → shows `?` instead of blank initial
+
+### Key Decisions (Day 12)
+- `Promise.allSettled` cursor invariant: each stream's cursor advances only after its own upsert succeeds. With `Promise.all`, one failure rolled back both; now each cursor is independent.
+- `audioModeSet` module flag is intentional — `Audio.setAudioModeAsync` is idempotent but calling it 10× per session is wasteful. Module-level flag survives across `playCelebration` calls within same JS runtime.
+
+### Test Command
+```bash
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
+npx jest          # 71/71 pass
+npx tsc --noEmit  # 0 errors
+```
