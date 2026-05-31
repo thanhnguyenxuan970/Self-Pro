@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useTodayTasks, useLogTask } from '../queries/useToday';
+import { playCelebration } from '../logic/celebrateSound';
 import { USER_ID } from '../constants';
 import { Colors, Typography, Radii, Spacing, Shadows } from '../theme';
 
@@ -40,6 +41,7 @@ export function LogActivitySheet({ visible, onClose }: Props) {
         starPenalty: task.star_penalty,
         durationMin,
       });
+      playCelebration(durationMin ?? 0);
       Toast.show({
         type: 'success',
         text1: 'Đã ghi nhận! ✅',
