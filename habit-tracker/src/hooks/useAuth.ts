@@ -76,6 +76,11 @@ export function useAuthUser(): number {
   return useContext(UserIdContext);
 }
 
+export const GoogleUserContext = createContext<GoogleUser | null>(null);
+export function useGoogleUser(): GoogleUser | null {
+  return useContext(GoogleUserContext);
+}
+
 export function useAuth() {
   const [isLoading, setIsLoading] = useState(true);
   const [isOnboarded, setIsOnboarded] = useState(false);

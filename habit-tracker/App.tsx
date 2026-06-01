@@ -7,7 +7,7 @@ import { RootNavigator } from './src/navigation/RootNavigator';
 import { getDb } from './src/db/client';
 import { getWeekStart } from './src/logic/formatters';
 import { shouldShowWeekResetToast } from './src/logic/weekReset';
-import { useAuth, resolveUserRow, UserIdContext } from './src/hooks/useAuth';
+import { useAuth, resolveUserRow, UserIdContext, GoogleUserContext } from './src/hooks/useAuth';
 import { syncToSupabase } from './src/services/syncService';
 
 function AppInner() {
@@ -105,6 +105,7 @@ function AppInner() {
 
   return (
     <UserIdContext.Provider value={userId}>
+    <GoogleUserContext.Provider value={googleUser}>
       <>
         <RootNavigator
           isOnboarded={isOnboarded}
@@ -115,6 +116,7 @@ function AppInner() {
         />
         <Toast />
       </>
+    </GoogleUserContext.Provider>
     </UserIdContext.Provider>
   );
 }

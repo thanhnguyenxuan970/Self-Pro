@@ -3,6 +3,8 @@ import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
   TouchableOpacity, Modal, TextInput, Alert,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFundBalance, useFundLedger, useSpendFund, useDepositFund, LedgerRow, useStreakFreezeEligibility, usePurchaseStreakFreeze } from '../queries/useFund';
 import { STREAK_FREEZE_COST } from '../constants';
 import Toast from 'react-native-toast-message';
@@ -11,24 +13,30 @@ import { formatVND } from '../logic/formatters';
 import { Colors, Typography, Radii, Spacing, Shadows } from '../theme';
 import { useAuthUser } from '../hooks/useAuth';
 
-function renderRow({ item }: { item: LedgerRow }) {
+function LedgerRowItem({ item }: { item: LedgerRow }) {
   const isDeposit = item.type === 'DEPOSIT';
   const sign = isDeposit ? '+' : '−';
-  const color = isDeposit ? Colors.primary : Colors.danger;
+  const amtColor = isDeposit ? Colors.primary : Colors.inkDark;
   const date = new Date(item.occurred_at);
-  const dateStr = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+  const dateStr = `${date.getDate()}/${date.getMonth() + 1}`;
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowIcon}>{isDeposit ? '💰' : '🛍️'}</Text>
-      <View style={styles.rowBody}>
-        <Text style={styles.rowType}>{isDeposit ? (item.note ?? 'Nạp tiền') : (item.note ?? 'Chi tiêu')}</Text>
-        <Text style={styles.rowDate}>{dateStr}</Text>
+    <View style={styles.ledger}>
+      <View style={[styles.ldot, isDeposit ? styles.ldotIn : styles.ldotOut]}>
+        <Text style={{ fontSize: 15 }}>{isDeposit ? '★' : '🛍'}</Text>
       </View>
-      <Text style={[styles.rowAmount, { color }]}>
-        {sign}{formatVND(item.amount)}
-      </Text>
+      <View style={styles.ldotBody}>
+        <Text style={styles.ldotTitle}>{isDeposit ? (item.note ?? 'Nạp vào quỹ') : (item.note ?? 'Chi tiêu')}</Text>
+        <Text style={styles.ldotDate}>{dateStr}</Text>
+      </View>
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={[styles.ldotAmt, { color: amtColor }]}>{sign}{formatVND(item.amount)}</Text>
+      </View>
     </View>
   );
+}
+
+function renderRow({ item }: { item: LedgerRow }) {
+  return <LedgerRowItem item={item} />;
 }
 
 export function FundScreen() {
@@ -106,53 +114,71 @@ export function FundScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      {/* Balance header */}
-      <View style={styles.header}>
-        <Text style={styles.balanceLabel}>SỐ DƯ KHẢ DỤNG</Text>
-        <Text style={styles.balanceAmount}>{formatVND(balance ?? 0)}</Text>
-        <Text style={styles.balanceSub}>Cam kết của bạn · Tự thưởng khi đạt mục tiêu</Text>
-      </View>
-
-      {/* Action buttons */}
-      <View style={styles.actionRow}>
-        <TouchableOpacity style={[styles.actionBtn, styles.depositBtn]} onPress={() => setDepositVisible(true)}>
-          <Text style={styles.depositBtnText}>+ Nạp tiền</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.spendBtn]} onPress={() => setSpendModal(true)}>
-          <Text style={styles.spendBtnText}>💸 Chi tiêu</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Streak freeze card */}
-      {freezeEligibility.data?.eligible && (
-        <View style={styles.freezeCard}>
-          <Text style={styles.freezeTitle}>🧊 Streak bị gián đoạn!</Text>
-          <Text style={styles.freezeDesc}>
-            Hôm qua không có hoạt động. Bảo vệ streak {freezeEligibility.data.currentStreak} ngày?
-          </Text>
-          <TouchableOpacity
-            style={[styles.freezeBtn, purchaseFreeze.isPending && { opacity: 0.5 }]}
-            onPress={handleFreeze}
-            disabled={purchaseFreeze.isPending}
-          >
-            <Text style={styles.freezeBtnText}>
-              Bảo vệ ({formatVND(STREAK_FREEZE_COST)})
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Ledger */}
+    <SafeAreaView style={styles.container} edges={['top']}>
       <FlatList
         data={ledger ?? []}
         keyExtractor={item => String(item.id)}
         renderItem={renderRow}
+        ListHeaderComponent={
+          <>
+            {/* Screen title */}
+            <Text style={styles.screenTitle}>Quỹ Tự Thưởng</Text>
+
+            {/* Gradient balance card */}
+            <LinearGradient
+              colors={['#15402E', '#1E6646']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={styles.fundCard}
+            >
+              <Text style={styles.fundLabel}>SỐ DƯ KHẢ DỤNG</Text>
+              <Text style={styles.fundAmount}>{formatVND(balance ?? 0)}</Text>
+              <Text style={styles.fundSub}>Tích luỹ từ các mốc Sao đã vượt qua</Text>
+            </LinearGradient>
+
+            {/* Action buttons */}
+            <View style={styles.actionRow}>
+              <TouchableOpacity style={[styles.actionBtn, styles.depositBtn]} onPress={() => setDepositVisible(true)}>
+                <Text style={styles.depositBtnText}>+ Nạp tiền</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.actionBtn, styles.spendBtn]} onPress={() => setSpendModal(true)}>
+                <Text style={styles.spendBtnText}>💸 Chi tiêu</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Streak freeze card */}
+            {freezeEligibility.data?.eligible && (
+              <View style={styles.freezeCard}>
+                <Text style={styles.freezeTitle}>🧊 Streak bị gián đoạn!</Text>
+                <Text style={styles.freezeDesc}>
+                  Hôm qua không có hoạt động. Bảo vệ streak {freezeEligibility.data.currentStreak} ngày?
+                </Text>
+                <TouchableOpacity
+                  style={[styles.freezeBtn, purchaseFreeze.isPending && { opacity: 0.5 }]}
+                  onPress={handleFreeze}
+                  disabled={purchaseFreeze.isPending}
+                >
+                  <Text style={styles.freezeBtnText}>
+                    Bảo vệ ({formatVND(STREAK_FREEZE_COST)})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Ledger section label */}
+            <View style={styles.ledgerHeader}>
+              <Text style={styles.sectionLabel}>Sổ giao dịch</Text>
+              <TouchableOpacity onPress={() => setSpendModal(true)}>
+                <Text style={styles.ledgerAction}>+ Ghi chi tiêu</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        }
         ListEmptyComponent={
           <Text style={styles.empty}>
             Chưa có giao dịch.{'\n'}Nạp tiền để cam kết với mục tiêu của bạn!
           </Text>
         }
+        contentContainerStyle={{ paddingBottom: 32 }}
       />
 
       {/* Withdrawal modal */}
@@ -235,28 +261,37 @@ export function FundScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bgBase },
-  header: { padding: Spacing.xl, backgroundColor: Colors.surface, alignItems: 'center', ...Shadows.light },
-  balanceLabel: { ...Typography.sectionLabel, color: Colors.muted, marginBottom: 8 },
-  balanceAmount: { fontSize: 38, color: Colors.starGold, fontWeight: '800' },
-  balanceSub: { ...Typography.caption, color: Colors.muted, marginTop: 6, textAlign: 'center' },
+  screenTitle: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5, color: Colors.inkDark, marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
+  fundCard: {
+    marginHorizontal: Spacing.lg, borderRadius: Radii.xl, padding: 20,
+    overflow: 'hidden', ...Shadows.hero,
+  },
+  fundLabel: { fontSize: 12, opacity: 0.85, fontWeight: '700', letterSpacing: 0.3, color: '#fff' },
+  fundAmount: { fontSize: 36, fontWeight: '800', letterSpacing: -1, marginTop: 6, lineHeight: 40, color: '#fff' },
+  fundSub: { fontSize: 11.5, opacity: 0.75, marginTop: 6, color: '#fff' },
   actionRow: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.md },
   actionBtn: { flex: 1, paddingVertical: 12, borderRadius: Radii.md, alignItems: 'center' },
   depositBtn: { backgroundColor: Colors.primarySoft, borderWidth: 1, borderColor: Colors.primary },
   depositBtnText: { color: Colors.primary, fontWeight: '700' },
   spendBtn: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.line2 },
   spendBtnText: { color: Colors.ink2, fontWeight: '700' },
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: 14, borderBottomWidth: 1, borderColor: Colors.line },
-  rowIcon: { fontSize: 24, marginRight: 12 },
-  rowBody: { flex: 1 },
-  rowType: { ...Typography.body, color: Colors.inkDark },
-  rowDate: { ...Typography.caption, color: Colors.muted, marginTop: 2 },
-  rowAmount: { fontSize: 16, fontWeight: '700' },
+  ledgerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.lg, marginTop: 4 },
+  sectionLabel: { fontSize: 11, fontWeight: '700', color: Colors.muted, textTransform: 'uppercase', letterSpacing: 0.7 },
+  ledgerAction: { fontSize: 13, fontWeight: '800', color: Colors.primary },
+  ledger: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: Spacing.lg, borderBottomWidth: 1, borderColor: Colors.line },
+  ldot: { width: 34, height: 34, borderRadius: Radii.sm, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  ldotIn: { backgroundColor: Colors.primarySoft },
+  ldotOut: { backgroundColor: Colors.surface2 },
+  ldotBody: { flex: 1, minWidth: 0 },
+  ldotTitle: { fontSize: 14, fontWeight: '600', color: Colors.inkDark },
+  ldotDate: { fontSize: 11.5, color: Colors.muted, marginTop: 2 },
+  ldotAmt: { fontSize: 13.5, fontWeight: '800' },
   empty: { textAlign: 'center', color: Colors.muted, marginTop: 48, fontSize: 15, paddingHorizontal: 32, lineHeight: 24 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl, padding: Spacing.xl, paddingBottom: 40 },

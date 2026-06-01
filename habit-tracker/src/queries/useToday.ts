@@ -22,6 +22,22 @@ export function useTodayTasks(userId: number) {
   });
 }
 
+export function useTodayLoggedTaskIds(userId: number) {
+  const today = getLocalDate();
+  return useQuery({
+    queryKey: ['today', 'logged', userId, today],
+    queryFn: async () => {
+      const db = await getDb();
+      const rows = await db.getAllAsync<{ task_type_id: number }>(
+        `SELECT DISTINCT task_type_id FROM activity_log
+         WHERE user_id = ? AND local_date = ? AND task_type_id IS NOT NULL`,
+        [userId, today]
+      );
+      return new Set(rows.map(r => r.task_type_id));
+    },
+  });
+}
+
 export function useDailySummary(userId: number) {
   const today = getLocalDate();
   return useQuery({

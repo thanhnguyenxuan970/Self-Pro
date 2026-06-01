@@ -167,59 +167,71 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
   }
 
   return (
-    <View style={styles.container}>
-      {/* Profile Header */}
-      <View style={profileHeaderStyles.card}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+      {/* Centered profile header */}
+      <View style={ph.head}>
         {googleUser.picture ? (
-          <Image
-            source={{ uri: googleUser.picture }}
-            style={profileHeaderStyles.avatar}
-          />
+          <Image source={{ uri: googleUser.picture }} style={ph.avatar} />
         ) : (
-          <View style={[profileHeaderStyles.avatar, profileHeaderStyles.avatarPlaceholder]}>
-            <Text style={profileHeaderStyles.avatarInitial}>
-              {(googleUser.name.charAt(0) || '?').toUpperCase()}
-            </Text>
+          <View style={[ph.avatar, ph.avatarFallback]}>
+            <Text style={ph.avatarInitial}>{(googleUser.name.charAt(0) || '?').toUpperCase()}</Text>
           </View>
         )}
-        <View style={profileHeaderStyles.info}>
-          <Text style={profileHeaderStyles.name}>{googleUser.name}</Text>
-          <Text style={profileHeaderStyles.email}>{googleUser.email}</Text>
-          <Text style={profileHeaderStyles.meta}>
-            {weeklyStars} ★  ·  {streak} 🔥  ·  ₫{fundBalance.toLocaleString()}
-          </Text>
+        <Text style={ph.name}>{googleUser.name}</Text>
+        <Text style={ph.sub}>{googleUser.email}</Text>
+      </View>
+
+      {/* Life stats row */}
+      <View style={ph.lifeRow}>
+        <View style={ph.lifeCell}>
+          <Text style={ph.lifeV}>{weeklyStars} ★</Text>
+          <Text style={ph.lifeL}>Tổng Sao</Text>
+        </View>
+        <View style={[ph.lifeCell, ph.lifeDivider]}>
+          <Text style={ph.lifeV}>{streak} 🔥</Text>
+          <Text style={ph.lifeL}>Streak</Text>
+        </View>
+        <View style={ph.lifeCell}>
+          <Text style={ph.lifeV}>₫{Math.round(fundBalance / 1000)}k</Text>
+          <Text style={ph.lifeL}>Quỹ thưởng</Text>
         </View>
       </View>
 
       {/* Settings */}
       <Text style={styles.sectionLabel}>CÀI ĐẶT</Text>
-      <View style={settingsStyles.notifRow}>
-        <Text style={settingsStyles.label}>🔔 Nhắc nhở hằng ngày</Text>
-        <View style={settingsStyles.notifInputRow}>
-          <TextInput
-            style={settingsStyles.notifInput}
-            value={notifInput}
-            onChangeText={setNotifInput}
-            placeholder="HH:MM (vd: 08:00)"
-            placeholderTextColor={Colors.faint}
-            keyboardType="numbers-and-punctuation"
-          />
-          <TouchableOpacity
-            style={[settingsStyles.notifBtn, savingNotif && { opacity: 0.5 }]}
-            onPress={handleSaveNotif}
-            disabled={savingNotif}
-          >
-            <Text style={settingsStyles.notifBtnText}>Lưu</Text>
-          </TouchableOpacity>
+      <View style={styles.settingsCard}>
+        {/* Notification setting row */}
+        <View style={[styles.set, { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
+            <Text style={styles.setIc}>🔔</Text>
+            <Text style={styles.setSl}>Nhắc nhở</Text>
+            <Text style={styles.setSv}>{savedNotifTime || '—'}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8, paddingLeft: 26 }}>
+            <TextInput
+              style={styles.notifInput}
+              value={notifInput}
+              onChangeText={setNotifInput}
+              placeholder="HH:MM"
+              placeholderTextColor={Colors.faint}
+              keyboardType="numbers-and-punctuation"
+            />
+            <TouchableOpacity
+              style={[styles.notifSaveBtn, savingNotif && { opacity: 0.5 }]}
+              onPress={handleSaveNotif}
+              disabled={savingNotif}
+            >
+              <Text style={styles.notifSaveTxt}>Lưu</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        {!!savedNotifTime && (
-          <Text style={settingsStyles.notifCurrent}>Hiện tại: {savedNotifTime}</Text>
-        )}
+        {/* Sign out */}
+        <TouchableOpacity style={[styles.set, styles.setLast, styles.setDanger]} onPress={onSignOut} activeOpacity={0.8}>
+          <Text style={styles.setIc}>↺</Text>
+          <Text style={[styles.setSl, { color: Colors.danger }]}>Đăng xuất</Text>
+          <Text style={styles.setChev}>›</Text>
+        </TouchableOpacity>
       </View>
-
-      <TouchableOpacity style={settingsStyles.signOutBtn} onPress={onSignOut} activeOpacity={0.8}>
-        <Text style={settingsStyles.signOutText}>Đăng xuất</Text>
-      </TouchableOpacity>
 
       {/* Tasks section */}
       <View style={styles.sectionHeader}>
@@ -229,48 +241,53 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={tasks ?? []}
-        keyExtractor={t => String(t.id)}
-        renderItem={({ item }) => (
-          <TouchableOpacity style={styles.row} onPress={() => openEdit(item)}>
-            <Text style={styles.icon}>{item.icon ?? (item.kind === 'GOOD' ? '✅' : '❌')}</Text>
-            <View style={styles.rowBody}>
-              <Text style={styles.taskName}>{item.name}</Text>
-              <Text style={styles.taskMeta}>
-                {item.kind}
-                {' · '}
-                {item.is_time_based ? '1pt/30m' : `${item.base_points}pt`}
-                {item.kind === 'BAD' ? ` · −${item.star_penalty}⭐` : ''}
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.archiveBtn} onPress={() => handleArchive(item)}>
-              <Text style={styles.archiveBtnText}>🗂</Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        )}
-        ListEmptyComponent={
+      <View style={styles.taskCard}>
+        {(tasks ?? []).length === 0 ? (
           <Text style={styles.empty}>Chưa có hoạt động. Nhấn "+ Thêm" để tạo.</Text>
-        }
-      />
+        ) : (
+          (tasks ?? []).map((item, idx) => (
+            <TouchableOpacity
+              key={item.id}
+              style={[styles.row, idx === (tasks ?? []).length - 1 && styles.rowLast]}
+              onPress={() => openEdit(item)}
+            >
+              <Text style={styles.icon}>{item.icon ?? (item.kind === 'GOOD' ? '✅' : '❌')}</Text>
+              <View style={styles.rowBody}>
+                <Text style={styles.taskName}>{item.name}</Text>
+                <Text style={styles.taskMeta}>
+                  {item.kind === 'BAD' ? 'Thói xấu' : 'Việc tốt'}
+                  {' · '}
+                  {item.is_time_based ? '1pt/30m' : `${item.base_points}pt`}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.archiveBtn} onPress={() => handleArchive(item)}>
+                <Text style={styles.archiveBtnText}>🗂</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          ))
+        )}
+      </View>
 
       {/* Categories section */}
       {categories.length > 0 && (
         <>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Danh mục</Text>
-          </View>
-          {categories.map((cat) => (
-            <View key={cat.id} style={styles.row}>
-              <Text style={styles.icon}>{cat.icon ?? '🏷️'}</Text>
-              <View style={styles.rowBody}>
-                <Text style={styles.taskName}>{cat.name}</Text>
+          <Text style={styles.sectionLabel}>Danh mục</Text>
+          <View style={styles.taskCard}>
+            {categories.map((cat, idx) => (
+              <View
+                key={cat.id}
+                style={[styles.row, idx === categories.length - 1 && styles.rowLast]}
+              >
+                <Text style={styles.icon}>{cat.icon ?? '🏷️'}</Text>
+                <View style={styles.rowBody}>
+                  <Text style={styles.taskName}>{cat.name}</Text>
+                </View>
+                <TouchableOpacity style={styles.archiveBtn} onPress={() => handleArchiveCategory(cat)}>
+                  <Text style={styles.archiveBtnText}>🗂</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.archiveBtn} onPress={() => handleArchiveCategory(cat)}>
-                <Text style={styles.archiveBtnText}>🗂</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+            ))}
+          </View>
         </>
       )}
 
@@ -362,116 +379,112 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
           </View>
         </View>
       </Modal>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bgBase },
   sectionLabel: {
-    ...Typography.sectionLabel, color: Colors.muted,
-    paddingHorizontal: Spacing.lg, marginBottom: Spacing.xs, marginTop: Spacing.md,
+    fontSize: 11, fontWeight: '700', color: Colors.muted,
+    textTransform: 'uppercase', letterSpacing: 0.7,
+    paddingHorizontal: Spacing.lg, marginBottom: 9, marginTop: 20,
   },
+  settingsCard: {
+    marginHorizontal: Spacing.lg, backgroundColor: Colors.surface,
+    borderRadius: Radii.md, borderWidth: 1, borderColor: Colors.line,
+    paddingHorizontal: 15, ...Shadows.light,
+  },
+  set: {
+    flexDirection: 'row', alignItems: 'center', gap: 13,
+    paddingVertical: 15, borderBottomWidth: 1, borderColor: Colors.line,
+  },
+  setLast: { borderBottomWidth: 0 },
+  setDanger: {},
+  setIc: { fontSize: 18, width: 26, textAlign: 'center' },
+  setSl: { flex: 1, fontSize: 14, fontWeight: '600', color: Colors.inkDark },
+  setSv: { fontSize: 12.5, color: Colors.muted, fontWeight: '700' },
+  setChev: { color: Colors.faint, fontSize: 18 },
+  notifInput: {
+    flex: 1, backgroundColor: Colors.surface2, color: Colors.inkDark,
+    padding: 8, borderRadius: Radii.sm, fontSize: 14,
+    borderWidth: 1.5, borderColor: Colors.line2,
+  },
+  notifSaveBtn: {
+    backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: Radii.sm,
+  },
+  notifSaveTxt: { color: Colors.white, fontWeight: '700', fontSize: 14 },
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm,
+    marginTop: 4,
   },
-  sectionTitle: { ...Typography.bodyStrong, color: Colors.inkDark },
+  sectionTitle: { fontSize: 14, fontWeight: '600', color: Colors.inkDark },
   addBtn: { backgroundColor: Colors.primary, paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: Radii.sm },
   addBtnText: { color: Colors.white, fontWeight: '700' },
+  taskCard: {
+    marginHorizontal: Spacing.lg, backgroundColor: Colors.surface,
+    borderRadius: Radii.md, borderWidth: 1, borderColor: Colors.line,
+    paddingHorizontal: 15, ...Shadows.light,
+  },
   row: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: Spacing.lg, paddingVertical: 12,
-    borderBottomWidth: 1, borderColor: Colors.line,
+    paddingVertical: 12, borderBottomWidth: 1, borderColor: Colors.line,
   },
+  rowLast: { borderBottomWidth: 0 },
   icon: { fontSize: 22, marginRight: 12 },
   rowBody: { flex: 1 },
-  taskName: { ...Typography.body, color: Colors.inkDark },
-  taskMeta: { ...Typography.caption, color: Colors.muted, marginTop: 2 },
+  taskName: { fontSize: 14, color: Colors.inkDark, fontWeight: '600' },
+  taskMeta: { fontSize: 12, color: Colors.muted, marginTop: 2 },
   archiveBtn: { padding: 8 },
   archiveBtnText: { fontSize: 20 },
-  empty: { textAlign: 'center', color: Colors.muted, marginTop: 40, fontSize: 15 },
+  empty: { textAlign: 'center', color: Colors.muted, marginTop: 24, marginBottom: 24, fontSize: 14, paddingHorizontal: 12 },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalBox: {
     backgroundColor: Colors.surface, paddingHorizontal: 24, paddingTop: 24,
     borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl, maxHeight: '85%',
   },
-  modalTitle: { ...Typography.title, color: Colors.inkDark, marginBottom: 8 },
-  label: { ...Typography.sectionLabel, color: Colors.muted, marginBottom: 6, marginTop: 12 },
+  modalTitle: { fontSize: 19, fontWeight: '800', color: Colors.inkDark, marginBottom: 8 },
+  label: { fontSize: 11.5, fontWeight: '700', color: Colors.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 12 },
   input: {
-    backgroundColor: Colors.surface2, color: Colors.inkDark, padding: 12,
-    borderRadius: Radii.sm, fontSize: 16, borderWidth: 1, borderColor: Colors.line,
+    backgroundColor: Colors.surface2, color: Colors.inkDark, padding: 13,
+    borderRadius: Radii.md, fontSize: 14, borderWidth: 1.5, borderColor: Colors.line2,
   },
   kindRow: { flexDirection: 'row', gap: 12 },
-  kindBtn: { flex: 1, padding: 12, borderRadius: Radii.sm, borderWidth: 1, borderColor: Colors.line2, alignItems: 'center' },
+  kindBtn: { flex: 0, padding: 10, paddingHorizontal: 20, borderRadius: Radii.sm, borderWidth: 1, borderColor: Colors.line2, alignItems: 'center' },
   kindBtnActive: { borderColor: Colors.primary, backgroundColor: Colors.primarySoft },
   kindBtnText: { color: Colors.muted, fontWeight: '700' },
   kindBtnTextActive: { color: Colors.primaryPress },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
-  saveBtn: { backgroundColor: Colors.primary, padding: 14, borderRadius: Radii.sm, alignItems: 'center', marginTop: 20, marginBottom: 8 },
-  saveBtnText: { color: Colors.white, fontSize: 16, fontWeight: '700' },
+  saveBtn: { backgroundColor: Colors.primary, padding: 15, borderRadius: Radii.md, alignItems: 'center', marginTop: 20, marginBottom: 8 },
+  saveBtnText: { color: Colors.white, fontSize: 15, fontWeight: '700' },
   cancel: { textAlign: 'center', color: Colors.muted, paddingVertical: 12, marginBottom: 8 },
 });
 
-const profileHeaderStyles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
+const ph = StyleSheet.create({
+  head: {
+    paddingVertical: 14, paddingHorizontal: Spacing.lg,
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    margin: Spacing.lg,
-    borderRadius: Radii.lg,
-    padding: Spacing.md,
-    ...Shadows.light,
   },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    marginRight: Spacing.md,
+    width: 80, height: 80, borderRadius: 40,
     backgroundColor: Colors.primarySoft,
-  },
-  avatarPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInitial: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  info: { flex: 1 },
-  name: { ...Typography.bodyStrong, color: Colors.inkDark },
-  email: { ...Typography.caption, color: Colors.muted, marginBottom: 2 },
-  meta: { ...Typography.caption, color: Colors.muted, marginTop: 2 },
-});
-
-const settingsStyles = StyleSheet.create({
-  notifRow: {
-    backgroundColor: Colors.surface, marginHorizontal: Spacing.lg,
-    borderRadius: Radii.sm, padding: Spacing.sm, marginBottom: Spacing.xs,
     borderWidth: 1, borderColor: Colors.line,
+    marginBottom: 0,
+    shadowColor: '#2E9C6A', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 10, elevation: 4,
   },
-  notifInputRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 },
-  notifInput: {
-    flex: 1, backgroundColor: Colors.surface2, color: Colors.inkDark,
-    padding: 10, borderRadius: Radii.sm, fontSize: 15,
-    borderWidth: 1, borderColor: Colors.line,
+  avatarFallback: { alignItems: 'center', justifyContent: 'center' },
+  avatarInitial: { fontSize: 32, fontWeight: '800', color: Colors.primaryPress },
+  name: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, color: Colors.inkDark, marginTop: 10 },
+  sub: { fontSize: 12.5, color: Colors.muted, marginTop: 3 },
+  lifeRow: {
+    flexDirection: 'row', marginHorizontal: Spacing.lg, marginTop: 14,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.line,
+    borderRadius: Radii.md, overflow: 'hidden', ...Shadows.light,
   },
-  notifBtn: {
-    backgroundColor: Colors.primary, paddingHorizontal: 16, paddingVertical: 10,
-    borderRadius: Radii.sm,
-  },
-  notifBtnText: { color: Colors.white, fontWeight: '700', fontSize: 14 },
-  notifCurrent: { ...Typography.caption, color: Colors.muted, marginTop: 6 },
-  label: { ...Typography.body, color: Colors.inkDark },
-  signOutBtn: {
-    marginTop: Spacing.sm,
-    marginHorizontal: Spacing.lg,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: Radii.md,
-    borderWidth: 1,
-    borderColor: Colors.danger,
-  },
-  signOutText: { color: Colors.danger, fontWeight: '600', fontSize: 14 },
+  lifeCell: { flex: 1, alignItems: 'center', paddingVertical: 14, paddingHorizontal: 6 },
+  lifeDivider: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: Colors.line },
+  lifeV: { fontSize: 17, fontWeight: '800', color: Colors.inkDark },
+  lifeL: { fontSize: 10, color: Colors.muted, fontWeight: '700', marginTop: 3, textTransform: 'uppercase', letterSpacing: 0.4 },
 });
