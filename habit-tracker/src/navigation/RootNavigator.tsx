@@ -9,6 +9,7 @@ import { ProgressScreen } from '../screens/ProgressScreen';
 import { FundScreen } from '../screens/FundScreen';
 import { RankScreen } from '../screens/RankScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 import { SignInScreen } from '../screens/SignInScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { Colors, Shadows } from '../theme';
@@ -135,9 +136,11 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
 function AppStack({
   googleUser,
   onSignOut,
+  onDeleteAccount,
 }: {
   googleUser: GoogleUser;
   onSignOut: () => Promise<void>;
+  onDeleteAccount: (userId: number) => Promise<void>;
 }) {
   const [fabVisible, setFabVisible] = useState(false);
 
@@ -153,6 +156,12 @@ function AppStack({
         >
           {() => <ProfileScreen googleUser={googleUser} onSignOut={onSignOut} />}
         </Stack.Screen>
+        <Stack.Screen
+          name="Settings"
+          options={{ presentation: 'modal', headerShown: true, title: 'Cài đặt', headerTintColor: Colors.primary }}
+        >
+          {() => <SettingsScreen onDeleteAccount={onDeleteAccount} />}
+        </Stack.Screen>
       </Stack.Navigator>
       <LogActivitySheet visible={fabVisible} onClose={() => setFabVisible(false)} />
     </>
@@ -165,17 +174,19 @@ export function RootNavigator({
   onCompleteOnboarding,
   onSignInWithGoogle,
   onSignOut,
+  onDeleteAccount,
 }: {
   isOnboarded: boolean;
   googleUser: GoogleUser | null;
   onCompleteOnboarding: () => Promise<void>;
   onSignInWithGoogle: (user: GoogleUser) => Promise<boolean>;
   onSignOut: () => Promise<void>;
+  onDeleteAccount: (userId: number) => Promise<void>;
 }) {
   return (
     <NavigationContainer>
       {googleUser !== null && isOnboarded ? (
-        <AppStack googleUser={googleUser} onSignOut={onSignOut} />
+        <AppStack googleUser={googleUser} onSignOut={onSignOut} onDeleteAccount={onDeleteAccount} />
       ) : (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="SignIn">

@@ -22,6 +22,7 @@ function AppInner() {
     completeOnboarding,
     signInWithGoogle,
     signOut,
+    deleteAccount,
   } = useAuth();
 
   // Wait for auth to finish loading (AsyncStorage is async) so googleUser is
@@ -113,6 +114,7 @@ function AppInner() {
           onCompleteOnboarding={completeOnboarding}
           onSignInWithGoogle={signInWithGoogle}
           onSignOut={signOut}
+          onDeleteAccount={deleteAccount}
         />
         <Toast />
       </>

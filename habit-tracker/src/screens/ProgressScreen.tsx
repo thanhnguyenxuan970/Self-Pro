@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { VictoryChart, VictoryBar, VictoryStack, VictoryAxis } from 'victory-native';
-import { useProgressData, useStreakCount, useStarsToNextTier, useAllTimeStats } from '../queries/useProgress';
+import {
+  useProgressData, useStreakCount, useStarsToNextTier, useAllTimeStats,
+  useRecentActivityLogs, useDeleteActivityLogs, ActivityLogEntry,
+} from '../queries/useProgress';
 import { getRangeLabel } from '../logic/formatters';
 import { Colors, Radii, Spacing, Shadows } from '../theme';
 import { useAuthUser } from '../hooks/useAuth';
@@ -34,6 +37,52 @@ export function ProgressScreen() {
   const { data: streak = 0 } = useStreakCount(userId);
   const { data: tierInfo } = useStarsToNextTier(userId);
   const { data: allTime } = useAllTimeStats(userId);
+  const { data: actLogs = [] } = useRecentActivityLogs(userId);
+  const deleteLogs = useDeleteActivityLogs(userId);
+
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  const enterSelection = useCallback((id: number) => {
+    setSelectionMode(true);
+    setSelectedIds(new Set([id]));
+  }, []);
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedIds(new Set(actLogs.map(l => l.id)));
+  }, [actLogs]);
+
+  const cancelSelection = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  function handleDeleteSelected() {
+    const ids = Array.from(selectedIds);
+    Alert.alert(
+      'Xoá nhật ký',
+      `Xoá ${ids.length} mục đã chọn?`,
+      [
+        { text: 'Huỷ', style: 'cancel' },
+        {
+          text: 'Xoá', style: 'destructive',
+          onPress: () => {
+            deleteLogs.mutateAsync(ids)
+              .then(cancelSelection)
+              .catch(() => Alert.alert('Lỗi', 'Xoá thất bại. Thử lại.'));
+          },
+        },
+      ]
+    );
+  }
 
   const totalSum = chartData.reduce((s, r) => s + r.goodStars + r.badStars, 0);
   const goodData = chartData.map((r, i) => ({ x: i + 1, y: r.goodStars }));
@@ -130,6 +179,65 @@ export function ProgressScreen() {
             <Text style={s.statL}> </Text>
           </View>
         </View>
+
+        {/* Activity log */}
+        <View style={s.logHeader}>
+          <Text style={s.sectionLabel}>NHẬT KÝ HOẠT ĐỘNG</Text>
+          {selectionMode ? (
+            <View style={s.logActions}>
+              <TouchableOpacity onPress={selectAll} style={s.logActionBtn}>
+                <Text style={s.logActionTxt}>Tất cả</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleDeleteSelected}
+                style={[s.logActionBtn, s.logDeleteBtn]}
+                disabled={selectedIds.size === 0 || deleteLogs.isPending}
+              >
+                <Text style={s.logDeleteTxt}>Xoá ({selectedIds.size})</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={cancelSelection} style={s.logActionBtn}>
+                <Text style={s.logActionTxt}>Huỷ</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </View>
+
+        {actLogs.length === 0 ? (
+          <Text style={s.logEmpty}>Chưa có hoạt động nào</Text>
+        ) : (
+          <View style={s.logCard}>
+            {actLogs.map((item: ActivityLogEntry, idx: number) => {
+              const selected = selectedIds.has(item.id);
+              const isLast = idx === actLogs.length - 1;
+              const timeStr = new Date(item.logged_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[s.logRow, isLast && s.logRowLast, selected && s.logRowSelected]}
+                  onPress={() => selectionMode ? toggleSelect(item.id) : undefined}
+                  onLongPress={() => enterSelection(item.id)}
+                  delayLongPress={300}
+                  activeOpacity={0.7}
+                >
+                  {selectionMode && (
+                    <View style={[s.checkbox, selected && s.checkboxSelected]}>
+                      {selected && <Text style={s.checkmark}>✓</Text>}
+                    </View>
+                  )}
+                  <View style={s.logBody}>
+                    <Text style={s.logName} numberOfLines={1}>
+                      {item.task_name ?? (item.source === 'BONUS' ? '🎯 Bonus ngày' : item.source)}
+                    </Text>
+                    <Text style={s.logDate}>{item.local_date} · {timeStr}</Text>
+                  </View>
+                  <Text style={[s.logStars, item.stars_delta < 0 && s.logStarsBad]}>
+                    {item.stars_delta >= 0 ? '+' : ''}{item.stars_delta.toFixed(1)} ★
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -179,4 +287,45 @@ const s = StyleSheet.create({
   },
   statV: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5, color: Colors.inkDark },
   statL: { fontSize: 11, color: Colors.muted, fontWeight: '700', marginTop: 3 },
+
+  logHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
+  },
+  logActions: { flexDirection: 'row', gap: 8 },
+  logActionBtn: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    backgroundColor: Colors.surface2, borderRadius: Radii.sm,
+    borderWidth: 1, borderColor: Colors.line2,
+  },
+  logActionTxt: { fontSize: 12, fontWeight: '700', color: Colors.inkDark },
+  logDeleteBtn: { borderColor: Colors.danger, backgroundColor: Colors.dangerSoft },
+  logDeleteTxt: { fontSize: 12, fontWeight: '700', color: Colors.danger },
+  logCard: {
+    marginHorizontal: Spacing.lg, backgroundColor: Colors.surface,
+    borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.line,
+    paddingHorizontal: 15, ...Shadows.light,
+  },
+  logRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 11, borderBottomWidth: 1, borderColor: Colors.line,
+  },
+  logRowLast: { borderBottomWidth: 0 },
+  logRowSelected: { backgroundColor: Colors.primarySoft },
+  logBody: { flex: 1, minWidth: 0 },
+  logName: { fontSize: 13.5, fontWeight: '600', color: Colors.inkDark },
+  logDate: { fontSize: 11, color: Colors.muted, marginTop: 2 },
+  logStars: { fontSize: 13, fontWeight: '800', color: Colors.primary, flexShrink: 0 },
+  logStarsBad: { color: Colors.danger },
+  logEmpty: {
+    textAlign: 'center', color: Colors.muted, fontSize: 13,
+    marginHorizontal: Spacing.lg, marginTop: 4,
+  },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 11,
+    borderWidth: 2, borderColor: Colors.line2,
+    justifyContent: 'center', alignItems: 'center', flexShrink: 0,
+  },
+  checkboxSelected: { borderColor: Colors.primary, backgroundColor: Colors.primary },
+  checkmark: { fontSize: 13, fontWeight: '800', color: Colors.white },
 });

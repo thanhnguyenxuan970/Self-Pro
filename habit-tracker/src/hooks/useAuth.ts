@@ -128,6 +128,39 @@ export function useAuth() {
     return isNew;
   }, []);
 
+  const deleteAccount = useCallback(async (uid: number) => {
+    const { getDb } = await import('../db/client');
+    const db = await getDb();
+    await db.withTransactionAsync(async () => {
+      for (const table of [
+        'activity_log', 'daily_summary', 'weekly_summary',
+        'reward_unlocks', 'treats', 'treat_history', 'streak_freezes',
+        'task_types', 'categories', 'fund_transactions',
+      ]) {
+        await db.runAsync(`DELETE FROM ${table} WHERE user_id = ?`, [uid]);
+      }
+      await db.runAsync('DELETE FROM users WHERE id = ?', [uid]);
+    });
+    try {
+      const { resetSyncCursors } = await import('../services/syncService');
+      await resetSyncCursors();
+    } catch { }
+    // clear local state (same as signOut)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { GoogleSignin } = require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
+      await GoogleSignin.revokeAccess();
+      await GoogleSignin.signOut();
+    } catch { }
+    try {
+      await AsyncStorage.multiRemove([ONBOARDED_KEY, GOOGLE_USER_KEY, 'habit_tracker_display_name']);
+    } finally {
+      setIsOnboarded(false);
+      setGoogleUser(null);
+      setUserId(1);
+    }
+  }, []);
+
   const signOut = useCallback(async () => {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -163,5 +196,6 @@ export function useAuth() {
     completeOnboarding,
     signInWithGoogle,
     signOut,
+    deleteAccount,
   };
 }

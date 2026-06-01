@@ -70,9 +70,19 @@ export function RankScreen() {
         {/* Rankhero card */}
         <View style={s.rankhero}>
           <View style={s.rankheroGlow} />
-          <Text style={s.rankEm}>{RANK_EMOJIS[currentTier.rank_name] ?? '🏆'}</Text>
-          <Text style={s.rankNm}>{currentTier.rank_name}</Text>
-          <Text style={s.rankEn}>{RANK_QUOTE[currentTier.rank_name] ?? ''}</Text>
+          {currentStars >= 5 ? (
+            <>
+              <Text style={s.rankEm}>{RANK_EMOJIS[currentTier.rank_name] ?? '🏆'}</Text>
+              <Text style={s.rankNm}>{currentTier.rank_name}</Text>
+              <Text style={s.rankEn}>{RANK_QUOTE[currentTier.rank_name] ?? ''}</Text>
+            </>
+          ) : (
+            <>
+              <Text style={s.rankEm}>❓</Text>
+              <Text style={s.rankNm}>Chưa có rank</Text>
+              <Text style={s.rankEn}>Tích đủ 5 ★ để mở rank đầu tiên</Text>
+            </>
+          )}
           <View style={s.rankWk}>
             <Text style={s.rankWkTxt}>★ {currentStars} · Tuần này</Text>
           </View>

@@ -1,6 +1,16 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../db/client';
 import { getLocalDate, getWeekStart } from '../logic/formatters';
+
+export type ActivityLogEntry = {
+  id: number;
+  task_name: string | null;
+  kind: string;
+  stars_delta: number;
+  local_date: string;
+  logged_at: number;
+  source: string;
+};
 
 export type ChartBucket = { bucket: string; goodStars: number; badStars: number };
 
@@ -111,6 +121,47 @@ export function useStarsToNextTier(userId: number) {
         nextTierName: nextTier?.rank_name ?? null,
         starsNeeded: nextTier ? nextTier.stars_required - currentStars : 0,
       };
+    },
+  });
+}
+
+/** Recent activity log entries with task name, for display and bulk delete */
+export function useRecentActivityLogs(userId: number, limit = 50) {
+  return useQuery({
+    queryKey: ['progress', 'actlog', userId],
+    queryFn: async (): Promise<ActivityLogEntry[]> => {
+      const db = await getDb();
+      const rows = await db.getAllAsync<ActivityLogEntry>(
+        `SELECT a.id, tt.name AS task_name, a.kind, a.stars_delta, a.local_date,
+                a.logged_at, a.source
+         FROM activity_log a
+         LEFT JOIN task_types tt ON tt.id = a.task_type_id
+         WHERE a.user_id = ?
+         ORDER BY a.logged_at DESC
+         LIMIT ?`,
+        [userId, limit]
+      );
+      return rows;
+    },
+  });
+}
+
+/** Delete a set of activity_log entries by id */
+export function useDeleteActivityLogs(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: number[]) => {
+      if (ids.length === 0) return;
+      const db = await getDb();
+      const placeholders = ids.map(() => '?').join(',');
+      await db.runAsync(
+        `DELETE FROM activity_log WHERE user_id = ? AND id IN (${placeholders})`,
+        [userId, ...ids]
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['progress', 'actlog', userId] });
+      qc.invalidateQueries({ queryKey: ['progress'] });
     },
   });
 }

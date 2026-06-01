@@ -201,7 +201,7 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
       <Text style={styles.sectionLabel}>CÀI ĐẶT</Text>
       <View style={styles.settingsCard}>
         {/* Notification setting row */}
-        <View style={[styles.set, { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
+        <View style={[styles.set, styles.setLast, { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
             <Text style={styles.setIc}>🔔</Text>
             <Text style={styles.setSl}>Nhắc nhở</Text>
@@ -225,12 +225,6 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
             </TouchableOpacity>
           </View>
         </View>
-        {/* Sign out */}
-        <TouchableOpacity style={[styles.set, styles.setLast, styles.setDanger]} onPress={onSignOut} activeOpacity={0.8}>
-          <Text style={styles.setIc}>↺</Text>
-          <Text style={[styles.setSl, { color: Colors.danger }]}>Đăng xuất</Text>
-          <Text style={styles.setChev}>›</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Tasks section */}
@@ -290,6 +284,11 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
           </View>
         </>
       )}
+
+      {/* Logout — bottom of screen */}
+      <TouchableOpacity style={styles.logoutBtn} onPress={onSignOut} activeOpacity={0.8}>
+        <Text style={styles.logoutBtnText}>↺  Đăng xuất</Text>
+      </TouchableOpacity>
 
       {/* Create / Edit modal */}
       <Modal visible={modalVisible} transparent animationType="slide">
@@ -400,11 +399,9 @@ const styles = StyleSheet.create({
     paddingVertical: 15, borderBottomWidth: 1, borderColor: Colors.line,
   },
   setLast: { borderBottomWidth: 0 },
-  setDanger: {},
   setIc: { fontSize: 18, width: 26, textAlign: 'center' },
   setSl: { flex: 1, fontSize: 14, fontWeight: '600', color: Colors.inkDark },
   setSv: { fontSize: 12.5, color: Colors.muted, fontWeight: '700' },
-  setChev: { color: Colors.faint, fontSize: 18 },
   notifInput: {
     flex: 1, backgroundColor: Colors.surface2, color: Colors.inkDark,
     padding: 8, borderRadius: Radii.sm, fontSize: 14,
@@ -460,6 +457,13 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: Colors.primary, padding: 15, borderRadius: Radii.md, alignItems: 'center', marginTop: 20, marginBottom: 8 },
   saveBtnText: { color: Colors.white, fontSize: 15, fontWeight: '700' },
   cancel: { textAlign: 'center', color: Colors.muted, paddingVertical: 12, marginBottom: 8 },
+  logoutBtn: {
+    marginHorizontal: Spacing.lg, marginTop: 32, marginBottom: 12,
+    paddingVertical: 15, borderRadius: Radii.md,
+    borderWidth: 1.5, borderColor: Colors.danger,
+    alignItems: 'center',
+  },
+  logoutBtnText: { color: Colors.danger, fontSize: 15, fontWeight: '700' },
 });
 
 const ph = StyleSheet.create({

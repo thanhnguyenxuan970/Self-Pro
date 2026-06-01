@@ -105,6 +105,13 @@ export function TodayScreen() {
             <Text style={styles.hi}>Chào, {googleUser?.name?.split(' ').pop() ?? 'bạn'}</Text>
             <Text style={styles.date}>{dateStr}</Text>
           </View>
+          <TouchableOpacity
+            style={styles.gearBtn}
+            onPress={() => navigation.navigate('Settings' as never)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.gearIcon}>⚙️</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Hero card */}
@@ -260,6 +267,8 @@ const styles = StyleSheet.create({
   greet: { flex: 1 },
   hi: { fontSize: 15, fontWeight: '800', letterSpacing: -0.2, color: Colors.inkDark },
   date: { fontSize: 12, color: Colors.muted, marginTop: 1 },
+  gearBtn: { padding: 6 },
+  gearIcon: { fontSize: 22 },
 
   hero: {
     marginHorizontal: Spacing.lg, marginTop: 14,
