@@ -454,7 +454,7 @@ Full "App Fixes & Enhancements" pass across all 5 phases:
 |-------|-------|-----|
 | `Client Id property 'androidClientId' must be defined` | `.env.local` missing → env var `undefined` at build time | Create `.env.local` with real OAuth client IDs, rebuild |
 | `SignInScreen` profile fields silently null | `GoogleSignin.signIn()` returns nullable `email/name/photo`; `?? ''` bypassed validation | Guard: `if (!email \|\| !name \|\| !photo) { Alert...; return; }` before `onSignInWithGoogle` |
-| `SyntaxError: Unexpected token 'export'` in `@react-native-google-signin` (Jest) | Jest can't parse ESM module from `node_modules` | Use dynamic `import()` inside the function body, not top-level import |
+| `expo-notifications: Android Push notifications removed from Expo Go with SDK 53` | Static `import * as Notifications` in `App.tsx` triggers push token listener at module load time | Remove top-level import; use `await import('expo-notifications')` inside `useEffect` wrapped in try-catch |
 
 ## Habit Tracker Day 12 — Code Review Fixes COMPLETE (2026-05-31)
 
@@ -495,3 +495,6 @@ cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
 npx jest          # 71/71 pass
 npx tsc --noEmit  # 0 errors
 ```
+
+## Habit Tracker Day 14 — expo-notifications Module-Init Fix COMPLETE (2026-06-01)
+- `App.tsx`: removed static `expo-notifications` import + module-scope `setNotificationHandler`; both moved inside `init()` useEffect via dynamic `await import('expo-notifications')` in try-catch (gracefully degrades in Expo Go SDK 53+).

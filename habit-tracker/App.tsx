@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
-import * as Notifications from 'expo-notifications';
 import { queryClient } from './src/queries/queryClient';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { getDb } from './src/db/client';
@@ -10,16 +9,6 @@ import { getWeekStart } from './src/logic/formatters';
 import { shouldShowWeekResetToast } from './src/logic/weekReset';
 import { useAuth, resolveUserRow, UserIdContext } from './src/hooks/useAuth';
 import { syncToSupabase } from './src/services/syncService';
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
 
 function AppInner() {
   const [dbReady, setDbReady] = useState(false);
@@ -69,7 +58,21 @@ function AppInner() {
         );
       }
 
-      await Notifications.requestPermissionsAsync();
+      try {
+        const Notifications = await import('expo-notifications');
+        Notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldShowBanner: true,
+            shouldShowList: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+          }),
+        });
+        await Notifications.requestPermissionsAsync();
+      } catch {
+        // expo-notifications push APIs unavailable in Expo Go (SDK 53+)
+      }
       setDbReady(true);
     }
     init().catch(err => console.error('DB init failed:', err));
