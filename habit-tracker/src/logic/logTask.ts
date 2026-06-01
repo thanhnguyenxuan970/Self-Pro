@@ -6,6 +6,7 @@ import {
   SOURCE_TASK,
   SOURCE_DAILY_BONUS,
 } from '../constants';
+import { computeStars } from './points';
 
 export interface ComputeInput {
   userId: number;
@@ -49,10 +50,11 @@ export function computeLogTaskRows(input: ComputeInput): ComputeResult {
   if (input.kind === 'GOOD') {
     if (input.isTimeBased) {
       pointsEarned = Math.max(1, Math.floor((input.durationMin ?? 0) / TIME_UNIT_MINUTES));
+      starsDelta = Math.max(1, computeStars(input.durationMin ?? 0));
     } else {
       pointsEarned = input.basePoints;
+      starsDelta = STARS_PER_TASK;
     }
-    starsDelta = STARS_PER_TASK;
   } else {
     pointsEarned = 0;
     starsDelta = -input.starPenalty;

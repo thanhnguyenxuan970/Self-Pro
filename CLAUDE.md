@@ -304,10 +304,37 @@ npx expo run:android  # requires native build
 - `useDeleteActivityLogs` parameterized placeholders: `ids.map(() => '?').join(',')` — safe, no injection.
 - Dark mode toggle persists to AsyncStorage but does not retheme the app live (requires re-mount). Acceptable MVP.
 
-### Test Command
+### Test Command (Day 21)
 ```bash
 cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
 npx jest          # 73/73 pass
+npx tsc --noEmit  # 0 errors
+npx expo run:android  # requires native build
+```
+
+---
+
+## Habit Tracker Day 22 — Duration Chips + Star Overhaul COMPLETE (2026-06-01)
+
+### What Was Built
+- **`src/logic/points.ts`** (new): `computeStars(durationMin)` — 1★/30min up to 2h, then half-rate (1★/60min). `formatDuration(min)` → "30m" / "1h" / "1h 30m".
+- **`src/logic/chipPresets.ts`** (new): `getChipPresets(userId, taskTypeId)` — ranks user's most-logged durations by frequency+recency. Falls back to [30, 60, 90] defaults for new users. Long-habit graduation: if user habitually logs >2h, escape hatch becomes a real chip.
+- **`src/components/DurationChips.tsx`** (new): 1-tap chip logger for time-based tasks. 3 personalized chips + "2h+" escape hatch → text-input bottom sheet. Haptic feedback via `expo-haptics`. Preview shows star count before tap.
+- **`src/queries/useDurationLogger.ts`** (new): `useChipPresets(userId, taskTypeId)` query + `useDurationLogger({userId, task, onSuccess, onError})` hook. Wraps `useLogTask`, manages optimistic `justLogged` state, invalidates `['chips', userId, taskId]` on success.
+- **`src/logic/logTask.ts`** updated: time-based GOOD tasks now earn `Math.max(1, computeStars(durationMin))` stars instead of flat `STARS_PER_TASK=1`. Non-timed tasks unchanged.
+- **`src/screens/LogActivitySheet.tsx`** rewritten: timed tasks → `TimedTaskLogger` overlay with `DurationChips`; non-timed tasks keep original `useLogTask.mutateAsync` flow.
+
+### Key Decisions (Day 22)
+- TextInput for 2h+ escape hatch (not `@react-native-picker/picker`) — avoids new native dependency, no rebuild needed.
+- `computeStars` uses `Math.max(1, ...)` guard in `logTask.ts` — preserves original 1-star minimum for zero-duration edge case.
+- `useDurationLogger` wraps `useLogTask` (not a duplicate transaction) — single source of truth for DB write.
+- `expo-haptics` installed via `expo install` — SDK 56 compatible, graceful `.catch(() => {})` on platforms without haptic support.
+- `TimedTaskLogger` is a sub-component (not inline JSX) so it gets its own hook scope for `useChipPresets`/`useDurationLogger`.
+
+### Test Command (Day 22)
+```bash
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
+npx jest          # run to verify no regressions
 npx tsc --noEmit  # 0 errors
 npx expo run:android  # requires native build
 ```
