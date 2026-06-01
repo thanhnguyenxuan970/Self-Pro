@@ -338,3 +338,29 @@ npx jest          # run to verify no regressions
 npx tsc --noEmit  # 0 errors
 npx expo run:android  # requires native build
 ```
+
+---
+
+## Habit Tracker Day 23 — Settings Fix + Profile Overhaul + Home Bulk Delete COMPLETE (2026-06-01)
+
+### What Was Fixed / Built
+- **Settings dark mode + language toggles**: Root cause — `useDarkMode()`/`useLanguage()` were purely local hooks; each component mount got isolated state. Fix: created `src/contexts/SettingsContext.tsx` as global provider loaded at app root. `useSettings.ts` rewritten to delegate to context. `App.tsx` wraps `AppInner` with `<SettingsProvider>`.
+- **ProfileScreen — Categories removed**: Deleted entire "Danh mục" section, `useCategories`/`useArchiveCategory`/`useCreateTask`/`useUpdateTask`/`useArchiveTask` calls, task-manage modal, and all related handlers/styles.
+- **ProfileScreen — History feed**: "Hoạt động" → "Lịch sử". Replaced static task-type list with `useRecentActivityLogs(userId, 30)` feed. Each row: `✅/❌` icon + task name + `DD/MM/YYYY · HH:MM` timestamp + star delta.
+- **ProfileScreen — Stat label renames**: "Tổng Sao" → "Rank"; "Kho sao" → "Tuần này".
+- **TodayScreen — Long-press multi-select bulk delete**: Long-press (300ms) enters selection mode. Tap toggles individual items. "Tất cả" selects all. "Xoá (N)" Alert → archives selected tasks via `useArchiveTask` sequential loop. "Huỷ" exits selection.
+
+### Key Decisions (Day 23)
+- `SettingsProvider` placed between `QueryClientProvider` and `AppInner` — settings load is async (AsyncStorage) so context shows defaults until load resolves; acceptable flash since dark mode doesn't retheme live anyway.
+- `useSettings.ts` return type changed from `Promise<void>` to `void` — setters are now synchronous state updates (AsyncStorage write is fire-and-forget `.catch(() => {})`); callers don't await.
+- History feed uses `useRecentActivityLogs` (existing query, last 30 entries) — no new DB query needed.
+- "Tuần này" label shows `treat_stars` (not weekly_stars) — per user rename request; `treat_stars` is lifetime accumulated, label is cosmetic per user spec.
+- Bulk delete: sequential `mutateAsync` loop (not parallel) — preserves TanStack Query invalidation ordering; partial failure shows error alert, selection state preserved for retry.
+
+### Test Command (Day 23)
+```bash
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
+npx jest          # 73/73 pass
+npx tsc --noEmit  # 0 errors
+npx expo run:android  # requires native build
+```

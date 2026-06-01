@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, Modal, TextInput, Alert,
@@ -9,9 +9,9 @@ import {
   useTodayTasks, useDailySummary, useWeeklySummary,
   useLogTask, useCategories, useTodayLoggedTaskIds,
 } from '../queries/useToday';
+import { useArchiveTask } from '../queries/useTasks';
 import { useRankData } from '../queries/useRank';
 import { getCurrentTier } from '../logic/rankUtils';
-import { getLocalDate } from '../logic/formatters';
 import { Colors, Radii, Spacing, Shadows } from '../theme';
 import { useAuthUser, useGoogleUser } from '../hooks/useAuth';
 
@@ -36,9 +36,59 @@ export function TodayScreen() {
   const { data: rankData } = useRankData(userId);
   const logTask = useLogTask(userId);
 
+  const archiveTask = useArchiveTask(userId);
+
   const [modalTask, setModalTask] = useState<Task | null>(null);
   const [duration, setDuration] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  const enterSelection = useCallback((id: number) => {
+    setSelectionMode(true);
+    setSelectedIds(new Set([id]));
+  }, []);
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedIds(new Set((tasks ?? []).map(t => t.id)));
+  }, [tasks]);
+
+  const cancelSelection = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  function handleDeleteSelected() {
+    const ids = Array.from(selectedIds);
+    Alert.alert(
+      'Xoá nhiệm vụ',
+      `Ẩn ${ids.length} nhiệm vụ đã chọn khỏi danh sách?`,
+      [
+        { text: 'Huỷ', style: 'cancel' },
+        {
+          text: 'Xoá', style: 'destructive',
+          onPress: async () => {
+            try {
+              for (const id of ids) {
+                await archiveTask.mutateAsync(id);
+              }
+              cancelSelection();
+            } catch {
+              Alert.alert('Lỗi', 'Xoá thất bại. Thử lại.');
+            }
+          },
+        },
+      ]
+    );
+  }
 
   const weeklyStars = weekly?.weekly_stars ?? 0;
   const dailyPoints = daily?.total_points ?? 0;
@@ -177,8 +227,27 @@ export function TodayScreen() {
           </>
         )}
 
-        {/* Task list */}
-        <Text style={styles.sectionLabel}>Hôm nay</Text>
+        {/* Task list header with selection actions */}
+        <View style={styles.taskListHeader}>
+          <Text style={styles.sectionLabel}>Hôm nay</Text>
+          {selectionMode && (
+            <View style={styles.selActions}>
+              <TouchableOpacity onPress={selectAll} style={styles.selBtn}>
+                <Text style={styles.selBtnTxt}>Tất cả</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleDeleteSelected}
+                style={[styles.selBtn, styles.selDeleteBtn]}
+                disabled={selectedIds.size === 0 || archiveTask.isPending}
+              >
+                <Text style={styles.selDeleteTxt}>Xoá ({selectedIds.size})</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={cancelSelection} style={styles.selBtn}>
+                <Text style={styles.selBtnTxt}>Huỷ</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
         <View style={styles.taskCard}>
           {filteredTasks.length === 0 ? (
             <View style={styles.empty}>
@@ -191,16 +260,21 @@ export function TodayScreen() {
               const done = loggedIds?.has(item.id) ?? false;
               const isBad = item.kind === 'BAD';
               const isLast = idx === filteredTasks.length - 1;
+              const isSelected = selectedIds.has(item.id);
               return (
                 <TouchableOpacity
                   key={item.id}
-                  style={[styles.task, isLast && styles.taskLast]}
-                  onPress={() => handleLog(item)}
-                  disabled={logTask.isPending}
+                  style={[styles.task, isLast && styles.taskLast, isSelected && styles.taskSelected]}
+                  onPress={() => selectionMode ? toggleSelect(item.id) : handleLog(item)}
+                  onLongPress={() => enterSelection(item.id)}
+                  delayLongPress={300}
+                  disabled={!selectionMode && logTask.isPending}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.check, done && (isBad ? styles.checkBad : styles.checkDone)]}>
-                    <Text style={styles.checkMark}>{done ? (isBad ? '✕' : '✓') : ''}</Text>
+                  <View style={[styles.check, selectionMode ? (isSelected && styles.checkDone) : (done && (isBad ? styles.checkBad : styles.checkDone))]}>
+                    <Text style={styles.checkMark}>
+                      {selectionMode ? (isSelected ? '✓' : '') : (done ? (isBad ? '✕' : '✓') : '')}
+                    </Text>
                   </View>
                   <View style={styles.tBody}>
                     <Text style={[styles.tName, done && styles.tNameDone]}>{item.name}</Text>
@@ -315,6 +389,18 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 0.7,
     marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
   },
+  taskListHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  selActions: { flexDirection: 'row', gap: 8, marginRight: Spacing.lg, marginTop: 20 },
+  selBtn: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    backgroundColor: Colors.surface2, borderRadius: Radii.sm,
+    borderWidth: 1, borderColor: Colors.line2,
+  },
+  selBtnTxt: { fontSize: 12, fontWeight: '700', color: Colors.inkDark },
+  selDeleteBtn: { borderColor: Colors.danger, backgroundColor: Colors.dangerSoft },
+  selDeleteTxt: { fontSize: 12, fontWeight: '700', color: Colors.danger },
   chipRow: { paddingHorizontal: Spacing.lg, gap: 7, flexDirection: 'row', paddingVertical: 2 },
   chip: {
     paddingHorizontal: 13, paddingVertical: 8, borderRadius: Radii.pill,
@@ -336,6 +422,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14, borderBottomWidth: 1, borderColor: Colors.line,
   },
   taskLast: { borderBottomWidth: 0 },
+  taskSelected: { backgroundColor: Colors.primarySoft },
   check: {
     width: 26, height: 26, borderRadius: 13,
     borderWidth: 2, borderColor: Colors.line2,

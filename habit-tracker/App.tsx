@@ -9,6 +9,7 @@ import { getWeekStart } from './src/logic/formatters';
 import { shouldShowWeekResetToast } from './src/logic/weekReset';
 import { useAuth, resolveUserRow, UserIdContext, GoogleUserContext } from './src/hooks/useAuth';
 import { syncToSupabase } from './src/services/syncService';
+import { SettingsProvider } from './src/contexts/SettingsContext';
 
 function AppInner() {
   const [dbReady, setDbReady] = useState(false);
@@ -126,7 +127,9 @@ function AppInner() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppInner />
+      <SettingsProvider>
+        <AppInner />
+      </SettingsProvider>
     </QueryClientProvider>
   );
 }
