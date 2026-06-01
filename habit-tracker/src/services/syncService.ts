@@ -44,7 +44,7 @@ async function syncActivity(userEmail: string): Promise<void> {
   if (!rows.length) return;
 
   const { error } = await supabase!.from('activity_log').upsert(
-    rows.map(r => ({ ...r, user_email: userEmail, local_id: r.id })),
+    rows.map(({ id, ...r }) => ({ ...r, user_email: userEmail, local_id: id })),
     { onConflict: 'user_email,local_id' }
   );
   if (error) throw error;
@@ -64,7 +64,7 @@ async function syncFund(userEmail: string): Promise<void> {
   if (!rows.length) return;
 
   const { error } = await supabase!.from('fund_transactions').upsert(
-    rows.map(r => ({ ...r, user_email: userEmail, local_id: r.id })),
+    rows.map(({ id, ...r }) => ({ ...r, user_email: userEmail, local_id: id })),
     { onConflict: 'user_email,local_id' }
   );
   if (error) throw error;
