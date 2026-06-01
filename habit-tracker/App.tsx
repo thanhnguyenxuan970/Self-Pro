@@ -34,7 +34,8 @@ function AppInner() {
 
       let resolvedUserId = 1;
       if (googleUser?.email) {
-        resolvedUserId = await resolveUserRow(db, googleUser.email);
+        const { id } = await resolveUserRow(db, googleUser.email);
+        resolvedUserId = id;
         setResolvedUserId(resolvedUserId);
         syncToSupabase(googleUser.email);
       }

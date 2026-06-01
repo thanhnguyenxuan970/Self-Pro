@@ -35,18 +35,18 @@ export function parseGoogleUser(val: string | null): GoogleUser | null {
  * - Otherwise → insert new row (new device/account), return new id
  * Also seeds default categories for brand-new rows.
  */
-export async function resolveUserRow(db: SQLiteDatabase, googleEmail: string): Promise<number> {
+export async function resolveUserRow(db: SQLiteDatabase, googleEmail: string): Promise<{ id: number; isNew: boolean }> {
   const existing = await db.getFirstAsync<{ id: number }>(
     'SELECT id FROM users WHERE google_sub = ?',
     [googleEmail]
   );
-  if (existing) return existing.id;
+  if (existing) return { id: existing.id, isNew: false };
 
   const claimed = await db.runAsync(
     'UPDATE users SET google_sub = ? WHERE id = 1 AND google_sub IS NULL',
     [googleEmail]
   );
-  if (claimed.changes > 0) return 1;
+  if (claimed.changes > 0) return { id: 1, isNew: false };
 
   // New account on this device — insert a fresh user row and seed their categories
   const result = await db.runAsync(
@@ -68,7 +68,7 @@ export async function resolveUserRow(db: SQLiteDatabase, googleEmail: string): P
       [newUserId, name, icon, order]
     );
   }
-  return newUserId;
+  return { id: newUserId, isNew: true };
 }
 
 export const UserIdContext = createContext<number>(1);
@@ -100,24 +100,33 @@ export function useAuth() {
     setIsOnboarded(true);
   }, []);
 
-  const signInWithGoogle = useCallback(async (user: GoogleUser) => {
+  const signInWithGoogle = useCallback(async (user: GoogleUser): Promise<boolean> => {
     await AsyncStorage.multiSet([
       [GOOGLE_USER_KEY, JSON.stringify(user)],
       ['habit_tracker_display_name', user.name],
     ]);
     setGoogleUser(user);
     // Resolve DB row immediately so userId is ready before onboarding renders
+    let isNew = true;
     try {
       const { getDb } = await import('../db/client');
       const db = await getDb();
-      const id = await resolveUserRow(db, user.email);
-      setUserId(id);
+      const result = await resolveUserRow(db, user.email);
+      setUserId(result.id);
+      isNew = result.isNew;
+      // Returning user: auto-complete onboarding so they skip the onboarding screen
+      if (!isNew) {
+        await AsyncStorage.setItem(ONBOARDED_KEY, 'true');
+        setIsOnboarded(true);
+      }
     } catch (e) { console.warn('[auth] resolveUserRow failed, defaulting to userId=1:', e); }
+    return isNew;
   }, []);
 
   const signOut = useCallback(async () => {
     try {
-      const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { GoogleSignin } = require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
       await GoogleSignin.signOut();
     } catch {
       // ignore — native sign-out failure doesn't affect local state

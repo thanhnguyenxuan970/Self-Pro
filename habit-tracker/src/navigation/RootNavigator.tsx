@@ -127,7 +127,7 @@ export function RootNavigator({
   isOnboarded: boolean;
   googleUser: GoogleUser | null;
   onCompleteOnboarding: () => Promise<void>;
-  onSignInWithGoogle: (user: GoogleUser) => Promise<void>;
+  onSignInWithGoogle: (user: GoogleUser) => Promise<boolean>;
   onSignOut: () => Promise<void>;
 }) {
   return (

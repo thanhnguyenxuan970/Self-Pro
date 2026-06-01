@@ -5,7 +5,7 @@ import { Colors, Typography, Radii, Spacing, Shadows } from '../theme';
 
 type Props = {
   onSignIn: () => void;
-  onSignInWithGoogle: (user: GoogleUser) => Promise<void>;
+  onSignInWithGoogle: (user: GoogleUser) => Promise<boolean>;
 };
 
 export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
@@ -15,10 +15,14 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
   async function handleGoogleSignIn() {
     setLoading(true);
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } =
-        await import('@react-native-google-signin/google-signin');
+        require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
       if (!configuredRef.current) {
-        GoogleSignin.configure({});
+        GoogleSignin.configure({
+          androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+          webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+        });
         configuredRef.current = true;
       }
       try {
@@ -30,8 +34,9 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
             Alert.alert('Lỗi', 'Tài khoản Google thiếu thông tin (email/tên).');
             return;
           }
-          await onSignInWithGoogle({ email, name, picture: photo ?? '' });
-          onSignIn();
+          const isNew = await onSignInWithGoogle({ email, name, picture: photo ?? '' });
+          // Only go to onboarding for new users; returning users skip straight to app
+          if (isNew) onSignIn();
         }
       } catch (error: any) {
         if (isErrorWithCode(error)) {

@@ -442,12 +442,6 @@ Full "App Fixes & Enhancements" pass across all 5 phases:
 - Language toggle affects tab labels via `RootNavigator` — requires app re-mount to pick up (not live). Acceptable for MVP.
 - SFX disabled — expo-av removed (incompatible with SDK 56 expo-modules-core). Re-enable by installing a compatible audio library.
 
-## Habit Tracker Day 11 — Auth Fixes COMPLETE (2026-05-30)
-- `signOut()`: dynamic `import('@react-native-google-signin/google-signin')` + `try/finally` state reset → account chooser on re-login; state always cleared even on AsyncStorage failure
-- `migrations.ts`: dedup DELETE (keeps `MIN(id)` per user/name) + `CREATE UNIQUE INDEX IF NOT EXISTS idx_task_types_user_name ON task_types (user_id, name)` runs on every startup (idempotent)
-- `useCreateTask`: `INSERT OR IGNORE INTO task_types` → onboarding idempotent on re-login; no duplicate tasks
-- Tests: 71/71 pass, 0 TS errors
-
 ## Known Errors & Fixes
 
 | Error | Cause | Fix |
@@ -467,12 +461,6 @@ Full "App Fixes & Enhancements" pass across all 5 phases:
 ### Key Decisions (Day 12)
 - `Promise.allSettled` cursor invariant: each stream's cursor advances only after its own upsert succeeds. With `Promise.all`, one failure rolled back both; now each cursor is independent.
 
-### Test Command
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # 71/71 pass
-npx tsc --noEmit  # 0 errors
-```
 
 ## Habit Tracker Day 13 — Multi-Tenant Isolation + Init Race Fix COMPLETE (2026-05-31)
 
@@ -487,15 +475,6 @@ npx tsc --noEmit  # 0 errors
 - `init()` uses `[authLoading]` dep (not `[googleUser]`) — fires once when auth finishes, closure has settled `googleUser`.
 - `resolveUserRow` in `signInWithGoogle` retained for new sign-in immediacy.
 
-### Test Command
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # 71/71 pass
-npx tsc --noEmit  # 0 errors
-```
-
-## Habit Tracker Day 14 — expo-notifications Module-Init Fix COMPLETE (2026-06-01)
-- `App.tsx`: removed static `expo-notifications` import + module-scope `setNotificationHandler`; both moved inside `init()` useEffect via dynamic `await import('expo-notifications')` in try-catch (gracefully degrades in Expo Go SDK 53+).
 
 ## Habit Tracker Day 15 — Startup Crash Fix + Code Review COMPLETE (2026-06-01)
 
@@ -505,12 +484,21 @@ npx tsc --noEmit  # 0 errors
 - **Code review fixes**: `resolveUserRow` category INSERT converted from `db.execAsync` template literal to parameterized `db.runAsync` loop; `GoogleSignin.configure` guarded by `configuredRef` (called once); added `console.warn` to swallowed `resolveUserRow` failure; added explanatory comment to `[authLoading]` eslint-disable.
 
 ### Key Decisions (Day 15)
-- All native modules that crash at bundle evaluation time must use dynamic `import()` inside async functions — confirmed pattern: `expo-notifications`, `@react-native-google-signin/google-signin`.
+- Native modules that crash at bundle evaluation time: use `require()` (not `await import()`) inside async functions. `await import()` creates Metro async chunks; internal requires break. Pattern: `expo-notifications` uses `await import()` in `useEffect`; `@react-native-google-signin` uses `require()` in handler.
 - expo-av removal is permanent for SDK 56. `playCelebration` is a documented no-op stub. Re-enable only with a library that compiles from source against SDK 56 deps.
 - `[authLoading]` dep on `init()` is correct: fresh sign-ins resolve userId via `signInWithGoogle()` directly; returning users via `init()` closure.
 
-### Known Errors & Fixes (Day 15 additions)
+| `TurboModuleRegistry.getEnforcing(...): 'RNGoogleSignin' could not be found` | Static import of `@react-native-google-signin` evaluated at bundle load before native module registered | Move all usages inside `require(...)` in async function body |
+| `ClassNotFoundException: expo.modules.kotlin.types.LazyKType` | `expo-av` (all versions) prebuilt AAR compiled against newer `expo-modules-core`; `LazyKType` absent in SDK 56 | Remove `expo-av`; replace sound logic with no-op stub |
+
+## Habit Tracker Day 16 — Metro Unknown Module Fix COMPLETE (2026-06-01)
+- `SignInScreen.tsx` + `useAuth.ts`: `await import('@react-native-google-signin')` → `require(...) as typeof import(...)` — fixes Metro async chunk breakage; type safety preserved
+- `SignInScreen.tsx`: `GoogleSignin.configure({})` → passes `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` + `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` from env
+
+### Key Decisions (Day 16)
+- `await import()` creates Metro async chunks; google-signin internal `require()` refs module IDs missing from that chunk → `Requiring unknown module N`. `require()` inside async function = lazy eval, no chunk split, all IDs resolved.
+- `require(...) as typeof import(...)` restores full TypeScript types lost from bare `require()`.
+
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `TurboModuleRegistry.getEnforcing(...): 'RNGoogleSignin' could not be found` | Static import of `@react-native-google-signin` evaluated at bundle load before native module registered | Move all usages inside `await import(...)` in async function body |
-| `ClassNotFoundException: expo.modules.kotlin.types.LazyKType` | `expo-av` (all versions) prebuilt AAR compiled against newer `expo-modules-core`; `LazyKType` absent in SDK 56 | Remove `expo-av`; replace sound logic with no-op stub |
+| `Requiring unknown module '2289'` | `await import('@react-native-google-signin')` creates async Metro chunk; internal requires reference IDs absent from that chunk | Use `require(...)` inside async function body; `await import()` is for local TS modules only |
