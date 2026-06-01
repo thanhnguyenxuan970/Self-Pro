@@ -449,32 +449,8 @@ Full "App Fixes & Enhancements" pass across all 5 phases:
 | `Client Id property 'androidClientId' must be defined` | `.env.local` missing → env var `undefined` at build time | Create `.env.local` with real OAuth client IDs, rebuild |
 | `SignInScreen` profile fields silently null | `GoogleSignin.signIn()` returns nullable `email/name/photo`; `?? ''` bypassed validation | Guard: `if (!email \|\| !name \|\| !photo) { Alert...; return; }` before `onSignInWithGoogle` |
 | `expo-notifications: Android Push notifications removed from Expo Go with SDK 53` | Static `import * as Notifications` in `App.tsx` triggers push token listener at module load time | Remove top-level import; use `await import('expo-notifications')` inside `useEffect` wrapped in try-catch |
-
-## Habit Tracker Day 12 — Code Review Fixes COMPLETE (2026-05-31)
-
-### What Was Fixed
-- `App.tsx` — removed dead `resetSyncCursors` import (never called here; only used in `useAuth.ts` via dynamic import)
-- `syncService.ts` — `parseInt(raw, 10) || 0` NaN guard for corrupted AsyncStorage cursor values
-- `syncService.ts` — `Promise.allSettled` replaces `Promise.all` so activity/fund streams fail independently (prevents cursor desync when one stream succeeds and the other fails)
-- `ProfileScreen.tsx` — `(name.charAt(0) || '?').toUpperCase()` guards empty name string → shows `?` instead of blank initial
-
-### Key Decisions (Day 12)
-- `Promise.allSettled` cursor invariant: each stream's cursor advances only after its own upsert succeeds. With `Promise.all`, one failure rolled back both; now each cursor is independent.
-
-
-## Habit Tracker Day 13 — Multi-Tenant Isolation + Init Race Fix COMPLETE (2026-05-31)
-
-### What Was Fixed
-- **Multi-tenant data isolation** (critical): `USER_ID=1` constant replaced with `UserIdContext` + `resolveUserRow()`. Google email → DB row mapping via `google_sub` column. Account A claims legacy `id=1` row; Account B gets new row with seeded categories.
-- **Init closure race bug** (critical): `App.tsx` `init()` effect had `[]` deps — captured `googleUser=null` at mount before AsyncStorage loaded. Returning users always got `userId=1`. Fixed: `authLoading` added to deps so `init()` runs after auth resolves.
-- All 8 query consumers switched from `USER_ID` to `useAuthUser()` hook.
-
-### Key Decisions (Day 13)
-- `UserIdContext` default `1` is safe — fallback before provider mounts (never reached by signed-in users).
-- `resolveUserRow` three-way: SELECT existing → UPDATE legacy id=1 claim → INSERT new + seed categories. Idempotent.
-- `init()` uses `[authLoading]` dep (not `[googleUser]`) — fires once when auth finishes, closure has settled `googleUser`.
-- `resolveUserRow` in `signInWithGoogle` retained for new sign-in immediacy.
-
+| `TurboModuleRegistry.getEnforcing(...): 'RNGoogleSignin' could not be found` | Static import of `@react-native-google-signin` evaluated at bundle load before native module registered | Move all usages inside `require(...)` in async function body |
+| `ClassNotFoundException: expo.modules.kotlin.types.LazyKType` | `expo-av` (all versions) prebuilt AAR compiled against newer `expo-modules-core`; `LazyKType` absent in SDK 56 | Remove `expo-av`; replace sound logic with no-op stub |
 
 ## Habit Tracker Day 15 — Startup Crash Fix + Code Review COMPLETE (2026-06-01)
 
@@ -488,9 +464,6 @@ Full "App Fixes & Enhancements" pass across all 5 phases:
 - expo-av removal is permanent for SDK 56. `playCelebration` is a documented no-op stub. Re-enable only with a library that compiles from source against SDK 56 deps.
 - `[authLoading]` dep on `init()` is correct: fresh sign-ins resolve userId via `signInWithGoogle()` directly; returning users via `init()` closure.
 
-| `TurboModuleRegistry.getEnforcing(...): 'RNGoogleSignin' could not be found` | Static import of `@react-native-google-signin` evaluated at bundle load before native module registered | Move all usages inside `require(...)` in async function body |
-| `ClassNotFoundException: expo.modules.kotlin.types.LazyKType` | `expo-av` (all versions) prebuilt AAR compiled against newer `expo-modules-core`; `LazyKType` absent in SDK 56 | Remove `expo-av`; replace sound logic with no-op stub |
-
 ## Habit Tracker Day 16 — Metro Unknown Module Fix COMPLETE (2026-06-01)
 - `SignInScreen.tsx` + `useAuth.ts`: `await import('@react-native-google-signin')` → `require(...) as typeof import(...)` — fixes Metro async chunk breakage; type safety preserved
 - `SignInScreen.tsx`: `GoogleSignin.configure({})` → passes `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` + `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` from env
@@ -502,3 +475,27 @@ Full "App Fixes & Enhancements" pass across all 5 phases:
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `Requiring unknown module '2289'` | `await import('@react-native-google-signin')` creates async Metro chunk; internal requires reference IDs absent from that chunk | Use `require(...)` inside async function body; `await import()` is for local TS modules only |
+
+## Habit Tracker Day 17 — Session Persistence + UI Fidelity COMPLETE (2026-06-01)
+
+### What Was Built
+- **Auth session persistence**: Returning users skip Onboarding on re-sign-in. `resolveUserRow` now returns `{ id, isNew }`. `signInWithGoogle` returns `boolean` (isNew) and auto-sets `ONBOARDED_KEY='true'` for returning users.
+- **`GoogleUserContext`**: Added at App root level. Tab screens access Google user data via `useGoogleUser()` without prop drilling.
+- **`useTodayLoggedTaskIds`**: New query returning `Set<task_type_id>` of today's logged tasks; queryKey `['today', 'logged', userId, date]` auto-invalidated by existing `['today']` prefix invalidation.
+- **UI fidelity pass** — all 5 screens rewritten to match wireframe design:
+  - Tab bar: SVG icons (react-native-svg), 86px height, Vietnamese labels
+  - TodayScreen: hero LinearGradient card, progress bar toward 50pts, check-circle task list
+  - ProgressScreen: segmented control (Ngày/Tuần/Tháng/Năm), chart card, 2×2 stats grids
+  - FundScreen: dark gradient balance card (`#15402E→#1E6646`), improved ledger rows
+  - RankScreen: rankhero card with glow, rank ladder, philosophy gradient card
+  - ProfileScreen: centered 80px avatar, 3-column life stats row, settings card
+
+### Key Decisions (Day 17)
+- `signInWithGoogle` returns `boolean` (isNew) — navigator only calls `onSignIn()` (→ Onboarding) for new users; returning users let context-driven navigator swap automatically.
+- RANK_EMOJI map in TodayScreen: ascending order `{ 1:'🎮'…7:'👑'…}` — tier_order 1 = lowest = NPC.
+- [NEEDS CONFIRMATION] DB tier names are still English (Newbie/Grinder…) — RankScreen RANK_EMOJIS expects Vietnamese. Need to add migration: UPDATE tiers SET rank_name, stars_required WHERE tier_order=? with Vietnamese tier names + star thresholds (target 320-star max from Day 10 spec). Until confirmed, RankScreen shows '•' emoji fallback.
+
+### Code Review Fixes (Day 17)
+- `TodayScreen.tsx` — "Por giờ" typo → "Theo giờ"
+- `TodayScreen.tsx` — RANK_EMOJI map was inverted (1=👑); fixed to ascending (1=🎮, 7=👑)
+- `ProgressScreen.tsx` — dead `avgPoints` var removed; "TB điểm / ngày" label → "Hoạt động" (matches `totalActivities` data)
