@@ -120,7 +120,7 @@ export function LogActivitySheet({ visible, onClose }: Props) {
         <View style={styles.durationBg}>
           <View style={styles.durationBox}>
             <Text style={styles.durationTitle}>Bao nhiêu phút?</Text>
-            <Text style={styles.durationSub}>{durationTask?.name}</Text>
+            <Text style={styles.durationSub}>{durationTask.name}</Text>
             <TextInput
               style={styles.durationInput}
               keyboardType="number-pad"

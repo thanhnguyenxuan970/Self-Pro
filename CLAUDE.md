@@ -439,8 +439,8 @@ Full "App Fixes & Enhancements" pass across all 5 phases:
 - MP3 files: placeholder empty files committed so Metro bundler succeeds; user replaces with real CC0 audio
 
 ### Known Deferred / Blocked
-- **[USER ACTION]** Real celebration SFX: replace `src/assets/sounds/level{1-4}.mp3` with CC0 audio (≤100KB each) from freesound.org
 - Language toggle affects tab labels via `RootNavigator` — requires app re-mount to pick up (not live). Acceptable for MVP.
+- SFX disabled — expo-av removed (incompatible with SDK 56 expo-modules-core). Re-enable by installing a compatible audio library.
 
 ## Habit Tracker Day 11 — Auth Fixes COMPLETE (2026-05-30)
 - `signOut()`: dynamic `import('@react-native-google-signin/google-signin')` + `try/finally` state reset → account chooser on re-login; state always cleared even on AsyncStorage failure
@@ -462,12 +462,10 @@ Full "App Fixes & Enhancements" pass across all 5 phases:
 - `App.tsx` — removed dead `resetSyncCursors` import (never called here; only used in `useAuth.ts` via dynamic import)
 - `syncService.ts` — `parseInt(raw, 10) || 0` NaN guard for corrupted AsyncStorage cursor values
 - `syncService.ts` — `Promise.allSettled` replaces `Promise.all` so activity/fund streams fail independently (prevents cursor desync when one stream succeeds and the other fails)
-- `celebrateSound.ts` — `setAudioModeAsync` called once (module-level `audioModeSet` flag) instead of per-play; `setOnPlaybackStatusUpdate` attached before `playAsync` (eliminates unload leak on play failure)
 - `ProfileScreen.tsx` — `(name.charAt(0) || '?').toUpperCase()` guards empty name string → shows `?` instead of blank initial
 
 ### Key Decisions (Day 12)
 - `Promise.allSettled` cursor invariant: each stream's cursor advances only after its own upsert succeeds. With `Promise.all`, one failure rolled back both; now each cursor is independent.
-- `audioModeSet` module flag is intentional — `Audio.setAudioModeAsync` is idempotent but calling it 10× per session is wasteful. Module-level flag survives across `playCelebration` calls within same JS runtime.
 
 ### Test Command
 ```bash
@@ -498,3 +496,21 @@ npx tsc --noEmit  # 0 errors
 
 ## Habit Tracker Day 14 — expo-notifications Module-Init Fix COMPLETE (2026-06-01)
 - `App.tsx`: removed static `expo-notifications` import + module-scope `setNotificationHandler`; both moved inside `init()` useEffect via dynamic `await import('expo-notifications')` in try-catch (gracefully degrades in Expo Go SDK 53+).
+
+## Habit Tracker Day 15 — Startup Crash Fix + Code Review COMPLETE (2026-06-01)
+
+### What Was Fixed
+- **`RNGoogleSignin` TurboModuleRegistry crash** (critical): `SignInScreen.tsx` had static `import { GoogleSignin }` + module-scope `GoogleSignin.configure({})`. Moved all `@react-native-google-signin` usage inside dynamic `import()` in `handleGoogleSignIn()`.
+- **`expo-av` LazyKType ClassNotFoundException** (critical): All expo-av versions (14/15/16) are prebuilt Maven AARs compiled against newer `expo-modules-core` — `LazyKType` class missing from SDK 56. Removed expo-av; replaced `celebrateSound.ts` with a no-op stub.
+- **Code review fixes**: `resolveUserRow` category INSERT converted from `db.execAsync` template literal to parameterized `db.runAsync` loop; `GoogleSignin.configure` guarded by `configuredRef` (called once); added `console.warn` to swallowed `resolveUserRow` failure; added explanatory comment to `[authLoading]` eslint-disable.
+
+### Key Decisions (Day 15)
+- All native modules that crash at bundle evaluation time must use dynamic `import()` inside async functions — confirmed pattern: `expo-notifications`, `@react-native-google-signin/google-signin`.
+- expo-av removal is permanent for SDK 56. `playCelebration` is a documented no-op stub. Re-enable only with a library that compiles from source against SDK 56 deps.
+- `[authLoading]` dep on `init()` is correct: fresh sign-ins resolve userId via `signInWithGoogle()` directly; returning users via `init()` closure.
+
+### Known Errors & Fixes (Day 15 additions)
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `TurboModuleRegistry.getEnforcing(...): 'RNGoogleSignin' could not be found` | Static import of `@react-native-google-signin` evaluated at bundle load before native module registered | Move all usages inside `await import(...)` in async function body |
+| `ClassNotFoundException: expo.modules.kotlin.types.LazyKType` | `expo-av` (all versions) prebuilt AAR compiled against newer `expo-modules-core`; `LazyKType` absent in SDK 56 | Remove `expo-av`; replace sound logic with no-op stub |

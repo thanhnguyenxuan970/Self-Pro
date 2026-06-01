@@ -55,14 +55,19 @@ export async function resolveUserRow(db: SQLiteDatabase, googleEmail: string): P
     [googleEmail]
   );
   const newUserId = result.lastInsertRowId;
-  await db.execAsync(`
-    INSERT INTO categories (user_id, name, icon, sort_order) VALUES
-    (${newUserId}, 'Health', '🏃', 1),
-    (${newUserId}, 'Mind',   '🧠', 2),
-    (${newUserId}, 'Work',   '💼', 3),
-    (${newUserId}, 'Social', '👥', 4),
-    (${newUserId}, 'Other',  '⭐', 5);
-  `);
+  const catSeed = [
+    ['Health', '🏃', 1],
+    ['Mind',   '🧠', 2],
+    ['Work',   '💼', 3],
+    ['Social', '👥', 4],
+    ['Other',  '⭐', 5],
+  ] as const;
+  for (const [name, icon, order] of catSeed) {
+    await db.runAsync(
+      'INSERT INTO categories (user_id, name, icon, sort_order) VALUES (?, ?, ?, ?)',
+      [newUserId, name, icon, order]
+    );
+  }
   return newUserId;
 }
 
@@ -107,7 +112,7 @@ export function useAuth() {
       const db = await getDb();
       const id = await resolveUserRow(db, user.email);
       setUserId(id);
-    } catch { /* safe default: userId stays 1 */ }
+    } catch (e) { console.warn('[auth] resolveUserRow failed, defaulting to userId=1:', e); }
   }, []);
 
   const signOut = useCallback(async () => {

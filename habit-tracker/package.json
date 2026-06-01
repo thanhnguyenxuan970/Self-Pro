@@ -15,7 +15,6 @@
     "drizzle-orm": "^0.45.2",
     "expo": "~56.0.5",
     "expo-auth-session": "~56.0.13",
-    "expo-av": "^16.0.8",
     "expo-notifications": "~56.0.15",
     "expo-sqlite": "~56.0.4",
     "expo-status-bar": "~56.0.4",

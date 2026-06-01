@@ -76,6 +76,8 @@ function AppInner() {
       setDbReady(true);
     }
     init().catch(err => console.error('DB init failed:', err));
+  // googleUser intentionally captured via closure: init() runs once when auth
+  // settles. Fresh sign-ins resolve userId via signInWithGoogle() instead.
   }, [authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
