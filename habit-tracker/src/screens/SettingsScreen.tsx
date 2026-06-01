@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView, TextInput,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Radii, Spacing, Shadows, Typography } from '../theme';
 import { useDarkMode, useLanguage, AppLanguage } from '../hooks/useSettings';
 import { useAuthUser } from '../hooks/useAuth';
+import { useNotificationTime, useSetNotificationTime } from '../queries/useSettings';
+import { validateNotificationTime } from '../logic/settingsLogic';
 
 type Props = {
   onDeleteAccount: (userId: number) => Promise<void>;
@@ -14,6 +18,48 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
   const [isDark, setIsDark] = useDarkMode();
   const [lang, setLanguage] = useLanguage();
   const [deleting, setDeleting] = useState(false);
+
+  const { data: savedNotifTime } = useNotificationTime(userId);
+  const setNotifTimeMutation = useSetNotificationTime(userId);
+  const [notifInput, setNotifInput] = useState('');
+  const [notifEditing, setNotifEditing] = useState(false);
+  const [notifError, setNotifError] = useState(false);
+  const submitHandledRef = useRef(false);
+
+  useEffect(() => {
+    if (!notifEditing) {
+      setNotifInput(savedNotifTime ?? '');
+      setNotifError(false);
+    }
+  }, [savedNotifTime, notifEditing]);
+
+  function saveNotifTime() {
+    setNotifEditing(false);
+    if (notifInput === '') {
+      setNotifError(false);
+      setNotifTimeMutation.mutate(null);
+    } else if (validateNotificationTime(notifInput)) {
+      setNotifError(false);
+      setNotifTimeMutation.mutate(notifInput);
+    } else {
+      setNotifError(true);
+      setNotifInput(savedNotifTime ?? '');
+    }
+  }
+
+  function handleNotifSubmit() {
+    submitHandledRef.current = true;
+    try {
+      saveNotifTime();
+    } finally {
+      submitHandledRef.current = false;
+    }
+  }
+
+  function handleNotifBlur() {
+    if (submitHandledRef.current) return;
+    saveNotifTime();
+  }
 
   function handleDeleteAccount() {
     Alert.alert(
@@ -57,6 +103,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
             />
           </View>
         </View>
+        <Text style={s.restartNote}>* Áp dụng sau khi khởi động lại ứng dụng</Text>
 
         {/* Language */}
         <Text style={s.sectionLabel}>NGÔN NGỮ</Text>
@@ -73,6 +120,32 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
               {lang === l && <Text style={s.check}>✓</Text>}
             </TouchableOpacity>
           ))}
+        </View>
+        <Text style={s.restartNote}>* Tab labels cập nhật sau khi khởi động lại</Text>
+
+        {/* Notification */}
+        <Text style={s.sectionLabel}>THÔNG BÁO</Text>
+        <View style={s.card}>
+          <View style={[s.row, s.rowLast]}>
+            <Text style={s.rowIc}>🔔</Text>
+            <Text style={s.rowLabel}>Giờ nhắc</Text>
+            <TextInput
+              style={[s.timeInput, notifError && s.timeInputError]}
+              value={notifInput}
+              placeholder="HH:MM"
+              placeholderTextColor={Colors.faint}
+              keyboardType="numbers-and-punctuation"
+              maxLength={5}
+              onFocus={() => setNotifEditing(true)}
+              onChangeText={(t) => { setNotifInput(t); setNotifError(false); }}
+              onBlur={handleNotifBlur}
+              onSubmitEditing={handleNotifSubmit}
+              returnKeyType="done"
+            />
+          </View>
+          {notifError && (
+            <Text style={s.inputHint}>Định dạng HH:MM (ví dụ: 07:30)</Text>
+          )}
         </View>
 
         {/* Danger zone */}
@@ -129,11 +202,39 @@ const s = StyleSheet.create({
   rowLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: Colors.inkDark },
   check: { fontSize: 16, fontWeight: '800', color: Colors.primary },
   chevron: { fontSize: 18, color: Colors.faint },
+  restartNote: {
+    marginHorizontal: Spacing.lg,
+    marginTop: 6,
+    fontSize: 11,
+    color: Colors.muted,
+    fontStyle: 'italic',
+  },
   hint: {
     marginHorizontal: Spacing.lg,
     marginTop: 12,
     fontSize: 12,
     color: Colors.muted,
     lineHeight: 18,
+  },
+  timeInput: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.inkDark,
+    textAlign: 'right',
+    minWidth: 60,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.line,
+  },
+  timeInputError: {
+    borderColor: Colors.danger,
+    color: Colors.danger,
+  },
+  inputHint: {
+    fontSize: 11,
+    color: Colors.danger,
+    paddingBottom: 10,
   },
 });

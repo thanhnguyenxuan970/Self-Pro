@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14, borderBottomWidth: 1, borderColor: Colors.line,
   },
   taskLast: { borderBottomWidth: 0 },
-  taskSelected: { backgroundColor: Colors.primarySoft },
+  taskSelected: { backgroundColor: Colors.primarySoft, marginHorizontal: -15, paddingHorizontal: 15 },
   check: {
     width: 26, height: 26, borderRadius: 13,
     borderWidth: 2, borderColor: Colors.line2,

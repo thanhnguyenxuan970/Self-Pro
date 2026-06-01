@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { parseSettingsBool, parseSettingsLang } from '../logic/settingsLogic';
 
 export type AppLanguage = 'vi' | 'en';
 
@@ -30,10 +31,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       AsyncStorage.getItem(LANGUAGE_KEY),
     ])
       .then(([darkVal, langVal]) => {
-        if (darkVal === 'true') setIsDark(true);
-        if (langVal === 'en' || langVal === 'vi') setLang(langVal);
+        setIsDark(parseSettingsBool(darkVal));
+        setLang(parseSettingsLang(langVal));
       })
-      .catch(() => {});
+      .catch((e) => { console.warn('[SettingsContext] failed to load settings', e); });
   }, []);
 
   const setDarkMode = useCallback((v: boolean) => {
