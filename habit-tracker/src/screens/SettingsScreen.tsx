@@ -49,15 +49,14 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
 
   function handleNotifSubmit() {
     submitHandledRef.current = true;
-    try {
-      saveNotifTime();
-    } finally {
-      submitHandledRef.current = false;
-    }
+    saveNotifTime();
   }
 
   function handleNotifBlur() {
-    if (submitHandledRef.current) return;
+    if (submitHandledRef.current) {
+      submitHandledRef.current = false;
+      return;
+    }
     saveNotifTime();
   }
 

@@ -389,3 +389,26 @@ npx expo run:android  # requires native build
 - `marginHorizontal: -15` hardcoded to match `taskCard.paddingHorizontal: 15` — breaks if card padding changes, acceptable for MVP.
 - `handleNotifBlur` error path: restores `notifInput` to `savedNotifTime ?? ''` directly + via `useEffect` (double-set same value, React bails out on second render). Redundant but harmless.
 - `useSetNotificationTime` accepts `string | null` — passing `null` when input cleared removes notification time from DB.
+
+---
+
+## Habit Tracker Day 24 — Settings QA & Dev Agent COMPLETE (2026-06-01)
+
+### What Was Built / Fixed
+- **`src/logic/settingsLogic.ts`** (new): `parseSettingsBool`, `parseSettingsLang`, `validateNotificationTime` — pure fns extracted from inline context logic for testability.
+- **`__tests__/settings.test.ts`** (new): 25 tests covering all 3 logic fns — null/garbage/boundary inputs. TDD — tests written before fixes.
+- **`SettingsContext.tsx`**: Uses `parseSettingsBool`/`parseSettingsLang`; added `console.warn` on AsyncStorage load failure (was silent swallow).
+- **`SettingsScreen.tsx`**: Added `THÔNG BÁO` section with `useNotificationTime`/`useSetNotificationTime` (hooks existed but were dead code). `submitHandledRef` dedup prevents double-fire from `onSubmitEditing`+`onBlur` both calling save. Restart-required notes under GIAO DIỆN and NGÔN NGỮ sections.
+
+### Key Decisions (Day 24)
+- `submitHandledRef` cleared in `handleNotifBlur` (not `handleNotifSubmit`) — `onSubmitEditing` fires before `onBlur`; clearing in submit's finally would reset it before blur checks it, breaking dedup.
+- `saveNotifTime()` cannot throw synchronously (state setters + TanStack `mutate` are fire-and-forget), so try/finally on submit is unnecessary complexity.
+- Restart notes are italic muted text below each section card — informational only, no modal or alert needed for MVP.
+
+### Test Command (Day 24)
+```bash
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
+npx jest          # 98/98 pass
+npx tsc --noEmit  # 0 errors
+npx expo run:android  # requires native build
+```
