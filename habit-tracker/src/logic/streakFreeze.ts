@@ -1,5 +1,5 @@
 export type FreezePurchaseParams = {
-  balance: number;
+  treatStars: number;
   existingFreeze: boolean;
   existingActivity: boolean;
   currentStreak: number;
@@ -13,6 +13,6 @@ export function canPurchaseFreeze(params: FreezePurchaseParams, cost: number): F
   if (params.existingActivity) return { allowed: false, reason: 'HAS_ACTIVITY' };
   if (params.existingFreeze)   return { allowed: false, reason: 'ALREADY_FROZEN' };
   if (params.currentStreak === 0) return { allowed: false, reason: 'NO_STREAK' };
-  if (params.balance < cost)   return { allowed: false, reason: 'INSUFFICIENT_FUNDS' };
+  if (params.treatStars < cost) return { allowed: false, reason: 'INSUFFICIENT_FUNDS' };
   return { allowed: true };
 }

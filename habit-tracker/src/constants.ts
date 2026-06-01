@@ -11,7 +11,8 @@ export const SOURCE_TASK = 'TASK';
 export const SOURCE_DAILY_BONUS = 'DAILY_BONUS';
 export const SOURCE_PENALTY = 'PENALTY';
 
-export const STREAK_FREEZE_COST = 10_000;
+export const DEFAULT_VALUE_PER_STAR = 1000;
+export const STREAK_FREEZE_COST = 10; // stars (1★ = DEFAULT_VALUE_PER_STAR VND)
 
 export type TemplateTask = {
   name: string;

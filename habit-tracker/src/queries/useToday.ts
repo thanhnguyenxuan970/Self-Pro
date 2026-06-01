@@ -204,30 +204,50 @@ export function useLogTask(userId: number) {
            activityRow.points_earned, totalStarsDelta, totalStarsDelta]
         );
 
-        // Insert tier unlocks + fund deposits
+        // Insert tier unlocks (no longer deposit to fund — treats system handles rewards)
         for (const unlock of newUnlocks) {
-          const r = await db.runAsync(
+          await db.runAsync(
             `INSERT OR IGNORE INTO reward_unlocks
              (user_id, tier_id, week_start, stars_at_unlock, reward_amount, claimed)
              VALUES (?, ?, ?, ?, ?, 0)`,
             [unlock.user_id, unlock.tier_id, unlock.week_start,
              unlock.stars_at_unlock, unlock.reward_amount]
           );
-          if (r.changes > 0) {
-            await db.runAsync(
-              `INSERT INTO fund_transactions
-               (user_id, type, amount, currency, source_unlock_id, occurred_at)
-               VALUES (?, 'DEPOSIT', ?, ?, ?, ?)`,
-              [userId, unlock.reward_amount, unlock.reward_currency, r.lastInsertRowId, nowMs]
-            );
-          }
         }
+
+        // Update treat_stars pool
+        if (params.kind === 'GOOD') {
+          await db.runAsync(
+            `UPDATE users SET
+               treat_stars = treat_stars + ?,
+               treat_stars_lifetime = treat_stars_lifetime + ?
+             WHERE id = ?`,
+            [totalStarsDelta, totalStarsDelta, userId]
+          );
+        } else {
+          // BAD task penalty: deduct from pool only if penalty_hits_treats = 1, floor at 0
+          const penaltyAmt = Math.abs(totalStarsDelta);
+          await db.runAsync(
+            `UPDATE users SET treat_stars = MAX(0, treat_stars - ?)
+             WHERE id = ? AND penalty_hits_treats = 1`,
+            [penaltyAmt, userId]
+          );
+        }
+
+        // Mark treats as reached if pool now >= their target (one-time flag)
+        const nowIso = new Date(nowMs).toISOString();
+        await db.runAsync(
+          `UPDATE treats SET reached_at = ?
+           WHERE user_id = ? AND status = 'ACTIVE' AND reached_at IS NULL
+             AND target_stars <= (SELECT treat_stars FROM users WHERE id = ?)`,
+          [nowIso, userId, userId]
+        );
       });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
-      qc.invalidateQueries({ queryKey: ['fund'] });
+      qc.invalidateQueries({ queryKey: ['treats'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
     },
   });

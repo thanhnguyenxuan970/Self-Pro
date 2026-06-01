@@ -46,7 +46,7 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 
 A **workspace of agent prompt files and design specs** — not a buildable project itself. Two active projects live here:
 
-- **Habit Tracker** — Gamified habit tracking React Native app. Day 9 COMPLETE (2026-05-29).
+- **Habit Tracker** — Gamified habit tracking React Native app. Day 18 COMPLETE (2026-06-01).
 
 ---
 
@@ -89,7 +89,7 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 
 ## Habit Tracker Architecture
 
-**Status:** Day 9 COMPLETE (2026-05-29). Code lives at `c:\Users\Admin\Desktop\Self-Pro\habit-tracker\`.
+**Status:** Day 18 COMPLETE (2026-06-01). Code lives at `c:\Users\Admin\Desktop\Self-Pro\habit-tracker\`.
 
 **Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29 + expo-auth-session v5 + expo-web-browser
 
@@ -107,20 +107,6 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 - All DB writes in `useLogTask` wrapped in `db.withTransactionAsync` for atomicity (includes activity, daily/weekly summary, tier unlocks, fund deposits).
 - Default seed: user_id=1 (`me`), 8 tiers, 1 task (`Exercise`) seeded in `runMigrations`.
 - `jest.config.js` uses `transform` (not deprecated `globals`) for ts-jest. `tsconfig.json` has `"types": ["jest"]`.
-
-### Day 1 Files Created
-```
-habit-tracker/
-├── src/constants.ts
-├── src/db/schema.ts, migrations.ts, client.ts
-├── src/logic/logTask.ts, formatters.ts
-├── src/queries/queryClient.ts, useToday.ts
-├── src/screens/TodayScreen.tsx, ProgressScreen.tsx, FundScreen.tsx, MeScreen.tsx
-├── src/navigation/RootNavigator.tsx
-├── App.tsx
-├── babel.config.js, jest.config.js
-└── __tests__/logTask.test.ts  ← 6/6 pass
-```
 
 ### Key Decisions (Day 2)
 - `App.tsx` weekly reset: single `UPDATE weekly_summary SET finalized=1 WHERE week_start < ?` — handles multi-week gaps in one SQL call. Dropped `computeWeeklyReset` from App.tsx (pure fn kept for tests, no longer called at startup).
@@ -169,14 +155,6 @@ habit-tracker/
 Total: 17/17 tests pass
 ```
 
-### Day 3 Test Command
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # 17/17 pass
-npx tsc --noEmit  # 0 errors
-npx expo run:android  # requires native build (react-native-svg)
-```
-
 ### Key Decisions (Day 4)
 - `ALTER TABLE users ADD COLUMN` wrapped in try/catch — SQLite has no `ADD COLUMN IF NOT EXISTS`; only expected error is "duplicate column name" on re-run.
 - `scheduleHabitReminder` validates time BEFORE calling `cancelAllScheduledNotificationsAsync` — prevents cancelling existing notification when called with invalid input.
@@ -203,14 +181,6 @@ habit-tracker/
     ├── weekResetToast.test.ts    ← NEW: 3 tests
     └── notifications.test.ts     ← NEW: 5 tests
 Total: 50/50 tests pass (includes pre-existing seedTemplates tests)
-```
-
-### Day 4 Test Command
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # 50/50 pass
-npx tsc --noEmit  # 0 errors
-npx expo run:android  # requires native build
 ```
 
 ### Key Decisions (Day 5)
@@ -250,14 +220,6 @@ habit-tracker/
 Total: 50/50 tests pass
 ```
 
-### Day 5 Test Command
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # 50/50 pass
-npx tsc --noEmit  # 0 errors
-npx expo run:android  # requires native build
-```
-
 ### Key Decisions (Day 6)
 - `LogActivitySheet`: React Native `Modal`-based bottom sheet (no external library). Nested `Modal` for duration sub-prompt (higher z-index, fade animation). `fabVisible` state in `AppStack` was discarded (`[, setFabVisible]`) since Day 5 — fixed to `[fabVisible, setFabVisible]`.
 - `AppStack` return wrapped in `<>` fragment to render `<LogActivitySheet>` alongside `<Stack.Navigator>`. Modal is a portal — does not need to be inside NavigationContainer.
@@ -280,14 +242,6 @@ habit-tracker/
 Total: 55/55 tests pass
 ```
 
-### Day 6 Test Command
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # 55/55 pass
-npx tsc --noEmit  # 0 errors
-npx expo run:android  # requires native build for LogActivitySheet
-```
-
 ### Key Decisions (Day 7)
 - `useLogTask` TOCTOU fix: all 4 volatile reads (`daily`, `weeklyRow`, `alreadyUnlocked`, `yesterdayRow`) moved INSIDE `withTransactionAsync`. `tiers` stays outside (static lookup, never written). `nowMs`/`yesterday`/`yesterdayDate` declared before transaction — safe closure captures, not reads.
 - `Toast.show()` called before `onClose()` in `submitLog` — toast fires during Modal slide-down animation (Toast is mounted at App root, independent of Modal lifecycle).
@@ -300,14 +254,6 @@ habit-tracker/
 ├── src/screens/LogActivitySheet.tsx ← ADD Toast.show() on success
 └── __tests__/logTask.test.ts        ← ADD 2 tests (boundary + BAD-task guard)
 Total: 57/57 tests pass
-```
-
-### Day 7 Test Command
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # 57/57 pass
-npx tsc --noEmit  # 0 errors
-npx expo run:android  # native build — tap FAB, log task, verify toast + sheet closes
 ```
 
 ### Key Decisions (Day 8)
@@ -340,14 +286,6 @@ habit-tracker/
     ├── streakFreeze.test.ts             ← NEW: 5 tests (canPurchaseFreeze)
     └── analyticsRangeLabel.test.ts      ← NEW: 4 tests (getRangeLabel D/W/M/Y)
 Total: 66/66 tests pass
-```
-
-### Day 8 Test Command
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # 66/66 pass
-npx tsc --noEmit  # 0 errors
-npx expo run:android  # native build required
 ```
 
 ### Key Decisions (Day 9)
@@ -499,3 +437,35 @@ Full "App Fixes & Enhancements" pass across all 5 phases:
 - `TodayScreen.tsx` — "Por giờ" typo → "Theo giờ"
 - `TodayScreen.tsx` — RANK_EMOJI map was inverted (1=👑); fixed to ascending (1=🎮, 7=👑)
 - `ProgressScreen.tsx` — dead `avgPoints` var removed; "TB điểm / ngày" label → "Hoạt động" (matches `totalActivities` data)
+
+---
+
+## Habit Tracker Day 18 — Treats System COMPLETE (2026-06-01)
+
+### What Was Built
+- Replaced VND fund/balance with star-based treats wishlist
+- Two-balance split: `weekly_stars` (rank, resets weekly) vs `treat_stars` (treats, never resets)
+- New tables: `treats`, `treat_history`; 4 new user columns (`treat_stars`, `treat_stars_lifetime`, `value_per_star`, `penalty_hits_treats`)
+- `src/logic/treatLogic.ts` — `canEnjoyTreat`, `decorateTreat` pure fns
+- `src/queries/useTreats.ts` — `useTreatPool`, `useTreats`, `useAddTreat`, `useEnjoyTreat`, `useTreatHistory`
+- `FundScreen.tsx` rewritten as TreatsScreen (pool header, wishlist with progress bars, enjoy button, add-treat modal)
+- Streak freeze migrated from VND cost (10,000₫) to star cost (10★)
+- `useLogTask` earns `treat_stars` on GOOD, deducts on BAD (if `penalty_hits_treats=1`), marks `reached_at` for eligible treats in same transaction
+- Deleted: `src/logic/fundDeposit.ts`, `__tests__/fundDeposit.test.ts`
+
+### Key Decisions (Day 18)
+- `treat_stars` independent of weekly cycle — accumulates indefinitely; `treat_stars_lifetime` tracks total earned
+- `markNewlyReached`: single SQL UPDATE inside `useLogTask` transaction — no N+1; one-time flip of `reached_at IS NULL` guard
+- `penalty_hits_treats = 1` default; guard in SQL WHERE clause, not app code
+- `useEnjoyTreat`: `MAX(0, treat_stars - ?)` for extra safety even though transaction + `canEnjoyTreat` prevents underflow
+- `handleEnjoy` in FundScreen: `enjoyingRef` guard now shows Toast("Đang xử lý…") — no silent no-op on double-tap
+- `fund_transactions` table kept (no DROP) — data preserved, no new writes
+- `DEFAULT_VALUE_PER_STAR = 1000` (VND/star); no hardcoded `1000` fallbacks anywhere
+
+### Test Command
+```bash
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
+npx jest          # 73/73 pass
+npx tsc --noEmit  # 1 pre-existing error: SignInScreen.tsx androidClientId (unrelated)
+npx expo run:android  # requires native build
+```

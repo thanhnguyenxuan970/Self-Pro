@@ -96,3 +96,29 @@ export const fund_transactions = sqliteTable('fund_transactions', {
   note: text('note'),
   occurred_at: integer('occurred_at').notNull(), // Unix ms
 });
+
+export const treats = sqliteTable('treats', {
+  id: integer('id').primaryKey(),
+  user_id: integer('user_id').notNull(),
+  name: text('name').notNull(),
+  icon: text('icon').notNull().default('gift'),
+  target_stars: integer('target_stars').notNull(),
+  approx_amount: integer('approx_amount').notNull(),
+  currency: text('currency').notNull().default('VND'),
+  status: text('status').notNull().default('ACTIVE'),
+  sort_order: integer('sort_order').notNull().default(0),
+  reached_at: text('reached_at'),
+  enjoyed_at: text('enjoyed_at'),
+  created_at: text('created_at').notNull(),
+});
+
+export const treat_history = sqliteTable('treat_history', {
+  id: integer('id').primaryKey(),
+  user_id: integer('user_id').notNull(),
+  treat_id: integer('treat_id').notNull(),
+  name: text('name').notNull(),
+  stars_spent: integer('stars_spent').notNull(),
+  amount: integer('amount').notNull(),
+  currency: text('currency').notNull().default('VND'),
+  enjoyed_at: text('enjoyed_at').notNull(),
+});

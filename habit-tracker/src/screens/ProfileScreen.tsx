@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  View, Text, TouchableOpacity, StyleSheet,
   Modal, TextInput, Alert, Switch, ScrollView, Image,
 } from 'react-native';
 import { useTodayTasks, useWeeklySummary, useDailySummary, useCategories } from '../queries/useToday';
@@ -8,7 +8,7 @@ import { useNotificationTime, useSetNotificationTime } from '../queries/useSetti
 import { scheduleHabitReminder, cancelHabitReminder } from '../logic/notifications';
 import Toast from 'react-native-toast-message';
 import { useCreateTask, useUpdateTask, useArchiveTask, useArchiveCategory } from '../queries/useTasks';
-import { useFundBalance } from '../queries/useFund';
+import { useTreatPool } from '../queries/useTreats';
 import { Colors, Typography, Radii, Spacing, Shadows } from '../theme';
 import { useAuthUser } from '../hooks/useAuth';
 
@@ -51,7 +51,7 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
   const { data: tasks } = useTodayTasks(userId);
   const { data: weekly } = useWeeklySummary(userId);
   const { data: daily } = useDailySummary(userId);
-  const { data: fundBalance = 0 } = useFundBalance(userId);
+  const { data: treatPool } = useTreatPool(userId);
   const createTask = useCreateTask(userId);
   const updateTask = useUpdateTask(userId);
   const archiveTask = useArchiveTask(userId);
@@ -192,8 +192,8 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
           <Text style={ph.lifeL}>Streak</Text>
         </View>
         <View style={ph.lifeCell}>
-          <Text style={ph.lifeV}>₫{Math.round(fundBalance / 1000)}k</Text>
-          <Text style={ph.lifeL}>Quỹ thưởng</Text>
+          <Text style={ph.lifeV}>★ {treatPool?.treat_stars ?? 0}</Text>
+          <Text style={ph.lifeL}>Kho sao</Text>
         </View>
       </View>
 

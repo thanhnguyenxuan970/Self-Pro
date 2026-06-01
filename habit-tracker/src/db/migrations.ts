@@ -110,6 +110,10 @@ export async function runMigrations(db: SQLiteDatabase) {
     `ALTER TABLE users ADD COLUMN last_seen_week_start TEXT`,
     `ALTER TABLE users ADD COLUMN notification_time TEXT`,
     `ALTER TABLE users ADD COLUMN google_sub TEXT`,
+    `ALTER TABLE users ADD COLUMN treat_stars INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN treat_stars_lifetime INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN value_per_star INTEGER NOT NULL DEFAULT 1000`,
+    `ALTER TABLE users ADD COLUMN penalty_hits_treats INTEGER NOT NULL DEFAULT 1`,
   ]) {
     try { await db.runAsync(sql); } catch (e: any) {
       if (!e?.message?.includes('duplicate column')) throw e;
@@ -168,6 +172,36 @@ export async function runMigrations(db: SQLiteDatabase) {
       local_date TEXT NOT NULL,
       purchased_at INTEGER NOT NULL,
       UNIQUE(user_id, local_date)
+    );
+  `);
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS treats (
+      id            INTEGER PRIMARY KEY,
+      user_id       INTEGER NOT NULL REFERENCES users(id),
+      name          TEXT NOT NULL,
+      icon          TEXT NOT NULL DEFAULT 'gift',
+      target_stars  INTEGER NOT NULL,
+      approx_amount INTEGER NOT NULL,
+      currency      TEXT NOT NULL DEFAULT 'VND',
+      status        TEXT NOT NULL DEFAULT 'ACTIVE'
+                    CHECK (status IN ('ACTIVE','ENJOYED','ARCHIVED')),
+      sort_order    INTEGER NOT NULL DEFAULT 0,
+      reached_at    TEXT,
+      enjoyed_at    TEXT,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_treats_user ON treats(user_id, status, sort_order);
+
+    CREATE TABLE IF NOT EXISTS treat_history (
+      id          INTEGER PRIMARY KEY,
+      user_id     INTEGER NOT NULL REFERENCES users(id),
+      treat_id    INTEGER NOT NULL REFERENCES treats(id),
+      name        TEXT NOT NULL,
+      stars_spent INTEGER NOT NULL,
+      amount      INTEGER NOT NULL,
+      currency    TEXT NOT NULL DEFAULT 'VND',
+      enjoyed_at  TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
 

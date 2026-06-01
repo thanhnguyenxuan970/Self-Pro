@@ -121,7 +121,7 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
       <Tab.Screen
         name="Fund"
         component={FundScreen}
-        options={{ title: 'Quỹ thưởng', tabBarIcon: ({ color }) => <IconGift color={color} /> }}
+        options={{ title: 'Quà thưởng', tabBarIcon: ({ color }) => <IconGift color={color} /> }}
       />
       <Tab.Screen
         name="Rank"
