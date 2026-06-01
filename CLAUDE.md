@@ -389,6 +389,8 @@ Full "App Fixes & Enhancements" pass across all 5 phases:
 | `expo-notifications: Android Push notifications removed from Expo Go with SDK 53` | Static `import * as Notifications` in `App.tsx` triggers push token listener at module load time | Remove top-level import; use `await import('expo-notifications')` inside `useEffect` wrapped in try-catch |
 | `TurboModuleRegistry.getEnforcing(...): 'RNGoogleSignin' could not be found` | Static import of `@react-native-google-signin` evaluated at bundle load before native module registered | Move all usages inside `require(...)` in async function body |
 | `ClassNotFoundException: expo.modules.kotlin.types.LazyKType` | `expo-av` (all versions) prebuilt AAR compiled against newer `expo-modules-core`; `LazyKType` absent in SDK 56 | Remove `expo-av`; replace sound logic with no-op stub |
+| `RNGoogleSignin: 'androidClientId' is not a valid configuration parameter` | `@react-native-google-signin` v13+ removed `androidClientId` from `configure()`; Android reads client ID from `google-services.json` | Remove `androidClientId` from `GoogleSignin.configure()` call |
+| `connectAnimatedNodes: Animated node with tag (parent) [76] does not exist` | `enableScreens()` never called; Fabric batch-dispatches animated node commands before tab bar parent node is registered on native side | Call `enableScreens()` from `react-native-screens` at module level in `index.ts` before `registerRootComponent` |
 
 ## Habit Tracker Day 15 — Startup Crash Fix + Code Review COMPLETE (2026-06-01)
 
@@ -466,6 +468,21 @@ Full "App Fixes & Enhancements" pass across all 5 phases:
 ```bash
 cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
 npx jest          # 73/73 pass
-npx tsc --noEmit  # 1 pre-existing error: SignInScreen.tsx androidClientId (unrelated)
+npx tsc --noEmit  # 0 errors
 npx expo run:android  # requires native build
 ```
+
+---
+
+## Habit Tracker Day 19 — Startup Crash Fixes COMPLETE (2026-06-01)
+
+### What Was Fixed
+- **`RNGoogleSignin: 'androidClientId' is not a valid configuration parameter`**: Removed `androidClientId` from `GoogleSignin.configure()` in `SignInScreen.tsx`. v16+ reads Android client ID from `google-services.json`; parameter no longer exists in API.
+- **`connectAnimatedNodes: Animated node with tag (parent) [76] does not exist`**: Added `enableScreens()` call (from `react-native-screens`) at module level in `index.ts` before `registerRootComponent`. Without it, Fabric's batch-dispatched animated node commands race against the tab bar mount, causing parent node [76] to not exist when child tries to connect.
+
+### Key Decisions (Day 19)
+- `enableScreens()` called in `index.ts` at module level (not inside a component) — must run before any navigation renders
+- `androidClientId` removal is permanent for `@react-native-google-signin` v13+; Android client ID comes from `google-services.json` only
+
+### [NEEDS USER]
+- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` must be set in `.env.local` — without it, `GoogleSignin.configure()` silently accepts `undefined` and sign-in fails at runtime
