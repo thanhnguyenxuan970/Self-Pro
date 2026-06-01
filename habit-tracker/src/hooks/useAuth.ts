@@ -132,6 +132,7 @@ export function useAuth() {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { GoogleSignin } = require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
+      await GoogleSignin.revokeAccess(); // revoke server-side token so next sign-in always prompts
       await GoogleSignin.signOut();
     } catch {
       // ignore — native sign-out failure doesn't affect local state

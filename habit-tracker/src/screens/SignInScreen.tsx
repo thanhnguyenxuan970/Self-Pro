@@ -26,6 +26,8 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
       }
       try {
         await GoogleSignin.hasPlayServices();
+        // Clear any cached session so the account picker always appears
+        try { await GoogleSignin.signOut(); } catch {}
         const response = await GoogleSignin.signIn();
         if (isSuccessResponse(response)) {
           const { email, name, photo } = response.data.user;

@@ -486,3 +486,15 @@ npx expo run:android  # requires native build
 
 ### [NEEDS USER]
 - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` must be set in `.env.local` — without it, `GoogleSignin.configure()` silently accepts `undefined` and sign-in fails at runtime
+
+---
+
+## Habit Tracker Day 20 — Sign-out + Account Picker Fix COMPLETE (2026-06-01)
+
+### What Was Fixed
+- **Sign-out session leak**: `signOut()` in `useAuth.ts` now calls `GoogleSignin.revokeAccess()` before `GoogleSignin.signOut()` — revokes server-side OAuth token so next sign-in cannot silently reuse cached credentials.
+- **Account picker bypass**: `handleGoogleSignIn` in `SignInScreen.tsx` calls `GoogleSignin.signOut()` (try/catch) immediately before `GoogleSignin.signIn()` — clears native session cache so account picker always appears.
+
+### Key Decisions (Day 20)
+- `revokeAccess()` before `signOut()` in sign-out path: revokeAccess revokes the server-side token; signOut clears native session. Both wrapped in single try/catch — failure is non-fatal since local AsyncStorage + React state are cleared in `finally`.
+- `signOut()` in sign-in path: calling signOut before signIn is the canonical `@react-native-google-signin` pattern to force account selection. Silent failure (first-launch user has no session) is expected and benign.
