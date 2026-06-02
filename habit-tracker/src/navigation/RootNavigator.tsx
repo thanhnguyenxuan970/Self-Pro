@@ -191,7 +191,7 @@ export function RootNavigator({
   isOnboarded: boolean;
   googleUser: GoogleUser | null;
   onCompleteOnboarding: () => Promise<void>;
-  onSignInWithGoogle: (user: GoogleUser) => Promise<boolean>;
+  onSignInWithGoogle: (user: GoogleUser, idToken?: string) => Promise<boolean>;
   onSignOut: () => Promise<void>;
   onDeleteAccount: (userId: number) => Promise<void>;
 }) {

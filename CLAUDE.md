@@ -106,7 +106,7 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 - All DB writes in `useLogTask` inside `db.withTransactionAsync`. `jest.config.js` uses `transform` (not `globals`).
 - `streak_count` set on INSERT, never overwritten. `victory-native@^36` pinned (v40+ requires Skia).
 - `ALTER TABLE ADD COLUMN` wrapped in try/catch (SQLite has no `IF NOT EXISTS`). `expo-notifications` dynamic import in `useEffect`.
-- Auth: `GoogleUser` in AsyncStorage `'habit_tracker_google_user'`. Gate: `googleUser !== null && isOnboarded`. `parseGoogleUser` validates all 3 fields.
+- Auth: `GoogleUser` in `expo-secure-store` key `'habit_tracker_google_user'` (migrated from AsyncStorage — see Security Fixes). Gate: `googleUser !== null && isOnboarded`. `parseGoogleUser` validates all 3 fields.
 - `AppInner` pattern prevents double `NavigationContainer`. Center FAB uses `tabBarButton: () => <FABButton/>` + `tabPress: e.preventDefault()`.
 - SHA-1 debug key: `18:38:B7:BC:9E:95:24:98:ED:FE:5B:71:A4:F2:74:FE:4F:19:70:91`
 
@@ -118,40 +118,7 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 ## Habit Tracker Day 10 — COMPLETE (2026-05-30)
 
 ### What Was Built
-Full "App Fixes & Enhancements" pass across all 5 phases:
-
-**Phase 0 — Foundation:**
-- `expo-av`, `@supabase/supabase-js`, `react-native-url-polyfill` installed
-- `LanguageContext` (vi/en toggle, AsyncStorage key `habit_lang`)
-- `ThemeContext` (dark/light, AsyncStorage key `habit_theme`, `DarkColors` in `theme.ts`)
-- DB migration: `users.google_sub`, `users.email` columns; tier ladder updated to 320-star max via `UPDATE WHERE tier_order=?` (preserves FKs)
-- `useAuth.ts` rewritten: `AuthProvider` context, `AuthUser` type, `resolveUserRow()` (claims legacy `id=1` row, inserts new if needed), `useAuthUser()` convenience hook
-
-**Phase 1 — USER_ID removal:**
-- `USER_ID` deleted from `constants.ts`; all 8 files updated to `useAuthUser()` / userId param
-
-**Phase 2 — Auth + Onboarding + Settings:**
-- `SignInScreen`: skip button removed — Google Sign-In only
-- `OnboardingScreen`: two-step flow (`categories` → `consent`), consent checkbox gates CTA
-- `SettingsScreen` (new): dark/light toggle, language toggle, notification time, sign-out
-- `RootNavigator`: SettingsScreen added as modal; gear icon `⚙️` in Home header; Fund tab relabeled → "🏦 Tiết Kiệm"
-- `ProfileScreen`: categories section, sign-out, notifications removed (moved to Settings)
-
-**Phase 3 — LogActivitySheet bulk rewrite:**
-- Multi-select checklist: `Map<taskId, SelectedEntry>`, category filter chips at top
-- Already-logged tasks dimmed + badge; re-log prompt via Alert
-- Time-based tasks expand inline duration input
-- "Ghi lại (N)" button; sequential `mutateAsync` loop (serial, preserves star logic)
-- `celebrateSound.ts` + 4 placeholder `.mp3` files (user replaces with real CC0 audio)
-- `playCelebration(totalMinutes)` after successful log: level 1–4 based on total duration
-
-**Phase 4 — Screen fixes:**
-- `ProgressScreen`: `SafeAreaView edges=['top']`, chart height 240→190
-- `FundScreen`: copy → "Tiết Kiệm" / "Tự thưởng"
-- `RankScreen`: bilingual tiers via `TIER_NAMES[tier_order][lang]`; leaderboard stub with 🚧 overlay
-
-**Phase 5 — Sync service:**
-- `supabase.ts` + `syncService.ts` written; guarded by `EXPO_PUBLIC_SUPABASE_URL` env var (no-op until credentials added)
+Full "App Fixes & Enhancements": `USER_ID` removed → `useAuthUser()`; `LanguageContext`/`ThemeContext`; Google Sign-In only; `SettingsScreen`; `LogActivitySheet` multi-select checklist; `supabase.ts` + `syncService.ts` (guarded by env var).
 
 ### Key Decisions (Day 10)
 - `google_sub` = `googleUser.email` (workaround: expo-auth-session returns `access_token` not `id_token` by default — no Google user ID available without extra config)
@@ -455,5 +422,53 @@ npx expo run:android  # requires native build
 - `onboardCatCount` is a function key `(n: number) => string` — enforced by `typeof vi` at compile time in `en`.
 
 ### Test Results (post-fix)
+- `npx tsc --noEmit` → 0 errors
+- `npx jest` → 98/98 pass
+
+---
+
+## Habit Tracker — Security Audit COMPLETE (2026-06-02)
+
+### Finding: CRITICAL — Supabase RLS absent (dashboard action required before production)
+- No `/supabase/` migrations directory; no RLS policies in codebase.
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY` is baked into APK (by design for Supabase). Without RLS, any holder of the anon key can `SELECT * FROM activity_log` to read all users' data or upsert with arbitrary `user_email`.
+- **Fix (Supabase dashboard → SQL editor):**
+  ```sql
+  ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE fund_transactions ENABLE ROW LEVEL SECURITY;
+  CREATE POLICY "own rows only" ON activity_log
+    USING (user_email = auth.jwt() ->> 'email')
+    WITH CHECK (user_email = auth.jwt() ->> 'email');
+  CREATE POLICY "own rows only" ON fund_transactions
+    USING (user_email = auth.jwt() ->> 'email')
+    WITH CHECK (user_email = auth.jwt() ->> 'email');
+  ```
+- All other findings filtered out (confidence < 8/10). Code itself is clean.
+
+### Next Steps
+- [ ] Apply RLS policies in Supabase dashboard before any production release.
+
+---
+
+## Habit Tracker — Security Fixes COMPLETE (2026-06-02)
+
+### What Was Implemented
+- **`supabase/migrations/001_enable_rls.sql`** (new): RLS SQL — `ENABLE ROW LEVEL SECURITY` + `user_email = auth.email()` policies on `activity_log` and `fund_transactions`. Apply in Supabase Dashboard → SQL Editor.
+- **`src/lib/supabase.ts`**: Added `AsyncStorage` auth storage adapter so Supabase sessions persist across app restarts (required for `auth.email()` in RLS policies).
+- **`src/hooks/useAuth.ts`**: `GOOGLE_USER_KEY` migrated from AsyncStorage → `expo-secure-store`. Migration path: reads SecureStore first, falls back to AsyncStorage + migrates on first run (no session invalidation for existing users). `signInWithGoogle(user, idToken?)` now calls `supabase.auth.signInWithIdToken()`. `deleteAccount` calls `deleteUserFromSupabase()` first (while auth session active), then local delete, then Supabase sign-out.
+- **`src/services/syncService.ts`**: Added `deleteUserFromSupabase(userEmail)` — purges remote rows on account deletion.
+- **`src/screens/SignInScreen.tsx`** + **`src/navigation/RootNavigator.tsx`**: Extract + thread `idToken` through call chain.
+- **`__mocks__/expo-secure-store.js`** + **`jest.config.js`**: Jest mock for native SecureStore; 98/98 pass.
+
+### Key Decisions
+- Order in `deleteAccount`: remote purge → local SQLite → Supabase sign-out → Google sign-out. Remote purge runs first because RLS requires active session.
+- `expo-secure-store` throws on write failure (no fallback) — all modern Android/iOS have secure keystore; acceptable.
+- Supabase sign-in failure in `signInWithGoogle` is `console.warn` (non-fatal) — Supabase may not be configured.
+
+### [NEEDS USER] Dashboard Actions Required (RLS not live until these run)
+1. Supabase Dashboard → Authentication → Providers → Google: enable, add Web Client ID + Secret
+2. Supabase Dashboard → SQL Editor: run `supabase/migrations/001_enable_rls.sql`
+
+### Test Results
 - `npx tsc --noEmit` → 0 errors
 - `npx jest` → 98/98 pass

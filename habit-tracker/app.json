@@ -22,8 +22,15 @@
       "intentFilters": [
         {
           "action": "VIEW",
-          "data": [{ "scheme": "habittracker" }],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "data": [
+            {
+              "scheme": "habittracker"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -33,7 +40,8 @@
     "plugins": [
       "expo-sqlite",
       "expo-web-browser",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      "expo-secure-store"
     ]
   }
 }

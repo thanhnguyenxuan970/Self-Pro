@@ -1,9 +1,30 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { SQLiteDatabase } from 'expo-sqlite';
 
 export const ONBOARDED_KEY = 'habit_tracker_onboarded';
 const GOOGLE_USER_KEY = 'habit_tracker_google_user';
+
+// SecureStore wrappers with AsyncStorage fallback for migrating existing installs
+async function readGoogleUser(): Promise<string | null> {
+  const secure = await SecureStore.getItemAsync(GOOGLE_USER_KEY);
+  if (secure !== null) return secure;
+  // Migrate legacy AsyncStorage value on first run after upgrade
+  const legacy = await AsyncStorage.getItem(GOOGLE_USER_KEY);
+  if (legacy !== null) {
+    await SecureStore.setItemAsync(GOOGLE_USER_KEY, legacy).catch(() => {});
+    await AsyncStorage.removeItem(GOOGLE_USER_KEY).catch(() => {});
+  }
+  return legacy;
+}
+async function writeGoogleUser(value: string): Promise<void> {
+  await SecureStore.setItemAsync(GOOGLE_USER_KEY, value);
+}
+async function deleteGoogleUser(): Promise<void> {
+  await SecureStore.deleteItemAsync(GOOGLE_USER_KEY).catch(() => {});
+  await AsyncStorage.removeItem(GOOGLE_USER_KEY).catch(() => {}); // remove legacy if present
+}
 
 export interface GoogleUser {
   email: string;
@@ -90,7 +111,7 @@ export function useAuth() {
   useEffect(() => {
     Promise.all([
       AsyncStorage.getItem(ONBOARDED_KEY),
-      AsyncStorage.getItem(GOOGLE_USER_KEY),
+      readGoogleUser(),
     ])
       .then(([onboarded, userJson]) => {
         setIsOnboarded(parseOnboarded(onboarded));
@@ -105,12 +126,19 @@ export function useAuth() {
     setIsOnboarded(true);
   }, []);
 
-  const signInWithGoogle = useCallback(async (user: GoogleUser): Promise<boolean> => {
-    await AsyncStorage.multiSet([
-      [GOOGLE_USER_KEY, JSON.stringify(user)],
-      ['habit_tracker_display_name', user.name],
-    ]);
+  const signInWithGoogle = useCallback(async (user: GoogleUser, idToken?: string): Promise<boolean> => {
+    await writeGoogleUser(JSON.stringify(user));
+    await AsyncStorage.setItem('habit_tracker_display_name', user.name);
     setGoogleUser(user);
+    // Establish Supabase Auth session so RLS policies can verify identity
+    if (idToken) {
+      try {
+        const { supabase } = await import('../lib/supabase');
+        if (supabase) {
+          await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
+        }
+      } catch (e) { console.warn('[auth] Supabase signInWithIdToken failed:', e); }
+    }
     // Resolve DB row immediately so userId is ready before onboarding renders
     let isNew = true;
     try {
@@ -129,6 +157,15 @@ export function useAuth() {
   }, []);
 
   const deleteAccount = useCallback(async (uid: number) => {
+    // Purge remote Supabase data FIRST while the auth session is still active
+    try {
+      const { deleteUserFromSupabase, resetSyncCursors } = await import('../services/syncService');
+      const googleUserJson = await readGoogleUser();
+      const gu = parseGoogleUser(googleUserJson);
+      if (gu) await deleteUserFromSupabase(gu.email);
+      await resetSyncCursors();
+    } catch (e) { console.warn('[auth] deleteUserFromSupabase failed (remote data may remain):', e); }
+    // Delete all local SQLite rows
     const { getDb } = await import('../db/client');
     const db = await getDb();
     await db.withTransactionAsync(async () => {
@@ -141,11 +178,12 @@ export function useAuth() {
       }
       await db.runAsync('DELETE FROM users WHERE id = ?', [uid]);
     });
+    // Sign out from Supabase Auth
     try {
-      const { resetSyncCursors } = await import('../services/syncService');
-      await resetSyncCursors();
+      const { supabase } = await import('../lib/supabase');
+      if (supabase) await supabase.auth.signOut();
     } catch { }
-    // clear local state (same as signOut)
+    // Revoke Google session
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { GoogleSignin } = require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
@@ -153,7 +191,8 @@ export function useAuth() {
       await GoogleSignin.signOut();
     } catch { }
     try {
-      await AsyncStorage.multiRemove([ONBOARDED_KEY, GOOGLE_USER_KEY, 'habit_tracker_display_name']);
+      await deleteGoogleUser();
+      await AsyncStorage.multiRemove([ONBOARDED_KEY, 'habit_tracker_display_name']);
     } finally {
       setIsOnboarded(false);
       setGoogleUser(null);
@@ -171,15 +210,16 @@ export function useAuth() {
       // ignore — native sign-out failure doesn't affect local state
     }
     try {
+      const { supabase } = await import('../lib/supabase');
+      if (supabase) await supabase.auth.signOut();
+    } catch { }
+    try {
       const { resetSyncCursors } = await import('../services/syncService');
       await resetSyncCursors();
     } catch { }
     try {
-      await AsyncStorage.multiRemove([
-        ONBOARDED_KEY,
-        GOOGLE_USER_KEY,
-        'habit_tracker_display_name',
-      ]);
+      await deleteGoogleUser();
+      await AsyncStorage.multiRemove([ONBOARDED_KEY, 'habit_tracker_display_name']);
     } finally {
       setIsOnboarded(false);
       setGoogleUser(null);

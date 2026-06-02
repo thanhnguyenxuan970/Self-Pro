@@ -88,3 +88,22 @@ export async function syncToSupabase(userEmail: string): Promise<void> {
 export async function resetSyncCursors(): Promise<void> {
   await AsyncStorage.multiRemove([KEY_LAST_ACTIVITY, KEY_LAST_FUND]);
 }
+
+/**
+ * Permanently delete all of this user's rows from Supabase.
+ * Call during account deletion BEFORE clearing local state so the
+ * Supabase Auth session is still active (required when RLS is enabled).
+ */
+export async function deleteUserFromSupabase(userEmail: string): Promise<void> {
+  if (!supabase) return;
+  const { error: e1 } = await supabase
+    .from('activity_log')
+    .delete()
+    .eq('user_email', userEmail);
+  if (e1) throw e1;
+  const { error: e2 } = await supabase
+    .from('fund_transactions')
+    .delete()
+    .eq('user_email', userEmail);
+  if (e2) throw e2;
+}

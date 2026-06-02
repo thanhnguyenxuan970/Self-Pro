@@ -6,7 +6,7 @@ import { useTheme, useTranslations } from '../hooks/useSettings';
 
 type Props = {
   onSignIn: () => void;
-  onSignInWithGoogle: (user: GoogleUser) => Promise<boolean>;
+  onSignInWithGoogle: (user: GoogleUser, idToken?: string) => Promise<boolean>;
 };
 
 export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
@@ -35,11 +35,12 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
         const response = await GoogleSignin.signIn();
         if (isSuccessResponse(response)) {
           const { email, name, photo } = response.data.user;
+          const idToken = response.data.idToken ?? undefined;
           if (!email || !name) {
             Alert.alert(t.error, t.signInMissingInfo);
             return;
           }
-          const isNew = await onSignInWithGoogle({ email, name, picture: photo ?? '' });
+          const isNew = await onSignInWithGoogle({ email, name, picture: photo ?? '' }, idToken);
           // Only go to onboarding for new users; returning users skip straight to app
           if (isNew) onSignIn();
         }

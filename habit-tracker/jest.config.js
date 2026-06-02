@@ -6,4 +6,7 @@ module.exports = {
   transform: {
     '^.+\\.tsx?$': ['ts-jest', { tsconfig: { jsx: 'react', types: ['jest'] } }],
   },
+  moduleNameMapper: {
+    '^expo-secure-store$': '<rootDir>/__mocks__/expo-secure-store.js',
+  },
 };
