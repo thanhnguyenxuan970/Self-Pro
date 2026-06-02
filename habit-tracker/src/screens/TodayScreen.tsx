@@ -249,9 +249,9 @@ export function TodayScreen() {
                     <Text style={[styles.tName, done && styles.tNameDone]}>{item.name}</Text>
                     <View style={styles.tMeta}>
                       {item.icon ? <Text style={styles.tMetaText}>{item.icon}</Text> : null}
-                      {item.icon ? <View style={styles.dot} /> : null}
+                      {item.icon && item.is_time_based ? <View style={styles.dot} /> : null}
                       {item.is_time_based ? <Text style={styles.tMetaText}>{t.timedMeta}</Text> : null}
-                      <View style={styles.dot} />
+                      {(item.icon || item.is_time_based) ? <View style={styles.dot} /> : null}
                       <Text style={styles.tMetaText}>
                         {isBad ? t.badHabitMeta : `${item.is_time_based ? '1pt/30m' : t.ptsLabel(item.base_points)}`}
                       </Text>

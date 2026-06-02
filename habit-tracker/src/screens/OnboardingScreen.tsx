@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
-import { useTheme } from '../hooks/useSettings';
+import { useTheme, useTranslations } from '../hooks/useSettings';
 import { TEMPLATE_CATEGORIES } from '../constants';
 import { useAuthUser } from '../hooks/useAuth';
 import { buildTemplateTasks } from '../logic/seedTemplates';
@@ -23,6 +23,7 @@ export function OnboardingScreen({ onComplete }: Props) {
   const [loading, setLoading] = useState(false);
   const createTask = useCreateTask(userId);
   const { colors } = useTheme();
+  const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const toggle = (key: string) => {
@@ -35,7 +36,7 @@ export function OnboardingScreen({ onComplete }: Props) {
 
   const handleStart = async () => {
     if (selected.size === 0) {
-      Alert.alert('Chọn ít nhất 1 danh mục', 'Bạn có thể thêm thêm sau.');
+      Alert.alert(t.onboardMinAlert, t.onboardMinAlertMsg);
       return;
     }
     setLoading(true);
@@ -53,17 +54,15 @@ export function OnboardingScreen({ onComplete }: Props) {
       }
       await onComplete();
     } catch {
-      Alert.alert('Lỗi', 'Không thể khởi tạo. Thử lại.');
+      Alert.alert(t.error, t.onboardError);
       setLoading(false);
     }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Chào mừng! 🌿</Text>
-      <Text style={styles.subtitle}>
-        Chọn danh mục để bắt đầu. Bạn có thể thêm hoạt động tuỳ chỉnh sau.
-      </Text>
+      <Text style={styles.title}>{t.onboardTitle}</Text>
+      <Text style={styles.subtitle}>{t.onboardSubtitle}</Text>
 
       <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
         {TEMPLATE_CATEGORIES.map((cat) => {
@@ -80,7 +79,7 @@ export function OnboardingScreen({ onComplete }: Props) {
                 {cat.name}
               </Text>
               <Text style={[styles.cardCount, active && styles.cardCountActive]}>
-                {cat.tasks.length} hoạt động
+                {t.onboardCatCount(cat.tasks.length)}
               </Text>
               {active && <Text style={styles.checkmark}>✓</Text>}
             </TouchableOpacity>
@@ -97,7 +96,7 @@ export function OnboardingScreen({ onComplete }: Props) {
         {loading ? (
           <ActivityIndicator color={colors.white} />
         ) : (
-          <Text style={styles.buttonText}>Bắt đầu →</Text>
+          <Text style={styles.buttonText}>{t.onboardStart}</Text>
         )}
       </TouchableOpacity>
     </View>

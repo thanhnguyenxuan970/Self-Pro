@@ -435,3 +435,25 @@ npx jest          # 98/98 pass
 npx tsc --noEmit  # 0 errors
 npx expo run:android  # requires native build
 ```
+
+---
+
+## Habit Tracker — Screen Audit & i18n Fix COMPLETE (2026-06-02)
+
+### What Was Fixed
+- **`i18n.ts`**: Added 12 new keys (vi + en): `tabRank`, `onboardTitle/Subtitle/CatCount/MinAlert/MinAlertMsg/Start/Error`, `signInMissingInfo/NoPlayServices/LibError`, `freezeSuccess`. `en: typeof vi` enforces all keys present at compile time.
+- **`RootNavigator.tsx`**: Rank tab title hardcoded `'Rank'` → `t.tabRank` (all 4 tabs now i18n'd).
+- **`FundScreen.tsx`**: Freeze success toast used `t.cancel` as text2 (showed "Huỷ 10★"). Fixed → `t.freezeSuccess`, no text2.
+- **`OnboardingScreen.tsx`**: Entirely hardcoded Vietnamese. Wired to `useTranslations()`.
+- **`SignInScreen.tsx`**: 4 error alert strings hardcoded. Wired to `t.signInXxx` keys.
+- **`ProgressScreen.tsx`**: `sectionLabel` inside `logHeader` had double `marginHorizontal: Spacing.lg` (32px indent). Fixed with `{ marginHorizontal: 0 }` override.
+- **`TodayScreen.tsx`** (dot separator): Fixed double-dot bug — icon-only tasks rendered `icon · · pts` because separator dot at line 252 used `item.icon` guard while line 254 also triggered. Fixed line 252 to `item.icon && item.is_time_based` (dot between icon and Timed only when both exist).
+
+### Key Decisions
+- Dot separator structure: line 252 = inter-meta dot (icon↔Timed, only when both); line 254 = meta↔pts dot (when any meta exists). Clean for all 4 combos.
+- `freezeSuccess` is a standalone key (not derived from `freezeTitle`) — success state is contextually different from the interruption alert title.
+- `onboardCatCount` is a function key `(n: number) => string` — enforced by `typeof vi` at compile time in `en`.
+
+### Test Results (post-fix)
+- `npx tsc --noEmit` → 0 errors
+- `npx jest` → 98/98 pass

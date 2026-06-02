@@ -149,7 +149,7 @@ export function FundScreen() {
     if (!d?.eligible) return;
     try {
       await purchaseFreeze.mutateAsync({ localDate: d.yesterday, currentStreak: d.currentStreak });
-      Toast.show({ type: 'success', text1: t.freezeTitle, text2: `${t.cancel} ${STREAK_FREEZE_COST}★`, visibilityTime: 2500 });
+      Toast.show({ type: 'success', text1: t.freezeSuccess, visibilityTime: 2500 });
     } catch (e: any) {
       Alert.alert(t.error, e?.message === 'INSUFFICIENT_FUNDS' ? t.notEnoughStarsFreeze : t.freezeError);
     }

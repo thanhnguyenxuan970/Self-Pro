@@ -186,7 +186,7 @@ export function ProgressScreen() {
 
         {/* Activity log */}
         <View style={styles.logHeader}>
-          <Text style={styles.sectionLabel}>{t.activityLogSection}</Text>
+          <Text style={[styles.sectionLabel, { marginHorizontal: 0 }]}>{t.activityLogSection}</Text>
           {selectionMode ? (
             <View style={styles.logActions}>
               <TouchableOpacity onPress={selectAll} style={styles.logActionBtn}>

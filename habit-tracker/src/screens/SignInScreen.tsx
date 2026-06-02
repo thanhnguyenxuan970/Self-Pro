@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { GoogleUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
-import { useTheme } from '../hooks/useSettings';
+import { useTheme, useTranslations } from '../hooks/useSettings';
 
 type Props = {
   onSignIn: () => void;
@@ -13,6 +13,7 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
   const [loading, setLoading] = useState(false);
   const configuredRef = useRef(false);
   const { colors } = useTheme();
+  const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   async function handleGoogleSignIn() {
@@ -35,7 +36,7 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
         if (isSuccessResponse(response)) {
           const { email, name, photo } = response.data.user;
           if (!email || !name) {
-            Alert.alert('Lỗi', 'Tài khoản Google thiếu thông tin (email/tên).');
+            Alert.alert(t.error, t.signInMissingInfo);
             return;
           }
           const isNew = await onSignInWithGoogle({ email, name, picture: photo ?? '' });
@@ -47,15 +48,15 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
           if (error.code === statusCodes.SIGN_IN_CANCELLED) return;
           if (error.code === statusCodes.IN_PROGRESS) return;
           if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-            Alert.alert('Lỗi', 'Google Play Services không khả dụng.');
+            Alert.alert(t.error, t.signInNoPlayServices);
             return;
           }
         }
         const msg = error instanceof Error ? `${(error as any).code ?? ''}: ${error.message}` : String(error);
-        Alert.alert('Lỗi', msg);
+        Alert.alert(t.error, msg);
       }
     } catch {
-      Alert.alert('Lỗi', 'Không thể tải thư viện đăng nhập Google.');
+      Alert.alert(t.error, t.signInLibError);
     } finally {
       setLoading(false);
     }

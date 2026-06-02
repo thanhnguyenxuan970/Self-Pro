@@ -129,7 +129,7 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
       <Tab.Screen
         name="Rank"
         component={RankScreen}
-        options={{ title: 'Rank', tabBarIcon: ({ color }) => <IconTrophy color={color} /> }}
+        options={{ title: t.tabRank, tabBarIcon: ({ color }) => <IconTrophy color={color} /> }}
       />
     </Tab.Navigator>
   );

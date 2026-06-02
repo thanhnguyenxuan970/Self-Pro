@@ -156,9 +156,27 @@ const vi = {
   tabHome: 'Trang chủ',
   tabAnalytics: 'Phân tích',
   tabRewards: 'Quà thưởng',
+  tabRank: 'Rank',
   screenProfile: 'Hồ sơ',
   screenSettings: 'Cài đặt',
   timeLocale: 'vi-VN',
+
+  // OnboardingScreen
+  onboardTitle: 'Chào mừng! 🌿',
+  onboardSubtitle: 'Chọn danh mục để bắt đầu. Bạn có thể thêm hoạt động tuỳ chỉnh sau.',
+  onboardCatCount: (n: number) => `${n} hoạt động`,
+  onboardMinAlert: 'Chọn ít nhất 1 danh mục',
+  onboardMinAlertMsg: 'Bạn có thể thêm thêm sau.',
+  onboardStart: 'Bắt đầu →',
+  onboardError: 'Không thể khởi tạo. Thử lại.',
+
+  // SignInScreen errors
+  signInMissingInfo: 'Tài khoản Google thiếu thông tin (email/tên).',
+  signInNoPlayServices: 'Google Play Services không khả dụng.',
+  signInLibError: 'Không thể tải thư viện đăng nhập Google.',
+
+  // FundScreen freeze success
+  freezeSuccess: '🧊 Streak đã được bảo vệ!',
 };
 
 const en: typeof vi = {
@@ -320,9 +338,27 @@ const en: typeof vi = {
   tabHome: 'Home',
   tabAnalytics: 'Analytics',
   tabRewards: 'Rewards',
+  tabRank: 'Rank',
   screenProfile: 'Profile',
   screenSettings: 'Settings',
   timeLocale: 'en-US',
+
+  // OnboardingScreen
+  onboardTitle: 'Welcome! 🌿',
+  onboardSubtitle: 'Choose categories to start. You can add custom activities later.',
+  onboardCatCount: (n: number) => `${n} activities`,
+  onboardMinAlert: 'Select at least 1 category',
+  onboardMinAlertMsg: 'You can add more later.',
+  onboardStart: 'Start →',
+  onboardError: 'Could not initialize. Try again.',
+
+  // SignInScreen errors
+  signInMissingInfo: 'Google account missing info (email/name).',
+  signInNoPlayServices: 'Google Play Services not available.',
+  signInLibError: 'Could not load Google sign-in library.',
+
+  // FundScreen freeze success
+  freezeSuccess: '🧊 Streak protected!',
 };
 
 export type Strings = typeof vi;
