@@ -128,14 +128,13 @@ const vi = {
   weeklyHistory: 'Lịch sử các tuần',
   weekItem: (start: string) => `Tuần ${start}`,
   rankQuoteMap: {
-    'NPC': '"bắt đầu hành trình"',
-    'Non Tơ': '"mới chập chững thôi"',
-    'Tấu Hài': '"đang tấu hài nhẹ"',
-    'Cuốn Phết': '"đang cuốn lắm rồi!"',
-    'Xịn Sò': '"xịn sò vkl"',
-    'Đỉnh Chóp': '"đỉnh của chóp rồi đó"',
-    'U Là Trời': '"peak of the peak"',
-    'Toang Rồi Ông Giáo': '"game over bro"',
+    'Delulu':         '"delulu là solulu"',
+    'Mewing':         '"đang mewing mạnh lắm"',
+    'Rizz':           '"hit the griddy 💃"',
+    'Gigachad':       '"quá swole bro"',
+    'Aura Farmer':    '"aura đang tăng full"',
+    'Main Character': '"plot armor 100%"',
+    'GOATED':         '"infinite W, no cap"',
   } as Record<string, string>,
 
   // LogActivitySheet
@@ -310,14 +309,13 @@ const en: typeof vi = {
   weeklyHistory: 'Weekly history',
   weekItem: (start) => `Week ${start}`,
   rankQuoteMap: {
-    'NPC': '"just starting out"',
-    'Non Tơ': '"taking baby steps"',
-    'Tấu Hài': '"clowning around"',
-    'Cuốn Phết': '"on a roll now!"',
-    'Xịn Sò': '"certified fresh"',
-    'Đỉnh Chóp': '"absolutely goated"',
-    'U Là Trời': '"peak of the peak"',
-    'Toang Rồi Ông Giáo': '"game over bro"',
+    'Delulu':         '"delulu is the solulu"',
+    'Mewing':         '"locked in, jaw tight"',
+    'Rizz':           '"griddy unlocked 💃"',
+    'Gigachad':       '"too swole to fail"',
+    'Aura Farmer':    '"aura farming fr fr"',
+    'Main Character': '"main character energy"',
+    'GOATED':         '"infinite W, no cap"',
   } as Record<string, string>,
 
   // LogActivitySheet

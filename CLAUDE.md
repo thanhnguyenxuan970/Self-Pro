@@ -489,3 +489,33 @@ npx expo run:android  # requires native build
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `Cannot find native module 'ExpoSecureStore'` | `import * as SecureStore from 'expo-secure-store'` at module top level → `requireNativeModule` runs synchronously at bundle load before native module registers | Replace static import with lazy `require('expo-secure-store')` inside each async function body; add AsyncStorage fallback in catch |
+
+---
+
+## Habit Tracker — Rank Overhaul: Absurd Mode COMPLETE (2026-06-02)
+
+### What Was Built
+- **`src/db/migrations.ts`**: Tier seed updated to 7 tiers with new names + thresholds from `rank_mascots_absurd.html` spec. Idempotent migration (guarded by `rank_name='Delulu'` check, wrapped in `withTransactionAsync`) updates existing installs on next app launch. Removed tier 8 (`Legendary NPC`).
+- **`src/screens/RankScreen.tsx`**: Added `RANK_COLORS` map (hex from SVG spec). Hero glow now uses per-tier color. Rank ladder active row uses tier color + `22` alpha overlay; name/threshold text colored with tier accent. Updated `RANK_EMOJIS` and `RANK_EN` subtitle maps to match spec.
+- **`src/i18n.ts`**: `rankQuoteMap` (vi + en) updated with new Gen Z keys. `en: typeof vi` enforces key parity at compile time.
+
+### New Tier Ladder
+| tier_order | rank_name | stars_required | color |
+|---|---|---|---|
+| 1 | Delulu | 5 | `#A78BFA` |
+| 2 | Mewing | 10 | `#818CF8` |
+| 3 | Rizz | 20 | `#60A5FA` |
+| 4 | Gigachad | 40 | `#2DD4BF` |
+| 5 | Aura Farmer | 80 | `#F472B6` |
+| 6 | Main Character | 160 | `#FB923C` |
+| 7 | GOATED | 320 | `#F4C842` |
+
+### Key Decisions
+- Migration uses `withTransactionAsync` — partial-update crash protection: if tier 1 gets written before crash, guard sees `Delulu` exists and skips; but all 7 are in one transaction so either all commit or none do.
+- `+ '22'` hex alpha: valid 8-char hex in RN 0.65+ (this is SDK 56 = RN 0.76+). All `RANK_COLORS` and theme colors are 6-digit hex — append is safe.
+- SVG mascot animations from spec are web-only; not ported. Mobile uses emoji + per-tier color accent instead.
+- `noRankDesc` threshold already matches spec (`currentStars >= 5`). No change needed.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors
+- `npx jest` → 98/98 pass (no new tests — pure data/style change)

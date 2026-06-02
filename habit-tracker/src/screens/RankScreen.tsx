@@ -9,25 +9,33 @@ import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 
 const RANK_EMOJIS: Record<string, string> = {
-  'NPC': '🎮',
-  'Non Tơ': '🐣',
-  'Tấu Hài': '🤡',
-  'Cuốn Phết': '🌀',
-  'Xịn Sò': '✨',
-  'Đỉnh Chóp': '🔥',
-  'U Là Trời': '👑',
-  'Toang Rồi Ông Giáo': '💀',
+  'Delulu':         '🫠',
+  'Mewing':         '😤',
+  'Rizz':           '💃',
+  'Gigachad':       '💪',
+  'Aura Farmer':    '✨',
+  'Main Character': '🎬',
+  'GOATED':         '🐐',
 };
 
 const RANK_EN: Record<string, string> = {
-  'NPC': 'NPC',
-  'Non Tơ': 'Rookie',
-  'Tấu Hài': 'Clown Arc',
-  'Cuốn Phết': 'On a Roll',
-  'Xịn Sò': 'Certified Fresh',
-  'Đỉnh Chóp': 'Goated',
-  'U Là Trời': 'Main Character',
-  'Toang Rồi Ông Giáo': 'Game Over',
+  'Delulu':         'noodle mode',
+  'Mewing':         'max send',
+  'Rizz':           'hit the griddy',
+  'Gigachad':       'too swole',
+  'Aura Farmer':    'spin to win',
+  'Main Character': 'hair flip',
+  'GOATED':         'infinite W',
+};
+
+const RANK_COLORS: Record<string, string> = {
+  'Delulu':         '#A78BFA',
+  'Mewing':         '#818CF8',
+  'Rizz':           '#60A5FA',
+  'Gigachad':       '#2DD4BF',
+  'Aura Farmer':    '#F472B6',
+  'Main Character': '#FB923C',
+  'GOATED':         '#F4C842',
 };
 
 export function RankScreen() {
@@ -62,7 +70,7 @@ export function RankScreen() {
 
         {/* Rankhero card */}
         <View style={styles.rankhero}>
-          <View style={styles.rankheroGlow} />
+          <View style={[styles.rankheroGlow, { backgroundColor: RANK_COLORS[currentTier.rank_name] ?? colors.primarySoft }]} />
           {currentStars >= 5 ? (
             <>
               <Text style={styles.rankEm}>{RANK_EMOJIS[currentTier.rank_name] ?? '🏆'}</Text>
@@ -106,13 +114,13 @@ export function RankScreen() {
               ? `${tier.stars_required}–${(arr[idx - 1]?.stars_required ?? 999) - 1} ★`
               : `${tier.stars_required}+ ★`;
             return (
-              <View key={tier.id} style={[styles.rk, isCurrent && styles.rkCur, isLast && styles.rkLast]}>
+              <View key={tier.id} style={[styles.rk, isCurrent && { ...styles.rkCur, backgroundColor: (RANK_COLORS[tier.rank_name] ?? colors.primary) + '22' }, isLast && styles.rkLast]}>
                 <Text style={styles.rkEm}>{RANK_EMOJIS[tier.rank_name] ?? '•'}</Text>
                 <View style={styles.rkInfo}>
-                  <Text style={[styles.rkA, isCurrent && styles.rkACur]}>{tier.rank_name}</Text>
+                  <Text style={[styles.rkA, isCurrent && { color: RANK_COLORS[tier.rank_name] ?? colors.primaryPress }]}>{tier.rank_name}</Text>
                   <Text style={styles.rkB}>{RANK_EN[tier.rank_name] ?? ''}</Text>
                 </View>
-                <Text style={[styles.rkThr, isCurrent && styles.rkThrCur]}>{range}</Text>
+                <Text style={[styles.rkThr, isCurrent && { color: RANK_COLORS[tier.rank_name] ?? colors.primaryPress }]}>{range}</Text>
               </View>
             );
           })}

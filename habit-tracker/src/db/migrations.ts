@@ -142,15 +142,38 @@ export async function runMigrations(db: SQLiteDatabase) {
   if (!tierCount || tierCount.count === 0) {
     await db.execAsync(`
       INSERT INTO tiers (tier_order, stars_required, rank_name, reward_amount, reward_currency) VALUES
-      (1, 10,  'Newbie',        50000,  'VND'),
-      (2, 25,  'Grinder',       100000, 'VND'),
-      (3, 50,  'No Life',       150000, 'VND'),
-      (4, 100, 'Sigma',         200000, 'VND'),
-      (5, 200, 'Gigachad',      300000, 'VND'),
-      (6, 350, 'Menace',        500000, 'VND'),
-      (7, 500, 'Goat',          750000, 'VND'),
-      (8, 750, 'Legendary NPC', 1000000,'VND');
+      (1, 5,   'Delulu',         50000,  'VND'),
+      (2, 10,  'Mewing',         100000, 'VND'),
+      (3, 20,  'Rizz',           150000, 'VND'),
+      (4, 40,  'Gigachad',       200000, 'VND'),
+      (5, 80,  'Aura Farmer',    300000, 'VND'),
+      (6, 160, 'Main Character', 500000, 'VND'),
+      (7, 320, 'GOATED',         750000, 'VND');
     `);
+  }
+
+  // Migrate existing tiers to absurd rank names + new star thresholds (idempotent)
+  const hasNewTiers = await db.getFirstAsync<{ count: number }>(
+    `SELECT COUNT(*) as count FROM tiers WHERE rank_name='Delulu'`
+  );
+  if (!hasNewTiers || hasNewTiers.count === 0) {
+    await db.withTransactionAsync(async () => {
+      await db.execAsync(`DELETE FROM tiers WHERE tier_order > 7;`);
+      for (const [order, stars, name] of [
+        [1, 5,   'Delulu'],
+        [2, 10,  'Mewing'],
+        [3, 20,  'Rizz'],
+        [4, 40,  'Gigachad'],
+        [5, 80,  'Aura Farmer'],
+        [6, 160, 'Main Character'],
+        [7, 320, 'GOATED'],
+      ] as [number, number, string][]) {
+        await db.runAsync(
+          `UPDATE tiers SET rank_name=?, stars_required=? WHERE tier_order=?`,
+          [name, stars, order]
+        );
+      }
+    });
   }
 
   // Seed default user if empty
