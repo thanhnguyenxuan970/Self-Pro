@@ -412,3 +412,26 @@ npx jest          # 98/98 pass
 npx tsc --noEmit  # 0 errors
 npx expo run:android  # requires native build
 ```
+
+---
+
+## Habit Tracker — Full English i18n COMPLETE (2026-06-02)
+
+### What Was Built
+- **`src/i18n.ts`**: Added 6 new keys to both `vi` and `en` objects: `tabHome`, `tabAnalytics`, `tabRewards`, `screenProfile`, `screenSettings`, `timeLocale`. All screen/component content was already using `useTranslations()`.
+- **`src/navigation/RootNavigator.tsx`**: Added `useTranslations()` import + call in `MainTabs` and `AppStack`. Replaced hardcoded Vietnamese `'Trang chủ'`, `'Phân tích'`, `'Quà thưởng'` tab labels and `'Hồ sơ'`, `'Cài đặt'` modal header titles with `t.*` keys.
+- **`src/screens/ProgressScreen.tsx`**: Changed `toLocaleTimeString('vi-VN', ...)` → `toLocaleTimeString(t.timeLocale, ...)`.
+
+### Key Decisions
+- Language switches **live** (no restart) — `SettingsContext` holds `lang` as reactive state; `useTranslations()` returns new `Strings` object on change via `useMemo`.
+- `en: typeof vi` in `i18n.ts` enforces all keys present in both locales at compile time — missing translation is a type error.
+- `Stack.Screen options` static object re-evaluated on each `AppStack` render — React Navigation picks up language changes for modal header titles without needing options-as-function.
+- `timeLocale: 'vi-VN'` / `'en-US'` in i18n is explicit per-locale rather than falling back to device locale — avoids mismatch when device locale ≠ app language.
+
+### Test Command
+```bash
+cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
+npx jest          # 98/98 pass
+npx tsc --noEmit  # 0 errors
+npx expo run:android  # requires native build
+```

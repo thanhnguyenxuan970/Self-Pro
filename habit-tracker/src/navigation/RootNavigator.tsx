@@ -13,7 +13,7 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 import { SignInScreen } from '../screens/SignInScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { AppColors, Shadows } from '../theme';
-import { useTheme } from '../hooks/useSettings';
+import { useTheme, useTranslations } from '../hooks/useSettings';
 import { LogActivitySheet } from '../screens/LogActivitySheet';
 import { GoogleUser } from '../hooks/useAuth';
 
@@ -85,6 +85,7 @@ const fabStyles = StyleSheet.create({
 
 function MainTabs({ onFABPress }: { onFABPress: () => void }) {
   const { colors } = useTheme();
+  const t = useTranslations();
   return (
     <Tab.Navigator
       screenOptions={{
@@ -104,12 +105,12 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
       <Tab.Screen
         name="Home"
         component={TodayScreen}
-        options={{ title: 'Trang chủ', tabBarIcon: ({ color }) => <IconHome color={color} /> }}
+        options={{ title: t.tabHome, tabBarIcon: ({ color }) => <IconHome color={color} /> }}
       />
       <Tab.Screen
         name="Analytics"
         component={ProgressScreen}
-        options={{ title: 'Phân tích', tabBarIcon: ({ color }) => <IconChart color={color} /> }}
+        options={{ title: t.tabAnalytics, tabBarIcon: ({ color }) => <IconChart color={color} /> }}
       />
       <Tab.Screen
         name="Log"
@@ -123,7 +124,7 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
       <Tab.Screen
         name="Fund"
         component={FundScreen}
-        options={{ title: 'Quà thưởng', tabBarIcon: ({ color }) => <IconGift color={color} /> }}
+        options={{ title: t.tabRewards, tabBarIcon: ({ color }) => <IconGift color={color} /> }}
       />
       <Tab.Screen
         name="Rank"
@@ -145,6 +146,7 @@ function AppStack({
 }) {
   const [fabVisible, setFabVisible] = useState(false);
   const { colors } = useTheme();
+  const t = useTranslations();
 
   const modalHeaderOptions = {
     presentation: 'modal' as const,
@@ -162,13 +164,13 @@ function AppStack({
         </Stack.Screen>
         <Stack.Screen
           name="Profile"
-          options={{ ...modalHeaderOptions, title: 'Hồ sơ' }}
+          options={{ ...modalHeaderOptions, title: t.screenProfile }}
         >
           {() => <ProfileScreen googleUser={googleUser} onSignOut={onSignOut} />}
         </Stack.Screen>
         <Stack.Screen
           name="Settings"
-          options={{ ...modalHeaderOptions, title: 'Cài đặt' }}
+          options={{ ...modalHeaderOptions, title: t.screenSettings }}
         >
           {() => <SettingsScreen onDeleteAccount={onDeleteAccount} />}
         </Stack.Screen>

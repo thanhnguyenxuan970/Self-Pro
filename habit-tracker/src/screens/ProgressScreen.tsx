@@ -213,7 +213,7 @@ export function ProgressScreen() {
             {actLogs.map((item: ActivityLogEntry, idx: number) => {
               const selected = selectedIds.has(item.id);
               const isLast = idx === actLogs.length - 1;
-              const timeStr = new Date(item.logged_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+              const timeStr = new Date(item.logged_at).toLocaleTimeString(t.timeLocale, { hour: '2-digit', minute: '2-digit' });
               return (
                 <TouchableOpacity
                   key={item.id}

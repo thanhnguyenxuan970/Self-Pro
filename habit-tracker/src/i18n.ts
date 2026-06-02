@@ -151,6 +151,14 @@ const vi = {
   durationEnterMins: 'Nhập số phút',
   chipA11yEscape: 'Nhập thời lượng dài hơn',
   chipA11yLog: (label: string, stars: number) => `Ghi ${label}, ${stars} sao`,
+
+  // Navigation labels
+  tabHome: 'Trang chủ',
+  tabAnalytics: 'Phân tích',
+  tabRewards: 'Quà thưởng',
+  screenProfile: 'Hồ sơ',
+  screenSettings: 'Cài đặt',
+  timeLocale: 'vi-VN',
 };
 
 const en: typeof vi = {
@@ -307,6 +315,14 @@ const en: typeof vi = {
   durationEnterMins: 'Enter minutes',
   chipA11yEscape: 'Enter longer duration',
   chipA11yLog: (label, stars) => `Log ${label}, ${stars} stars`,
+
+  // Navigation labels
+  tabHome: 'Home',
+  tabAnalytics: 'Analytics',
+  tabRewards: 'Rewards',
+  screenProfile: 'Profile',
+  screenSettings: 'Settings',
+  timeLocale: 'en-US',
 };
 
 export type Strings = typeof vi;
