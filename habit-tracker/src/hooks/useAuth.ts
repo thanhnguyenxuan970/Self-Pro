@@ -1,28 +1,48 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
 import { SQLiteDatabase } from 'expo-sqlite';
 
 export const ONBOARDED_KEY = 'habit_tracker_onboarded';
 const GOOGLE_USER_KEY = 'habit_tracker_google_user';
 
-// SecureStore wrappers with AsyncStorage fallback for migrating existing installs
+// Lazy require — prevents requireNativeModule('ExpoSecureStore') at bundle load time.
+// Falls back to AsyncStorage if SecureStore native module is unavailable.
 async function readGoogleUser(): Promise<string | null> {
-  const secure = await SecureStore.getItemAsync(GOOGLE_USER_KEY);
-  if (secure !== null) return secure;
-  // Migrate legacy AsyncStorage value on first run after upgrade
-  const legacy = await AsyncStorage.getItem(GOOGLE_USER_KEY);
-  if (legacy !== null) {
-    await SecureStore.setItemAsync(GOOGLE_USER_KEY, legacy).catch(() => {});
-    await AsyncStorage.removeItem(GOOGLE_USER_KEY).catch(() => {});
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const SecureStore = require('expo-secure-store') as typeof import('expo-secure-store');
+    const secure = await SecureStore.getItemAsync(GOOGLE_USER_KEY);
+    if (secure !== null) return secure;
+    // Migrate legacy AsyncStorage value on first run after upgrade
+    const legacy = await AsyncStorage.getItem(GOOGLE_USER_KEY);
+    if (legacy !== null) {
+      await SecureStore.setItemAsync(GOOGLE_USER_KEY, legacy).catch(() => {});
+      await AsyncStorage.removeItem(GOOGLE_USER_KEY).catch(() => {});
+    }
+    return legacy;
+  } catch (e) {
+    console.warn('[auth] SecureStore unavailable, falling back to AsyncStorage:', e);
+    return AsyncStorage.getItem(GOOGLE_USER_KEY);
   }
-  return legacy;
 }
 async function writeGoogleUser(value: string): Promise<void> {
-  await SecureStore.setItemAsync(GOOGLE_USER_KEY, value);
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const SecureStore = require('expo-secure-store') as typeof import('expo-secure-store');
+    await SecureStore.setItemAsync(GOOGLE_USER_KEY, value);
+  } catch (e) {
+    console.warn('[auth] SecureStore unavailable, falling back to AsyncStorage:', e);
+    await AsyncStorage.setItem(GOOGLE_USER_KEY, value);
+  }
 }
 async function deleteGoogleUser(): Promise<void> {
-  await SecureStore.deleteItemAsync(GOOGLE_USER_KEY).catch(() => {});
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const SecureStore = require('expo-secure-store') as typeof import('expo-secure-store');
+    await SecureStore.deleteItemAsync(GOOGLE_USER_KEY);
+  } catch (e) {
+    console.warn('[auth] SecureStore unavailable on delete, skipping:', e);
+  }
   await AsyncStorage.removeItem(GOOGLE_USER_KEY).catch(() => {}); // remove legacy if present
 }
 
