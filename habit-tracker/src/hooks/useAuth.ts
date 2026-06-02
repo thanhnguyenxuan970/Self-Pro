@@ -7,10 +7,17 @@ const GOOGLE_USER_KEY = 'habit_tracker_google_user';
 
 // Lazy require — prevents requireNativeModule('ExpoSecureStore') at bundle load time.
 // Falls back to AsyncStorage if SecureStore native module is unavailable.
+function resolveSecureStore(): typeof import('expo-secure-store') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const mod = require('expo-secure-store');
+  const store = (mod?.default ?? mod) as typeof import('expo-secure-store') | undefined;
+  if (typeof store?.getItemAsync !== 'function') throw new Error('SecureStore unavailable');
+  return store;
+}
+
 async function readGoogleUser(): Promise<string | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const SecureStore = require('expo-secure-store') as typeof import('expo-secure-store');
+    const SecureStore = resolveSecureStore();
     const secure = await SecureStore.getItemAsync(GOOGLE_USER_KEY);
     if (secure !== null) return secure;
     // Migrate legacy AsyncStorage value on first run after upgrade
@@ -27,8 +34,7 @@ async function readGoogleUser(): Promise<string | null> {
 }
 async function writeGoogleUser(value: string): Promise<void> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const SecureStore = require('expo-secure-store') as typeof import('expo-secure-store');
+    const SecureStore = resolveSecureStore();
     await SecureStore.setItemAsync(GOOGLE_USER_KEY, value);
   } catch (e) {
     console.warn('[auth] SecureStore unavailable, falling back to AsyncStorage:', e);
@@ -37,8 +43,7 @@ async function writeGoogleUser(value: string): Promise<void> {
 }
 async function deleteGoogleUser(): Promise<void> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const SecureStore = require('expo-secure-store') as typeof import('expo-secure-store');
+    const SecureStore = resolveSecureStore();
     await SecureStore.deleteItemAsync(GOOGLE_USER_KEY);
   } catch (e) {
     console.warn('[auth] SecureStore unavailable on delete, skipping:', e);

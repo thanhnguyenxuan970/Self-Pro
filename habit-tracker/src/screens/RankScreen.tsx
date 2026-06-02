@@ -223,10 +223,8 @@ function makeStyles(C: AppColors) {
     rkEm: { fontSize: 24, width: 32, textAlign: 'center', flexShrink: 0 },
     rkInfo: { flex: 1 },
     rkA: { fontSize: 14, fontWeight: '800', color: C.inkDark },
-    rkACur: { color: C.primaryPress },
     rkB: { fontSize: 11.5, color: C.muted, marginTop: 2 },
     rkThr: { fontSize: 11.5, fontWeight: '800', color: C.muted },
-    rkThrCur: { color: C.primaryPress },
 
     philo: {
       marginHorizontal: Spacing.lg, marginTop: 8,

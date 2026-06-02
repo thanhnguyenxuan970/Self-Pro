@@ -89,7 +89,7 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 
 ## Habit Tracker Architecture
 
-**Status:** Day 21 COMPLETE (2026-06-01). Code lives at `c:\Users\Admin\Desktop\Self-Pro\habit-tracker\`.
+**Status:** Day 21+ COMPLETE (2026-06-02). Code lives at `c:\Users\Admin\Desktop\Self-Pro\habit-tracker\`.
 
 **Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29 + expo-auth-session v5 + expo-web-browser
 
@@ -129,10 +129,6 @@ Full "App Fixes & Enhancements": `USER_ID` removed → `useAuthUser()`; `Languag
 - Tier seed UPDATE uses `WHERE tier_order=?` (not `INSERT OR REPLACE`) — `INSERT OR REPLACE` changes ROWID, breaking `reward_unlocks.tier_id` FK refs
 - MP3 files: placeholder empty files committed so Metro bundler succeeds; user replaces with real CC0 audio
 
-### Known Deferred / Blocked
-- Language toggle affects tab labels via `RootNavigator` — requires app re-mount to pick up (not live). Acceptable for MVP.
-- SFX disabled — expo-av removed (incompatible with SDK 56 expo-modules-core). Re-enable by installing a compatible audio library.
-
 ## Known Errors & Fixes
 
 | Error | Cause | Fix |
@@ -144,29 +140,6 @@ Full "App Fixes & Enhancements": `USER_ID` removed → `useAuthUser()`; `Languag
 | `ClassNotFoundException: expo.modules.kotlin.types.LazyKType` | `expo-av` (all versions) prebuilt AAR compiled against newer `expo-modules-core`; `LazyKType` absent in SDK 56 | Remove `expo-av`; replace sound logic with no-op stub |
 | `RNGoogleSignin: 'androidClientId' is not a valid configuration parameter` | `@react-native-google-signin` v13+ removed `androidClientId` from `configure()`; Android reads client ID from `google-services.json` | Remove `androidClientId` from `GoogleSignin.configure()` call |
 | `connectAnimatedNodes: Animated node with tag (parent) [76] does not exist` | `enableScreens()` never called; Fabric batch-dispatches animated node commands before tab bar parent node is registered on native side | Call `enableScreens()` from `react-native-screens` at module level in `index.ts` before `registerRootComponent` |
-
-## Habit Tracker Day 15 — Startup Crash Fix + Code Review COMPLETE (2026-06-01)
-
-### What Was Fixed
-- **`RNGoogleSignin` TurboModuleRegistry crash** (critical): `SignInScreen.tsx` had static `import { GoogleSignin }` + module-scope `GoogleSignin.configure({})`. Moved all `@react-native-google-signin` usage inside dynamic `import()` in `handleGoogleSignIn()`.
-- **`expo-av` LazyKType ClassNotFoundException** (critical): All expo-av versions (14/15/16) are prebuilt Maven AARs compiled against newer `expo-modules-core` — `LazyKType` class missing from SDK 56. Removed expo-av; replaced `celebrateSound.ts` with a no-op stub.
-- **Code review fixes**: `resolveUserRow` category INSERT converted from `db.execAsync` template literal to parameterized `db.runAsync` loop; `GoogleSignin.configure` guarded by `configuredRef` (called once); added `console.warn` to swallowed `resolveUserRow` failure; added explanatory comment to `[authLoading]` eslint-disable.
-
-### Key Decisions (Day 15)
-- Native modules that crash at bundle evaluation time: use `require()` (not `await import()`) inside async functions. `await import()` creates Metro async chunks; internal requires break. Pattern: `expo-notifications` uses `await import()` in `useEffect`; `@react-native-google-signin` uses `require()` in handler.
-- expo-av removal is permanent for SDK 56. `playCelebration` is a documented no-op stub. Re-enable only with a library that compiles from source against SDK 56 deps.
-- `[authLoading]` dep on `init()` is correct: fresh sign-ins resolve userId via `signInWithGoogle()` directly; returning users via `init()` closure.
-
-## Habit Tracker Day 16 — Metro Unknown Module Fix COMPLETE (2026-06-01)
-- `SignInScreen.tsx` + `useAuth.ts`: `await import('@react-native-google-signin')` → `require(...) as typeof import(...)` — fixes Metro async chunk breakage; type safety preserved
-- `SignInScreen.tsx`: `GoogleSignin.configure({})` → passes `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` + `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` from env
-
-### Key Decisions (Day 16)
-- `await import()` creates Metro async chunks; google-signin internal `require()` refs module IDs missing from that chunk → `Requiring unknown module N`. `require()` inside async function = lazy eval, no chunk split, all IDs resolved.
-- `require(...) as typeof import(...)` restores full TypeScript types lost from bare `require()`.
-
-| Error | Cause | Fix |
-|-------|-------|-----|
 | `Requiring unknown module '2289'` | `await import('@react-native-google-signin')` creates async Metro chunk; internal requires reference IDs absent from that chunk | Use `require(...)` inside async function body; `await import()` is for local TS modules only |
 
 ## Habit Tracker Day 17 — Session Persistence + UI Fidelity COMPLETE (2026-06-01)
@@ -186,12 +159,6 @@ Full "App Fixes & Enhancements": `USER_ID` removed → `useAuthUser()`; `Languag
 ### Key Decisions (Day 17)
 - `signInWithGoogle` returns `boolean` (isNew) — navigator only calls `onSignIn()` (→ Onboarding) for new users; returning users let context-driven navigator swap automatically.
 - RANK_EMOJI map in TodayScreen: ascending order `{ 1:'🎮'…7:'👑'…}` — tier_order 1 = lowest = NPC.
-- [NEEDS CONFIRMATION] DB tier names are still English (Newbie/Grinder…) — RankScreen RANK_EMOJIS expects Vietnamese. Need to add migration: UPDATE tiers SET rank_name, stars_required WHERE tier_order=? with Vietnamese tier names + star thresholds (target 320-star max from Day 10 spec). Until confirmed, RankScreen shows '•' emoji fallback.
-
-### Code Review Fixes (Day 17)
-- `TodayScreen.tsx` — "Por giờ" typo → "Theo giờ"
-- `TodayScreen.tsx` — RANK_EMOJI map was inverted (1=👑); fixed to ascending (1=🎮, 7=👑)
-- `ProgressScreen.tsx` — dead `avgPoints` var removed; "TB điểm / ngày" label → "Hoạt động" (matches `totalActivities` data)
 
 ---
 
@@ -489,6 +456,7 @@ npx expo run:android  # requires native build
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `Cannot find native module 'ExpoSecureStore'` | `import * as SecureStore from 'expo-secure-store'` at module top level → `requireNativeModule` runs synchronously at bundle load before native module registers | Replace static import with lazy `require('expo-secure-store')` inside each async function body; add AsyncStorage fallback in catch |
+| `TypeError: Cannot read property 'getItemAsync' of undefined` | `require('expo-secure-store')` returns `undefined` when native module absent (no throw); `undefined.getItemAsync` → TypeError caught as warn | Extract `resolveSecureStore()` helper; null-checks `mod?.default ?? mod` and asserts `typeof store?.getItemAsync === 'function'` before use |
 
 ---
 
