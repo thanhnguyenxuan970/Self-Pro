@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, Modal, TextInput, Alert,
@@ -7,13 +7,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import {
   useTodayTasks, useDailySummary, useWeeklySummary,
-  useLogTask, useCategories, useTodayLoggedTaskIds,
+  useLogTask, useTodayLoggedTaskIds,
 } from '../queries/useToday';
 import { useArchiveTask } from '../queries/useTasks';
 import { useRankData } from '../queries/useRank';
 import { getCurrentTier } from '../logic/rankUtils';
-import { Colors, Radii, Spacing, Shadows } from '../theme';
+import { Radii, Spacing, Shadows, AppColors } from '../theme';
 import { useAuthUser, useGoogleUser } from '../hooks/useAuth';
+import { useTheme, useTranslations } from '../hooks/useSettings';
 
 const DAILY_THRESHOLD = 50;
 
@@ -27,11 +28,13 @@ export function TodayScreen() {
   const navigation = useNavigation();
   const userId = useAuthUser();
   const googleUser = useGoogleUser();
+  const { colors } = useTheme();
+  const t = useTranslations();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const { data: tasks, isLoading } = useTodayTasks(userId);
   const { data: daily } = useDailySummary(userId);
   const { data: weekly } = useWeeklySummary(userId);
-  const { data: categories } = useCategories(userId);
   const { data: loggedIds } = useTodayLoggedTaskIds(userId);
   const { data: rankData } = useRankData(userId);
   const logTask = useLogTask(userId);
@@ -40,7 +43,6 @@ export function TodayScreen() {
 
   const [modalTask, setModalTask] = useState<Task | null>(null);
   const [duration, setDuration] = useState('');
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
@@ -69,12 +71,12 @@ export function TodayScreen() {
   function handleDeleteSelected() {
     const ids = Array.from(selectedIds);
     Alert.alert(
-      'Xoá nhiệm vụ',
-      `Ẩn ${ids.length} nhiệm vụ đã chọn khỏi danh sách?`,
+      t.removeTasksTitle,
+      t.hideTasksMsg(ids.length),
       [
-        { text: 'Huỷ', style: 'cancel' },
+        { text: t.cancel, style: 'cancel' },
         {
-          text: 'Xoá', style: 'destructive',
+          text: t.delete, style: 'destructive',
           onPress: async () => {
             try {
               for (const id of ids) {
@@ -82,7 +84,7 @@ export function TodayScreen() {
               }
               cancelSelection();
             } catch {
-              Alert.alert('Lỗi', 'Xoá thất bại. Thử lại.');
+              Alert.alert(t.error, t.cantLog);
             }
           },
         },
@@ -106,12 +108,9 @@ export function TodayScreen() {
   const avatarInitial = (googleUser?.name?.charAt(0) ?? 'B').toUpperCase();
 
   const today = new Date();
-  const dayNames = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
-  const dateStr = `${dayNames[today.getDay()]}, ${today.getDate()} tháng ${today.getMonth() + 1}`;
+  const dateStr = `${t.dayNames[today.getDay()]}, ${t.dateStr(today.getDate(), today.getMonth() + 1)}`;
 
-  const filteredTasks = selectedCategoryId === null
-    ? tasks ?? []
-    : (tasks ?? []).filter(t => t.category_id === selectedCategoryId);
+  const displayTasks = tasks ?? [];
 
   async function handleLog(task: Task) {
     if (task.is_time_based) { setModalTask(task); return; }
@@ -120,13 +119,13 @@ export function TodayScreen() {
         taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD',
         isTimeBased: false, basePoints: task.base_points, starPenalty: task.star_penalty,
       });
-    } catch { Alert.alert('Lỗi', 'Không thể ghi nhận. Thử lại.'); }
+    } catch { Alert.alert(t.error, t.cantLog); }
   }
 
   async function handleLogTime() {
     if (!modalTask) return;
     const mins = parseInt(duration, 10);
-    if (isNaN(mins) || mins <= 0) { Alert.alert('Nhập số phút hợp lệ'); return; }
+    if (isNaN(mins) || mins <= 0) { Alert.alert(t.validMins); return; }
     try {
       await logTask.mutateAsync({
         taskTypeId: modalTask.id, kind: modalTask.kind as 'GOOD' | 'BAD',
@@ -134,10 +133,10 @@ export function TodayScreen() {
         starPenalty: modalTask.star_penalty, durationMin: mins,
       });
       setModalTask(null); setDuration('');
-    } catch { Alert.alert('Lỗi', 'Không thể ghi nhận. Thử lại.'); }
+    } catch { Alert.alert(t.error, t.cantLog); }
   }
 
-  if (isLoading) return <ActivityIndicator style={{ flex: 1 }} color={Colors.primary} />;
+  if (isLoading) return <ActivityIndicator style={{ flex: 1 }} color={colors.primary} />;
 
   return (
     <View style={styles.container}>
@@ -152,7 +151,7 @@ export function TodayScreen() {
             <Text style={styles.avatarText}>{avatarInitial}</Text>
           </TouchableOpacity>
           <View style={styles.greet}>
-            <Text style={styles.hi}>Chào, {googleUser?.name?.split(' ').pop() ?? 'bạn'}</Text>
+            <Text style={styles.hi}>{t.greeting(googleUser?.name?.split(' ').pop() ?? '')}</Text>
             <Text style={styles.date}>{dateStr}</Text>
           </View>
           <TouchableOpacity
@@ -170,14 +169,14 @@ export function TodayScreen() {
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
           style={styles.hero}
         >
-          <Text style={styles.heroLabel}>SỐ DƯ SAO</Text>
+          <Text style={styles.heroLabel}>{t.heroLabel}</Text>
           <View style={styles.heroBal}>
             <Text style={styles.heroStar}>★</Text>
             <Text style={styles.heroBalNum}>{weeklyStars}</Text>
           </View>
           <View style={styles.heroFoot}>
             <Text style={[styles.heroDelta, isDebt ? styles.heroDeltaDown : styles.heroDeltaUp]}>
-              {dailyPoints > 0 ? `▲ +${dailyPoints} hôm nay` : '— hôm nay'}
+              {dailyPoints > 0 ? t.upDelta(dailyPoints) : t.noDelta}
             </Text>
             <View style={styles.rankChip}>
               <Text style={styles.rankChipText}>{rankEmoji} {rankName}</Text>
@@ -188,78 +187,48 @@ export function TodayScreen() {
         {/* Progress card */}
         <View style={styles.progCard}>
           <View style={styles.progTop}>
-            <Text style={styles.progLabel}>Điểm hôm nay</Text>
+            <Text style={styles.progLabel}>{t.pointsLabel}</Text>
             <Text style={styles.progPts}><Text style={styles.progPtsBold}>{dailyPoints}</Text> / {DAILY_THRESHOLD}</Text>
           </View>
           <View style={styles.bar}>
             <View style={[styles.barFill, { width: `${progressPct * 100}%` as any }]} />
           </View>
-          <Text style={styles.progCap}>Đạt {DAILY_THRESHOLD} điểm/ngày → +1 ★ Streak bonus</Text>
+          <Text style={styles.progCap}>{t.streakBonus(DAILY_THRESHOLD)}</Text>
         </View>
-
-        {/* Category chips */}
-        {categories && categories.length > 0 && (
-          <>
-            <Text style={styles.sectionLabel}>Bộ lọc danh mục</Text>
-            <ScrollView
-              horizontal showsHorizontalScrollIndicator={false}
-              style={{ marginHorizontal: -Spacing.lg }}
-              contentContainerStyle={styles.chipRow}
-            >
-              <TouchableOpacity
-                style={[styles.chip, selectedCategoryId === null && styles.chipActive]}
-                onPress={() => setSelectedCategoryId(null)}
-              >
-                <Text style={[styles.chipText, selectedCategoryId === null && styles.chipTextActive]}>Tất cả</Text>
-              </TouchableOpacity>
-              {categories.map(cat => (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[styles.chip, selectedCategoryId === cat.id && styles.chipActive]}
-                  onPress={() => setSelectedCategoryId(cat.id)}
-                >
-                  <Text style={[styles.chipText, selectedCategoryId === cat.id && styles.chipTextActive]}>
-                    {cat.icon ? `${cat.icon} ` : ''}{cat.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </>
-        )}
 
         {/* Task list header with selection actions */}
         <View style={styles.taskListHeader}>
-          <Text style={styles.sectionLabel}>Hôm nay</Text>
+          <Text style={styles.sectionLabel}>{t.sectionToday}</Text>
           {selectionMode && (
             <View style={styles.selActions}>
               <TouchableOpacity onPress={selectAll} style={styles.selBtn}>
-                <Text style={styles.selBtnTxt}>Tất cả</Text>
+                <Text style={styles.selBtnTxt}>{t.all}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleDeleteSelected}
                 style={[styles.selBtn, styles.selDeleteBtn]}
                 disabled={selectedIds.size === 0 || archiveTask.isPending}
               >
-                <Text style={styles.selDeleteTxt}>Xoá ({selectedIds.size})</Text>
+                <Text style={styles.selDeleteTxt}>{t.deleteCount(selectedIds.size)}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={cancelSelection} style={styles.selBtn}>
-                <Text style={styles.selBtnTxt}>Huỷ</Text>
+                <Text style={styles.selBtnTxt}>{t.cancel}</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
         <View style={styles.taskCard}>
-          {filteredTasks.length === 0 ? (
+          {displayTasks.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyEmoji}>🌱</Text>
-              <Text style={styles.emptyTitle}>Hôm nay vẫn chưa có gì</Text>
-              <Text style={styles.emptyDesc}>Chạm + để ghi hoạt động đầu tiên</Text>
+              <Text style={styles.emptyTitle}>{t.emptyTitle}</Text>
+              <Text style={styles.emptyDesc}>{t.emptyDesc}</Text>
             </View>
           ) : (
-            filteredTasks.map((item, idx) => {
+            displayTasks.map((item, idx) => {
               const done = loggedIds?.has(item.id) ?? false;
               const isBad = item.kind === 'BAD';
-              const isLast = idx === filteredTasks.length - 1;
+              const isLast = idx === displayTasks.length - 1;
               const isSelected = selectedIds.has(item.id);
               return (
                 <TouchableOpacity
@@ -281,10 +250,10 @@ export function TodayScreen() {
                     <View style={styles.tMeta}>
                       {item.icon ? <Text style={styles.tMetaText}>{item.icon}</Text> : null}
                       {item.icon ? <View style={styles.dot} /> : null}
-                      {item.is_time_based ? <Text style={styles.tMetaText}>Theo giờ</Text> : null}
+                      {item.is_time_based ? <Text style={styles.tMetaText}>{t.timedMeta}</Text> : null}
                       <View style={styles.dot} />
                       <Text style={styles.tMetaText}>
-                        {isBad ? 'Thói xấu' : `${item.is_time_based ? '1pt/30m' : item.base_points + ' điểm'}`}
+                        {isBad ? t.badHabitMeta : `${item.is_time_based ? '1pt/30m' : t.ptsLabel(item.base_points)}`}
                       </Text>
                     </View>
                   </View>
@@ -302,21 +271,21 @@ export function TodayScreen() {
       <Modal visible={!!modalTask} transparent animationType="slide">
         <View style={styles.modalBg}>
           <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Bao nhiêu phút?</Text>
+            <Text style={styles.modalTitle}>{t.minutesModal}</Text>
             <TextInput
               style={styles.input}
               keyboardType="number-pad"
               value={duration}
               onChangeText={setDuration}
-              placeholder="Ví dụ: 45"
-              placeholderTextColor={Colors.faint}
+              placeholder={t.minutesPlaceholder}
+              placeholderTextColor={colors.faint}
               autoFocus
             />
             <TouchableOpacity style={styles.btn} onPress={handleLogTime}>
-              <Text style={styles.btnText}>Ghi nhận</Text>
+              <Text style={styles.btnText}>{t.logBtn}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => { setModalTask(null); setDuration(''); }}>
-              <Text style={styles.cancel}>Huỷ</Text>
+              <Text style={styles.cancel}>{t.cancel}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -325,146 +294,139 @@ export function TodayScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bgBase },
+function makeStyles(C: AppColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bgBase },
 
-  topbar: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: Spacing.lg, paddingTop: 52, paddingBottom: 2,
-  },
-  avatar: {
-    width: 42, height: 42, borderRadius: 21,
-    backgroundColor: Colors.primarySoft, borderWidth: 1, borderColor: Colors.line,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  avatarText: { fontWeight: '800', color: Colors.primaryPress, fontSize: 16 },
-  greet: { flex: 1 },
-  hi: { fontSize: 15, fontWeight: '800', letterSpacing: -0.2, color: Colors.inkDark },
-  date: { fontSize: 12, color: Colors.muted, marginTop: 1 },
-  gearBtn: { padding: 6 },
-  gearIcon: { fontSize: 22 },
+    topbar: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      paddingHorizontal: Spacing.lg, paddingTop: 52, paddingBottom: 2,
+    },
+    avatar: {
+      width: 42, height: 42, borderRadius: 21,
+      backgroundColor: C.primarySoft, borderWidth: 1, borderColor: C.line,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    avatarText: { fontWeight: '800', color: C.primaryPress, fontSize: 16 },
+    greet: { flex: 1 },
+    hi: { fontSize: 15, fontWeight: '800', letterSpacing: -0.2, color: C.inkDark },
+    date: { fontSize: 12, color: C.muted, marginTop: 1 },
+    gearBtn: { padding: 6 },
+    gearIcon: { fontSize: 22 },
 
-  hero: {
-    marginHorizontal: Spacing.lg, marginTop: 14,
-    borderRadius: Radii.xl, padding: 20, overflow: 'hidden',
-    ...Shadows.hero,
-  },
-  heroLabel: { fontSize: 12, opacity: 0.85, fontWeight: '600', letterSpacing: 0.3, color: '#fff' },
-  heroBal: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
-  heroStar: { fontSize: 32, color: '#D9952B' },
-  heroBalNum: { fontSize: 40, fontWeight: '800', letterSpacing: -1.2, color: '#fff', lineHeight: 44 },
-  heroFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
-  heroDelta: { fontSize: 12, paddingHorizontal: 11, paddingVertical: 5, borderRadius: Radii.pill, fontWeight: '700', overflow: 'hidden' },
-  heroDeltaUp: { backgroundColor: 'rgba(255,255,255,0.16)', color: '#B5F0CE' },
-  heroDeltaDown: { backgroundColor: 'rgba(255,255,255,0.16)', color: '#FFB9BB' },
-  rankChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: Radii.pill,
-  },
-  rankChipText: { fontSize: 12.5, fontWeight: '800', color: '#fff' },
+    hero: {
+      marginHorizontal: Spacing.lg, marginTop: 14,
+      borderRadius: Radii.xl, padding: 20, overflow: 'hidden',
+      ...Shadows.hero,
+    },
+    heroLabel: { fontSize: 12, opacity: 0.85, fontWeight: '600', letterSpacing: 0.3, color: '#fff' },
+    heroBal: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
+    heroStar: { fontSize: 32, color: C.starGold },
+    heroBalNum: { fontSize: 40, fontWeight: '800', letterSpacing: -1.2, color: '#fff', lineHeight: 44 },
+    heroFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
+    heroDelta: { fontSize: 12, paddingHorizontal: 11, paddingVertical: 5, borderRadius: Radii.pill, fontWeight: '700', overflow: 'hidden' },
+    heroDeltaUp: { backgroundColor: 'rgba(255,255,255,0.16)', color: '#B5F0CE' },
+    heroDeltaDown: { backgroundColor: 'rgba(255,255,255,0.16)', color: '#FFB9BB' },
+    rankChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 12, paddingVertical: 6,
+      borderRadius: Radii.pill,
+    },
+    rankChipText: { fontSize: 12.5, fontWeight: '800', color: '#fff' },
 
-  progCard: {
-    marginHorizontal: Spacing.lg, marginTop: 12,
-    backgroundColor: Colors.surface, borderRadius: Radii.lg,
-    padding: 15, borderWidth: 1, borderColor: Colors.line, ...Shadows.light,
-  },
-  progTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  progLabel: { fontSize: 13, fontWeight: '700', color: Colors.inkDark },
-  progPts: { fontSize: 13, fontWeight: '700', color: Colors.inkDark },
-  progPtsBold: { fontSize: 16, fontWeight: '800', color: Colors.primary },
-  bar: {
-    height: 10, backgroundColor: Colors.surface2, borderRadius: Radii.pill,
-    marginTop: 10, overflow: 'hidden',
-  },
-  barFill: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: Radii.pill,
-  },
-  progCap: { fontSize: 11.5, color: Colors.muted, marginTop: 8 },
+    progCard: {
+      marginHorizontal: Spacing.lg, marginTop: 12,
+      backgroundColor: C.surface, borderRadius: Radii.lg,
+      padding: 15, borderWidth: 1, borderColor: C.line, ...Shadows.light,
+    },
+    progTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    progLabel: { fontSize: 13, fontWeight: '700', color: C.inkDark },
+    progPts: { fontSize: 13, fontWeight: '700', color: C.inkDark },
+    progPtsBold: { fontSize: 16, fontWeight: '800', color: C.primary },
+    bar: {
+      height: 10, backgroundColor: C.surface2, borderRadius: Radii.pill,
+      marginTop: 10, overflow: 'hidden',
+    },
+    barFill: {
+      height: '100%',
+      backgroundColor: C.primary,
+      borderRadius: Radii.pill,
+    },
+    progCap: { fontSize: 11.5, color: C.muted, marginTop: 8 },
 
-  sectionLabel: {
-    fontSize: 11, fontWeight: '700', color: Colors.muted,
-    textTransform: 'uppercase', letterSpacing: 0.7,
-    marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
-  },
-  taskListHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-  },
-  selActions: { flexDirection: 'row', gap: 8, marginRight: Spacing.lg, marginTop: 20 },
-  selBtn: {
-    paddingHorizontal: 10, paddingVertical: 5,
-    backgroundColor: Colors.surface2, borderRadius: Radii.sm,
-    borderWidth: 1, borderColor: Colors.line2,
-  },
-  selBtnTxt: { fontSize: 12, fontWeight: '700', color: Colors.inkDark },
-  selDeleteBtn: { borderColor: Colors.danger, backgroundColor: Colors.dangerSoft },
-  selDeleteTxt: { fontSize: 12, fontWeight: '700', color: Colors.danger },
-  chipRow: { paddingHorizontal: Spacing.lg, gap: 7, flexDirection: 'row', paddingVertical: 2 },
-  chip: {
-    paddingHorizontal: 13, paddingVertical: 8, borderRadius: Radii.pill,
-    borderWidth: 1, borderColor: Colors.line2, backgroundColor: Colors.surface,
-    flexShrink: 0,
-  },
-  chipActive: { backgroundColor: Colors.primarySoft, borderColor: Colors.primarySoft },
-  chipText: { fontSize: 12.5, fontWeight: '600', color: Colors.muted },
-  chipTextActive: { color: Colors.primaryPress, fontWeight: '700' },
+    sectionLabel: {
+      fontSize: 11, fontWeight: '700', color: C.muted,
+      textTransform: 'uppercase', letterSpacing: 0.7,
+      marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
+    },
+    taskListHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    },
+    selActions: { flexDirection: 'row', gap: 8, marginRight: Spacing.lg, marginTop: 20 },
+    selBtn: {
+      paddingHorizontal: 10, paddingVertical: 5,
+      backgroundColor: C.surface2, borderRadius: Radii.sm,
+      borderWidth: 1, borderColor: C.line2,
+    },
+    selBtnTxt: { fontSize: 12, fontWeight: '700', color: C.inkDark },
+    selDeleteBtn: { borderColor: C.danger, backgroundColor: C.dangerSoft },
+    selDeleteTxt: { fontSize: 12, fontWeight: '700', color: C.danger },
 
-  taskCard: {
-    marginHorizontal: Spacing.lg,
-    backgroundColor: Colors.surface, borderRadius: Radii.lg,
-    borderWidth: 1, borderColor: Colors.line, ...Shadows.light,
-    paddingHorizontal: 15,
-  },
-  task: {
-    flexDirection: 'row', alignItems: 'center', gap: 13,
-    paddingVertical: 14, borderBottomWidth: 1, borderColor: Colors.line,
-  },
-  taskLast: { borderBottomWidth: 0 },
-  taskSelected: { backgroundColor: Colors.primarySoft, marginHorizontal: -15, paddingHorizontal: 15 },
-  check: {
-    width: 26, height: 26, borderRadius: 13,
-    borderWidth: 2, borderColor: Colors.line2,
-    backgroundColor: Colors.surface,
-    justifyContent: 'center', alignItems: 'center',
-    flexShrink: 0,
-  },
-  checkDone: {
-    backgroundColor: Colors.primary, borderColor: Colors.primary,
-  },
-  checkBad: {
-    backgroundColor: Colors.danger, borderColor: Colors.danger,
-  },
-  checkMark: { fontSize: 13, fontWeight: '800', color: '#fff' },
-  tBody: { flex: 1, minWidth: 0 },
-  tName: { fontSize: 14.5, fontWeight: '600', color: Colors.inkDark },
-  tNameDone: { color: Colors.muted, textDecorationLine: 'line-through' },
-  tMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
-  tMetaText: { fontSize: 11.5, color: Colors.muted },
-  dot: { width: 3, height: 3, backgroundColor: Colors.faint, borderRadius: 2 },
-  tPts: { fontSize: 13, fontWeight: '800', flexShrink: 0 },
-  tPtsPos: { color: Colors.primary },
-  tPtsNeg: { color: Colors.danger },
-  tPtsIdle: { color: Colors.faint },
+    taskCard: {
+      marginHorizontal: Spacing.lg,
+      backgroundColor: C.surface, borderRadius: Radii.lg,
+      borderWidth: 1, borderColor: C.line, ...Shadows.light,
+      paddingHorizontal: 15,
+    },
+    task: {
+      flexDirection: 'row', alignItems: 'center', gap: 13,
+      paddingVertical: 14, borderBottomWidth: 1, borderColor: C.line,
+    },
+    taskLast: { borderBottomWidth: 0 },
+    taskSelected: { backgroundColor: C.primarySoft, marginHorizontal: -15, paddingHorizontal: 15 },
+    check: {
+      width: 26, height: 26, borderRadius: 13,
+      borderWidth: 2, borderColor: C.line2,
+      backgroundColor: C.surface,
+      justifyContent: 'center', alignItems: 'center',
+      flexShrink: 0,
+    },
+    checkDone: {
+      backgroundColor: C.primary, borderColor: C.primary,
+    },
+    checkBad: {
+      backgroundColor: C.danger, borderColor: C.danger,
+    },
+    checkMark: { fontSize: 13, fontWeight: '800', color: '#fff' },
+    tBody: { flex: 1, minWidth: 0 },
+    tName: { fontSize: 14.5, fontWeight: '600', color: C.inkDark },
+    tNameDone: { color: C.muted, textDecorationLine: 'line-through' },
+    tMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
+    tMetaText: { fontSize: 11.5, color: C.muted },
+    dot: { width: 3, height: 3, backgroundColor: C.faint, borderRadius: 2 },
+    tPts: { fontSize: 13, fontWeight: '800', flexShrink: 0 },
+    tPtsPos: { color: C.primary },
+    tPtsNeg: { color: C.danger },
+    tPtsIdle: { color: C.faint },
 
-  empty: { padding: 36, paddingHorizontal: 12, alignItems: 'center' },
-  emptyEmoji: { fontSize: 42, marginBottom: 8, opacity: 0.6 },
-  emptyTitle: { fontSize: 14, fontWeight: '700', color: Colors.ink2 },
-  emptyDesc: { fontSize: 12, color: Colors.muted, marginTop: 4 },
+    empty: { padding: 36, paddingHorizontal: 12, alignItems: 'center' },
+    emptyEmoji: { fontSize: 42, marginBottom: 8, opacity: 0.6 },
+    emptyTitle: { fontSize: 14, fontWeight: '700', color: C.ink2 },
+    emptyDesc: { fontSize: 12, color: C.muted, marginTop: 4 },
 
-  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalBox: {
-    backgroundColor: Colors.surface, padding: Spacing.xl,
-    borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl,
-  },
-  modalTitle: { fontSize: 19, fontWeight: '800', color: Colors.inkDark, marginBottom: Spacing.md },
-  input: {
-    backgroundColor: Colors.surface2, color: Colors.inkDark, padding: 13,
-    borderRadius: Radii.md, fontSize: 14, marginBottom: Spacing.md,
-    borderWidth: 1.5, borderColor: Colors.line2,
-  },
-  btn: { backgroundColor: Colors.primary, padding: 15, borderRadius: Radii.md, alignItems: 'center', marginBottom: 8 },
-  btnText: { color: Colors.white, fontSize: 15, fontWeight: '700' },
-  cancel: { textAlign: 'center', color: Colors.muted, padding: 8 },
-});
+    modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+    modalBox: {
+      backgroundColor: C.surface, padding: Spacing.xl,
+      borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl,
+    },
+    modalTitle: { fontSize: 19, fontWeight: '800', color: C.inkDark, marginBottom: Spacing.md },
+    input: {
+      backgroundColor: C.surface2, color: C.inkDark, padding: 13,
+      borderRadius: Radii.md, fontSize: 14, marginBottom: Spacing.md,
+      borderWidth: 1.5, borderColor: C.line2,
+    },
+    btn: { backgroundColor: C.primary, padding: 15, borderRadius: Radii.md, alignItems: 'center', marginBottom: 8 },
+    btnText: { color: C.white, fontSize: 15, fontWeight: '700' },
+    cancel: { textAlign: 'center', color: C.muted, padding: 8 },
+  });
+}

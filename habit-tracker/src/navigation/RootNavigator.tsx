@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -12,7 +12,8 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { SignInScreen } from '../screens/SignInScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
-import { Colors, Shadows } from '../theme';
+import { AppColors, Shadows } from '../theme';
+import { useTheme } from '../hooks/useSettings';
 import { LogActivitySheet } from '../screens/LogActivitySheet';
 import { GoogleUser } from '../hooks/useAuth';
 
@@ -60,10 +61,10 @@ function IconPlus() {
   );
 }
 
-function FABButton({ onPress }: { onPress: () => void }) {
+function FABButton({ onPress, colors }: { onPress: () => void; colors: AppColors }) {
   return (
     <TouchableOpacity style={fabStyles.container} onPress={onPress} activeOpacity={0.85}>
-      <View style={fabStyles.button}>
+      <View style={[fabStyles.button, { backgroundColor: colors.primary }]}>
         <IconPlus />
       </View>
     </TouchableOpacity>
@@ -76,7 +77,6 @@ const fabStyles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     ...Shadows.hero,
@@ -84,19 +84,20 @@ const fabStyles = StyleSheet.create({
 });
 
 function MainTabs({ onFABPress }: { onFABPress: () => void }) {
+  const { colors } = useTheme();
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.line,
+          backgroundColor: colors.surface,
+          borderTopColor: colors.line,
           height: 86,
           paddingBottom: 0,
           paddingTop: 9,
         },
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.faint,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.faint,
         tabBarLabelStyle: { fontSize: 10, fontWeight: '700', marginTop: 4 },
       }}
     >
@@ -114,7 +115,7 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
         name="Log"
         component={TodayScreen}
         options={{
-          tabBarButton: () => <FABButton onPress={onFABPress} />,
+          tabBarButton: () => <FABButton onPress={onFABPress} colors={colors} />,
           title: '',
         }}
         listeners={{ tabPress: (e) => e.preventDefault() }}
@@ -143,6 +144,15 @@ function AppStack({
   onDeleteAccount: (userId: number) => Promise<void>;
 }) {
   const [fabVisible, setFabVisible] = useState(false);
+  const { colors } = useTheme();
+
+  const modalHeaderOptions = {
+    presentation: 'modal' as const,
+    headerShown: true,
+    headerTintColor: colors.primary,
+    headerStyle: { backgroundColor: colors.surface },
+    headerTitleStyle: { color: colors.inkDark },
+  };
 
   return (
     <>
@@ -152,13 +162,13 @@ function AppStack({
         </Stack.Screen>
         <Stack.Screen
           name="Profile"
-          options={{ presentation: 'modal', headerShown: true, title: 'Hồ sơ', headerTintColor: Colors.primary }}
+          options={{ ...modalHeaderOptions, title: 'Hồ sơ' }}
         >
           {() => <ProfileScreen googleUser={googleUser} onSignOut={onSignOut} />}
         </Stack.Screen>
         <Stack.Screen
           name="Settings"
-          options={{ presentation: 'modal', headerShown: true, title: 'Cài đặt', headerTintColor: Colors.primary }}
+          options={{ ...modalHeaderOptions, title: 'Cài đặt' }}
         >
           {() => <SettingsScreen onDeleteAccount={onDeleteAccount} />}
         </Stack.Screen>
@@ -183,8 +193,14 @@ export function RootNavigator({
   onSignOut: () => Promise<void>;
   onDeleteAccount: (userId: number) => Promise<void>;
 }) {
+  const { isDark } = useTheme();
   return (
     <NavigationContainer>
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor="transparent"
+        translucent
+      />
       {googleUser !== null && isOnboarded ? (
         <AppStack googleUser={googleUser} onSignOut={onSignOut} onDeleteAccount={onDeleteAccount} />
       ) : (

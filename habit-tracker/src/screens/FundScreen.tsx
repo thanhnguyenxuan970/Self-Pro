@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ActivityIndicator,
   TouchableOpacity, Modal, TextInput, Alert, ScrollView,
@@ -13,10 +13,20 @@ import { useStreakFreezeEligibility, usePurchaseStreakFreeze } from '../queries/
 import { STREAK_FREEZE_COST } from '../constants';
 import Toast from 'react-native-toast-message';
 import { formatVND } from '../logic/formatters';
-import { Colors, Typography, Radii, Spacing, Shadows } from '../theme';
+import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
 import { useAuthUser } from '../hooks/useAuth';
+import { useTheme, useTranslations } from '../hooks/useSettings';
+import { Strings } from '../i18n';
 
-function TreatCard({ treat, onEnjoy }: { treat: DecoratedTreat; onEnjoy: () => void }) {
+function TreatCard({
+  treat, onEnjoy, colors, styles, t,
+}: {
+  treat: DecoratedTreat;
+  onEnjoy: () => void;
+  colors: AppColors;
+  styles: ReturnType<typeof makeStyles>;
+  t: Strings;
+}) {
   const isEnjoyed = treat.status === 'ENJOYED';
   return (
     <View style={[styles.treatCard, isEnjoyed && styles.treatCardDim]}>
@@ -26,7 +36,7 @@ function TreatCard({ treat, onEnjoy }: { treat: DecoratedTreat; onEnjoy: () => v
       <View style={styles.treatBody}>
         <View style={styles.treatRow}>
           <Text style={styles.treatName} numberOfLines={1}>{treat.name}</Text>
-          {isEnjoyed && <Text style={styles.enjoyedBadge}>✓ Đã hưởng</Text>}
+          {isEnjoyed && <Text style={styles.enjoyedBadge}>{t.enjoyedBadge}</Text>}
         </View>
         <Text style={styles.treatSub}>≈ {formatVND(treat.approx_amount)} · {treat.target_stars}★</Text>
         {!isEnjoyed && (
@@ -35,21 +45,26 @@ function TreatCard({ treat, onEnjoy }: { treat: DecoratedTreat; onEnjoy: () => v
               <View style={[styles.progressFill, { width: `${treat.progressPct}%` as any }]} />
             </View>
             <Text style={styles.progressLabel}>
-              {treat.unlockable ? '🎉 Có thể hưởng thụ!' : `${treat.starsToUnlock}★ nữa`}
+              {treat.unlockable ? t.readyToEnjoy : t.starsMore(treat.starsToUnlock)}
             </Text>
           </View>
         )}
       </View>
       {treat.unlockable && (
         <TouchableOpacity style={styles.enjoyBtn} onPress={onEnjoy}>
-          <Text style={styles.enjoyBtnText}>Nhận</Text>
+          <Text style={styles.enjoyBtnText}>{t.claimBtn}</Text>
         </TouchableOpacity>
       )}
     </View>
   );
 }
 
-function HistoryItem({ item }: { item: TreatHistoryRow }) {
+function HistoryItem({
+  item, styles,
+}: {
+  item: TreatHistoryRow;
+  styles: ReturnType<typeof makeStyles>;
+}) {
   const date = new Date(item.enjoyed_at);
   const dateStr = `${date.getDate()}/${date.getMonth() + 1}`;
   return (
@@ -66,6 +81,10 @@ function HistoryItem({ item }: { item: TreatHistoryRow }) {
 
 export function FundScreen() {
   const userId = useAuthUser();
+  const { colors } = useTheme();
+  const t = useTranslations();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const { data: pool, isLoading: poolLoading } = useTreatPool(userId);
   const { data: treats, isLoading: treatsLoading } = useTreats(userId);
   const { data: history } = useTreatHistory(userId);
@@ -84,23 +103,23 @@ export function FundScreen() {
 
   function handleEnjoy(treat: DecoratedTreat) {
     if (enjoyingRef.current) {
-      Toast.show({ type: 'info', text1: 'Đang xử lý…', visibilityTime: 1200 });
+      Toast.show({ type: 'info', text1: t.processing, visibilityTime: 1200 });
       return;
     }
     Alert.alert(
-      'Hưởng thụ phần thưởng?',
-      `"${treat.name}" sẽ tốn ${treat.target_stars}★ từ kho của bạn.`,
+      t.enjoyTitle,
+      t.enjoyMsg(treat.name, treat.target_stars),
       [
-        { text: 'Huỷ', style: 'cancel' },
+        { text: t.cancel, style: 'cancel' },
         {
-          text: 'Xác nhận',
+          text: t.confirm,
           onPress: async () => {
             enjoyingRef.current = true;
             try {
               await enjoyTreat.mutateAsync(treat.id);
-              Toast.show({ type: 'success', text1: `🎉 Chúc mừng! ${treat.name}`, visibilityTime: 2500 });
+              Toast.show({ type: 'success', text1: t.celebration(treat.name), visibilityTime: 2500 });
             } catch (e: any) {
-              Alert.alert('Lỗi', e?.message === 'NOT_ENOUGH_STARS' ? 'Chưa đủ sao' : 'Không thể xác nhận');
+              Alert.alert(t.error, e?.message === 'NOT_ENOUGH_STARS' ? t.notEnoughStars : t.cantConfirm);
             } finally {
               enjoyingRef.current = false;
             }
@@ -113,15 +132,15 @@ export function FundScreen() {
   async function handleAddTreat() {
     const name = addName.trim();
     const amount = parseInt(addAmount.replace(/\D/g, ''), 10);
-    if (!name) { Alert.alert('Nhập tên phần thưởng'); return; }
-    if (isNaN(amount) || amount <= 0) { Alert.alert('Nhập giá tiền hợp lệ'); return; }
+    if (!name) { Alert.alert(t.enterName); return; }
+    if (isNaN(amount) || amount <= 0) { Alert.alert(t.enterAmount); return; }
     try {
       await addTreat.mutateAsync({ name, approxAmount: amount, valuePerStar });
       setAddModal(false);
       setAddName('');
       setAddAmount('');
     } catch {
-      Alert.alert('Lỗi', 'Không thể thêm phần thưởng');
+      Alert.alert(t.error, t.addError);
     }
   }
 
@@ -130,14 +149,14 @@ export function FundScreen() {
     if (!d?.eligible) return;
     try {
       await purchaseFreeze.mutateAsync({ localDate: d.yesterday, currentStreak: d.currentStreak });
-      Toast.show({ type: 'success', text1: '🧊 Streak được bảo vệ!', text2: `Tốn ${STREAK_FREEZE_COST}★`, visibilityTime: 2500 });
+      Toast.show({ type: 'success', text1: t.freezeTitle, text2: `${t.cancel} ${STREAK_FREEZE_COST}★`, visibilityTime: 2500 });
     } catch (e: any) {
-      Alert.alert('Lỗi', e?.message === 'INSUFFICIENT_FUNDS' ? 'Không đủ sao' : 'Không thể mua streak freeze');
+      Alert.alert(t.error, e?.message === 'INSUFFICIENT_FUNDS' ? t.notEnoughStarsFreeze : t.freezeError);
     }
   }
 
   if (poolLoading || treatsLoading) {
-    return <ActivityIndicator style={{ flex: 1 }} color={Colors.primary} />;
+    return <ActivityIndicator style={{ flex: 1 }} color={colors.primary} />;
   }
 
   const activeTreats = treats?.filter(t => t.status === 'ACTIVE') ?? [];
@@ -146,7 +165,7 @@ export function FundScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-        <Text style={styles.screenTitle}>Kho Quà Thưởng</Text>
+        <Text style={styles.screenTitle}>{t.fundTitle}</Text>
 
         {/* Pool header */}
         <LinearGradient
@@ -154,29 +173,29 @@ export function FundScreen() {
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
           style={styles.poolCard}
         >
-          <Text style={styles.poolLabel}>KHO SAO TÍCH LUỸ</Text>
+          <Text style={styles.poolLabel}>{t.poolLabel}</Text>
           <Text style={styles.poolStars}>★ {treatStars}</Text>
-          <Text style={styles.poolSub}>≈ {formatVND(treatStars * valuePerStar)} · Không bao giờ hết hạn</Text>
+          <Text style={styles.poolSub}>≈ {formatVND(treatStars * valuePerStar)} · {t.neverExpires}</Text>
         </LinearGradient>
 
         {/* Add treat button */}
         <TouchableOpacity style={styles.addBtn} onPress={() => setAddModal(true)}>
-          <Text style={styles.addBtnText}>+ Thêm phần thưởng</Text>
+          <Text style={styles.addBtnText}>{t.addRewardBtn}</Text>
         </TouchableOpacity>
 
         {/* Streak freeze card */}
         {freezeEligibility.data?.eligible && (
           <View style={styles.freezeCard}>
-            <Text style={styles.freezeTitle}>🧊 Streak bị gián đoạn!</Text>
+            <Text style={styles.freezeTitle}>{t.freezeTitle}</Text>
             <Text style={styles.freezeDesc}>
-              Bảo vệ streak {freezeEligibility.data.currentStreak} ngày? Tốn {STREAK_FREEZE_COST}★
+              {t.freezeDesc(freezeEligibility.data.currentStreak, STREAK_FREEZE_COST)}
             </Text>
             <TouchableOpacity
               style={[styles.freezeBtn, purchaseFreeze.isPending && { opacity: 0.5 }]}
               onPress={handleFreeze}
               disabled={purchaseFreeze.isPending}
             >
-              <Text style={styles.freezeBtnText}>Bảo vệ ({STREAK_FREEZE_COST}★)</Text>
+              <Text style={styles.freezeBtnText}>{t.freezeBtn(STREAK_FREEZE_COST)}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -184,25 +203,23 @@ export function FundScreen() {
         {/* Active treats */}
         {activeTreats.length > 0 && (
           <>
-            <Text style={styles.sectionLabel}>MỤC TIÊU</Text>
-            {activeTreats.map(t => (
-              <TreatCard key={t.id} treat={t} onEnjoy={() => handleEnjoy(t)} />
+            <Text style={styles.sectionLabel}>{t.goalsSection}</Text>
+            {activeTreats.map(treat => (
+              <TreatCard key={treat.id} treat={treat} onEnjoy={() => handleEnjoy(treat)} colors={colors} styles={styles} t={t} />
             ))}
           </>
         )}
 
         {activeTreats.length === 0 && (
-          <Text style={styles.empty}>
-            Chưa có phần thưởng.{'\n'}Thêm mục tiêu để bắt đầu tích sao!
-          </Text>
+          <Text style={styles.empty}>{t.emptyRewards}</Text>
         )}
 
         {/* Enjoyed treats */}
         {enjoyedTreats.length > 0 && (
           <>
-            <Text style={styles.sectionLabel}>ĐÃ HƯỞNG THỤ</Text>
-            {enjoyedTreats.map(t => (
-              <TreatCard key={t.id} treat={t} onEnjoy={() => {}} />
+            <Text style={styles.sectionLabel}>{t.enjoyedSection}</Text>
+            {enjoyedTreats.map(treat => (
+              <TreatCard key={treat.id} treat={treat} onEnjoy={() => {}} colors={colors} styles={styles} t={t} />
             ))}
           </>
         )}
@@ -210,8 +227,8 @@ export function FundScreen() {
         {/* History */}
         {(history?.length ?? 0) > 0 && (
           <>
-            <Text style={styles.sectionLabel}>LỊCH SỬ</Text>
-            {history!.map(h => <HistoryItem key={h.id} item={h} />)}
+            <Text style={styles.sectionLabel}>{t.fundHistorySection}</Text>
+            {history!.map(h => <HistoryItem key={h.id} item={h} styles={styles} />)}
           </>
         )}
       </ScrollView>
@@ -220,26 +237,26 @@ export function FundScreen() {
       <Modal visible={addModal} transparent animationType="slide">
         <View style={styles.overlay}>
           <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>Thêm phần thưởng</Text>
-            <Text style={styles.sheetSub}>Nhập giá → tự động tính số sao cần tích</Text>
+            <Text style={styles.sheetTitle}>{t.addModalTitle}</Text>
+            <Text style={styles.sheetSub}>{t.addModalSub}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Tên phần thưởng (vd: Trà sữa, Tai nghe)"
-              placeholderTextColor={Colors.faint}
+              placeholder={t.namePlaceholder}
+              placeholderTextColor={colors.faint}
               value={addName}
               onChangeText={setAddName}
             />
             <TextInput
               style={styles.input}
-              placeholder="Giá tiền (VND)"
-              placeholderTextColor={Colors.faint}
+              placeholder={t.amountPlaceholder}
+              placeholderTextColor={colors.faint}
               keyboardType="numeric"
               value={addAmount}
               onChangeText={setAddAmount}
             />
             {addAmount.length > 0 && !isNaN(parseInt(addAmount.replace(/\D/g, ''), 10)) && (
               <Text style={styles.starsPreview}>
-                = {Math.max(1, Math.round(parseInt(addAmount.replace(/\D/g, ''), 10) / valuePerStar))}★ cần tích
+                {t.starsPreview(Math.max(1, Math.round(parseInt(addAmount.replace(/\D/g, ''), 10) / valuePerStar)))}
               </Text>
             )}
             <View style={styles.sheetButtons}>
@@ -247,14 +264,14 @@ export function FundScreen() {
                 style={[styles.sheetBtn, styles.cancelBtn]}
                 onPress={() => { setAddModal(false); setAddName(''); setAddAmount(''); }}
               >
-                <Text style={styles.cancelTxt}>Huỷ</Text>
+                <Text style={styles.cancelTxt}>{t.cancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.sheetBtn, styles.confirmBtn, addTreat.isPending && { opacity: 0.5 }]}
                 onPress={handleAddTreat}
                 disabled={addTreat.isPending}
               >
-                <Text style={styles.confirmTxt}>Thêm</Text>
+                <Text style={styles.confirmTxt}>{t.addBtn}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -264,98 +281,100 @@ export function FundScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bgBase },
-  screenTitle: {
-    fontSize: 24, fontWeight: '800', letterSpacing: -0.5,
-    color: Colors.inkDark, marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14,
-  },
-  poolCard: {
-    marginHorizontal: Spacing.lg, borderRadius: Radii.xl,
-    padding: 20, overflow: 'hidden', ...Shadows.hero,
-  },
-  poolLabel: { fontSize: 12, opacity: 0.85, fontWeight: '700', letterSpacing: 0.3, color: '#fff' },
-  poolStars: { fontSize: 38, fontWeight: '800', letterSpacing: -1, marginTop: 6, lineHeight: 44, color: '#fff' },
-  poolSub: { fontSize: 11.5, opacity: 0.75, marginTop: 6, color: '#fff' },
-  addBtn: {
-    marginHorizontal: Spacing.lg, marginTop: Spacing.sm, paddingVertical: 12,
-    borderRadius: Radii.md, alignItems: 'center',
-    backgroundColor: Colors.primarySoft, borderWidth: 1, borderColor: Colors.primary,
-  },
-  addBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 15 },
-  sectionLabel: {
-    fontSize: 11, fontWeight: '700', color: Colors.muted, textTransform: 'uppercase',
-    letterSpacing: 0.7, marginHorizontal: Spacing.lg, marginTop: Spacing.lg, marginBottom: 6,
-  },
-  treatCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    marginHorizontal: Spacing.lg, marginBottom: 10, padding: 14,
-    backgroundColor: Colors.surface, borderRadius: Radii.lg,
-    borderWidth: 1, borderColor: Colors.line, ...Shadows.medium,
-  },
-  treatCardDim: { opacity: 0.6 },
-  treatIcon: {
-    width: 40, height: 40, borderRadius: Radii.sm,
-    backgroundColor: Colors.primarySoft, justifyContent: 'center', alignItems: 'center', flexShrink: 0,
-  },
-  treatBody: { flex: 1, minWidth: 0 },
-  treatRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  treatName: { fontSize: 15, fontWeight: '700', color: Colors.inkDark, flex: 1 },
-  enjoyedBadge: {
-    fontSize: 11, fontWeight: '700', color: Colors.primary,
-    backgroundColor: Colors.primarySoft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
-  },
-  treatSub: { fontSize: 11.5, color: Colors.muted, marginTop: 2 },
-  progressWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-  progressBg: { flex: 1, height: 5, backgroundColor: Colors.line, borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 3 },
-  progressLabel: { fontSize: 11.5, fontWeight: '600', color: Colors.ink2, flexShrink: 0 },
-  enjoyBtn: {
-    backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radii.sm,
-  },
-  enjoyBtnText: { color: Colors.white, fontWeight: '800', fontSize: 13 },
-  histRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 13, paddingHorizontal: Spacing.lg,
-    borderBottomWidth: 1, borderColor: Colors.line,
-  },
-  histIcon: { fontSize: 20 },
-  histBody: { flex: 1 },
-  histName: { fontSize: 14, fontWeight: '600', color: Colors.inkDark },
-  histDate: { fontSize: 11.5, color: Colors.muted, marginTop: 2 },
-  histStars: { fontSize: 13.5, fontWeight: '700', color: Colors.inkDark },
-  freezeCard: {
-    marginHorizontal: Spacing.lg, marginTop: Spacing.sm, marginBottom: 4,
-    backgroundColor: Colors.surface, borderRadius: Radii.lg,
-    padding: Spacing.md, borderWidth: 1.5, borderColor: Colors.primary,
-  },
-  freezeTitle: { ...Typography.bodyStrong, color: Colors.inkDark, marginBottom: 4 },
-  freezeDesc: { ...Typography.body, color: Colors.muted, marginBottom: Spacing.sm },
-  freezeBtn: {
-    backgroundColor: Colors.primary, padding: 12, borderRadius: Radii.sm, alignItems: 'center',
-  },
-  freezeBtnText: { color: Colors.white, fontWeight: '700', fontSize: 14 },
-  empty: {
-    textAlign: 'center', color: Colors.muted, marginTop: 32,
-    fontSize: 15, paddingHorizontal: 32, lineHeight: 24,
-  },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: Colors.surface, borderTopLeftRadius: Radii.xxl,
-    borderTopRightRadius: Radii.xxl, padding: Spacing.xl, paddingBottom: 40,
-  },
-  sheetTitle: { ...Typography.title, color: Colors.inkDark, marginBottom: 4, textAlign: 'center' },
-  sheetSub: { ...Typography.caption, color: Colors.muted, marginBottom: Spacing.md, textAlign: 'center' },
-  starsPreview: { fontSize: 13, fontWeight: '700', color: Colors.primary, textAlign: 'center', marginBottom: Spacing.sm },
-  input: {
-    backgroundColor: Colors.surface2, borderRadius: Radii.sm, padding: 14,
-    fontSize: 15, color: Colors.inkDark, marginBottom: 12,
-    borderWidth: 1, borderColor: Colors.line,
-  },
-  sheetButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  sheetBtn: { flex: 1, padding: 14, borderRadius: Radii.sm, alignItems: 'center' },
-  cancelBtn: { backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.line2 },
-  cancelTxt: { color: Colors.muted, fontSize: 15, fontWeight: '600' },
-  confirmBtn: { backgroundColor: Colors.primary },
-  confirmTxt: { color: Colors.white, fontSize: 15, fontWeight: '700' },
-});
+function makeStyles(C: AppColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bgBase },
+    screenTitle: {
+      fontSize: 24, fontWeight: '800', letterSpacing: -0.5,
+      color: C.inkDark, marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14,
+    },
+    poolCard: {
+      marginHorizontal: Spacing.lg, borderRadius: Radii.xl,
+      padding: 20, overflow: 'hidden', ...Shadows.hero,
+    },
+    poolLabel: { fontSize: 12, opacity: 0.85, fontWeight: '700', letterSpacing: 0.3, color: '#fff' },
+    poolStars: { fontSize: 38, fontWeight: '800', letterSpacing: -1, marginTop: 6, lineHeight: 44, color: '#fff' },
+    poolSub: { fontSize: 11.5, opacity: 0.75, marginTop: 6, color: '#fff' },
+    addBtn: {
+      marginHorizontal: Spacing.lg, marginTop: Spacing.sm, paddingVertical: 12,
+      borderRadius: Radii.md, alignItems: 'center',
+      backgroundColor: C.primarySoft, borderWidth: 1, borderColor: C.primary,
+    },
+    addBtnText: { color: C.primary, fontWeight: '700', fontSize: 15 },
+    sectionLabel: {
+      fontSize: 11, fontWeight: '700', color: C.muted, textTransform: 'uppercase',
+      letterSpacing: 0.7, marginHorizontal: Spacing.lg, marginTop: Spacing.lg, marginBottom: 6,
+    },
+    treatCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      marginHorizontal: Spacing.lg, marginBottom: 10, padding: 14,
+      backgroundColor: C.surface, borderRadius: Radii.lg,
+      borderWidth: 1, borderColor: C.line, ...Shadows.medium,
+    },
+    treatCardDim: { opacity: 0.6 },
+    treatIcon: {
+      width: 40, height: 40, borderRadius: Radii.sm,
+      backgroundColor: C.primarySoft, justifyContent: 'center', alignItems: 'center', flexShrink: 0,
+    },
+    treatBody: { flex: 1, minWidth: 0 },
+    treatRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    treatName: { fontSize: 15, fontWeight: '700', color: C.inkDark, flex: 1 },
+    enjoyedBadge: {
+      fontSize: 11, fontWeight: '700', color: C.primary,
+      backgroundColor: C.primarySoft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+    },
+    treatSub: { fontSize: 11.5, color: C.muted, marginTop: 2 },
+    progressWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+    progressBg: { flex: 1, height: 5, backgroundColor: C.line, borderRadius: 3, overflow: 'hidden' },
+    progressFill: { height: '100%', backgroundColor: C.primary, borderRadius: 3 },
+    progressLabel: { fontSize: 11.5, fontWeight: '600', color: C.ink2, flexShrink: 0 },
+    enjoyBtn: {
+      backgroundColor: C.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radii.sm,
+    },
+    enjoyBtnText: { color: C.white, fontWeight: '800', fontSize: 13 },
+    histRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      paddingVertical: 13, paddingHorizontal: Spacing.lg,
+      borderBottomWidth: 1, borderColor: C.line,
+    },
+    histIcon: { fontSize: 20 },
+    histBody: { flex: 1 },
+    histName: { fontSize: 14, fontWeight: '600', color: C.inkDark },
+    histDate: { fontSize: 11.5, color: C.muted, marginTop: 2 },
+    histStars: { fontSize: 13.5, fontWeight: '700', color: C.inkDark },
+    freezeCard: {
+      marginHorizontal: Spacing.lg, marginTop: Spacing.sm, marginBottom: 4,
+      backgroundColor: C.surface, borderRadius: Radii.lg,
+      padding: Spacing.md, borderWidth: 1.5, borderColor: C.primary,
+    },
+    freezeTitle: { ...Typography.bodyStrong, color: C.inkDark, marginBottom: 4 },
+    freezeDesc: { ...Typography.body, color: C.muted, marginBottom: Spacing.sm },
+    freezeBtn: {
+      backgroundColor: C.primary, padding: 12, borderRadius: Radii.sm, alignItems: 'center',
+    },
+    freezeBtnText: { color: C.white, fontWeight: '700', fontSize: 14 },
+    empty: {
+      textAlign: 'center', color: C.muted, marginTop: 32,
+      fontSize: 15, paddingHorizontal: 32, lineHeight: 24,
+    },
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+    sheet: {
+      backgroundColor: C.surface, borderTopLeftRadius: Radii.xxl,
+      borderTopRightRadius: Radii.xxl, padding: Spacing.xl, paddingBottom: 40,
+    },
+    sheetTitle: { ...Typography.title, color: C.inkDark, marginBottom: 4, textAlign: 'center' },
+    sheetSub: { ...Typography.caption, color: C.muted, marginBottom: Spacing.md, textAlign: 'center' },
+    starsPreview: { fontSize: 13, fontWeight: '700', color: C.primary, textAlign: 'center', marginBottom: Spacing.sm },
+    input: {
+      backgroundColor: C.surface2, borderRadius: Radii.sm, padding: 14,
+      fontSize: 15, color: C.inkDark, marginBottom: 12,
+      borderWidth: 1, borderColor: C.line,
+    },
+    sheetButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
+    sheetBtn: { flex: 1, padding: 14, borderRadius: Radii.sm, alignItems: 'center' },
+    cancelBtn: { backgroundColor: C.surface2, borderWidth: 1, borderColor: C.line2 },
+    cancelTxt: { color: C.muted, fontSize: 15, fontWeight: '600' },
+    confirmBtn: { backgroundColor: C.primary },
+    confirmTxt: { color: C.white, fontSize: 15, fontWeight: '700' },
+  });
+}

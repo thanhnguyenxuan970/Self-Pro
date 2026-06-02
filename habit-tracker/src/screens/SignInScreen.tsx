@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { GoogleUser } from '../hooks/useAuth';
-import { Colors, Typography, Radii, Spacing, Shadows } from '../theme';
+import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
+import { useTheme } from '../hooks/useSettings';
 
 type Props = {
   onSignIn: () => void;
@@ -11,6 +12,8 @@ type Props = {
 export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
   const [loading, setLoading] = useState(false);
   const configuredRef = useRef(false);
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   async function handleGoogleSignIn() {
     setLoading(true);
@@ -66,7 +69,7 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
         <Text style={styles.subtitle}>Theo dõi thói quen, tự thưởng xứng đáng.</Text>
 
         {loading ? (
-          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: Spacing.xl }} />
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: Spacing.xl }} />
         ) : (
           <TouchableOpacity
             style={styles.googleButton}
@@ -85,47 +88,49 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.bgBase,
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.lg,
-  },
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.xxl,
-    padding: Spacing.xl,
-    alignItems: 'center',
-    ...Shadows.medium,
-  },
-  logo: { fontSize: 52, marginBottom: Spacing.sm },
-  title: { ...Typography.title, color: Colors.inkDark, marginBottom: 4 },
-  subtitle: {
-    ...Typography.body,
-    color: Colors.muted,
-    textAlign: 'center',
-    marginBottom: Spacing.xl,
-  },
-  googleButton: {
-    width: '100%',
-    backgroundColor: Colors.white,
-    borderRadius: Radii.md,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.line,
-    ...Shadows.light,
-  },
-  googleIcon: { fontSize: 18, fontWeight: '700', color: '#4285F4', marginRight: 10 },
-  googleButtonText: { color: Colors.inkDark, fontWeight: '600', fontSize: 16 },
-  hint: {
-    ...Typography.caption,
-    color: Colors.faint,
-    marginTop: Spacing.lg,
-    textAlign: 'center',
-  },
-});
+function makeStyles(C: AppColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: C.bgBase,
+      justifyContent: 'center',
+      paddingHorizontal: Spacing.lg,
+    },
+    card: {
+      backgroundColor: C.surface,
+      borderRadius: Radii.xxl,
+      padding: Spacing.xl,
+      alignItems: 'center',
+      ...Shadows.medium,
+    },
+    logo: { fontSize: 52, marginBottom: Spacing.sm },
+    title: { ...Typography.title, color: C.inkDark, marginBottom: 4 },
+    subtitle: {
+      ...Typography.body,
+      color: C.muted,
+      textAlign: 'center',
+      marginBottom: Spacing.xl,
+    },
+    googleButton: {
+      width: '100%',
+      backgroundColor: C.surface2,
+      borderRadius: Radii.md,
+      paddingVertical: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: Spacing.sm,
+      borderWidth: 1,
+      borderColor: C.line,
+      ...Shadows.light,
+    },
+    googleIcon: { fontSize: 18, fontWeight: '700', color: '#4285F4', marginRight: 10 },
+    googleButtonText: { color: C.inkDark, fontWeight: '600', fontSize: 16 },
+    hint: {
+      ...Typography.caption,
+      color: C.faint,
+      marginTop: Spacing.lg,
+      textAlign: 'center',
+    },
+  });
+}

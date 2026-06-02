@@ -10,10 +10,12 @@ import { shouldShowWeekResetToast } from './src/logic/weekReset';
 import { useAuth, resolveUserRow, UserIdContext, GoogleUserContext } from './src/hooks/useAuth';
 import { syncToSupabase } from './src/services/syncService';
 import { SettingsProvider } from './src/contexts/SettingsContext';
+import { useTheme } from './src/hooks/useSettings';
 
 function AppInner() {
   const [dbReady, setDbReady] = useState(false);
   const [weekReset, setWeekReset] = useState(false);
+  const { colors } = useTheme();
   const {
     isLoading: authLoading,
     isOnboarded,
@@ -99,8 +101,8 @@ function AppInner() {
 
   if (!dbReady || authLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#F5F6F5', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#2E9C6A" />
+      <View style={{ flex: 1, backgroundColor: colors.bgBase, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }

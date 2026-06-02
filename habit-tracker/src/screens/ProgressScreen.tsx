@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { VictoryChart, VictoryBar, VictoryStack, VictoryAxis } from 'victory-native';
@@ -6,32 +6,18 @@ import {
   useProgressData, useStreakCount, useStarsToNextTier, useAllTimeStats,
   useRecentActivityLogs, useDeleteActivityLogs, ActivityLogEntry,
 } from '../queries/useProgress';
-import { getRangeLabel } from '../logic/formatters';
-import { Colors, Radii, Spacing, Shadows } from '../theme';
+import { Radii, Spacing, Shadows, AppColors } from '../theme';
 import { useAuthUser } from '../hooks/useAuth';
+import { useTheme, useTranslations } from '../hooks/useSettings';
 
 type Range = 'D' | 'W' | 'M' | 'Y';
-const RANGES: { key: Range; label: string }[] = [
-  { key: 'D', label: 'Ngày' },
-  { key: 'W', label: 'Tuần' },
-  { key: 'M', label: 'Tháng' },
-  { key: 'Y', label: 'Năm' },
-];
-
-function formatBucket(bucket: string, range: Range): string {
-  if (range === 'D') return `${bucket}h`;
-  if (range === 'W') {
-    const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-    const d = new Date(bucket + 'T00:00:00');
-    return days[d.getDay()];
-  }
-  if (range === 'M') return bucket.slice(8);
-  const months = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
-  return months[parseInt(bucket.slice(5, 7), 10) - 1];
-}
 
 export function ProgressScreen() {
   const userId = useAuthUser();
+  const { colors } = useTheme();
+  const t = useTranslations();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [range, setRange] = useState<Range>('W');
   const { data: chartData = [], isLoading } = useProgressData(userId, range);
   const { data: streak = 0 } = useStreakCount(userId);
@@ -42,6 +28,24 @@ export function ProgressScreen() {
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  const RANGES: { key: Range; label: string }[] = [
+    { key: 'D', label: t.rangeDay },
+    { key: 'W', label: t.rangeWeek },
+    { key: 'M', label: t.rangeMonth },
+    { key: 'Y', label: t.rangeYear },
+  ];
+
+  function formatBucket(bucket: string, r: Range): string {
+    if (r === 'D') return `${bucket}h`;
+    if (r === 'W') {
+      const d = new Date(bucket + 'T00:00:00');
+      return t.dayAbbr[d.getDay()];
+    }
+    if (r === 'M') return bucket.slice(8);
+    const months = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+    return months[parseInt(bucket.slice(5, 7), 10) - 1];
+  }
 
   const enterSelection = useCallback((id: number) => {
     setSelectionMode(true);
@@ -68,16 +72,16 @@ export function ProgressScreen() {
   function handleDeleteSelected() {
     const ids = Array.from(selectedIds);
     Alert.alert(
-      'Xoá nhật ký',
-      `Xoá ${ids.length} mục đã chọn?`,
+      t.deleteLogTitle,
+      t.deleteNItems(ids.length),
       [
-        { text: 'Huỷ', style: 'cancel' },
+        { text: t.cancel, style: 'cancel' },
         {
-          text: 'Xoá', style: 'destructive',
+          text: t.delete, style: 'destructive',
           onPress: () => {
             deleteLogs.mutateAsync(ids)
               .then(cancelSelection)
-              .catch(() => Alert.alert('Lỗi', 'Xoá thất bại. Thử lại.'));
+              .catch(() => Alert.alert(t.error, t.deleteFailed));
           },
         },
       ]
@@ -89,45 +93,45 @@ export function ProgressScreen() {
   const badData  = chartData.map((r, i) => ({ x: i + 1, y: r.badStars }));
 
   return (
-    <SafeAreaView style={s.safeArea} edges={['top']}>
-      <ScrollView style={s.container} contentContainerStyle={{ paddingBottom: 32 }}>
-        <Text style={s.title}>Phân tích</Text>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
+        <Text style={styles.title}>{t.analyticsTitle}</Text>
 
         {/* Segmented control */}
-        <View style={s.segbar}>
+        <View style={styles.segbar}>
           {RANGES.map(({ key, label }) => (
             <TouchableOpacity
               key={key}
-              style={[s.segBtn, range === key && s.segBtnActive]}
+              style={[styles.segBtn, range === key && styles.segBtnActive]}
               onPress={() => setRange(key)}
             >
-              <Text style={[s.segTxt, range === key && s.segTxtActive]}>{label}</Text>
+              <Text style={[styles.segTxt, range === key && styles.segTxtActive]}>{label}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
         {/* Chart card */}
-        <View style={s.card}>
-          <View style={s.cardHeader}>
-            <Text style={s.cardTitle}>Điểm theo thời gian</Text>
-            <Text style={s.chartSum}>Σ {totalSum}</Text>
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>{t.chartTitle}</Text>
+            <Text style={styles.chartSum}>Σ {totalSum}</Text>
           </View>
-          <View style={s.chartWrap}>
+          <View style={styles.chartWrap}>
             {isLoading ? (
-              <ActivityIndicator color={Colors.primary} />
+              <ActivityIndicator color={colors.primary} />
             ) : chartData.length === 0 ? (
-              <View style={s.emptyChart}>
-                <Text style={s.emptyText}>Chưa có hoạt động nào</Text>
+              <View style={styles.emptyChart}>
+                <Text style={styles.emptyText}>{t.noActivityYet}</Text>
               </View>
             ) : (
               <VictoryChart height={190} padding={{ top: 10, bottom: 36, left: 36, right: 12 }}>
                 <VictoryAxis
                   tickValues={chartData.map((_, i) => i + 1)}
-                  tickFormat={(t: number) => formatBucket(chartData[t - 1]?.bucket ?? '', range)}
-                  style={{ axis: { stroke: Colors.line2 }, tickLabels: { fill: Colors.muted, fontSize: 9.5, fontWeight: '600' } }}
+                  tickFormat={(tv: number) => formatBucket(chartData[tv - 1]?.bucket ?? '', range)}
+                  style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.muted, fontSize: 9.5, fontWeight: '600' } }}
                 />
-                <VictoryAxis dependentAxis style={{ axis: { stroke: Colors.line2 }, tickLabels: { fill: Colors.muted, fontSize: 9.5 } }} />
-                <VictoryStack colorScale={[Colors.primary, Colors.danger]}>
+                <VictoryAxis dependentAxis style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.muted, fontSize: 9.5 } }} />
+                <VictoryStack colorScale={[colors.primary, colors.danger]}>
                   <VictoryBar data={goodData} />
                   <VictoryBar data={badData} />
                 </VictoryStack>
@@ -137,75 +141,75 @@ export function ProgressScreen() {
         </View>
 
         {/* Stats overview 2x2 */}
-        <Text style={s.sectionLabel}>Tổng quan</Text>
-        <View style={s.statGrid}>
-          <View style={s.stat}>
-            <Text style={s.statV}>{tierInfo?.currentStars ?? 0} ★</Text>
-            <Text style={s.statL}>Sao tuần này</Text>
+        <Text style={styles.sectionLabel}>{t.overviewSection}</Text>
+        <View style={styles.statGrid}>
+          <View style={styles.stat}>
+            <Text style={styles.statV}>{tierInfo?.currentStars ?? 0} ★</Text>
+            <Text style={styles.statL}>{t.starsThisWeek}</Text>
           </View>
-          <View style={s.stat}>
-            <Text style={s.statV}>{allTime?.totalActivities ?? 0}</Text>
-            <Text style={s.statL}>Hoạt động</Text>
+          <View style={styles.stat}>
+            <Text style={styles.statV}>{allTime?.totalActivities ?? 0}</Text>
+            <Text style={styles.statL}>{t.activities}</Text>
           </View>
-          <View style={s.stat}>
-            <Text style={s.statV}>{streak} 🔥</Text>
-            <Text style={s.statL}>Streak dài nhất</Text>
+          <View style={styles.stat}>
+            <Text style={styles.statV}>{streak} 🔥</Text>
+            <Text style={styles.statL}>{t.longestStreak}</Text>
           </View>
-          <View style={s.stat}>
-            <Text style={s.statV}>
+          <View style={styles.stat}>
+            <Text style={styles.statV}>
               {tierInfo?.starsNeeded ? `${Math.ceil(tierInfo.starsNeeded)} ★` : 'MAX'}
             </Text>
-            <Text style={s.statL}>Đến hạng kế</Text>
+            <Text style={styles.statL}>{t.toNextRank}</Text>
           </View>
         </View>
 
         {/* All-time */}
-        <Text style={s.sectionLabel}>Toàn thời gian</Text>
-        <View style={s.statGrid}>
-          <View style={s.stat}>
-            <Text style={s.statV}>{allTime?.totalActivities ?? 0}</Text>
-            <Text style={s.statL}>Hoạt động</Text>
+        <Text style={styles.sectionLabel}>{t.allTimeSection}</Text>
+        <View style={styles.statGrid}>
+          <View style={styles.stat}>
+            <Text style={styles.statV}>{allTime?.totalActivities ?? 0}</Text>
+            <Text style={styles.statL}>{t.activities}</Text>
           </View>
-          <View style={s.stat}>
-            <Text style={s.statV}>{allTime?.totalStars ?? 0} ★</Text>
-            <Text style={s.statL}>Tổng Sao</Text>
+          <View style={styles.stat}>
+            <Text style={styles.statV}>{allTime?.totalStars ?? 0} ★</Text>
+            <Text style={styles.statL}>{t.totalStars}</Text>
           </View>
-          <View style={s.stat}>
-            <Text style={s.statV}>{allTime?.bestStreak ?? 0} 🔥</Text>
-            <Text style={s.statL}>Streak cao nhất</Text>
+          <View style={styles.stat}>
+            <Text style={styles.statV}>{allTime?.bestStreak ?? 0} 🔥</Text>
+            <Text style={styles.statL}>{t.bestStreak}</Text>
           </View>
-          <View style={[s.stat, { opacity: 0 }]}>
-            <Text style={s.statV}>—</Text>
-            <Text style={s.statL}> </Text>
+          <View style={[styles.stat, { opacity: 0 }]}>
+            <Text style={styles.statV}>—</Text>
+            <Text style={styles.statL}> </Text>
           </View>
         </View>
 
         {/* Activity log */}
-        <View style={s.logHeader}>
-          <Text style={s.sectionLabel}>NHẬT KÝ HOẠT ĐỘNG</Text>
+        <View style={styles.logHeader}>
+          <Text style={styles.sectionLabel}>{t.activityLogSection}</Text>
           {selectionMode ? (
-            <View style={s.logActions}>
-              <TouchableOpacity onPress={selectAll} style={s.logActionBtn}>
-                <Text style={s.logActionTxt}>Tất cả</Text>
+            <View style={styles.logActions}>
+              <TouchableOpacity onPress={selectAll} style={styles.logActionBtn}>
+                <Text style={styles.logActionTxt}>{t.all}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleDeleteSelected}
-                style={[s.logActionBtn, s.logDeleteBtn]}
+                style={[styles.logActionBtn, styles.logDeleteBtn]}
                 disabled={selectedIds.size === 0 || deleteLogs.isPending}
               >
-                <Text style={s.logDeleteTxt}>Xoá ({selectedIds.size})</Text>
+                <Text style={styles.logDeleteTxt}>{t.deleteCount(selectedIds.size)}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={cancelSelection} style={s.logActionBtn}>
-                <Text style={s.logActionTxt}>Huỷ</Text>
+              <TouchableOpacity onPress={cancelSelection} style={styles.logActionBtn}>
+                <Text style={styles.logActionTxt}>{t.cancel}</Text>
               </TouchableOpacity>
             </View>
           ) : null}
         </View>
 
         {actLogs.length === 0 ? (
-          <Text style={s.logEmpty}>Chưa có hoạt động nào</Text>
+          <Text style={styles.logEmpty}>{t.noActivityYet}</Text>
         ) : (
-          <View style={s.logCard}>
+          <View style={styles.logCard}>
             {actLogs.map((item: ActivityLogEntry, idx: number) => {
               const selected = selectedIds.has(item.id);
               const isLast = idx === actLogs.length - 1;
@@ -213,24 +217,24 @@ export function ProgressScreen() {
               return (
                 <TouchableOpacity
                   key={item.id}
-                  style={[s.logRow, isLast && s.logRowLast, selected && s.logRowSelected]}
+                  style={[styles.logRow, isLast && styles.logRowLast, selected && styles.logRowSelected]}
                   onPress={() => selectionMode ? toggleSelect(item.id) : undefined}
                   onLongPress={() => enterSelection(item.id)}
                   delayLongPress={300}
                   activeOpacity={0.7}
                 >
                   {selectionMode && (
-                    <View style={[s.checkbox, selected && s.checkboxSelected]}>
-                      {selected && <Text style={s.checkmark}>✓</Text>}
+                    <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
+                      {selected && <Text style={styles.checkmark}>✓</Text>}
                     </View>
                   )}
-                  <View style={s.logBody}>
-                    <Text style={s.logName} numberOfLines={1}>
-                      {item.task_name ?? (item.source === 'BONUS' ? '🎯 Bonus ngày' : item.source)}
+                  <View style={styles.logBody}>
+                    <Text style={styles.logName} numberOfLines={1}>
+                      {item.task_name ?? (item.source === 'BONUS' ? t.bonusDay : item.source)}
                     </Text>
-                    <Text style={s.logDate}>{item.local_date} · {timeStr}</Text>
+                    <Text style={styles.logDate}>{item.local_date} · {timeStr}</Text>
                   </View>
-                  <Text style={[s.logStars, item.stars_delta < 0 && s.logStarsBad]}>
+                  <Text style={[styles.logStars, item.stars_delta < 0 && styles.logStarsBad]}>
                     {item.stars_delta >= 0 ? '+' : ''}{item.stars_delta.toFixed(1)} ★
                   </Text>
                 </TouchableOpacity>
@@ -243,89 +247,91 @@ export function ProgressScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Colors.bgBase },
-  container: { flex: 1 },
-  title: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5, color: Colors.inkDark, marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
+function makeStyles(C: AppColors) {
+  return StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: C.bgBase },
+    container: { flex: 1 },
+    title: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5, color: C.inkDark, marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
 
-  segbar: {
-    flexDirection: 'row', marginHorizontal: Spacing.lg, marginBottom: 14,
-    backgroundColor: Colors.surface2, borderRadius: Radii.md, padding: 3,
-  },
-  segBtn: {
-    flex: 1, paddingVertical: 9, borderRadius: Radii.sm, alignItems: 'center',
-  },
-  segBtnActive: {
-    backgroundColor: Colors.surface,
-    shadowColor: '#14231A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 2, elevation: 1,
-  },
-  segTxt: { fontSize: 12, fontWeight: '700', color: Colors.muted },
-  segTxtActive: { color: Colors.inkDark },
+    segbar: {
+      flexDirection: 'row', marginHorizontal: Spacing.lg, marginBottom: 14,
+      backgroundColor: C.surface2, borderRadius: Radii.md, padding: 3,
+    },
+    segBtn: {
+      flex: 1, paddingVertical: 9, borderRadius: Radii.sm, alignItems: 'center',
+    },
+    segBtnActive: {
+      backgroundColor: C.surface,
+      shadowColor: '#14231A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 2, elevation: 1,
+    },
+    segTxt: { fontSize: 12, fontWeight: '700', color: C.muted },
+    segTxtActive: { color: C.inkDark },
 
-  card: {
-    marginHorizontal: Spacing.lg, backgroundColor: Colors.surface,
-    borderRadius: Radii.lg, padding: 15, borderWidth: 1, borderColor: Colors.line, ...Shadows.light,
-  },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardTitle: { fontSize: 13, fontWeight: '800', color: Colors.inkDark },
-  chartSum: { fontSize: 11, color: Colors.muted },
-  chartWrap: { marginTop: 4 },
-  emptyChart: { height: 148, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { color: Colors.muted, fontSize: 14 },
+    card: {
+      marginHorizontal: Spacing.lg, backgroundColor: C.surface,
+      borderRadius: Radii.lg, padding: 15, borderWidth: 1, borderColor: C.line, ...Shadows.light,
+    },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    cardTitle: { fontSize: 13, fontWeight: '800', color: C.inkDark },
+    chartSum: { fontSize: 11, color: C.muted },
+    chartWrap: { marginTop: 4 },
+    emptyChart: { height: 148, justifyContent: 'center', alignItems: 'center' },
+    emptyText: { color: C.muted, fontSize: 14 },
 
-  sectionLabel: {
-    fontSize: 11, fontWeight: '700', color: Colors.muted,
-    textTransform: 'uppercase', letterSpacing: 0.7,
-    marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
-  },
-  statGrid: {
-    marginHorizontal: Spacing.lg, flexDirection: 'row', flexWrap: 'wrap', gap: 10,
-  },
-  stat: {
-    flex: 1, minWidth: '45%', backgroundColor: Colors.surface,
-    borderRadius: Radii.md, padding: 14, borderWidth: 1, borderColor: Colors.line, ...Shadows.light,
-  },
-  statV: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5, color: Colors.inkDark },
-  statL: { fontSize: 11, color: Colors.muted, fontWeight: '700', marginTop: 3 },
+    sectionLabel: {
+      fontSize: 11, fontWeight: '700', color: C.muted,
+      textTransform: 'uppercase', letterSpacing: 0.7,
+      marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
+    },
+    statGrid: {
+      marginHorizontal: Spacing.lg, flexDirection: 'row', flexWrap: 'wrap', gap: 10,
+    },
+    stat: {
+      flex: 1, minWidth: '45%', backgroundColor: C.surface,
+      borderRadius: Radii.md, padding: 14, borderWidth: 1, borderColor: C.line, ...Shadows.light,
+    },
+    statV: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5, color: C.inkDark },
+    statL: { fontSize: 11, color: C.muted, fontWeight: '700', marginTop: 3 },
 
-  logHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
-  },
-  logActions: { flexDirection: 'row', gap: 8 },
-  logActionBtn: {
-    paddingHorizontal: 10, paddingVertical: 5,
-    backgroundColor: Colors.surface2, borderRadius: Radii.sm,
-    borderWidth: 1, borderColor: Colors.line2,
-  },
-  logActionTxt: { fontSize: 12, fontWeight: '700', color: Colors.inkDark },
-  logDeleteBtn: { borderColor: Colors.danger, backgroundColor: Colors.dangerSoft },
-  logDeleteTxt: { fontSize: 12, fontWeight: '700', color: Colors.danger },
-  logCard: {
-    marginHorizontal: Spacing.lg, backgroundColor: Colors.surface,
-    borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.line,
-    paddingHorizontal: 15, ...Shadows.light,
-  },
-  logRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 11, borderBottomWidth: 1, borderColor: Colors.line,
-  },
-  logRowLast: { borderBottomWidth: 0 },
-  logRowSelected: { backgroundColor: Colors.primarySoft },
-  logBody: { flex: 1, minWidth: 0 },
-  logName: { fontSize: 13.5, fontWeight: '600', color: Colors.inkDark },
-  logDate: { fontSize: 11, color: Colors.muted, marginTop: 2 },
-  logStars: { fontSize: 13, fontWeight: '800', color: Colors.primary, flexShrink: 0 },
-  logStarsBad: { color: Colors.danger },
-  logEmpty: {
-    textAlign: 'center', color: Colors.muted, fontSize: 13,
-    marginHorizontal: Spacing.lg, marginTop: 4,
-  },
-  checkbox: {
-    width: 22, height: 22, borderRadius: 11,
-    borderWidth: 2, borderColor: Colors.line2,
-    justifyContent: 'center', alignItems: 'center', flexShrink: 0,
-  },
-  checkboxSelected: { borderColor: Colors.primary, backgroundColor: Colors.primary },
-  checkmark: { fontSize: 13, fontWeight: '800', color: Colors.white },
-});
+    logHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
+    },
+    logActions: { flexDirection: 'row', gap: 8 },
+    logActionBtn: {
+      paddingHorizontal: 10, paddingVertical: 5,
+      backgroundColor: C.surface2, borderRadius: Radii.sm,
+      borderWidth: 1, borderColor: C.line2,
+    },
+    logActionTxt: { fontSize: 12, fontWeight: '700', color: C.inkDark },
+    logDeleteBtn: { borderColor: C.danger, backgroundColor: C.dangerSoft },
+    logDeleteTxt: { fontSize: 12, fontWeight: '700', color: C.danger },
+    logCard: {
+      marginHorizontal: Spacing.lg, backgroundColor: C.surface,
+      borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line,
+      paddingHorizontal: 15, ...Shadows.light,
+    },
+    logRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      paddingVertical: 11, borderBottomWidth: 1, borderColor: C.line,
+    },
+    logRowLast: { borderBottomWidth: 0 },
+    logRowSelected: { backgroundColor: C.primarySoft },
+    logBody: { flex: 1, minWidth: 0 },
+    logName: { fontSize: 13.5, fontWeight: '600', color: C.inkDark },
+    logDate: { fontSize: 11, color: C.muted, marginTop: 2 },
+    logStars: { fontSize: 13, fontWeight: '800', color: C.primary, flexShrink: 0 },
+    logStarsBad: { color: C.danger },
+    logEmpty: {
+      textAlign: 'center', color: C.muted, fontSize: 13,
+      marginHorizontal: Spacing.lg, marginTop: 4,
+    },
+    checkbox: {
+      width: 22, height: 22, borderRadius: 11,
+      borderWidth: 2, borderColor: C.line2,
+      justifyContent: 'center', alignItems: 'center', flexShrink: 0,
+    },
+    checkboxSelected: { borderColor: C.primary, backgroundColor: C.primary },
+    checkmark: { fontSize: 13, fontWeight: '800', color: C.white },
+  });
+}

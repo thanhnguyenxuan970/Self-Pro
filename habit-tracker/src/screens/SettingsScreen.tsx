@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, Radii, Spacing, Shadows, Typography } from '../theme';
-import { useDarkMode, useLanguage, AppLanguage } from '../hooks/useSettings';
+import { Radii, Spacing, Shadows, Typography, AppColors } from '../theme';
+import { useDarkMode, useLanguage, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
 import { useAuthUser } from '../hooks/useAuth';
 import { useNotificationTime, useSetNotificationTime } from '../queries/useSettings';
 import { validateNotificationTime } from '../logic/settingsLogic';
@@ -17,6 +17,9 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
   const userId = useAuthUser();
   const [isDark, setIsDark] = useDarkMode();
   const [lang, setLanguage] = useLanguage();
+  const { colors } = useTheme();
+  const t = useTranslations();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [deleting, setDeleting] = useState(false);
 
   const { data: savedNotifTime } = useNotificationTime(userId);
@@ -62,19 +65,19 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
 
   function handleDeleteAccount() {
     Alert.alert(
-      'Xoá tài khoản',
-      'Toàn bộ dữ liệu sẽ bị xoá vĩnh viễn và không thể khôi phục. Bạn có chắc không?',
+      t.deleteAccountTitle,
+      t.deleteAccountMsg,
       [
-        { text: 'Huỷ', style: 'cancel' },
+        { text: t.cancel, style: 'cancel' },
         {
-          text: 'Xoá tài khoản',
+          text: t.deleteAccountBtn,
           style: 'destructive',
           onPress: async () => {
             setDeleting(true);
             try {
               await onDeleteAccount(userId);
             } catch {
-              Alert.alert('Lỗi', 'Không thể xoá tài khoản. Thử lại sau.');
+              Alert.alert(t.error, t.deleteAccountError);
             } finally {
               setDeleting(false);
             }
@@ -85,155 +88,146 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
   }
 
   return (
-    <SafeAreaView style={s.safe} edges={['bottom']}>
+    <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
 
         {/* Appearance */}
-        <Text style={s.sectionLabel}>GIAO DIỆN</Text>
-        <View style={s.card}>
-          <View style={s.row}>
-            <Text style={s.rowIc}>🌙</Text>
-            <Text style={s.rowLabel}>Chế độ tối</Text>
+        <Text style={styles.sectionLabel}>{t.sectionAppearance}</Text>
+        <View style={styles.card}>
+          <View style={[styles.row, styles.rowLast]}>
+            <Text style={styles.rowIc}>🌙</Text>
+            <Text style={styles.rowLabel}>{t.darkModeLabel}</Text>
             <Switch
               value={isDark}
               onValueChange={setIsDark}
-              thumbColor={isDark ? Colors.primary : Colors.faint}
-              trackColor={{ false: Colors.line2, true: Colors.primarySoft }}
+              thumbColor={isDark ? colors.primary : colors.faint}
+              trackColor={{ false: colors.line2, true: colors.primarySoft }}
             />
           </View>
         </View>
-        <Text style={s.restartNote}>* Áp dụng sau khi khởi động lại ứng dụng</Text>
 
         {/* Language */}
-        <Text style={s.sectionLabel}>NGÔN NGỮ</Text>
-        <View style={s.card}>
+        <Text style={styles.sectionLabel}>{t.sectionLanguage}</Text>
+        <View style={styles.card}>
           {(['vi', 'en'] as AppLanguage[]).map((l, idx) => (
             <TouchableOpacity
               key={l}
-              style={[s.row, idx === 1 && s.rowLast]}
+              style={[styles.row, idx === 1 && styles.rowLast]}
               onPress={() => setLanguage(l)}
               activeOpacity={0.7}
             >
-              <Text style={s.rowIc}>{l === 'vi' ? '🇻🇳' : '🇬🇧'}</Text>
-              <Text style={s.rowLabel}>{l === 'vi' ? 'Tiếng Việt' : 'English'}</Text>
-              {lang === l && <Text style={s.check}>✓</Text>}
+              <Text style={styles.rowIc}>{l === 'vi' ? '🇻🇳' : '🇬🇧'}</Text>
+              <Text style={styles.rowLabel}>{l === 'vi' ? 'Tiếng Việt' : 'English'}</Text>
+              {lang === l && <Text style={styles.check}>✓</Text>}
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={s.restartNote}>* Tab labels cập nhật sau khi khởi động lại</Text>
 
         {/* Notification */}
-        <Text style={s.sectionLabel}>THÔNG BÁO</Text>
-        <View style={s.card}>
-          <View style={[s.row, s.rowLast]}>
-            <Text style={s.rowIc}>🔔</Text>
-            <Text style={s.rowLabel}>Giờ nhắc</Text>
+        <Text style={styles.sectionLabel}>{t.sectionNotifications}</Text>
+        <View style={styles.card}>
+          <View style={[styles.row, styles.rowLast]}>
+            <Text style={styles.rowIc}>🔔</Text>
+            <Text style={styles.rowLabel}>{t.reminderLabel}</Text>
             <TextInput
-              style={[s.timeInput, notifError && s.timeInputError]}
+              style={[styles.timeInput, notifError && styles.timeInputError]}
               value={notifInput}
               placeholder="HH:MM"
-              placeholderTextColor={Colors.faint}
+              placeholderTextColor={colors.faint}
               keyboardType="numbers-and-punctuation"
               maxLength={5}
               onFocus={() => setNotifEditing(true)}
-              onChangeText={(t) => { setNotifInput(t); setNotifError(false); }}
+              onChangeText={(tx) => { setNotifInput(tx); setNotifError(false); }}
               onBlur={handleNotifBlur}
               onSubmitEditing={handleNotifSubmit}
               returnKeyType="done"
             />
           </View>
           {notifError && (
-            <Text style={s.inputHint}>Định dạng HH:MM (ví dụ: 07:30)</Text>
+            <Text style={styles.inputHint}>{t.timeFormatHint}</Text>
           )}
         </View>
 
         {/* Danger zone */}
-        <Text style={s.sectionLabel}>TÀI KHOẢN</Text>
-        <View style={s.card}>
+        <Text style={styles.sectionLabel}>{t.sectionAccount}</Text>
+        <View style={styles.card}>
           <TouchableOpacity
-            style={[s.row, s.rowLast, { opacity: deleting ? 0.5 : 1 }]}
+            style={[styles.row, styles.rowLast, { opacity: deleting ? 0.5 : 1 }]}
             onPress={handleDeleteAccount}
             disabled={deleting}
             activeOpacity={0.7}
           >
-            <Text style={s.rowIc}>🗑️</Text>
-            <Text style={[s.rowLabel, { color: Colors.danger }]}>Xoá tài khoản</Text>
-            <Text style={s.chevron}>›</Text>
+            <Text style={styles.rowIc}>🗑️</Text>
+            <Text style={[styles.rowLabel, { color: colors.danger }]}>{t.deleteAccountLabel}</Text>
+            <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={s.hint}>
-          Xoá tài khoản sẽ xoá toàn bộ dữ liệu bao gồm lịch sử hoạt động, rank, và phần thưởng. Hành động này không thể hoàn tác.
-        </Text>
+        <Text style={styles.hint}>{t.deleteAccountNote}</Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bgBase },
-  sectionLabel: {
-    ...Typography.sectionLabel,
-    color: Colors.muted,
-    marginHorizontal: Spacing.lg,
-    marginTop: 24,
-    marginBottom: 8,
-  },
-  card: {
-    marginHorizontal: Spacing.lg,
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.md,
-    borderWidth: 1,
-    borderColor: Colors.line,
-    paddingHorizontal: 15,
-    ...Shadows.light,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderColor: Colors.line,
-    gap: 13,
-  },
-  rowLast: { borderBottomWidth: 0 },
-  rowIc: { fontSize: 20, width: 28, textAlign: 'center' },
-  rowLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: Colors.inkDark },
-  check: { fontSize: 16, fontWeight: '800', color: Colors.primary },
-  chevron: { fontSize: 18, color: Colors.faint },
-  restartNote: {
-    marginHorizontal: Spacing.lg,
-    marginTop: 6,
-    fontSize: 11,
-    color: Colors.muted,
-    fontStyle: 'italic',
-  },
-  hint: {
-    marginHorizontal: Spacing.lg,
-    marginTop: 12,
-    fontSize: 12,
-    color: Colors.muted,
-    lineHeight: 18,
-  },
-  timeInput: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.inkDark,
-    textAlign: 'right',
-    minWidth: 60,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: Colors.line,
-  },
-  timeInputError: {
-    borderColor: Colors.danger,
-    color: Colors.danger,
-  },
-  inputHint: {
-    fontSize: 11,
-    color: Colors.danger,
-    paddingBottom: 10,
-  },
-});
+function makeStyles(C: AppColors) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.bgBase },
+    sectionLabel: {
+      ...Typography.sectionLabel,
+      color: C.muted,
+      marginHorizontal: Spacing.lg,
+      marginTop: 24,
+      marginBottom: 8,
+    },
+    card: {
+      marginHorizontal: Spacing.lg,
+      backgroundColor: C.surface,
+      borderRadius: Radii.md,
+      borderWidth: 1,
+      borderColor: C.line,
+      paddingHorizontal: 15,
+      ...Shadows.light,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderColor: C.line,
+      gap: 13,
+    },
+    rowLast: { borderBottomWidth: 0 },
+    rowIc: { fontSize: 20, width: 28, textAlign: 'center' },
+    rowLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: C.inkDark },
+    check: { fontSize: 16, fontWeight: '800', color: C.primary },
+    chevron: { fontSize: 18, color: C.faint },
+    hint: {
+      marginHorizontal: Spacing.lg,
+      marginTop: 12,
+      fontSize: 12,
+      color: C.muted,
+      lineHeight: 18,
+    },
+    timeInput: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: C.inkDark,
+      textAlign: 'right',
+      minWidth: 60,
+      paddingVertical: 2,
+      paddingHorizontal: 6,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: C.line,
+    },
+    timeInputError: {
+      borderColor: C.danger,
+      color: C.danger,
+    },
+    inputHint: {
+      fontSize: 11,
+      color: C.danger,
+      paddingBottom: 10,
+    },
+  });
+}

@@ -22,6 +22,34 @@ export const Colors = {
   white: '#FFFFFF',
 };
 
+export const DarkColors = {
+  primary: '#2E9C6A',
+  primaryHover: '#248057',
+  primaryPress: '#5EC69A',
+  primarySoft: '#1A3D2E',
+  bgBase: '#0F1410',
+  surface: '#1A1F1C',
+  surface2: '#232820',
+  surface3: '#2B3028',
+  inkDark: '#E8EDE9',
+  ink2: '#B5BDB7',
+  muted: '#8A9490',
+  faint: '#5A6560',
+  starGold: '#D9952B',
+  starSoft: '#3D2E0F',
+  danger: '#E05A5F',
+  dangerSoft: '#3D1A1B',
+  line: '#2B3028',
+  line2: '#3A403C',
+  white: '#FFFFFF',
+};
+
+export type AppColors = typeof Colors;
+
+export function getColors(isDark: boolean): AppColors {
+  return isDark ? DarkColors : Colors;
+}
+
 export const Radii = {
   xs: 6,
   sm: 10,

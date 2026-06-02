@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   Modal, View, Text, FlatList, TouchableOpacity,
   Alert, StyleSheet, ActivityIndicator,
@@ -8,8 +8,9 @@ import { useTodayTasks, useLogTask } from '../queries/useToday';
 import { useChipPresets, useDurationLogger } from '../queries/useDurationLogger';
 import { playCelebration } from '../logic/celebrateSound';
 import { useAuthUser } from '../hooks/useAuth';
-import { Colors, Typography, Radii, Spacing, Shadows } from '../theme';
+import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
 import { DurationChips } from '../components/DurationChips';
+import { useTheme, useTranslations } from '../hooks/useSettings';
 
 type Task = {
   id: number; name: string; kind: string;
@@ -19,18 +20,22 @@ type Task = {
 
 interface Props { visible: boolean; onClose: () => void; }
 
-// Sub-component: chip-based logger for time-based tasks.
-// Rendered as an overlay on top of the main sheet.
 function TimedTaskLogger({
   task,
   userId,
   onSuccess,
   onCancel,
+  colors,
+  styles,
+  t,
 }: {
   task: Task;
   userId: number;
   onSuccess: () => void;
   onCancel: () => void;
+  colors: AppColors;
+  styles: ReturnType<typeof makeStyles>;
+  t: ReturnType<typeof useTranslations>;
 }) {
   const { data: chips = [] } = useChipPresets(userId, task.id);
   const { log, previewStars, isLogging } = useDurationLogger({
@@ -40,21 +45,21 @@ function TimedTaskLogger({
       playCelebration(minutes);
       Toast.show({
         type: 'success',
-        text1: 'Đã ghi nhận! ✅',
+        text1: t.loggedOk,
         text2: task.name,
         visibilityTime: 2000,
       });
       onSuccess();
     },
-    onError: () => Alert.alert('Lỗi', 'Không thể ghi nhận. Thử lại.'),
+    onError: () => Alert.alert(t.error, t.cantLog),
   });
 
   return (
-    <View style={s.durationBg}>
-      <TouchableOpacity style={s.durationBackdrop} onPress={onCancel} activeOpacity={1} />
-      <View style={s.durationBox}>
+    <View style={styles.durationBg}>
+      <TouchableOpacity style={styles.durationBackdrop} onPress={onCancel} activeOpacity={1} />
+      <View style={styles.durationBox}>
         {isLogging ? (
-          <ActivityIndicator color={Colors.primary} style={{ marginVertical: 24 }} />
+          <ActivityIndicator color={colors.primary} style={{ marginVertical: 24 }} />
         ) : (
           <DurationChips
             activityName={task.name}
@@ -63,8 +68,8 @@ function TimedTaskLogger({
             onLog={log}
           />
         )}
-        <TouchableOpacity onPress={onCancel} style={s.durationCancelBtn}>
-          <Text style={s.durationCancel}>Huỷ</Text>
+        <TouchableOpacity onPress={onCancel} style={styles.durationCancelBtn}>
+          <Text style={styles.durationCancel}>{t.cancel}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -73,6 +78,10 @@ function TimedTaskLogger({
 
 export function LogActivitySheet({ visible, onClose }: Props) {
   const userId = useAuthUser();
+  const { colors } = useTheme();
+  const t = useTranslations();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const { data: tasks = [], isLoading } = useTodayTasks(userId);
   const logTask = useLogTask(userId);
   const [durationTask, setDurationTask] = useState<Task | null>(null);
@@ -92,13 +101,13 @@ export function LogActivitySheet({ visible, onClose }: Props) {
       playCelebration(0);
       Toast.show({
         type: 'success',
-        text1: 'Đã ghi nhận! ✅',
+        text1: t.loggedOk,
         text2: task.name,
         visibilityTime: 2000,
       });
       handleClose();
     } catch {
-      Alert.alert('Lỗi', 'Không thể ghi nhận. Thử lại.');
+      Alert.alert(t.error, t.cantLog);
     } finally {
       submittingRef.current = false;
     }
@@ -113,44 +122,44 @@ export function LogActivitySheet({ visible, onClose }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <View style={s.backdrop}>
-        <TouchableOpacity style={s.backdropTouch} onPress={handleClose} />
-        <View style={s.sheet}>
-          <View style={s.handle} />
-          <Text style={s.title}>Ghi nhận hoạt động</Text>
+      <View style={styles.backdrop}>
+        <TouchableOpacity style={styles.backdropTouch} onPress={handleClose} />
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
+          <Text style={styles.title}>{t.logSheetTitle}</Text>
 
           {isLoading ? (
-            <ActivityIndicator color={Colors.primary} style={{ marginVertical: 24 }} />
+            <ActivityIndicator color={colors.primary} style={{ marginVertical: 24 }} />
           ) : tasks.length === 0 ? (
-            <Text style={s.empty}>Chưa có hoạt động. Vào Hồ sơ để thêm.</Text>
+            <Text style={styles.empty}>{t.logEmpty}</Text>
           ) : (
             <FlatList
               data={tasks}
-              keyExtractor={(t) => String(t.id)}
-              style={s.list}
+              keyExtractor={(task) => String(task.id)}
+              style={styles.list}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={[s.row, item.kind === 'BAD' && s.badRow]}
+                  style={[styles.row, item.kind === 'BAD' && styles.badRow]}
                   onPress={() => handleTaskPress(item)}
                   disabled={logTask.isPending}
                 >
-                  <Text style={s.rowIcon}>{item.icon ?? (item.kind === 'GOOD' ? '✅' : '❌')}</Text>
-                  <View style={s.rowBody}>
-                    <Text style={s.rowName}>{item.name}</Text>
-                    <Text style={s.rowMeta}>
+                  <Text style={styles.rowIcon}>{item.icon ?? (item.kind === 'GOOD' ? '✅' : '❌')}</Text>
+                  <View style={styles.rowBody}>
+                    <Text style={styles.rowName}>{item.name}</Text>
+                    <Text style={styles.rowMeta}>
                       {item.kind === 'GOOD'
-                        ? item.is_time_based ? '1★/30ph · giảm sau 2h' : `+${item.base_points}pt`
+                        ? item.is_time_based ? t.logMeta1star30min : `+${item.base_points}pt`
                         : `-${item.star_penalty}⭐`}
                     </Text>
                   </View>
-                  {!!item.is_time_based && <Text style={s.timeTag}>⏱</Text>}
+                  {!!item.is_time_based && <Text style={styles.timeTag}>⏱</Text>}
                 </TouchableOpacity>
               )}
             />
           )}
 
-          <TouchableOpacity style={s.cancelBtn} onPress={handleClose}>
-            <Text style={s.cancelText}>Đóng</Text>
+          <TouchableOpacity style={styles.cancelBtn} onPress={handleClose}>
+            <Text style={styles.cancelText}>{t.close}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -161,67 +170,72 @@ export function LogActivitySheet({ visible, onClose }: Props) {
           userId={userId}
           onSuccess={handleClose}
           onCancel={() => setDurationTask(null)}
+          colors={colors}
+          styles={styles}
+          t={t}
         />
       )}
     </Modal>
   );
 }
 
-const s = StyleSheet.create({
-  backdrop:        { flex: 1, justifyContent: 'flex-end' },
-  backdropTouch:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheet: {
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: Radii.xxl,
-    borderTopRightRadius: Radii.xxl,
-    paddingBottom: 32,
-    maxHeight: '80%',
-    ...Shadows.hero,
-  },
-  handle: {
-    width: 40, height: 4, backgroundColor: Colors.line2,
-    borderRadius: Radii.pill, alignSelf: 'center', marginTop: 10, marginBottom: 4,
-  },
-  title: {
-    ...Typography.bodyStrong, color: Colors.inkDark, textAlign: 'center',
-    paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg,
-    borderBottomWidth: 1, borderColor: Colors.line,
-  },
-  list:            { flexGrow: 0 },
-  row: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: Spacing.lg, paddingVertical: 14,
-    borderBottomWidth: 1, borderColor: Colors.line,
-  },
-  badRow:          { backgroundColor: Colors.dangerSoft },
-  rowIcon:         { fontSize: 24, marginRight: 12 },
-  rowBody:         { flex: 1 },
-  rowName:         { ...Typography.body, color: Colors.inkDark },
-  rowMeta:         { ...Typography.caption, color: Colors.muted, marginTop: 2 },
-  timeTag:         { fontSize: 18, marginLeft: 8 },
-  empty: {
-    textAlign: 'center', color: Colors.muted, marginVertical: 32,
-    paddingHorizontal: Spacing.xl, fontSize: 14,
-  },
-  cancelBtn: {
-    marginHorizontal: Spacing.lg, marginTop: Spacing.sm, padding: 14,
-    borderRadius: Radii.sm, backgroundColor: Colors.surface2,
-    alignItems: 'center', borderWidth: 1, borderColor: Colors.line,
-  },
-  cancelText:      { color: Colors.muted, fontWeight: '700' },
-  durationBg:      { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end' },
-  durationBackdrop: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  durationBox: {
-    backgroundColor: Colors.surface,
-    padding: Spacing.xl,
-    borderTopLeftRadius: Radii.xxl,
-    borderTopRightRadius: Radii.xxl,
-    paddingBottom: 36,
-    ...Shadows.hero,
-  },
-  durationCancelBtn: { marginTop: 4, alignItems: 'center' },
-  durationCancel:  { color: Colors.muted, padding: 10, fontSize: 14 },
-});
+function makeStyles(C: AppColors) {
+  return StyleSheet.create({
+    backdrop:        { flex: 1, justifyContent: 'flex-end' },
+    backdropTouch:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
+    sheet: {
+      backgroundColor: C.surface,
+      borderTopLeftRadius: Radii.xxl,
+      borderTopRightRadius: Radii.xxl,
+      paddingBottom: 32,
+      maxHeight: '80%',
+      ...Shadows.hero,
+    },
+    handle: {
+      width: 40, height: 4, backgroundColor: C.line2,
+      borderRadius: Radii.pill, alignSelf: 'center', marginTop: 10, marginBottom: 4,
+    },
+    title: {
+      ...Typography.bodyStrong, color: C.inkDark, textAlign: 'center',
+      paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg,
+      borderBottomWidth: 1, borderColor: C.line,
+    },
+    list:            { flexGrow: 0 },
+    row: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingHorizontal: Spacing.lg, paddingVertical: 14,
+      borderBottomWidth: 1, borderColor: C.line,
+    },
+    badRow:          { backgroundColor: C.dangerSoft },
+    rowIcon:         { fontSize: 24, marginRight: 12 },
+    rowBody:         { flex: 1 },
+    rowName:         { ...Typography.body, color: C.inkDark },
+    rowMeta:         { ...Typography.caption, color: C.muted, marginTop: 2 },
+    timeTag:         { fontSize: 18, marginLeft: 8 },
+    empty: {
+      textAlign: 'center', color: C.muted, marginVertical: 32,
+      paddingHorizontal: Spacing.xl, fontSize: 14,
+    },
+    cancelBtn: {
+      marginHorizontal: Spacing.lg, marginTop: Spacing.sm, padding: 14,
+      borderRadius: Radii.sm, backgroundColor: C.surface2,
+      alignItems: 'center', borderWidth: 1, borderColor: C.line,
+    },
+    cancelText:      { color: C.muted, fontWeight: '700' },
+    durationBg:      { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end' },
+    durationBackdrop: {
+      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    durationBox: {
+      backgroundColor: C.surface,
+      padding: Spacing.xl,
+      borderTopLeftRadius: Radii.xxl,
+      borderTopRightRadius: Radii.xxl,
+      paddingBottom: 36,
+      ...Shadows.hero,
+    },
+    durationCancelBtn: { marginTop: 4, alignItems: 'center' },
+    durationCancel:  { color: C.muted, padding: 10, fontSize: 14 },
+  });
+}
