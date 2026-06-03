@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import {
   useTodayTasks, useDailySummary, useWeeklySummary,
-  useLogTask, useTodayLoggedTaskIds,
+  useLogTask, useTodayLoggedTaskIds, useYesterdayLoggedTasks,
 } from '../queries/useToday';
 import { useArchiveTask } from '../queries/useTasks';
 import { useRankData } from '../queries/useRank';
@@ -21,7 +21,7 @@ const DAILY_THRESHOLD = 50;
 type Task = {
   id: number; name: string; kind: string; is_time_based: number;
   base_points: number; star_penalty: number; icon: string | null;
-  category_id: number | null;
+  category_id: number | null; sort_order: number;
 };
 
 export function TodayScreen() {
@@ -45,6 +45,10 @@ export function TodayScreen() {
   const [duration, setDuration] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [justLoggedIds, setJustLoggedIds] = useState<Set<number>>(new Set());
+  const [repeating, setRepeating] = useState(false);
+
+  const { data: yesterdayTasks = [] } = useYesterdayLoggedTasks(userId);
 
   const enterSelection = useCallback((id: number) => {
     setSelectionMode(true);
@@ -94,6 +98,7 @@ export function TodayScreen() {
 
   const weeklyStars = weekly?.weekly_stars ?? 0;
   const dailyPoints = daily?.total_points ?? 0;
+  const streak = daily?.streak_count ?? 0;
   const isDebt = weeklyStars < 0;
   const progressPct = Math.min(dailyPoints / DAILY_THRESHOLD, 1);
 
@@ -110,15 +115,33 @@ export function TodayScreen() {
   const today = new Date();
   const dateStr = `${t.dayNames[today.getDay()]}, ${t.dateStr(today.getDate(), today.getMonth() + 1)}`;
 
-  const displayTasks = tasks ?? [];
+  const displayTasks = useMemo(() => {
+    const all = tasks ?? [];
+    if (!loggedIds) return all;
+    return [...all].sort((a, b) => {
+      const aLogged = loggedIds.has(a.id) ? 1 : 0;
+      const bLogged = loggedIds.has(b.id) ? 1 : 0;
+      if (aLogged !== bLogged) return aLogged - bLogged;
+      return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+    });
+  }, [tasks, loggedIds]);
 
   async function handleLog(task: Task) {
     if (task.is_time_based) { setModalTask(task); return; }
+    if (justLoggedIds.has(task.id)) return;
     try {
       await logTask.mutateAsync({
         taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD',
         isTimeBased: false, basePoints: task.base_points, starPenalty: task.star_penalty,
       });
+      setJustLoggedIds(prev => new Set(prev).add(task.id));
+      setTimeout(() => {
+        setJustLoggedIds(prev => {
+          const next = new Set(prev);
+          next.delete(task.id);
+          return next;
+        });
+      }, 1500);
     } catch { Alert.alert(t.error, t.cantLog); }
   }
 
@@ -134,6 +157,24 @@ export function TodayScreen() {
       });
       setModalTask(null); setDuration('');
     } catch { Alert.alert(t.error, t.cantLog); }
+  }
+
+  async function handleRepeatYesterday() {
+    if (repeating || yesterdayTasks.length === 0) return;
+    setRepeating(true);
+    try {
+      for (const task of yesterdayTasks) {
+        await logTask.mutateAsync({
+          taskTypeId: task.task_type_id,
+          kind: task.kind as 'GOOD' | 'BAD',
+          isTimeBased: !!task.is_time_based,
+          basePoints: task.base_points,
+          starPenalty: task.star_penalty,
+          durationMin: task.duration_min ?? undefined,
+        });
+      }
+    } catch { Alert.alert(t.error, t.cantLog); }
+    setRepeating(false);
   }
 
   if (isLoading) return <ActivityIndicator style={{ flex: 1 }} color={colors.primary} />;
@@ -182,6 +223,9 @@ export function TodayScreen() {
               <Text style={styles.rankChipText}>{rankEmoji} {rankName}</Text>
             </View>
           </View>
+          {streak > 0 && (
+            <Text style={styles.heroStreak}>{t.streakChip(streak)}</Text>
+          )}
         </LinearGradient>
 
         {/* Progress card */}
@@ -195,6 +239,20 @@ export function TodayScreen() {
           </View>
           <Text style={styles.progCap}>{t.streakBonus(DAILY_THRESHOLD)}</Text>
         </View>
+
+        {/* Repeat yesterday chip */}
+        {yesterdayTasks.length > 0 && !selectionMode && (
+          <TouchableOpacity
+            style={styles.repeatChip}
+            onPress={handleRepeatYesterday}
+            disabled={repeating}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.repeatChipText}>
+              {repeating ? t.repeatYesterdayDone : t.repeatYesterday(yesterdayTasks.length)}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Task list header with selection actions */}
         <View style={styles.taskListHeader}>
@@ -260,6 +318,11 @@ export function TodayScreen() {
                   <Text style={[styles.tPts, done ? (isBad ? styles.tPtsNeg : styles.tPtsPos) : styles.tPtsIdle]}>
                     {isBad ? `−${item.star_penalty} ★` : '+1 ★'}
                   </Text>
+                  {justLoggedIds.has(item.id) && (
+                    <View style={styles.loggedFlash}>
+                      <Text style={styles.loggedFlashText}>✓</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })
@@ -333,6 +396,14 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.pill,
     },
     rankChipText: { fontSize: 12.5, fontWeight: '800', color: '#fff' },
+    heroStreak: {
+      color: 'rgba(255,255,255,0.85)',
+      fontSize: 13,
+      fontWeight: '600',
+      marginTop: 8,
+      alignSelf: 'center',
+      letterSpacing: 0.3,
+    },
 
     progCard: {
       marginHorizontal: Spacing.lg, marginTop: 12,
@@ -408,6 +479,20 @@ function makeStyles(C: AppColors) {
     tPtsPos: { color: C.primary },
     tPtsNeg: { color: C.danger },
     tPtsIdle: { color: C.faint },
+    loggedFlash: {
+      position: 'absolute', right: 38, top: '50%' as any, marginTop: -10,
+      backgroundColor: C.primary, borderRadius: 10, width: 20, height: 20,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    loggedFlashText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+    repeatChip: {
+      marginHorizontal: Spacing.lg, marginBottom: Spacing.sm,
+      backgroundColor: C.surface, borderRadius: Radii.pill,
+      paddingVertical: 8, paddingHorizontal: 16,
+      alignSelf: 'flex-start', borderWidth: 1,
+      borderColor: C.primary + '44', ...Shadows.light,
+    },
+    repeatChipText: { color: C.primary, fontSize: 13, fontWeight: '600' },
 
     empty: { padding: 36, paddingHorizontal: 12, alignItems: 'center' },
     emptyEmoji: { fontSize: 42, marginBottom: 8, opacity: 0.6 },

@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   useTreatPool, useTreats, useAddTreat, useEnjoyTreat,
-  useTreatHistory, DecoratedTreat, TreatHistoryRow,
+  useTreatHistory, useAvgDailyTreatStars, DecoratedTreat, TreatHistoryRow,
 } from '../queries/useTreats';
 import { useStreakFreezeEligibility, usePurchaseStreakFreeze } from '../queries/useFund';
 import { STREAK_FREEZE_COST } from '../constants';
@@ -19,13 +19,14 @@ import { useTheme, useTranslations } from '../hooks/useSettings';
 import { Strings } from '../i18n';
 
 function TreatCard({
-  treat, onEnjoy, colors, styles, t,
+  treat, onEnjoy, colors, styles, t, avgDaily,
 }: {
   treat: DecoratedTreat;
   onEnjoy: () => void;
   colors: AppColors;
   styles: ReturnType<typeof makeStyles>;
   t: Strings;
+  avgDaily: number;
 }) {
   const isEnjoyed = treat.status === 'ENJOYED';
   return (
@@ -47,6 +48,11 @@ function TreatCard({
             <Text style={styles.progressLabel}>
               {treat.unlockable ? t.readyToEnjoy : t.starsMore(treat.starsToUnlock)}
             </Text>
+            {!treat.unlockable && avgDaily > 0 && (
+              <Text style={styles.etaText}>
+                {treat.starsToUnlock <= avgDaily ? t.etaToday : t.etaDays(Math.ceil(treat.starsToUnlock / avgDaily))}
+              </Text>
+            )}
           </View>
         )}
       </View>
@@ -88,6 +94,7 @@ export function FundScreen() {
   const { data: pool, isLoading: poolLoading } = useTreatPool(userId);
   const { data: treats, isLoading: treatsLoading } = useTreats(userId);
   const { data: history } = useTreatHistory(userId);
+  const { data: avgDaily = 0 } = useAvgDailyTreatStars(userId);
   const addTreat = useAddTreat(userId);
   const enjoyTreat = useEnjoyTreat(userId);
   const freezeEligibility = useStreakFreezeEligibility(userId);
@@ -205,7 +212,7 @@ export function FundScreen() {
           <>
             <Text style={styles.sectionLabel}>{t.goalsSection}</Text>
             {activeTreats.map(treat => (
-              <TreatCard key={treat.id} treat={treat} onEnjoy={() => handleEnjoy(treat)} colors={colors} styles={styles} t={t} />
+              <TreatCard key={treat.id} treat={treat} onEnjoy={() => handleEnjoy(treat)} colors={colors} styles={styles} t={t} avgDaily={avgDaily} />
             ))}
           </>
         )}
@@ -219,7 +226,7 @@ export function FundScreen() {
           <>
             <Text style={styles.sectionLabel}>{t.enjoyedSection}</Text>
             {enjoyedTreats.map(treat => (
-              <TreatCard key={treat.id} treat={treat} onEnjoy={() => {}} colors={colors} styles={styles} t={t} />
+              <TreatCard key={treat.id} treat={treat} onEnjoy={() => {}} colors={colors} styles={styles} t={t} avgDaily={avgDaily} />
             ))}
           </>
         )}
@@ -328,6 +335,7 @@ function makeStyles(C: AppColors) {
     progressBg: { flex: 1, height: 5, backgroundColor: C.line, borderRadius: 3, overflow: 'hidden' },
     progressFill: { height: '100%', backgroundColor: C.primary, borderRadius: 3 },
     progressLabel: { fontSize: 11.5, fontWeight: '600', color: C.ink2, flexShrink: 0 },
+    etaText: { fontSize: 11, color: C.ink2, marginTop: 2, fontStyle: 'italic' },
     enjoyBtn: {
       backgroundColor: C.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radii.sm,
     },

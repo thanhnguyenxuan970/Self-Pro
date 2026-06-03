@@ -19,7 +19,8 @@ export function ProgressScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [range, setRange] = useState<Range>('W');
-  const { data: chartData = [], isLoading } = useProgressData(userId, range);
+  const [offset, setOffset] = useState(0);
+  const { data: chartData = [], isLoading } = useProgressData(userId, range, offset);
   const { data: streak = 0 } = useStreakCount(userId);
   const { data: tierInfo } = useStarsToNextTier(userId);
   const { data: allTime } = useAllTimeStats(userId);
@@ -103,11 +104,30 @@ export function ProgressScreen() {
             <TouchableOpacity
               key={key}
               style={[styles.segBtn, range === key && styles.segBtnActive]}
-              onPress={() => setRange(key)}
+              onPress={() => { setRange(key); setOffset(0); }}
             >
               <Text style={[styles.segTxt, range === key && styles.segTxtActive]}>{label}</Text>
             </TouchableOpacity>
           ))}
+        </View>
+
+        {/* Period navigation */}
+        <View style={styles.periodNav}>
+          <TouchableOpacity style={styles.navBtn} onPress={() => setOffset(o => o - 1)}>
+            <Text style={styles.navBtnText}>{t.prevPeriod}</Text>
+          </TouchableOpacity>
+          {offset !== 0 && (
+            <TouchableOpacity style={styles.navCurrent} onPress={() => setOffset(0)}>
+              <Text style={styles.navCurrentText}>{t.currentPeriod}</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[styles.navBtn, offset === 0 && styles.navBtnDisabled]}
+            onPress={() => setOffset(o => Math.min(0, o + 1))}
+            disabled={offset === 0}
+          >
+            <Text style={[styles.navBtnText, offset === 0 && styles.navBtnTextDisabled]}>{t.nextPeriod}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Chart card */}
@@ -266,6 +286,17 @@ function makeStyles(C: AppColors) {
     },
     segTxt: { fontSize: 12, fontWeight: '700', color: C.muted },
     segTxtActive: { color: C.inkDark },
+
+    periodNav: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      marginHorizontal: Spacing.lg, marginBottom: 10,
+    },
+    navBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radii.md, backgroundColor: C.surface },
+    navBtnDisabled: { opacity: 0.3 },
+    navBtnText: { fontSize: 20, color: C.inkDark, fontWeight: '600' },
+    navBtnTextDisabled: { color: C.muted },
+    navCurrent: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radii.sm, backgroundColor: C.primary + '22' },
+    navCurrentText: { fontSize: 12, color: C.primary, fontWeight: '600' },
 
     card: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,

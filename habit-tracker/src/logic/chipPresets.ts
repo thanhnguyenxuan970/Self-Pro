@@ -10,7 +10,7 @@ export interface Chip {
   isEscapeHatch?: boolean;
 }
 
-const DEFAULT_MINUTES = [30, 60, 90];
+const DEFAULT_MINUTES = [30, 45, 60, 90];
 const CHIP_SLOTS = 3;
 const ESCAPE_HATCH: Chip = { minutes: -1, label: '2h+', isEscapeHatch: true };
 

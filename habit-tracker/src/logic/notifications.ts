@@ -31,3 +31,25 @@ export async function cancelHabitReminder(): Promise<void> {
   const Notifications = await import('expo-notifications');
   await Notifications.cancelAllScheduledNotificationsAsync();
 }
+
+export async function scheduleAllHabitReminders(times: (string | null)[]): Promise<void> {
+  const Notifications = await import('expo-notifications');
+  await Notifications.cancelAllScheduledNotificationsAsync();
+  for (const t of times) {
+    if (!t) continue;
+    const parsed = parseNotificationTime(t);
+    if (!parsed) continue;
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Habit Tracker 💪',
+        body: 'Time to log your tasks!',
+        sound: true,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: parsed.hours,
+        minute: parsed.minutes,
+      },
+    });
+  }
+}

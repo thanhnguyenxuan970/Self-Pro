@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../db/client';
-import { getLocalDate, getWeekStart } from '../logic/formatters';
+import { getLocalDate, getWeekStart, getLocalDateOffset, getWeekStartOffset, getMonthOffset, getYearOffset } from '../logic/formatters';
 
 export type ActivityLogEntry = {
   id: number;
@@ -14,17 +14,15 @@ export type ActivityLogEntry = {
 
 export type ChartBucket = { bucket: string; goodStars: number; badStars: number };
 
-/** Returns bucketed chart data for D/W/M/Y range */
-export function useProgressData(userId: number, range: 'D' | 'W' | 'M' | 'Y') {
-  const today = getLocalDate();
-  const weekStart = getWeekStart();
-  const monthPrefix = today.slice(0, 7);  // "YYYY-MM"
-  const year = today.slice(0, 4);         // "YYYY"
-
-  const rangeKey = range === 'D' ? today : range === 'W' ? weekStart : range === 'M' ? monthPrefix : year;
+/** Returns bucketed chart data for D/W/M/Y range, with optional period offset (0=current, -1=previous, etc.) */
+export function useProgressData(userId: number, range: 'D' | 'W' | 'M' | 'Y', offset: number = 0) {
+  const effectiveDate = offset === 0 ? getLocalDate() : getLocalDateOffset(offset);
+  const effectiveWeekStart = getWeekStartOffset(offset);
+  const effectiveMonth = getMonthOffset(offset);
+  const effectiveYear = getYearOffset(offset);
 
   return useQuery({
-    queryKey: ['progress', 'chart', userId, range, rangeKey],
+    queryKey: ['progress', 'chart', userId, range, offset],
     queryFn: async (): Promise<ChartBucket[]> => {
       const db = await getDb();
 
@@ -32,7 +30,6 @@ export function useProgressData(userId: number, range: 'D' | 'W' | 'M' | 'Y') {
       let params: (string | number)[];
 
       if (range === 'D') {
-        // Group by hour (0–23) for today
         sql = `
           SELECT
             strftime('%H', datetime(logged_at/1000, 'unixepoch', 'localtime')) AS bucket,
@@ -41,9 +38,8 @@ export function useProgressData(userId: number, range: 'D' | 'W' | 'M' | 'Y') {
           FROM activity_log
           WHERE user_id = ? AND local_date = ?
           GROUP BY bucket ORDER BY bucket`;
-        params = [userId, today];
+        params = [userId, effectiveDate];
       } else if (range === 'W') {
-        // Group by day (Mon–Sun) for current week
         sql = `
           SELECT
             local_date AS bucket,
@@ -52,9 +48,8 @@ export function useProgressData(userId: number, range: 'D' | 'W' | 'M' | 'Y') {
           FROM activity_log
           WHERE user_id = ? AND week_start = ?
           GROUP BY local_date ORDER BY local_date`;
-        params = [userId, weekStart];
+        params = [userId, effectiveWeekStart];
       } else if (range === 'M') {
-        // Group by day for current month
         sql = `
           SELECT
             local_date AS bucket,
@@ -63,9 +58,8 @@ export function useProgressData(userId: number, range: 'D' | 'W' | 'M' | 'Y') {
           FROM activity_log
           WHERE user_id = ? AND substr(local_date, 1, 7) = ?
           GROUP BY local_date ORDER BY local_date`;
-        params = [userId, monthPrefix];
+        params = [userId, effectiveMonth];
       } else {
-        // Y: group by month for current year
         sql = `
           SELECT
             substr(local_date, 1, 7) AS bucket,
@@ -74,7 +68,7 @@ export function useProgressData(userId: number, range: 'D' | 'W' | 'M' | 'Y') {
           FROM activity_log
           WHERE user_id = ? AND substr(local_date, 1, 4) = ?
           GROUP BY bucket ORDER BY bucket`;
-        params = [userId, year];
+        params = [userId, effectiveYear];
       }
 
       const rows = await db.getAllAsync<ChartBucket>(sql, params);

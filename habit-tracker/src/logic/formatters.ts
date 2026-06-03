@@ -46,6 +46,42 @@ export function getRangeLabel(range: 'D' | 'W' | 'M' | 'Y', now: Date = new Date
   return String(now.getFullYear());
 }
 
+/** YYYY-MM-DD for Monday that is `weekOffset` weeks from current week (0=current) */
+export function getWeekStartOffset(weekOffset: number): string {
+  const d = new Date();
+  const dow = d.getDay();
+  const diff = dow === 0 ? 6 : dow - 1;
+  d.setDate(d.getDate() - diff + weekOffset * 7);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** YYYY-MM-DD for day that is `dayOffset` days from today */
+export function getLocalDateOffset(dayOffset: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + dayOffset);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** YYYY-MM for month that is `monthOffset` months from today */
+export function getMonthOffset(monthOffset: number): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + monthOffset);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+/** YYYY for year that is `yearOffset` years from today */
+export function getYearOffset(yearOffset: number): string {
+  return String(new Date().getFullYear() + yearOffset);
+}
+
 export function formatVND(amount: number): string {
   return new Intl.NumberFormat('vi-VN', {
     style: 'currency',

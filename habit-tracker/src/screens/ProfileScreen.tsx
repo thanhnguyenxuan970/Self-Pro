@@ -25,7 +25,7 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
   const { data: weekly } = useWeeklySummary(userId);
   const { data: daily } = useDailySummary(userId);
   const { data: treatPool } = useTreatPool(userId);
-  const { data: actLogs = [] } = useRecentActivityLogs(userId, 30);
+  const { data: actLogs = [] } = useRecentActivityLogs(userId, 100);
 
   const weeklyStars = weekly?.weekly_stars ?? 0;
   const streak = daily?.streak_count ?? 0;
@@ -63,7 +63,7 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
         </View>
         <View style={ph.lifeCell}>
           <Text style={ph.lifeV}>★ {treatPool?.treat_stars ?? 0}</Text>
-          <Text style={ph.lifeL}>{t.statWeek}</Text>
+          <Text style={ph.lifeL}>{t.statVault}</Text>
         </View>
       </View>
 

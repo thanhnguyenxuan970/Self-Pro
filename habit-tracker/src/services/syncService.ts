@@ -90,6 +90,23 @@ export async function resetSyncCursors(): Promise<void> {
 }
 
 /**
+ * Push current streak to Supabase users table so it can be restored on new device.
+ * Requires `current_streak` column on Supabase users table:
+ *   ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0;
+ * Silent no-op when Supabase not configured.
+ */
+export async function syncUserStreak(userEmail: string, currentStreak: number): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase
+    .from('users')
+    .upsert(
+      { user_email: userEmail, current_streak: currentStreak },
+      { onConflict: 'user_email' }
+    );
+  if (error) console.warn('[sync] streak sync failed:', error.message);
+}
+
+/**
  * Permanently delete all of this user's rows from Supabase.
  * Call during account deletion BEFORE clearing local state so the
  * Supabase Auth session is still active (required when RLS is enabled).

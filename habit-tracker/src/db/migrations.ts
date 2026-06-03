@@ -109,11 +109,14 @@ export async function runMigrations(db: SQLiteDatabase) {
   for (const sql of [
     `ALTER TABLE users ADD COLUMN last_seen_week_start TEXT`,
     `ALTER TABLE users ADD COLUMN notification_time TEXT`,
+    `ALTER TABLE users ADD COLUMN notification_time_2 TEXT`,
+    `ALTER TABLE users ADD COLUMN notification_time_3 TEXT`,
     `ALTER TABLE users ADD COLUMN google_sub TEXT`,
     `ALTER TABLE users ADD COLUMN treat_stars INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE users ADD COLUMN treat_stars_lifetime INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE users ADD COLUMN value_per_star INTEGER NOT NULL DEFAULT 1000`,
     `ALTER TABLE users ADD COLUMN penalty_hits_treats INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE task_types ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0`,
   ]) {
     try { await db.runAsync(sql); } catch (e: any) {
       if (!e?.message?.includes('duplicate column')) throw e;

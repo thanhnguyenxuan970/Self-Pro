@@ -135,3 +135,24 @@ export function useTreatHistory(userId: number) {
     },
   });
 }
+
+export function useAvgDailyTreatStars(userId: number) {
+  return useQuery({
+    queryKey: ['treats', 'avgDaily', userId],
+    queryFn: async () => {
+      const db = await getDb();
+      const row = await db.getFirstAsync<{ avg: number }>(
+        `SELECT COALESCE(AVG(daily_earned), 0) AS avg
+         FROM (
+           SELECT local_date, SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END) AS daily_earned
+           FROM activity_log
+           WHERE user_id = ? AND kind = 'GOOD'
+             AND local_date >= date('now', 'localtime', '-7 days')
+           GROUP BY local_date
+         )`,
+        [userId]
+      );
+      return row?.avg ?? 0;
+    },
+  });
+}

@@ -6,8 +6,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, Typography, AppColors } from '../theme';
 import { useDarkMode, useLanguage, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
 import { useAuthUser } from '../hooks/useAuth';
-import { useNotificationTime, useSetNotificationTime } from '../queries/useSettings';
+import {
+  useNotificationTime, useSetNotificationTime,
+  useNotificationTime2, useSetNotificationTime2,
+  useNotificationTime3, useSetNotificationTime3,
+} from '../queries/useSettings';
 import { validateNotificationTime } from '../logic/settingsLogic';
+import { scheduleAllHabitReminders } from '../logic/notifications';
 
 type Props = {
   onDeleteAccount: (userId: number) => Promise<void>;
@@ -24,43 +29,85 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
 
   const { data: savedNotifTime } = useNotificationTime(userId);
   const setNotifTimeMutation = useSetNotificationTime(userId);
+  const { data: savedNotifTime2 } = useNotificationTime2(userId);
+  const setNotifTimeMutation2 = useSetNotificationTime2(userId);
+  const { data: savedNotifTime3 } = useNotificationTime3(userId);
+  const setNotifTimeMutation3 = useSetNotificationTime3(userId);
+
   const [notifInput, setNotifInput] = useState('');
   const [notifEditing, setNotifEditing] = useState(false);
   const [notifError, setNotifError] = useState(false);
   const submitHandledRef = useRef(false);
 
+  const [notifInput2, setNotifInput2] = useState('');
+  const [notifEditing2, setNotifEditing2] = useState(false);
+  const [notifError2, setNotifError2] = useState(false);
+  const submitHandledRef2 = useRef(false);
+
+  const [notifInput3, setNotifInput3] = useState('');
+  const [notifEditing3, setNotifEditing3] = useState(false);
+  const [notifError3, setNotifError3] = useState(false);
+  const submitHandledRef3 = useRef(false);
+
   useEffect(() => {
-    if (!notifEditing) {
-      setNotifInput(savedNotifTime ?? '');
-      setNotifError(false);
-    }
+    if (!notifEditing) { setNotifInput(savedNotifTime ?? ''); setNotifError(false); }
   }, [savedNotifTime, notifEditing]);
 
-  function saveNotifTime() {
-    setNotifEditing(false);
-    if (notifInput === '') {
-      setNotifError(false);
-      setNotifTimeMutation.mutate(null);
-    } else if (validateNotificationTime(notifInput)) {
-      setNotifError(false);
-      setNotifTimeMutation.mutate(notifInput);
-    } else {
-      setNotifError(true);
-      setNotifInput(savedNotifTime ?? '');
-    }
+  useEffect(() => {
+    if (!notifEditing2) { setNotifInput2(savedNotifTime2 ?? ''); setNotifError2(false); }
+  }, [savedNotifTime2, notifEditing2]);
+
+  useEffect(() => {
+    if (!notifEditing3) { setNotifInput3(savedNotifTime3 ?? ''); setNotifError3(false); }
+  }, [savedNotifTime3, notifEditing3]);
+
+  function makeNotifSaver(
+    input: string,
+    savedTime: string | null | undefined,
+    setEditing: (v: boolean) => void,
+    setError: (v: boolean) => void,
+    setInput: (v: string) => void,
+    mutate: (t: string | null) => void,
+    slotIndex: number,
+  ) {
+    return () => {
+      setEditing(false);
+      const t1 = slotIndex === 0 ? input : notifInput;
+      const t2 = slotIndex === 1 ? input : notifInput2;
+      const t3 = slotIndex === 2 ? input : notifInput3;
+      if (input === '') {
+        setError(false);
+        mutate(null);
+        scheduleAllHabitReminders([t1 || null, t2 || null, t3 || null]).catch(() => {});
+      } else if (validateNotificationTime(input)) {
+        setError(false);
+        mutate(input);
+        scheduleAllHabitReminders([t1, t2, t3]).catch(() => {});
+      } else {
+        setError(true);
+        setInput(savedTime ?? '');
+      }
+    };
   }
 
-  function handleNotifSubmit() {
-    submitHandledRef.current = true;
-    saveNotifTime();
-  }
+  const saveNotifTime = makeNotifSaver(notifInput, savedNotifTime, setNotifEditing, setNotifError, setNotifInput, (t) => setNotifTimeMutation.mutate(t), 0);
+  const saveNotifTime2 = makeNotifSaver(notifInput2, savedNotifTime2, setNotifEditing2, setNotifError2, setNotifInput2, (t) => setNotifTimeMutation2.mutate(t), 1);
+  const saveNotifTime3 = makeNotifSaver(notifInput3, savedNotifTime3, setNotifEditing3, setNotifError3, setNotifInput3, (t) => setNotifTimeMutation3.mutate(t), 2);
 
+  function handleNotifSubmit() { submitHandledRef.current = true; saveNotifTime(); }
   function handleNotifBlur() {
-    if (submitHandledRef.current) {
-      submitHandledRef.current = false;
-      return;
-    }
+    if (submitHandledRef.current) { submitHandledRef.current = false; return; }
     saveNotifTime();
+  }
+  function handleNotifSubmit2() { submitHandledRef2.current = true; saveNotifTime2(); }
+  function handleNotifBlur2() {
+    if (submitHandledRef2.current) { submitHandledRef2.current = false; return; }
+    saveNotifTime2();
+  }
+  function handleNotifSubmit3() { submitHandledRef3.current = true; saveNotifTime3(); }
+  function handleNotifBlur3() {
+    if (submitHandledRef3.current) { submitHandledRef3.current = false; return; }
+    saveNotifTime3();
   }
 
   function handleDeleteAccount() {
@@ -126,7 +173,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
         {/* Notification */}
         <Text style={styles.sectionLabel}>{t.sectionNotifications}</Text>
         <View style={styles.card}>
-          <View style={[styles.row, styles.rowLast]}>
+          <View style={styles.row}>
             <Text style={styles.rowIc}>🔔</Text>
             <Text style={styles.rowLabel}>{t.reminderLabel}</Text>
             <TextInput
@@ -143,9 +190,43 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
               returnKeyType="done"
             />
           </View>
-          {notifError && (
-            <Text style={styles.inputHint}>{t.timeFormatHint}</Text>
-          )}
+          {notifError && <Text style={styles.inputHint}>{t.timeFormatHint}</Text>}
+          <View style={styles.row}>
+            <Text style={styles.rowIc}>🔔</Text>
+            <Text style={styles.rowLabel}>{t.reminderLabel2}</Text>
+            <TextInput
+              style={[styles.timeInput, notifError2 && styles.timeInputError]}
+              value={notifInput2}
+              placeholder="HH:MM"
+              placeholderTextColor={colors.faint}
+              keyboardType="numbers-and-punctuation"
+              maxLength={5}
+              onFocus={() => setNotifEditing2(true)}
+              onChangeText={(tx) => { setNotifInput2(tx); setNotifError2(false); }}
+              onBlur={handleNotifBlur2}
+              onSubmitEditing={handleNotifSubmit2}
+              returnKeyType="done"
+            />
+          </View>
+          {notifError2 && <Text style={styles.inputHint}>{t.timeFormatHint}</Text>}
+          <View style={[styles.row, styles.rowLast]}>
+            <Text style={styles.rowIc}>🔔</Text>
+            <Text style={styles.rowLabel}>{t.reminderLabel3}</Text>
+            <TextInput
+              style={[styles.timeInput, notifError3 && styles.timeInputError]}
+              value={notifInput3}
+              placeholder="HH:MM"
+              placeholderTextColor={colors.faint}
+              keyboardType="numbers-and-punctuation"
+              maxLength={5}
+              onFocus={() => setNotifEditing3(true)}
+              onChangeText={(tx) => { setNotifInput3(tx); setNotifError3(false); }}
+              onBlur={handleNotifBlur3}
+              onSubmitEditing={handleNotifSubmit3}
+              returnKeyType="done"
+            />
+          </View>
+          {notifError3 && <Text style={styles.inputHint}>{t.timeFormatHint}</Text>}
         </View>
 
         {/* Danger zone */}

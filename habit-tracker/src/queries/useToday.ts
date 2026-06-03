@@ -1,5 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Toast from 'react-native-toast-message';
 import { getDb } from '../db/client';
+import { getStoredGoogleUserEmail } from '../hooks/useAuth';
+import { syncUserStreak } from '../services/syncService';
 import { computeLogTaskRows } from '../logic/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../logic/formatters';
 import { computeTierUnlocks, TierRow } from '../logic/tierUnlocks';
@@ -12,11 +15,49 @@ export function useTodayTasks(userId: number) {
       return db.getAllAsync<{
         id: number; name: string; kind: string; is_time_based: number;
         base_points: number; star_penalty: number; icon: string | null;
-        category_id: number | null;
+        category_id: number | null; sort_order: number;
       }>(
-        `SELECT id, name, kind, is_time_based, base_points, star_penalty, icon, category_id
-         FROM task_types WHERE user_id = ? AND archived = 0 ORDER BY kind, name`,
+        `SELECT id, name, kind, is_time_based, base_points, star_penalty, icon, category_id, sort_order
+         FROM task_types WHERE user_id = ? AND archived = 0 ORDER BY sort_order ASC, kind, name`,
         [userId]
+      );
+    },
+  });
+}
+
+export type YesterdayTask = {
+  task_type_id: number;
+  name: string;
+  kind: string;
+  is_time_based: number;
+  base_points: number;
+  star_penalty: number;
+  icon: string | null;
+  duration_min: number | null;
+};
+
+export function useYesterdayLoggedTasks(userId: number) {
+  const yesterday = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  })();
+  return useQuery({
+    queryKey: ['today', 'yesterday', userId, yesterday],
+    queryFn: async () => {
+      const db = await getDb();
+      return db.getAllAsync<YesterdayTask>(
+        `SELECT al.task_type_id, tt.name, tt.kind, tt.is_time_based,
+                tt.base_points, tt.star_penalty, tt.icon, al.duration_min
+         FROM activity_log al
+         JOIN task_types tt ON tt.id = al.task_type_id
+         WHERE al.user_id = ? AND al.local_date = ? AND al.kind = 'GOOD' AND tt.archived = 0
+         GROUP BY al.task_type_id
+         ORDER BY al.logged_at DESC`,
+        [userId, yesterday]
       );
     },
   });
@@ -98,6 +139,8 @@ export function useLogTask(userId: number) {
          FROM tiers ORDER BY stars_required ASC`
       );
 
+      let streakResult = { newStreak: 1, prevStreak: 0 };
+
       // All volatile reads + computation + writes inside one transaction.
       // This prevents TOCTOU: two concurrent mutateAsync calls can no longer
       // read the same stale daily/weekly rows before either commits.
@@ -127,7 +170,11 @@ export function useLogTask(userId: number) {
             `SELECT streak_count FROM daily_summary WHERE user_id = ? AND local_date = ?`,
             [userId, yesterdayDate]
           );
-          todayStreak = (yesterdayRow?.streak_count ?? 0) + 1;
+          const prevStreak = yesterdayRow?.streak_count ?? 0;
+          todayStreak = prevStreak + 1;
+          streakResult = { newStreak: todayStreak, prevStreak };
+        } else {
+          streakResult = { newStreak: daily.streak_count, prevStreak: daily.streak_count };
         }
 
         const { activityRow, bonusRow } = computeLogTaskRows({
@@ -243,12 +290,35 @@ export function useLogTask(userId: number) {
           [nowIso, userId, userId]
         );
       });
+
+      return streakResult;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['treats'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
+
+      if (!data) return;
+      const { newStreak, prevStreak } = data;
+      if (newStreak === 1 && prevStreak > 1) {
+        Toast.show({
+          type: 'error',
+          text1: '😔 Chuỗi đã gián đoạn',
+          text2: `Streak ${prevStreak} ngày đã kết thúc. Hôm nay bắt đầu lại!`,
+          visibilityTime: 3000,
+        });
+      } else if (newStreak > 1 && prevStreak < newStreak) {
+        Toast.show({
+          type: 'success',
+          text1: `🔥 Streak ${newStreak} ngày!`,
+          visibilityTime: 1800,
+        });
+      }
+      // Fire-and-forget streak sync — non-fatal if Supabase absent or table not migrated
+      getStoredGoogleUserEmail()
+        .then(email => { if (email) return syncUserStreak(email, newStreak); })
+        .catch(() => {});
     },
   });
 }
