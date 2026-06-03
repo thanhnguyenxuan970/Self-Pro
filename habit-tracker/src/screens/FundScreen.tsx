@@ -1,7 +1,7 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Modal, TextInput, Alert, ScrollView,
+  TouchableOpacity, Modal, TextInput, Alert, ScrollView, Animated, Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +18,9 @@ import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { Strings } from '../i18n';
 
+const CONFETTI_COLORS = ['#FFD700', '#FF6B6B', '#4CAF50', '#2196F3', '#FF9800', '#E91E63'];
+const CONFETTI_DIRS: [number, number][] = [[-30, -40], [30, -40], [-50, -20], [50, -20], [-18, -60], [18, -60]];
+
 function TreatCard({
   treat, onEnjoy, colors, styles, t, avgDaily,
 }: {
@@ -29,8 +32,84 @@ function TreatCard({
   avgDaily: number;
 }) {
   const isEnjoyed = treat.status === 'ENJOYED';
+
+  const progressAnim = useRef(new Animated.Value(treat.progressPct)).current;
+  const confetti = useRef(
+    Array.from({ length: 6 }, () => ({
+      opacity: new Animated.Value(0),
+      x: new Animated.Value(0),
+      y: new Animated.Value(0),
+    }))
+  ).current;
+  const cardOpacity = useRef(new Animated.Value(isEnjoyed ? 0.45 : 1)).current;
+  const cardScale = useRef(new Animated.Value(isEnjoyed ? 0.97 : 1)).current;
+  const btnScale = useRef(new Animated.Value(1)).current;
+  const burstOpacity = useRef(new Animated.Value(0)).current;
+  const burstScale = useRef(new Animated.Value(0.3)).current;
+
+  const prevUnlockable = useRef(treat.unlockable);
+  const prevEnjoyed = useRef(isEnjoyed);
+
+  useEffect(() => {
+    Animated.spring(progressAnim, { toValue: treat.progressPct, tension: 100, friction: 8, useNativeDriver: false }).start();
+  }, [treat.progressPct]);
+
+  useEffect(() => {
+    if (treat.unlockable && !prevUnlockable.current) {
+      confetti.forEach((p, i) => {
+        p.opacity.setValue(1);
+        p.x.setValue(0);
+        p.y.setValue(0);
+        Animated.parallel([
+          Animated.timing(p.opacity, { toValue: 0, duration: 700, useNativeDriver: true }),
+          Animated.timing(p.x, { toValue: CONFETTI_DIRS[i][0], duration: 700, useNativeDriver: true }),
+          Animated.timing(p.y, { toValue: CONFETTI_DIRS[i][1], duration: 700, useNativeDriver: true }),
+        ]).start();
+      });
+    }
+    prevUnlockable.current = treat.unlockable;
+  }, [treat.unlockable]);
+
+  useEffect(() => {
+    if (isEnjoyed && !prevEnjoyed.current) {
+      Animated.parallel([
+        Animated.spring(cardOpacity, { toValue: 0.45, tension: 100, friction: 8, useNativeDriver: true }),
+        Animated.spring(cardScale, { toValue: 0.97, tension: 100, friction: 8, useNativeDriver: true }),
+      ]).start();
+    }
+    prevEnjoyed.current = isEnjoyed;
+  }, [isEnjoyed]);
+
+  const progressWidth = progressAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] });
+
+  const btnPressIn = () => Animated.spring(btnScale, { toValue: 0.92, tension: 140, friction: 7, useNativeDriver: true }).start();
+  const btnPressOut = () => Animated.sequence([
+    Animated.spring(btnScale, { toValue: 1.12, tension: 140, friction: 7, useNativeDriver: true }),
+    Animated.spring(btnScale, { toValue: 1, tension: 140, friction: 7, useNativeDriver: true }),
+  ]).start();
+
+  const handleEnjoyPress = () => {
+    burstOpacity.setValue(0.6);
+    burstScale.setValue(0.3);
+    Animated.parallel([
+      Animated.timing(burstOpacity, { toValue: 0, duration: 500, useNativeDriver: true }),
+      Animated.spring(burstScale, { toValue: 2.5, tension: 60, friction: 8, useNativeDriver: true }),
+    ]).start();
+    onEnjoy();
+  };
+
   return (
-    <View style={[styles.treatCard, isEnjoyed && styles.treatCardDim]}>
+    <Animated.View style={[styles.treatCard, { opacity: cardOpacity, transform: [{ scale: cardScale }] }]}>
+      {/* Confetti burst on unlock */}
+      <View style={styles.confettiWrap} pointerEvents="none">
+        {confetti.map((p, i) => (
+          <Animated.View
+            key={i}
+            style={[styles.confettiDot, { backgroundColor: CONFETTI_COLORS[i], opacity: p.opacity, transform: [{ translateX: p.x }, { translateY: p.y }] }]}
+          />
+        ))}
+      </View>
+
       <View style={styles.treatIcon}>
         <Text style={{ fontSize: 22 }}>{treat.icon === 'gift' ? '🎁' : treat.icon}</Text>
       </View>
@@ -43,7 +122,7 @@ function TreatCard({
         {!isEnjoyed && (
           <View style={styles.progressWrap}>
             <View style={styles.progressBg}>
-              <View style={[styles.progressFill, { width: `${treat.progressPct}%` as any }]} />
+              <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
             </View>
             <Text style={styles.progressLabel}>
               {treat.unlockable ? t.readyToEnjoy : t.starsMore(treat.starsToUnlock)}
@@ -57,11 +136,14 @@ function TreatCard({
         )}
       </View>
       {treat.unlockable && (
-        <TouchableOpacity style={styles.enjoyBtn} onPress={onEnjoy}>
-          <Text style={styles.enjoyBtnText}>{t.claimBtn}</Text>
-        </TouchableOpacity>
+        <Animated.View style={{ transform: [{ scale: btnScale }] }}>
+          <Pressable style={styles.enjoyBtn} onPress={handleEnjoyPress} onPressIn={btnPressIn} onPressOut={btnPressOut}>
+            <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', opacity: burstOpacity, transform: [{ scale: burstScale }], borderRadius: Radii.sm }]} />
+            <Text style={styles.enjoyBtnText}>{t.claimBtn}</Text>
+          </Pressable>
+        </Animated.View>
       )}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -317,8 +399,10 @@ function makeStyles(C: AppColors) {
       marginHorizontal: Spacing.lg, marginBottom: 10, padding: 14,
       backgroundColor: C.surface, borderRadius: Radii.lg,
       borderWidth: 1, borderColor: C.line, ...Shadows.medium,
+      overflow: 'visible',
     },
-    treatCardDim: { opacity: 0.6 },
+    confettiWrap: { position: 'absolute', top: '50%' as any, left: '40%' as any, justifyContent: 'center', alignItems: 'center' },
+    confettiDot: { position: 'absolute', width: 7, height: 7, borderRadius: 4 },
     treatIcon: {
       width: 40, height: 40, borderRadius: Radii.sm,
       backgroundColor: C.primarySoft, justifyContent: 'center', alignItems: 'center', flexShrink: 0,
@@ -338,6 +422,7 @@ function makeStyles(C: AppColors) {
     etaText: { fontSize: 11, color: C.ink2, marginTop: 2, fontStyle: 'italic' },
     enjoyBtn: {
       backgroundColor: C.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radii.sm,
+      overflow: 'hidden',
     },
     enjoyBtnText: { color: C.white, fontWeight: '800', fontSize: 13 },
     histRow: {

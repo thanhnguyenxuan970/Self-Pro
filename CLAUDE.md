@@ -89,7 +89,7 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 
 ## Habit Tracker Architecture
 
-**Status:** RankMascot COMPLETE (2026-06-03). Code lives at `c:\Users\Admin\Desktop\Self-Pro\habit-tracker\`.
+**Status:** Tier 2 Core Interactions COMPLETE (2026-06-03). Code lives at `c:\Users\Admin\Desktop\Self-Pro\habit-tracker\`.
 
 **Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29 + expo-auth-session v5 + expo-web-browser
 
@@ -514,6 +514,30 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0;
 - `sortedTiers` moved to `useMemo` from inline JSX sort — stable dep for `useEffect`, reused in render.
 - `useNativeDriver: true` on both channels — no layout props, stays GPU thread.
 - `anim &&` guard in style array — safe index-mismatch fallback.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
+
+---
+
+## Habit Tracker — Tier 2 Core Interactions COMPLETE (2026-06-03)
+
+### What Was Built (items 5-11 from simulation report)
+- **`TodayScreen.tsx` Item 5**: `TaskRow` sub-component with check-off animation — spring `scale 1→0.85` + `translateX 0→40` + `opacity 1→0` (300ms, tension 200) on log success; snaps back instantly to show done state. `prevLogged` ref prevents double-fire.
+- **`TodayScreen.tsx` Item 6**: Animated progress bar — `Animated.Value` springs to new `dailyPoints` (tension 100, friction 8, JS driver). White glow overlay flashes (`opacity 0.7→0`, 700ms) when crossing 50% and 100% thresholds.
+- **`LogActivitySheet.tsx` Item 7**: `animationType="none"` + custom spring backdrop fade (`opacity 0→1`, 220ms) + sheet `translateY 300→0` spring (tension 120). Animate-out runs before `onClose()` so Modal stays visible during exit.
+- **`FundScreen.tsx` Item 8**: `TreatCard` now animates progress bar width (spring, JS driver). Confetti burst (6 colored dots scatter via `translateX/Y + opacity`, 700ms) fires when `treat.unlockable` flips `false→true`.
+- **`FundScreen.tsx` Item 9**: Enjoy button press animation — `pressIn: 1→0.92`, `pressOut: 0.92→1.12→1` spring; on tap: white radial burst inside button (`opacity 0.6→0` + `scale 0.3→2.5`, clipped by `overflow: hidden`).
+- **`FundScreen.tsx` Item 10**: Enjoyed card dims via `Animated.spring` (`opacity 1→0.45`, `scale 1→0.97`) on `isEnjoyed` transition. `prevEnjoyed` ref prevents mount animation for already-enjoyed items.
+- **`RankScreen.tsx` Item 11**: Current tier row gets border glow loop (`opacity 0.15↔0.9`, 900ms each, infinite) + scale pop (`1→1.04→1`, spring) on data load. Both driven by `glowAnims/scaleAnims` ref arrays initialized alongside existing `ladderAnims`.
+
+### Key Decisions
+- `TaskRow` extracts row into sub-component — hooks (animation refs + `useEffect`) cannot live inside `.map()` callbacks; extraction enforces rules of hooks.
+- LogActivitySheet close animation fires before `onClose()` — keeps Modal `visible=true` during exit so animation renders; `setValue` resets after callback for next open.
+- Confetti uses `treat.unlockable` as trigger (not raw `reached_at`) — `DecoratedTreat` type exposes `unlockable` directly; semantically equivalent.
+- `enjoyBtn` has `overflow: 'hidden'` — clips the radial burst `scale 2.5` to button bounds, giving contained ripple effect.
+- Glow loop cleanup in `useEffect` return — prevents memory leak / stale loop on unmount.
+- `barGlowOpacity` uses `useNativeDriver: false` — JS driver required since it drives an overlay that changes `opacity` alongside width (which is also JS-driven).
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass

@@ -25,6 +25,69 @@ type Task = {
   category_id: number | null; sort_order: number;
 };
 
+function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, onPress, onLongPress, logPending, styles }: {
+  item: Task; done: boolean; isBad: boolean; isLast: boolean; isSelected: boolean;
+  selectionMode: boolean; justLogged: boolean; onPress: () => void; onLongPress: () => void;
+  logPending: boolean; styles: ReturnType<typeof makeStyles>;
+}) {
+  const t = useTranslations();
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const prevLogged = useRef(false);
+
+  useEffect(() => {
+    if (justLogged && !prevLogged.current) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, { toValue: 0.85, tension: 200, friction: 10, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 40, tension: 200, friction: 10, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start(({ finished }) => {
+        if (finished) {
+          fadeAnim.setValue(1);
+          scaleAnim.setValue(1);
+          slideAnim.setValue(0);
+        }
+      });
+    }
+    prevLogged.current = justLogged;
+  }, [justLogged]);
+
+  return (
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }, { translateX: slideAnim }] }}>
+      <TouchableOpacity
+        style={[styles.task, isLast && styles.taskLast, isSelected && styles.taskSelected]}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        delayLongPress={300}
+        disabled={!selectionMode && logPending}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.check, selectionMode ? (isSelected && styles.checkDone) : (done && (isBad ? styles.checkBad : styles.checkDone))]}>
+          <Text style={styles.checkMark}>
+            {selectionMode ? (isSelected ? '✓' : '') : (done ? (isBad ? '✕' : '✓') : '')}
+          </Text>
+        </View>
+        <View style={styles.tBody}>
+          <Text style={[styles.tName, done && styles.tNameDone]}>{item.name}</Text>
+          <View style={styles.tMeta}>
+            {item.icon ? <Text style={styles.tMetaText}>{item.icon}</Text> : null}
+            {item.icon && item.is_time_based ? <View style={styles.dot} /> : null}
+            {item.is_time_based ? <Text style={styles.tMetaText}>{t.timedMeta}</Text> : null}
+            {(item.icon || item.is_time_based) ? <View style={styles.dot} /> : null}
+            <Text style={styles.tMetaText}>
+              {isBad ? t.badHabitMeta : `${item.is_time_based ? '1pt/30m' : t.ptsLabel(item.base_points)}`}
+            </Text>
+          </View>
+        </View>
+        <Text style={[styles.tPts, done ? (isBad ? styles.tPtsNeg : styles.tPtsPos) : styles.tPtsIdle]}>
+          {isBad ? `−${item.star_penalty} ★` : '+1 ★'}
+        </Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
 export function TodayScreen() {
   const navigation = useNavigation();
   const userId = useAuthUser();
@@ -101,8 +164,6 @@ export function TodayScreen() {
   const dailyPoints = daily?.total_points ?? 0;
   const streak = daily?.streak_count ?? 0;
   const isDebt = weeklyStars < 0;
-  const progressPct = Math.min(dailyPoints / DAILY_THRESHOLD, 1);
-
   const currentTier = rankData && rankData.tiers.length > 0
     ? getCurrentTier(weeklyStars, rankData.tiers)
     : null;
@@ -137,6 +198,21 @@ export function TodayScreen() {
       return () => loop.stop();
     }
   }, [hasStreak]);
+
+  const barWidthAnim = useRef(new Animated.Value(Math.min(dailyPoints / DAILY_THRESHOLD, 1) * 100)).current;
+  const barGlowOpacity = useRef(new Animated.Value(0)).current;
+  const prevDailyRef = useRef(dailyPoints);
+  useEffect(() => {
+    const targetPct = Math.min(dailyPoints / DAILY_THRESHOLD, 1) * 100;
+    Animated.spring(barWidthAnim, { toValue: targetPct, tension: 100, friction: 8, useNativeDriver: false }).start();
+    const prev = prevDailyRef.current;
+    const h = DAILY_THRESHOLD;
+    if ((prev < h / 2 && dailyPoints >= h / 2) || (prev < h && dailyPoints >= h)) {
+      barGlowOpacity.setValue(0.7);
+      Animated.timing(barGlowOpacity, { toValue: 0, duration: 700, useNativeDriver: false }).start();
+    }
+    prevDailyRef.current = dailyPoints;
+  }, [dailyPoints]);
 
   const avatarInitial = (googleUser?.name?.charAt(0) ?? 'B').toUpperCase();
 
@@ -277,7 +353,10 @@ export function TodayScreen() {
             <Text style={styles.progPts}><Text style={styles.progPtsBold}>{dailyPoints}</Text> / {DAILY_THRESHOLD}</Text>
           </View>
           <View style={styles.bar}>
-            <View style={[styles.barFill, { width: `${progressPct * 100}%` as any }]} />
+            <Animated.View
+              style={[styles.barFill, { width: barWidthAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) }]}
+            />
+            <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', opacity: barGlowOpacity, borderRadius: Radii.pill }]} />
           </View>
           <Text style={styles.progCap}>{t.streakBonus(DAILY_THRESHOLD)}</Text>
         </View>
@@ -331,41 +410,20 @@ export function TodayScreen() {
               const isLast = idx === displayTasks.length - 1;
               const isSelected = selectedIds.has(item.id);
               return (
-                <TouchableOpacity
+                <TaskRow
                   key={item.id}
-                  style={[styles.task, isLast && styles.taskLast, isSelected && styles.taskSelected]}
+                  item={item}
+                  done={done}
+                  isBad={isBad}
+                  isLast={isLast}
+                  isSelected={isSelected}
+                  selectionMode={selectionMode}
+                  justLogged={justLoggedIds.has(item.id)}
                   onPress={() => selectionMode ? toggleSelect(item.id) : handleLog(item)}
                   onLongPress={() => enterSelection(item.id)}
-                  delayLongPress={300}
-                  disabled={!selectionMode && logTask.isPending}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.check, selectionMode ? (isSelected && styles.checkDone) : (done && (isBad ? styles.checkBad : styles.checkDone))]}>
-                    <Text style={styles.checkMark}>
-                      {selectionMode ? (isSelected ? '✓' : '') : (done ? (isBad ? '✕' : '✓') : '')}
-                    </Text>
-                  </View>
-                  <View style={styles.tBody}>
-                    <Text style={[styles.tName, done && styles.tNameDone]}>{item.name}</Text>
-                    <View style={styles.tMeta}>
-                      {item.icon ? <Text style={styles.tMetaText}>{item.icon}</Text> : null}
-                      {item.icon && item.is_time_based ? <View style={styles.dot} /> : null}
-                      {item.is_time_based ? <Text style={styles.tMetaText}>{t.timedMeta}</Text> : null}
-                      {(item.icon || item.is_time_based) ? <View style={styles.dot} /> : null}
-                      <Text style={styles.tMetaText}>
-                        {isBad ? t.badHabitMeta : `${item.is_time_based ? '1pt/30m' : t.ptsLabel(item.base_points)}`}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.tPts, done ? (isBad ? styles.tPtsNeg : styles.tPtsPos) : styles.tPtsIdle]}>
-                    {isBad ? `−${item.star_penalty} ★` : '+1 ★'}
-                  </Text>
-                  {justLoggedIds.has(item.id) && (
-                    <View style={styles.loggedFlash}>
-                      <Text style={styles.loggedFlashText}>✓</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
+                  logPending={logTask.isPending}
+                  styles={styles}
+                />
               );
             })
           )}
@@ -521,12 +579,6 @@ function makeStyles(C: AppColors) {
     tPtsPos: { color: C.primary },
     tPtsNeg: { color: C.danger },
     tPtsIdle: { color: C.faint },
-    loggedFlash: {
-      position: 'absolute', right: 38, top: '50%' as any, marginTop: -10,
-      backgroundColor: C.primary, borderRadius: 10, width: 20, height: 20,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    loggedFlashText: { color: '#fff', fontSize: 12, fontWeight: '700' },
     repeatChip: {
       marginHorizontal: Spacing.lg, marginBottom: Spacing.sm,
       backgroundColor: C.surface, borderRadius: Radii.pill,

@@ -36,6 +36,15 @@ export function RankScreen() {
     }));
   }
 
+  const glowAnims = useRef<Animated.Value[]>([]);
+  const scaleAnims = useRef<Animated.Value[]>([]);
+  if (glowAnims.current.length !== sortedTiers.length) {
+    glowAnims.current = sortedTiers.map(() => new Animated.Value(0.15));
+    scaleAnims.current = sortedTiers.map(() => new Animated.Value(1));
+  }
+
+  const glowLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+
   const hasAnimated = useRef(false);
   useEffect(() => {
     if (hasAnimated.current || sortedTiers.length === 0) return;
@@ -49,6 +58,33 @@ export function RankScreen() {
       ),
     ).start();
   }, [sortedTiers]);
+
+  useEffect(() => {
+    if (!data || sortedTiers.length === 0) return;
+    const currentTierLocal = getCurrentTier(data.currentStars, data.tiers);
+    const idx = sortedTiers.findIndex(t => t.id === currentTierLocal.id);
+    if (idx < 0) return;
+
+    const scaleAnim = scaleAnims.current[idx];
+    if (scaleAnim) {
+      Animated.sequence([
+        Animated.spring(scaleAnim, { toValue: 1.04, tension: 200, friction: 8, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }),
+      ]).start();
+    }
+
+    const glowAnim = glowAnims.current[idx];
+    if (glowAnim) {
+      glowLoopRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, { toValue: 0.9, duration: 900, useNativeDriver: true }),
+          Animated.timing(glowAnim, { toValue: 0.15, duration: 900, useNativeDriver: true }),
+        ])
+      );
+      glowLoopRef.current.start();
+    }
+    return () => glowLoopRef.current?.stop();
+  }, [data]);
 
   if (isLoading || !data) {
     return (
@@ -127,6 +163,8 @@ export function RankScreen() {
               ? `${tier.stars_required}–${(arr[idx - 1]?.stars_required ?? 999) - 1} ★`
               : `${tier.stars_required}+ ★`;
             const anim = ladderAnims.current[idx];
+            const scalAnim = scaleAnims.current[idx];
+            const glowAnim = glowAnims.current[idx];
             return (
               <Animated.View
                 key={tier.id}
@@ -134,9 +172,21 @@ export function RankScreen() {
                   styles.rk,
                   isCurrent && { ...styles.rkCur, backgroundColor: rc.color + '22' },
                   isLast && styles.rkLast,
-                  anim && { opacity: anim.op, transform: [{ translateX: anim.tx }] },
+                  anim && {
+                    opacity: anim.op,
+                    transform: [
+                      { translateX: anim.tx },
+                      ...(isCurrent && scalAnim ? [{ scale: scalAnim as any }] : []),
+                    ],
+                  },
                 ]}
               >
+                {isCurrent && glowAnim && (
+                  <Animated.View
+                    style={[StyleSheet.absoluteFill, { borderRadius: Radii.md, borderWidth: 1.5, borderColor: rc.color, opacity: glowAnim }]}
+                    pointerEvents="none"
+                  />
+                )}
                 <View style={styles.rkMascot}>
                   <RankMascot tier={tier.tier_order - 1} size={36} loop={isCurrent} />
                 </View>

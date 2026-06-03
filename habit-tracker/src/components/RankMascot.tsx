@@ -53,14 +53,14 @@ function renderEl(el: SvgEl, i: number) {
   const stroke = el.stroke;
   const sw = el.sw;
   const fill = el.fill ?? (el.stroke ? 'none' : undefined);
-  const common = { key: i, fill, stroke, strokeWidth: sw, strokeLinecap: el.cap };
+  const common = { fill, stroke, strokeWidth: sw, strokeLinecap: el.cap };
   switch (el.t) {
-    case 'path':    return <Path {...common} d={el.d!} />;
-    case 'polygon': return <Polygon {...common} points={el.points!} />;
-    case 'circle':  return <Circle {...common} cx={el.cx} cy={el.cy} r={el.r} />;
-    case 'rect':    return <Rect {...common} x={el.x} y={el.y} width={el.width} height={el.height} rx={2} />;
-    case 'ellipse': return <Ellipse {...common} cx={el.cx} cy={el.cy} rx={el.rx} ry={el.ry} />;
-    case 'line':    return <Line {...common} x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} />;
+    case 'path':    return <Path key={i} {...common} d={el.d!} />;
+    case 'polygon': return <Polygon key={i} {...common} points={el.points!} />;
+    case 'circle':  return <Circle key={i} {...common} cx={el.cx} cy={el.cy} r={el.r} />;
+    case 'rect':    return <Rect key={i} {...common} x={el.x} y={el.y} width={el.width} height={el.height} rx={2} />;
+    case 'ellipse': return <Ellipse key={i} {...common} cx={el.cx} cy={el.cy} rx={el.rx} ry={el.ry} />;
+    case 'line':    return <Line key={i} {...common} x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} />;
   }
 }
 

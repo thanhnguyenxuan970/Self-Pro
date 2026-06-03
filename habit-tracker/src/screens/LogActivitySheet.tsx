@@ -1,7 +1,7 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   Modal, View, Text, FlatList, TouchableOpacity,
-  Alert, StyleSheet, ActivityIndicator,
+  Alert, StyleSheet, ActivityIndicator, Animated,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useTodayTasks, useLogTask } from '../queries/useToday';
@@ -87,6 +87,18 @@ export function LogActivitySheet({ visible, onClose }: Props) {
   const [durationTask, setDurationTask] = useState<Task | null>(null);
   const submittingRef = useRef(false);
 
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const sheetTranslateY = useRef(new Animated.Value(300)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(backdropOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(sheetTranslateY, { toValue: 0, tension: 120, friction: 12, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible]);
+
   async function handleSimpleTask(task: Task) {
     if (submittingRef.current) return;
     submittingRef.current = true;
@@ -118,13 +130,25 @@ export function LogActivitySheet({ visible, onClose }: Props) {
     handleSimpleTask(task);
   }
 
-  function handleClose() { setDurationTask(null); onClose(); }
+  function handleClose() {
+    Animated.parallel([
+      Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+      Animated.spring(sheetTranslateY, { toValue: 300, tension: 120, friction: 12, useNativeDriver: true }),
+    ]).start(() => {
+      setDurationTask(null);
+      onClose();
+      backdropOpacity.setValue(0);
+      sheetTranslateY.setValue(300);
+    });
+  }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
       <View style={styles.backdrop}>
-        <TouchableOpacity style={styles.backdropTouch} onPress={handleClose} />
-        <View style={styles.sheet}>
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)', opacity: backdropOpacity }]}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleClose} activeOpacity={1} />
+        </Animated.View>
+        <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}>
           <View style={styles.handle} />
           <Text style={styles.title}>{t.logSheetTitle}</Text>
 
@@ -161,7 +185,7 @@ export function LogActivitySheet({ visible, onClose }: Props) {
           <TouchableOpacity style={styles.cancelBtn} onPress={handleClose}>
             <Text style={styles.cancelText}>{t.close}</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </View>
 
       {!!durationTask && (
@@ -182,7 +206,6 @@ export function LogActivitySheet({ visible, onClose }: Props) {
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
     backdrop:        { flex: 1, justifyContent: 'flex-end' },
-    backdropTouch:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
     sheet: {
       backgroundColor: C.surface,
       borderTopLeftRadius: Radii.xxl,
