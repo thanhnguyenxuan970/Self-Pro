@@ -1,5 +1,5 @@
-import React, { useRef, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useRef, useMemo, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, AppColors } from '../theme';
@@ -22,6 +22,33 @@ export function RankScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const mascotRef = useRef<RankMascotHandle>(null);
   const { data, isLoading } = useRankData(userId);
+
+  const sortedTiers = useMemo(
+    () => (data ? [...data.tiers].sort((a, b) => b.tier_order - a.tier_order) : []),
+    [data],
+  );
+
+  const ladderAnims = useRef<{ tx: Animated.Value; op: Animated.Value }[]>([]);
+  if (ladderAnims.current.length !== sortedTiers.length) {
+    ladderAnims.current = sortedTiers.map(() => ({
+      tx: new Animated.Value(-30),
+      op: new Animated.Value(0),
+    }));
+  }
+
+  const hasAnimated = useRef(false);
+  useEffect(() => {
+    if (hasAnimated.current || sortedTiers.length === 0) return;
+    hasAnimated.current = true;
+    Animated.parallel(
+      ladderAnims.current.map((anim, idx) =>
+        Animated.parallel([
+          Animated.timing(anim.tx, { toValue: 0, duration: 300, delay: idx * 50, useNativeDriver: true }),
+          Animated.timing(anim.op, { toValue: 1, duration: 300, delay: idx * 50, useNativeDriver: true }),
+        ]),
+      ),
+    ).start();
+  }, [sortedTiers]);
 
   if (isLoading || !data) {
     return (
@@ -92,20 +119,22 @@ export function RankScreen() {
         {/* Rank ladder */}
         <Text style={styles.sectionLabel}>{t.rankLadder}</Text>
         <View style={styles.card}>
-          {[...tiers].sort((a, b) => b.tier_order - a.tier_order).map((tier, idx, arr) => {
+          {sortedTiers.map((tier, idx, arr) => {
             const isCurrent = tier.id === currentTier.id;
             const isLast = idx === arr.length - 1;
             const rc = rankConfig(tier.tier_order);
             const range = idx > 0
               ? `${tier.stars_required}–${(arr[idx - 1]?.stars_required ?? 999) - 1} ★`
               : `${tier.stars_required}+ ★`;
+            const anim = ladderAnims.current[idx];
             return (
-              <View
+              <Animated.View
                 key={tier.id}
                 style={[
                   styles.rk,
                   isCurrent && { ...styles.rkCur, backgroundColor: rc.color + '22' },
                   isLast && styles.rkLast,
+                  anim && { opacity: anim.op, transform: [{ translateX: anim.tx }] },
                 ]}
               >
                 <View style={styles.rkMascot}>
@@ -118,7 +147,7 @@ export function RankScreen() {
                   <Text style={styles.rkB}>{rc.descriptor}</Text>
                 </View>
                 <Text style={[styles.rkThr, isCurrent && { color: rc.color }]}>{range}</Text>
-              </View>
+              </Animated.View>
             );
           })}
         </View>

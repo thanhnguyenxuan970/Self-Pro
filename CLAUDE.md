@@ -500,3 +500,20 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0;
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors
+
+---
+
+## Habit Tracker — Rank Ladder Stagger Animation COMPLETE (2026-06-03)
+
+### What Was Built
+- **`src/screens/RankScreen.tsx`**: Staggered slide-in on rank ladder rows. Each row: `translateX -30→0` + `opacity 0→1`, 300ms duration, 50ms stagger per index. Fires once on screen mount after data loads.
+
+### Key Decisions
+- `ladderAnims` ref sized via length-check guard during render — lazy-init pattern for array refs; avoids extra `useEffect`.
+- `hasAnimated.current` gate prevents re-triggering on query refetch / re-render.
+- `sortedTiers` moved to `useMemo` from inline JSX sort — stable dep for `useEffect`, reused in render.
+- `useNativeDriver: true` on both channels — no layout props, stays GPU thread.
+- `anim &&` guard in style array — safe index-mismatch fallback.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
