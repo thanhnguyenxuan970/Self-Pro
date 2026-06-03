@@ -460,3 +460,25 @@ Full "App Fixes & Enhancements": `USER_ID` removed → `useAuthUser()`; `Languag
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest` → 98/98 pass
+
+---
+
+## Habit Tracker — 12-Agent Simulation + Ship QA COMPLETE (2026-06-03)
+
+### What Was Built / Fixed
+- **12 simulation-report items** (commit `12e0006`): streak chip in hero, flash ✓ on log, repeat-yesterday chip, incomplete-first sort, `‹/›` analytics nav, treat ETA, history limit 100, 3 notification slots, streak toast in `useLogTask.onSuccess`, streak Supabase sync, 45m chip preset, `statVault` label fix.
+- **Ship QA fixes** (this session): streak toasts extracted from `useLogTask.onSuccess` → `showStreakToast` in `TodayScreen` so they use `t` (i18n); dead `scheduleHabitReminder`/`cancelHabitReminder` removed from `notifications.ts`; `t` param shadowing fixed in `selectAll`; regression fixed — `handleLogTime` (timed modal) was missing `showStreakToast` call after extraction.
+- **3 new i18n keys**: `streakBreakTitle`, `streakBreakMsg(n)`, `streakMilestone(n)` in both vi + en.
+
+### Key Decisions
+- Streak toast moved to component level (not query hook) — queries have no React context access; component has `t`.
+- `showStreakToast` called in all 3 log paths: `handleLog`, `handleLogTime`, `handleRepeatYesterday` (last result only for batch).
+- `scheduleHabitReminder` removed (dead after 3-slot refactor; also had bug: cancelled all slots when scheduling slot 1 only).
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
+
+### [NEEDS USER] Supabase Dashboard (streak sync)
+```sql
+ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0;
+```

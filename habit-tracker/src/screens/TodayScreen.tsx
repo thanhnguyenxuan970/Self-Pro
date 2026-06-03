@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, Modal, TextInput, Alert,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import {
@@ -64,7 +65,7 @@ export function TodayScreen() {
   }, []);
 
   const selectAll = useCallback(() => {
-    setSelectedIds(new Set((tasks ?? []).map(t => t.id)));
+    setSelectedIds(new Set((tasks ?? []).map(task => task.id)));
   }, [tasks]);
 
   const cancelSelection = useCallback(() => {
@@ -126,14 +127,23 @@ export function TodayScreen() {
     });
   }, [tasks, loggedIds]);
 
+  function showStreakToast(newStreak: number, prevStreak: number) {
+    if (newStreak === 1 && prevStreak > 1) {
+      Toast.show({ type: 'error', text1: t.streakBreakTitle, text2: t.streakBreakMsg(prevStreak), visibilityTime: 3000 });
+    } else if (newStreak > 1 && newStreak > prevStreak) {
+      Toast.show({ type: 'success', text1: t.streakMilestone(newStreak), visibilityTime: 1800 });
+    }
+  }
+
   async function handleLog(task: Task) {
     if (task.is_time_based) { setModalTask(task); return; }
     if (justLoggedIds.has(task.id)) return;
     try {
-      await logTask.mutateAsync({
+      const result = await logTask.mutateAsync({
         taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD',
         isTimeBased: false, basePoints: task.base_points, starPenalty: task.star_penalty,
       });
+      showStreakToast(result.newStreak, result.prevStreak);
       setJustLoggedIds(prev => new Set(prev).add(task.id));
       setTimeout(() => {
         setJustLoggedIds(prev => {
@@ -150,11 +160,12 @@ export function TodayScreen() {
     const mins = parseInt(duration, 10);
     if (isNaN(mins) || mins <= 0) { Alert.alert(t.validMins); return; }
     try {
-      await logTask.mutateAsync({
+      const result = await logTask.mutateAsync({
         taskTypeId: modalTask.id, kind: modalTask.kind as 'GOOD' | 'BAD',
         isTimeBased: true, basePoints: modalTask.base_points,
         starPenalty: modalTask.star_penalty, durationMin: mins,
       });
+      showStreakToast(result.newStreak, result.prevStreak);
       setModalTask(null); setDuration('');
     } catch { Alert.alert(t.error, t.cantLog); }
   }
@@ -163,8 +174,9 @@ export function TodayScreen() {
     if (repeating || yesterdayTasks.length === 0) return;
     setRepeating(true);
     try {
+      let lastResult: { newStreak: number; prevStreak: number } | null = null;
       for (const task of yesterdayTasks) {
-        await logTask.mutateAsync({
+        lastResult = await logTask.mutateAsync({
           taskTypeId: task.task_type_id,
           kind: task.kind as 'GOOD' | 'BAD',
           isTimeBased: !!task.is_time_based,
@@ -173,6 +185,7 @@ export function TodayScreen() {
           durationMin: task.duration_min ?? undefined,
         });
       }
+      if (lastResult) showStreakToast(lastResult.newStreak, lastResult.prevStreak);
     } catch { Alert.alert(t.error, t.cantLog); }
     setRepeating(false);
   }

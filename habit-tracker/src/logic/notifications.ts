@@ -8,29 +8,6 @@ export function parseNotificationTime(input: string): { hours: number; minutes: 
   return { hours, minutes };
 }
 
-export async function scheduleHabitReminder(timeStr: string): Promise<void> {
-  const parsed = parseNotificationTime(timeStr);
-  if (!parsed) throw new Error(`Invalid time: ${timeStr}`);
-  const Notifications = await import('expo-notifications');
-  await Notifications.cancelAllScheduledNotificationsAsync();
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'Habit Tracker 💪',
-      body: 'Time to log your tasks!',
-      sound: true,
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour: parsed.hours,
-      minute: parsed.minutes,
-    },
-  });
-}
-
-export async function cancelHabitReminder(): Promise<void> {
-  const Notifications = await import('expo-notifications');
-  await Notifications.cancelAllScheduledNotificationsAsync();
-}
 
 export async function scheduleAllHabitReminders(times: (string | null)[]): Promise<void> {
   const Notifications = await import('expo-notifications');

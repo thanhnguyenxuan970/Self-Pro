@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Toast from 'react-native-toast-message';
 import { getDb } from '../db/client';
 import { getStoredGoogleUserEmail } from '../hooks/useAuth';
 import { syncUserStreak } from '../services/syncService';
@@ -298,26 +297,9 @@ export function useLogTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['treats'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
-
-      if (!data) return;
-      const { newStreak, prevStreak } = data;
-      if (newStreak === 1 && prevStreak > 1) {
-        Toast.show({
-          type: 'error',
-          text1: '😔 Chuỗi đã gián đoạn',
-          text2: `Streak ${prevStreak} ngày đã kết thúc. Hôm nay bắt đầu lại!`,
-          visibilityTime: 3000,
-        });
-      } else if (newStreak > 1 && prevStreak < newStreak) {
-        Toast.show({
-          type: 'success',
-          text1: `🔥 Streak ${newStreak} ngày!`,
-          visibilityTime: 1800,
-        });
-      }
       // Fire-and-forget streak sync — non-fatal if Supabase absent or table not migrated
       getStoredGoogleUserEmail()
-        .then(email => { if (email) return syncUserStreak(email, newStreak); })
+        .then(email => { if (email) return syncUserStreak(email, data.newStreak); })
         .catch(() => {});
     },
   });
