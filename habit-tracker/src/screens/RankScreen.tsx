@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,42 +7,20 @@ import { useRankData } from '../queries/useRank';
 import { getCurrentTier, getStarsToNextTier } from '../logic/rankUtils';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
+import { RANKS } from '../config/ranks.config';
 
-const RANK_EMOJIS: Record<string, string> = {
-  'Delulu':         '🫠',
-  'Mewing':         '😤',
-  'Rizz':           '💃',
-  'Gigachad':       '💪',
-  'Aura Farmer':    '✨',
-  'Main Character': '🎬',
-  'GOATED':         '🐐',
-};
-
-const RANK_EN: Record<string, string> = {
-  'Delulu':         'noodle mode',
-  'Mewing':         'max send',
-  'Rizz':           'hit the griddy',
-  'Gigachad':       'too swole',
-  'Aura Farmer':    'spin to win',
-  'Main Character': 'hair flip',
-  'GOATED':         'infinite W',
-};
-
-const RANK_COLORS: Record<string, string> = {
-  'Delulu':         '#A78BFA',
-  'Mewing':         '#818CF8',
-  'Rizz':           '#60A5FA',
-  'Gigachad':       '#2DD4BF',
-  'Aura Farmer':    '#F472B6',
-  'Main Character': '#FB923C',
-  'GOATED':         '#F4C842',
-};
+// tier_order (1-based DB) → RANKS index (0-based config)
+function rankConfig(tierOrder: number) {
+  return RANKS[Math.min(Math.max(tierOrder - 1, 0), RANKS.length - 1)];
+}
 
 export function RankScreen() {
   const userId = useAuthUser();
   const { colors } = useTheme();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const mascotRef = useRef<RankMascotHandle>(null);
   const { data, isLoading } = useRankData(userId);
 
   if (isLoading || !data) {
@@ -63,6 +41,8 @@ export function RankScreen() {
     ? Math.min(1, (currentStars - prevTierStars) / Math.max(1, nextTierStars - prevTierStars))
     : 1;
 
+  const cfg = rankConfig(currentTier.tier_order);
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -70,12 +50,17 @@ export function RankScreen() {
 
         {/* Rankhero card */}
         <View style={styles.rankhero}>
-          <View style={[styles.rankheroGlow, { backgroundColor: RANK_COLORS[currentTier.rank_name] ?? colors.primarySoft }]} />
+          <View style={[styles.rankheroGlow, { backgroundColor: cfg.color }]} />
           {currentStars >= 5 ? (
             <>
-              <Text style={styles.rankEm}>{RANK_EMOJIS[currentTier.rank_name] ?? '🏆'}</Text>
+              <RankMascot
+                ref={mascotRef}
+                tier={currentTier.tier_order - 1}
+                size={100}
+                loop
+              />
               <Text style={styles.rankNm}>{currentTier.rank_name}</Text>
-              <Text style={styles.rankEn}>{t.rankQuoteMap[currentTier.rank_name] ?? ''}</Text>
+              <Text style={styles.rankEn}>{cfg.descriptor}</Text>
             </>
           ) : (
             <>
@@ -92,7 +77,7 @@ export function RankScreen() {
           </View>
           {starsToNext > 0 ? (
             <Text style={styles.nextCap}>
-              {t.nextRank(starsToNext, nextTier?.rank_name ?? '')} {RANK_EMOJIS[nextTier?.rank_name ?? ''] ?? ''}
+              {t.nextRank(starsToNext, nextTier?.rank_name ?? '')}
             </Text>
           ) : (
             <Text style={styles.nextCap}>{t.maxRank}</Text>
@@ -110,17 +95,29 @@ export function RankScreen() {
           {[...tiers].sort((a, b) => b.tier_order - a.tier_order).map((tier, idx, arr) => {
             const isCurrent = tier.id === currentTier.id;
             const isLast = idx === arr.length - 1;
+            const rc = rankConfig(tier.tier_order);
             const range = idx > 0
               ? `${tier.stars_required}–${(arr[idx - 1]?.stars_required ?? 999) - 1} ★`
               : `${tier.stars_required}+ ★`;
             return (
-              <View key={tier.id} style={[styles.rk, isCurrent && { ...styles.rkCur, backgroundColor: (RANK_COLORS[tier.rank_name] ?? colors.primary) + '22' }, isLast && styles.rkLast]}>
-                <Text style={styles.rkEm}>{RANK_EMOJIS[tier.rank_name] ?? '•'}</Text>
-                <View style={styles.rkInfo}>
-                  <Text style={[styles.rkA, isCurrent && { color: RANK_COLORS[tier.rank_name] ?? colors.primaryPress }]}>{tier.rank_name}</Text>
-                  <Text style={styles.rkB}>{RANK_EN[tier.rank_name] ?? ''}</Text>
+              <View
+                key={tier.id}
+                style={[
+                  styles.rk,
+                  isCurrent && { ...styles.rkCur, backgroundColor: rc.color + '22' },
+                  isLast && styles.rkLast,
+                ]}
+              >
+                <View style={styles.rkMascot}>
+                  <RankMascot tier={tier.tier_order - 1} size={36} loop={isCurrent} />
                 </View>
-                <Text style={[styles.rkThr, isCurrent && { color: RANK_COLORS[tier.rank_name] ?? colors.primaryPress }]}>{range}</Text>
+                <View style={styles.rkInfo}>
+                  <Text style={[styles.rkA, isCurrent && { color: rc.color }]}>
+                    {tier.rank_name}
+                  </Text>
+                  <Text style={styles.rkB}>{rc.descriptor}</Text>
+                </View>
+                <Text style={[styles.rkThr, isCurrent && { color: rc.color }]}>{range}</Text>
               </View>
             );
           })}
@@ -146,9 +143,20 @@ export function RankScreen() {
                   ? tiers.find((tr) => tr.id === week.current_tier_id)
                   : null;
                 const isLast = idx === history.length - 1;
+                const wrc = weekTier ? rankConfig(weekTier.tier_order) : null;
                 return (
                   <View key={week.week_start} style={[styles.rk, isLast && styles.rkLast]}>
-                    <Text style={styles.rkEm}>{weekTier ? (RANK_EMOJIS[weekTier.rank_name] ?? '•') : '—'}</Text>
+                    <View style={styles.rkMascot}>
+                      {wrc ? (
+                        <RankMascot
+                          tier={weekTier!.tier_order - 1}
+                          size={36}
+                          loop={false}
+                        />
+                      ) : (
+                        <Text style={styles.rkEm}>—</Text>
+                      )}
+                    </View>
                     <View style={styles.rkInfo}>
                       <Text style={styles.rkA}>{t.weekItem(week.week_start)}</Text>
                       <Text style={styles.rkB}>{weekTier?.rank_name ?? '—'}</Text>
@@ -179,10 +187,10 @@ function makeStyles(C: AppColors) {
     },
     rankheroGlow: {
       position: 'absolute', top: 0, left: 0, right: 0, height: '60%',
-      backgroundColor: C.primarySoft, opacity: 0.6,
+      opacity: 0.4,
     },
     rankEm: { fontSize: 54, marginBottom: 2 },
-    rankNm: { fontSize: 25, fontWeight: '800', letterSpacing: -0.5, color: C.inkDark, marginTop: 6 },
+    rankNm: { fontSize: 25, fontWeight: '800', letterSpacing: -0.5, color: C.inkDark, marginTop: 8 },
     rankEn: { fontSize: 12.5, color: C.muted, marginTop: 2, fontStyle: 'italic' },
     rankWk: {
       marginTop: 12, backgroundColor: C.starSoft,
@@ -212,7 +220,7 @@ function makeStyles(C: AppColors) {
     },
     rk: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
-      paddingVertical: 12, borderBottomWidth: 1, borderColor: C.line,
+      paddingVertical: 10, borderBottomWidth: 1, borderColor: C.line,
     },
     rkCur: {
       backgroundColor: C.primarySoft,
@@ -220,7 +228,8 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.md, borderBottomWidth: 0, marginVertical: 2,
     },
     rkLast: { borderBottomWidth: 0 },
-    rkEm: { fontSize: 24, width: 32, textAlign: 'center', flexShrink: 0 },
+    rkMascot: { width: 36, height: 36, flexShrink: 0 },
+    rkEm: { fontSize: 20, width: 36, textAlign: 'center', flexShrink: 0 },
     rkInfo: { flex: 1 },
     rkA: { fontSize: 14, fontWeight: '800', color: C.inkDark },
     rkB: { fontSize: 11.5, color: C.muted, marginTop: 2 },

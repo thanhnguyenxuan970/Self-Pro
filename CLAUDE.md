@@ -89,7 +89,7 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 
 ## Habit Tracker Architecture
 
-**Status:** Day 21+ COMPLETE (2026-06-02). Code lives at `c:\Users\Admin\Desktop\Self-Pro\habit-tracker\`.
+**Status:** RankMascot COMPLETE (2026-06-03). Code lives at `c:\Users\Admin\Desktop\Self-Pro\habit-tracker\`.
 
 **Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29 + expo-auth-session v5 + expo-web-browser
 
@@ -184,13 +184,6 @@ Full "App Fixes & Enhancements": `USER_ID` removed → `useAuthUser()`; `Languag
 - `fund_transactions` table kept (no DROP) — data preserved, no new writes
 - `DEFAULT_VALUE_PER_STAR = 1000` (VND/star); no hardcoded `1000` fallbacks anywhere
 
-### Test Command
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # 73/73 pass
-npx tsc --noEmit  # 0 errors
-npx expo run:android  # requires native build
-```
 
 ---
 
@@ -238,13 +231,6 @@ npx expo run:android  # requires native build
 - `useDeleteActivityLogs` parameterized placeholders: `ids.map(() => '?').join(',')` — safe, no injection.
 - Dark mode toggle persists to AsyncStorage but does not retheme the app live (requires re-mount). Acceptable MVP.
 
-### Test Command (Day 21)
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # 73/73 pass
-npx tsc --noEmit  # 0 errors
-npx expo run:android  # requires native build
-```
 
 ---
 
@@ -265,13 +251,6 @@ npx expo run:android  # requires native build
 - `expo-haptics` installed via `expo install` — SDK 56 compatible, graceful `.catch(() => {})` on platforms without haptic support.
 - `TimedTaskLogger` is a sub-component (not inline JSX) so it gets its own hook scope for `useChipPresets`/`useDurationLogger`.
 
-### Test Command (Day 22)
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # run to verify no regressions
-npx tsc --noEmit  # 0 errors
-npx expo run:android  # requires native build
-```
 
 ---
 
@@ -291,13 +270,6 @@ npx expo run:android  # requires native build
 - "Tuần này" label shows `treat_stars` (not weekly_stars) — per user rename request; `treat_stars` is lifetime accumulated, label is cosmetic per user spec.
 - Bulk delete: sequential `mutateAsync` loop (not parallel) — preserves TanStack Query invalidation ordering; partial failure shows error alert, selection state preserved for retry.
 
-### Test Command (Day 23)
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # 73/73 pass
-npx tsc --noEmit  # 0 errors
-npx expo run:android  # requires native build
-```
 
 ---
 
@@ -339,13 +311,6 @@ npx expo run:android  # requires native build
 - `saveNotifTime()` cannot throw synchronously (state setters + TanStack `mutate` are fire-and-forget), so try/finally on submit is unnecessary complexity.
 - Restart notes are italic muted text below each section card — informational only, no modal or alert needed for MVP.
 
-### Test Command (Day 24)
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # 98/98 pass
-npx tsc --noEmit  # 0 errors
-npx expo run:android  # requires native build
-```
 
 ---
 
@@ -362,13 +327,6 @@ npx expo run:android  # requires native build
 - `Stack.Screen options` static object re-evaluated on each `AppStack` render — React Navigation picks up language changes for modal header titles without needing options-as-function.
 - `timeLocale: 'vi-VN'` / `'en-US'` in i18n is explicit per-locale rather than falling back to device locale — avoids mismatch when device locale ≠ app language.
 
-### Test Command
-```bash
-cd C:\Users\Admin\Desktop\Self-Pro\habit-tracker
-npx jest          # 98/98 pass
-npx tsc --noEmit  # 0 errors
-npx expo run:android  # requires native build
-```
 
 ---
 
@@ -462,31 +420,8 @@ npx expo run:android  # requires native build
 
 ## Habit Tracker — Rank Overhaul: Absurd Mode COMPLETE (2026-06-02)
 
-### What Was Built
-- **`src/db/migrations.ts`**: Tier seed updated to 7 tiers with new names + thresholds from `rank_mascots_absurd.html` spec. Idempotent migration (guarded by `rank_name='Delulu'` check, wrapped in `withTransactionAsync`) updates existing installs on next app launch. Removed tier 8 (`Legendary NPC`).
-- **`src/screens/RankScreen.tsx`**: Added `RANK_COLORS` map (hex from SVG spec). Hero glow now uses per-tier color. Rank ladder active row uses tier color + `22` alpha overlay; name/threshold text colored with tier accent. Updated `RANK_EMOJIS` and `RANK_EN` subtitle maps to match spec.
-- **`src/i18n.ts`**: `rankQuoteMap` (vi + en) updated with new Gen Z keys. `en: typeof vi` enforces key parity at compile time.
-
-### New Tier Ladder
-| tier_order | rank_name | stars_required | color |
-|---|---|---|---|
-| 1 | Delulu | 5 | `#A78BFA` |
-| 2 | Mewing | 10 | `#818CF8` |
-| 3 | Rizz | 20 | `#60A5FA` |
-| 4 | Gigachad | 40 | `#2DD4BF` |
-| 5 | Aura Farmer | 80 | `#F472B6` |
-| 6 | Main Character | 160 | `#FB923C` |
-| 7 | GOATED | 320 | `#F4C842` |
-
-### Key Decisions
-- Migration uses `withTransactionAsync` — partial-update crash protection: if tier 1 gets written before crash, guard sees `Delulu` exists and skips; but all 7 are in one transaction so either all commit or none do.
-- `+ '22'` hex alpha: valid 8-char hex in RN 0.65+ (this is SDK 56 = RN 0.76+). All `RANK_COLORS` and theme colors are 6-digit hex — append is safe.
-- SVG mascot animations from spec are web-only; not ported. Mobile uses emoji + per-tier color accent instead.
-- `noRankDesc` threshold already matches spec (`currentStars >= 5`). No change needed.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors
-- `npx jest` → 98/98 pass (no new tests — pure data/style change)
+- **`src/db/migrations.ts`**: Tier seed → 7 tiers (Delulu/5★ … GOATED/320★). Idempotent (`rank_name='Delulu'` guard + `withTransactionAsync`). Tier data/colors now canonical in `src/config/ranks.config.ts` — see RankMascot session.
+- **`src/i18n.ts`**: `rankQuoteMap` updated with Gen Z keys. `en: typeof vi` enforces key parity.
 
 ---
 
@@ -504,3 +439,24 @@ npx expo run:android  # requires native build
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `Cannot find native module 'ExpoSecureStore'` (recurring after lazy-require fix) | Metro `guardedLoadModule` intercepts `requireNativeModule` throw from module factory scope before it reaches caller's try-catch | Check `globalThis.ExpoModules?.ExpoSecureStore` before require; skip require entirely when absent |
+
+---
+
+## Habit Tracker — RankMascot Animated Component COMPLETE (2026-06-03)
+
+### What Was Built
+- **`src/config/ranks.config.ts`** (new): Single source of truth for rank system — 7-tier config with per-tier SVG geometry, animation keyframes, colors, haptic patterns. Exports `RANKS`, `rankForStars`, `STAR_POINTS`, all interfaces. Replaces hardcoded maps in RankScreen.
+- **`src/components/RankMascot.tsx`** (new): Animated star-sprite component. RN built-in `Animated` (not reanimated). Looping per-tier signature animation via single `p` (0→1) driving all transform channels via `interpolate`. `RankMascotHandle.playRankUp()` triggers haptic + pop scale. Uses `react-native-svg` + `expo-haptics`.
+- **`src/screens/RankScreen.tsx`** updated: Hero shows animated `RankMascot` (100px, loop=true) when `currentStars >= 5`. Rank ladder shows mini mascots (36px, loop only for current tier). Colors/descriptors from `RANKS[tier_order-1]`. Hardcoded `RANK_EMOJIS`/`RANK_EN`/`RANK_COLORS` maps removed.
+
+### Key Decisions
+- Built-in `Animated` (not reanimated): `react-native-reanimated` absent from deps + requires babel plugin + native rebuild.
+- `skewX` channel skipped: not supported with `useNativeDriver: true`. Only Delulu uses it; `rotate` covers the effect.
+- Pop + loop in nested Views: outer handles `pop` scale, inner handles loop transforms — avoids multiplying two Animated.Values.
+- `chanInterp`/`chanInterpDeg` guard is `< 2` (not `=== 0`): `Animated.interpolate` requires ≥2 input/output points.
+- Tier mapping: DB `tier_order` (1-based) → `RANKS[tier_order - 1]` (0-based). `rankConfig()` helper in RankScreen.
+- `expo-av` not used: removed (ClassNotFoundException: LazyKType crash on SDK 56). Sound field in Rank config exists for future use.
+- `mascotRef.playRankUp()` wired but not yet triggered — hook point for future level-up detection in `useLogTask`.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest` → 98/98 pass
