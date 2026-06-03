@@ -487,3 +487,20 @@ npx expo run:android  # requires native build
 ### Test Results
 - `npx tsc --noEmit` → 0 errors
 - `npx jest` → 98/98 pass (no new tests — pure data/style change)
+
+---
+
+## Habit Tracker — ExpoSecureStore Crash Fix v2 COMPLETE (2026-06-03)
+
+### What Was Fixed
+- **`src/hooks/useAuth.ts`**: `resolveSecureStore()` now checks `(globalThis as any).ExpoModules?.ExpoSecureStore` before calling `require('expo-secure-store')`. Returns `null` if absent. Callers (`readGoogleUser`, `writeGoogleUser`, `deleteGoogleUser`) handle `null` with AsyncStorage fallback — no throw path.
+
+### Key Decisions
+- Prior fix (lazy `require` + try-catch) was insufficient: Metro's `guardedLoadModule` intercepts throws from module factories **before** they propagate to the caller's try-catch. A `require()` inside a try-catch does NOT protect against errors thrown at the module's `<global>` scope.
+- Real fix: check `globalThis.ExpoModules.ExpoSecureStore` (the native module registry populated by Expo at startup) **before** calling `require`. If absent, skip require entirely — no module factory runs, no crash.
+- `resolveSecureStore` return type changed to `| null` (was throwing). All callers use null-check guard pattern instead of try-catch.
+- Removed unused `React` default import (no JSX in file).
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `Cannot find native module 'ExpoSecureStore'` (recurring after lazy-require fix) | Metro `guardedLoadModule` intercepts `requireNativeModule` throw from module factory scope before it reaches caller's try-catch | Check `globalThis.ExpoModules?.ExpoSecureStore` before require; skip require entirely when absent |
