@@ -1,7 +1,7 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Modal, TextInput, Alert,
+  StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Animated,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -110,6 +110,33 @@ export function TodayScreen() {
 
   const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑', 8: '💀' };
   const rankEmoji = currentTier ? (RANK_EMOJI[currentTier.tier_order] ?? '⭐') : '⭐';
+
+  const rankBounceAnim = useRef(new Animated.Value(1)).current;
+  const prevRankNameRef = useRef(rankName);
+  useEffect(() => {
+    if (prevRankNameRef.current !== rankName) {
+      prevRankNameRef.current = rankName;
+      Animated.sequence([
+        Animated.spring(rankBounceAnim, { toValue: 1.25, tension: 120, friction: 6, useNativeDriver: true }),
+        Animated.spring(rankBounceAnim, { toValue: 1, tension: 120, friction: 6, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [rankName]);
+
+  const streakPulseAnim = useRef(new Animated.Value(1)).current;
+  const hasStreak = streak > 0;
+  useEffect(() => {
+    if (hasStreak) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(streakPulseAnim, { toValue: 1.08, duration: 400, useNativeDriver: true }),
+          Animated.timing(streakPulseAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+        ])
+      );
+      loop.start();
+      return () => loop.stop();
+    }
+  }, [hasStreak]);
 
   const avatarInitial = (googleUser?.name?.charAt(0) ?? 'B').toUpperCase();
 
@@ -232,12 +259,14 @@ export function TodayScreen() {
             <Text style={[styles.heroDelta, isDebt ? styles.heroDeltaDown : styles.heroDeltaUp]}>
               {dailyPoints > 0 ? t.upDelta(dailyPoints) : t.noDelta}
             </Text>
-            <View style={styles.rankChip}>
+            <Animated.View style={[styles.rankChip, { transform: [{ scale: rankBounceAnim }] }]}>
               <Text style={styles.rankChipText}>{rankEmoji} {rankName}</Text>
-            </View>
+            </Animated.View>
           </View>
           {streak > 0 && (
-            <Text style={styles.heroStreak}>{t.streakChip(streak)}</Text>
+            <Animated.View style={{ alignSelf: 'center', transform: [{ scale: streakPulseAnim }] }}>
+              <Text style={styles.heroStreak}>{t.streakChip(streak)}</Text>
+            </Animated.View>
           )}
         </LinearGradient>
 

@@ -482,3 +482,21 @@ Full "App Fixes & Enhancements": `USER_ID` removed → `useAuthUser()`; `Languag
 ```sql
 ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0;
 ```
+
+---
+
+## Habit Tracker — Tier 1 UI Animations COMPLETE (2026-06-03)
+
+### What Was Built
+- **`src/components/DurationChips.tsx`**: Extracted `ChipButton` inner component with spring scale press animation (`1→0.92→1`, tension 140, friction 7, `useNativeDriver: true`). Save button glow overlay (`opacity 0.4→1→0.4` loop, 1200ms, JS driver) activates when `inputValid && pickerOpen`.
+- **`src/screens/TodayScreen.tsx`**: Rank chip bounce pop (`1→1.25→1` spring sequence, tension 120, friction 6) fires on rank name change. Streak badge pulse loop (`1→1.08→1`, 800ms, `useNativeDriver: true`) runs while `streak > 0`.
+
+### Key Decisions
+- `ChipButton` as inner component (not inline hooks in `.map()`) — hooks rules forbid calling hooks inside array callbacks.
+- Glow effect guarded by `pickerOpen` in deps — prevents animation loop running on unmounted overlay when modal is closed.
+- `hasStreak = streak > 0` as boolean dep — streak loop only restarts on 0↔non-zero transition, not on every increment (avoids loop restart when streak 2→3).
+- `prevRankNameRef` pattern for rank bounce — fires only on actual tier-name change, not on every query refetch.
+- Built-in `Animated` (not reanimated) — consistent with RankMascot; no babel plugin/rebuild needed.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors

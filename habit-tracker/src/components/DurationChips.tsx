@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, Pressable, Modal, TextInput,
-  StyleSheet, TouchableOpacity,
+  StyleSheet, TouchableOpacity, Animated,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import type { Chip } from '../logic/chipPresets';
@@ -16,6 +16,22 @@ interface Props {
   onLog: (minutes: number) => void;
 }
 
+function ChipButton({ chip, onPress, chipStyle, textStyle, a11yLabel }: {
+  chip: Chip; onPress: () => void;
+  chipStyle: any; textStyle: any; a11yLabel: string;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const pressIn = () => Animated.spring(scale, { toValue: 0.92, tension: 140, friction: 7, useNativeDriver: true }).start();
+  const pressOut = () => Animated.spring(scale, { toValue: 1, tension: 140, friction: 7, useNativeDriver: true }).start();
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable onPress={onPress} onPressIn={pressIn} onPressOut={pressOut} style={chipStyle} accessibilityRole="button" accessibilityLabel={a11yLabel}>
+        <Text style={textStyle}>{chip.label}{chip.isEscapeHatch ? ' ›' : ''}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export function DurationChips({ activityName, chips, previewStars, onLog }: Props) {
   const { colors } = useTheme();
   const t = useTranslations();
@@ -23,6 +39,7 @@ export function DurationChips({ activityName, chips, previewStars, onLog }: Prop
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [customInput, setCustomInput] = useState('');
+  const glowOpacity = useRef(new Animated.Value(0.4)).current;
 
   const commit = (minutes: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -41,6 +58,22 @@ export function DurationChips({ activityName, chips, previewStars, onLog }: Prop
   };
 
   const customMins = parseInt(customInput, 10) || 0;
+  const inputValid = customMins > 0;
+
+  useEffect(() => {
+    if (inputValid && pickerOpen) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowOpacity, { toValue: 1, duration: 600, useNativeDriver: false }),
+          Animated.timing(glowOpacity, { toValue: 0.4, duration: 600, useNativeDriver: false }),
+        ])
+      );
+      loop.start();
+      return () => loop.stop();
+    } else {
+      glowOpacity.setValue(0.4);
+    }
+  }, [inputValid, pickerOpen]);
 
   return (
     <View style={s.row}>
@@ -48,21 +81,14 @@ export function DurationChips({ activityName, chips, previewStars, onLog }: Prop
 
       <View style={s.chips}>
         {chips.map(c => (
-          <Pressable
+          <ChipButton
             key={c.label}
+            chip={c}
             onPress={() => tapChip(c)}
-            style={({ pressed }) => [s.chip, c.isEscapeHatch && s.escape, pressed && s.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel={
-              c.isEscapeHatch
-                ? t.chipA11yEscape
-                : t.chipA11yLog(c.label, previewStars(c.minutes))
-            }
-          >
-            <Text style={[s.chipText, c.isEscapeHatch && s.escapeText]}>
-              {c.label}{c.isEscapeHatch ? ' ›' : ''}
-            </Text>
-          </Pressable>
+            chipStyle={[s.chip, c.isEscapeHatch && s.escape]}
+            textStyle={[s.chipText, c.isEscapeHatch && s.escapeText]}
+            a11yLabel={c.isEscapeHatch ? t.chipA11yEscape : t.chipA11yLog(c.label, previewStars(c.minutes))}
+          />
         ))}
       </View>
 
@@ -90,6 +116,9 @@ export function DurationChips({ activityName, chips, previewStars, onLog }: Prop
             disabled={customMins <= 0}
             accessibilityRole="button"
           >
+            {inputValid && (
+              <Animated.View style={[StyleSheet.absoluteFill, s.saveGlow, { opacity: glowOpacity }]} />
+            )}
             <Text style={s.saveText}>
               {customMins > 0
                 ? t.durationSave(formatDuration(customMins), previewStars(customMins))
@@ -146,7 +175,9 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.sm,
       paddingVertical: 14,
       alignItems: 'center',
+      overflow: 'hidden',
     },
+    saveGlow:    { backgroundColor: 'rgba(255,255,255,0.25)' },
     saveDisabled: { backgroundColor: C.line2 },
     saveText:    { color: C.white, fontSize: 14, fontWeight: '600' },
   });
