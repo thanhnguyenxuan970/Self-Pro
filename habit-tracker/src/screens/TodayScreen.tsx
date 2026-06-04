@@ -13,7 +13,7 @@ import {
 import { useArchiveTask } from '../queries/useTasks';
 import { useRankData } from '../queries/useRank';
 import { getCurrentTier } from '../game/rankUtils';
-import { Radii, Spacing, Shadows, AppColors } from '../theme';
+import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useAuthUser, useGoogleUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { cueStreakMilestone } from '../audio/uiSounds';

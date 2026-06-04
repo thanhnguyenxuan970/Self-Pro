@@ -5,7 +5,7 @@ import {
   TIME_UNIT_MINUTES,
   SOURCE_TASK,
   SOURCE_DAILY_BONUS,
-} from '../constants';
+} from '../config/constants';
 import { computeStars } from './points';
 
 export interface ComputeInput {

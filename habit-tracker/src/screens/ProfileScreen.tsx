@@ -6,7 +6,7 @@ import {
 import { useWeeklySummary, useDailySummary } from '../queries/useToday';
 import { useTreatPool } from '../queries/useTreats';
 import { useRecentActivityLogs, ActivityLogEntry } from '../queries/useProgress';
-import { Radii, Spacing, Shadows, AppColors } from '../theme';
+import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 

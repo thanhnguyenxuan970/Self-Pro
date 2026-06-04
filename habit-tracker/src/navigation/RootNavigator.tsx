@@ -12,7 +12,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { SignInScreen } from '../screens/SignInScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
-import { AppColors, Shadows } from '../theme';
+import { AppColors, Shadows } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { LogActivitySheet } from '../screens/LogActivitySheet';
 import { GoogleUser } from '../hooks/useAuth';

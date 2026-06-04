@@ -8,9 +8,9 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
+import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
-import { TEMPLATE_CATEGORIES } from '../constants';
+import { TEMPLATE_CATEGORIES } from '../config/constants';
 import { useAuthUser } from '../hooks/useAuth';
 import { buildTemplateTasks } from '../game/seedTemplates';
 import { useCreateTask } from '../queries/useTasks';

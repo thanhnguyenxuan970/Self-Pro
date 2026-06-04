@@ -6,7 +6,7 @@ import {
   useProgressData, useStreakCount, useStarsToNextTier, useAllTimeStats,
   useRecentActivityLogs, useDeleteActivityLogs, ActivityLogEntry,
 } from '../queries/useProgress';
-import { Radii, Spacing, Shadows, AppColors } from '../theme';
+import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 
@@ -160,16 +160,12 @@ export function ProgressScreen() {
           </View>
         </View>
 
-        {/* Stats overview 2x2 */}
+        {/* Stats overview */}
         <Text style={styles.sectionLabel}>{t.overviewSection}</Text>
         <View style={styles.statGrid}>
           <View style={styles.stat}>
             <Text style={styles.statV}>{tierInfo?.currentStars ?? 0} ★</Text>
             <Text style={styles.statL}>{t.starsThisWeek}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statV}>{allTime?.totalActivities ?? 0}</Text>
-            <Text style={styles.statL}>{t.activities}</Text>
           </View>
           <View style={styles.stat}>
             <Text style={styles.statV}>{streak} 🔥</Text>
@@ -197,10 +193,6 @@ export function ProgressScreen() {
           <View style={styles.stat}>
             <Text style={styles.statV}>{allTime?.bestStreak ?? 0} 🔥</Text>
             <Text style={styles.statL}>{t.bestStreak}</Text>
-          </View>
-          <View style={[styles.stat, { opacity: 0 }]}>
-            <Text style={styles.statV}>—</Text>
-            <Text style={styles.statL}> </Text>
           </View>
         </View>
 
@@ -310,7 +302,7 @@ function makeStyles(C: AppColors) {
     emptyText: { color: C.muted, fontSize: 14 },
 
     sectionLabel: {
-      fontSize: 11, fontWeight: '700', color: C.muted,
+      fontSize: 11, fontWeight: '700', color: C.primary,
       textTransform: 'uppercase', letterSpacing: 0.7,
       marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
     },
@@ -321,7 +313,7 @@ function makeStyles(C: AppColors) {
       flex: 1, minWidth: '45%', backgroundColor: C.surface,
       borderRadius: Radii.md, padding: 14, borderWidth: 1, borderColor: C.line, ...Shadows.light,
     },
-    statV: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5, color: C.inkDark },
+    statV: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5, color: C.primary },
     statL: { fontSize: 11, color: C.muted, fontWeight: '700', marginTop: 3 },
 
     logHeader: {

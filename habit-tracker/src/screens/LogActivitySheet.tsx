@@ -8,7 +8,7 @@ import { useTodayTasks, useLogTask } from '../queries/useToday';
 import { useChipPresets, useDurationLogger } from '../queries/useDurationLogger';
 import { cueModalOpen, cueModalClose } from '../audio/uiSounds';
 import { useAuthUser } from '../hooks/useAuth';
-import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
+import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { DurationChips } from '../components/DurationChips';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 

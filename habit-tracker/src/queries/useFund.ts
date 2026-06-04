@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../db/client';
 import { getLocalDateFor } from '../utils/formatters';
 import { canPurchaseFreeze } from '../game/streakFreeze';
-import { STREAK_FREEZE_COST } from '../constants';
+import { STREAK_FREEZE_COST } from '../config/constants';
 
 export function useStreakFreezeEligibility(userId: number) {
   const yesterday = getLocalDateFor(new Date(Date.now() - 86_400_000));

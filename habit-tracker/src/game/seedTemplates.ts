@@ -1,4 +1,4 @@
-import { TEMPLATE_CATEGORIES, TemplateTask } from '../constants';
+import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 
 export function buildTemplateTasks(selectedKeys: string[]): TemplateTask[] {
   return TEMPLATE_CATEGORIES

@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { cueChipConfirm } from '../audio/uiSounds';
 import type { Chip } from '../game/chipPresets';
 import { formatDuration } from '../game/points';
-import { Radii, Spacing, Typography, AppColors } from '../theme';
+import { Radii, Spacing, Typography, AppColors } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 
 interface Props {

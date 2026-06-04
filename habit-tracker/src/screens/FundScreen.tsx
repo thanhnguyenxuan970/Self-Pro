@@ -10,14 +10,16 @@ import {
   useTreatHistory, useAvgDailyTreatStars, DecoratedTreat, TreatHistoryRow,
 } from '../queries/useTreats';
 import { useStreakFreezeEligibility, usePurchaseStreakFreeze } from '../queries/useFund';
-import { STREAK_FREEZE_COST } from '../constants';
+import { STREAK_FREEZE_COST } from '../config/constants';
 import Toast from 'react-native-toast-message';
 import { formatVND } from '../utils/formatters';
-import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
+import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { cueTreatClaim } from '../audio/uiSounds';
-import { Strings } from '../i18n';
+import { Strings } from '../config/i18n';
+
+const FUND_IN_DEV = true;
 
 const CONFETTI_COLORS = ['#FFD700', '#FF6B6B', '#4CAF50', '#2196F3', '#FF9800', '#E91E63'];
 const CONFETTI_DIRS: [number, number][] = [[-30, -40], [30, -40], [-50, -20], [50, -20], [-18, -60], [18, -60]];
@@ -248,6 +250,19 @@ export function FundScreen() {
 
   if (poolLoading || treatsLoading) {
     return <ActivityIndicator style={{ flex: 1 }} color={colors.primary} />;
+  }
+
+  if (FUND_IN_DEV) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <Text style={styles.screenTitle}>{t.fundTitle}</Text>
+        <View style={styles.devLock}>
+          <Text style={styles.devLockIcon}>🚧</Text>
+          <Text style={styles.devLockTitle}>{t.inDevelopmentTitle}</Text>
+          <Text style={styles.devLockDesc}>{t.inDevelopmentDesc}</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   const activeTreats = treats?.filter(t => t.status === 'ACTIVE') ?? [];

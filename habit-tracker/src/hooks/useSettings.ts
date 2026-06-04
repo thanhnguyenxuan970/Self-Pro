@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useSettingsContext, AppLanguage } from '../contexts/SettingsContext';
-import { getColors, AppColors } from '../theme';
-import { getTranslations, Strings } from '../i18n';
+import { getColors, AppColors } from '../config/theme';
+import { getTranslations, Strings } from '../config/i18n';
 
 export type { AppLanguage };
 

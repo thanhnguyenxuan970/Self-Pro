@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Radii, Spacing, Shadows, Typography, AppColors } from '../theme';
+import { Radii, Spacing, Shadows, Typography, AppColors } from '../config/theme';
 import { useDarkMode, useLanguage, useAudioEnabled, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
 import { useAuthUser } from '../hooks/useAuth';
 import {

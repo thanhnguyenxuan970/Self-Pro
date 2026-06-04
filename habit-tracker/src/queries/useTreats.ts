@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../db/client';
 import { TreatRow, DecoratedTreat, decorateTreat, canEnjoyTreat } from '../game/treatLogic';
-import { DEFAULT_VALUE_PER_STAR } from '../constants';
+import { DEFAULT_VALUE_PER_STAR } from '../config/constants';
 
 export type { TreatRow, DecoratedTreat };
 

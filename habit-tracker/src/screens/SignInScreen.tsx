@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { GoogleUser } from '../hooks/useAuth';
-import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
+import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 
 type Props = {

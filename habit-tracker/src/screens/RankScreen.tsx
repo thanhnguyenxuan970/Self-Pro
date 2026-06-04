@@ -2,7 +2,7 @@ import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Animated, AccessibilityInfo } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Radii, Spacing, Shadows, AppColors } from '../theme';
+import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useRankData } from '../queries/useRank';
 import { getCurrentTier, getStarsToNextTier } from '../game/rankUtils';
 import { useAuthUser } from '../hooks/useAuth';
