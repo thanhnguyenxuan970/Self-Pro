@@ -406,7 +406,7 @@ export function TodayScreen() {
         <View style={styles.taskCard}>
           {displayTasks.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyEmoji}>🌱</Text>
+              <Text style={styles.emptyEmoji}>🎯</Text>
               <Text style={styles.emptyTitle}>{t.emptyTitle}</Text>
               <Text style={styles.emptyDesc}>{t.emptyDesc}</Text>
             </View>

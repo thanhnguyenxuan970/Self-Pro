@@ -176,7 +176,7 @@ const vi = {
   timeLocale: 'vi-VN',
 
   // OnboardingScreen
-  onboardTitle: 'Chào mừng! 🌿',
+  onboardTitle: 'Chào mừng!',
   onboardSubtitle: 'Chọn danh mục để bắt đầu. Bạn có thể thêm hoạt động tuỳ chỉnh sau.',
   onboardCatCount: (n: number) => `${n} hoạt động`,
   onboardMinAlert: 'Chọn ít nhất 1 danh mục',
@@ -380,7 +380,7 @@ const en: typeof vi = {
   timeLocale: 'en-US',
 
   // OnboardingScreen
-  onboardTitle: 'Welcome! 🌿',
+  onboardTitle: 'Welcome!',
   onboardSubtitle: 'Choose categories to start. You can add custom activities later.',
   onboardCatCount: (n: number) => `${n} activities`,
   onboardMinAlert: 'Select at least 1 category',

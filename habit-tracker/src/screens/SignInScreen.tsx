@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { GoogleUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
@@ -66,9 +67,25 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.card}>
-        <Text style={styles.logo}>🌿</Text>
-        <Text style={styles.title}>Greedy Clock</Text>
-        <Text style={styles.subtitle}>Theo dõi thói quen, tự thưởng xứng đáng.</Text>
+        <View style={styles.logoContainer}>
+          <Svg width={64} height={64} viewBox="0 0 60 60">
+            <Circle
+              cx="30" cy="30" r="22"
+              fill="none" stroke="#22C55E" strokeWidth="6"
+              strokeLinecap="round" strokeDasharray="115 24"
+              transform="rotate(150 30 30)"
+            />
+            <Circle cx="30" cy="30" r="11" fill="#22C55E" />
+            <Path
+              d="M24.5 30 L28.5 34 L36 26.5"
+              stroke="white" strokeWidth="2.5"
+              strokeLinecap="round" strokeLinejoin="round"
+              fill="none"
+            />
+          </Svg>
+        </View>
+        <Text style={styles.title}>Habit ring</Text>
+        <Text style={styles.subtitle}>daily completion, the loop</Text>
 
         {loading ? (
           <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: Spacing.xl }} />
@@ -105,7 +122,7 @@ function makeStyles(C: AppColors) {
       alignItems: 'center',
       ...Shadows.medium,
     },
-    logo: { fontSize: 52, marginBottom: Spacing.sm },
+    logoContainer: { marginBottom: Spacing.sm },
     title: { ...Typography.title, color: C.inkDark, marginBottom: 4 },
     subtitle: {
       ...Typography.body,
