@@ -587,3 +587,24 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0;
 
 ### Test Results (after all changes)
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
+
+---
+
+## Habit Tracker — UI/UX Updates (2026-06-04)
+
+### What Was Built / Fixed
+- **Rank logic**: `currentStars >= 5` gate already in place (confirmed). No change needed.
+- **ProgressScreen `src/screens/ProgressScreen.tsx`**: Removed duplicate "Hoạt động" stat from Overview section. Removed invisible opacity:0 placeholder card from All-time section. Both sections now show 3 stats. `sectionLabel.color` and `statV.color` changed from `C.muted`/`C.inkDark` → `C.primary` (green accent, both light + dark modes).
+- **New activities `src/db/migrations.ts`**: Added idempotent migration — `INSERT OR IGNORE … SELECT u.id FROM users u` inserts "Cleaning" (🧹) and "Work" (💼) for every existing user. Unique index on `(user_id, name)` ensures no duplicates.
+- **`src/screens/FundScreen.tsx`**: `FUND_IN_DEV = true` feature flag. Early return shows 🚧 locked screen (title + "In Development" message). Flip to `false` to restore full screen.
+- **`src/screens/SettingsScreen.tsx`**: Added "PHẢN HỒI / FEEDBACK" section with "Báo lỗi / Phản hồi" button — `Linking.openURL('mailto:...')`.
+- **`src/config/i18n.ts`**: Added `inDevelopmentTitle`, `inDevelopmentDesc`, `sectionFeedback`, `reportBugLabel` keys in both vi + en.
+
+### Key Decisions
+- Accent color on stat values (`C.primary`) applies to both light and dark themes automatically via `getColors(isDark)`.
+- `FUND_IN_DEV` constant at module level (not env var) — flip to `false` when feature ships; no build config needed.
+- Feedback uses `mailto:` (not URL) — works offline, no external service dependency.
+- Cleaning/Work seed uses `FROM users u` subquery — handles multi-user DBs correctly; `INSERT OR IGNORE` idempotent.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
