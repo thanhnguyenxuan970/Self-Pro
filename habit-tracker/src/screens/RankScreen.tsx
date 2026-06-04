@@ -9,6 +9,7 @@ import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
 import { RANKS } from '../config/ranks.config';
+import { rankMascotBridge } from '../lib/rankMascotBridge';
 
 // tier_order (1-based DB) → RANKS index (0-based config)
 function rankConfig(tierOrder: number) {
@@ -22,6 +23,12 @@ export function RankScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const mascotRef = useRef<RankMascotHandle>(null);
   const { data, isLoading } = useRankData(userId);
+
+  // mascotRef is stable (useRef) — empty deps intentional
+  useEffect(() => {
+    rankMascotBridge.ref = mascotRef;
+    return () => { rankMascotBridge.ref = null; };
+  }, []);
 
   const sortedTiers = useMemo(
     () => (data ? [...data.tiers].sort((a, b) => b.tier_order - a.tier_order) : []),

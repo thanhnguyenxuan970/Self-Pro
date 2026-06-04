@@ -5,6 +5,7 @@ import { syncUserStreak } from '../services/syncService';
 import { computeLogTaskRows } from '../logic/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../logic/formatters';
 import { computeTierUnlocks, TierRow } from '../logic/tierUnlocks';
+import { rankMascotBridge } from '../lib/rankMascotBridge';
 
 export function useTodayTasks(userId: number) {
   return useQuery({
@@ -139,6 +140,7 @@ export function useLogTask(userId: number) {
       );
 
       let streakResult = { newStreak: 1, prevStreak: 0 };
+      let didRankUp = false;
 
       // All volatile reads + computation + writes inside one transaction.
       // This prevents TOCTOU: two concurrent mutateAsync calls can no longer
@@ -250,6 +252,8 @@ export function useLogTask(userId: number) {
            activityRow.points_earned, totalStarsDelta, totalStarsDelta]
         );
 
+        if (newUnlocks.length > 0) didRankUp = true;
+
         // Insert tier unlocks (no longer deposit to fund — treats system handles rewards)
         for (const unlock of newUnlocks) {
           await db.runAsync(
@@ -290,13 +294,15 @@ export function useLogTask(userId: number) {
         );
       });
 
-      return streakResult;
+      return { ...streakResult, didRankUp };
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['treats'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
+      qc.invalidateQueries({ queryKey: ['rank'] });
+      if (data.didRankUp) rankMascotBridge.ref?.current?.playRankUp();
       // Fire-and-forget streak sync — non-fatal if Supabase absent or table not migrated
       getStoredGoogleUserEmail()
         .then(email => { if (email) return syncUserStreak(email, data.newStreak); })

@@ -541,3 +541,21 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0;
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
+
+---
+
+## Habit Tracker — mascotRef.playRankUp() Wired + Rank Invalidation Fix COMPLETE (2026-06-04)
+
+### What Was Built / Fixed
+- **`src/lib/rankMascotBridge.ts`** (new): Module singleton `{ ref: RefObject<RankMascotHandle | null> | null }`. Lets `useLogTask.onSuccess` (query layer, no React context) call `playRankUp()` on the hero mascot mounted in `RankScreen`.
+- **`src/queries/useToday.ts`**: `didRankUp` flag hoisted outside `withTransactionAsync` — set `true` when `newUnlocks.length > 0`. Returned in mutation result. `onSuccess` calls `rankMascotBridge.ref?.current?.playRankUp()` when `didRankUp`. Also added missing `qc.invalidateQueries({ queryKey: ['rank'] })` — `useRankData` was never refreshed after task logging, causing RankScreen to show stale star counts indefinitely.
+- **`src/screens/RankScreen.tsx`**: `useEffect([], [])` registers `mascotRef` into bridge on mount, clears on unmount.
+
+### Key Decisions
+- Bridge stores `RefObject` (not `.current`) — ref object is stable; bridge always reads the live `.current` at call time.
+- `useEffect` empty deps with `// mascotRef is stable — empty deps intentional` comment — `useRef` returns stable object, no dep needed.
+- `playRankUp()` called on currently-mounted mascot: fires correctly for tier 2+ rank-ups (mascot already visible). For first unlock (0→5★), mascot isn't rendered yet so `.current` is null — optional chaining silently no-ops; animation fires on next rank-up.
+- `['rank']` added to `useLogTask.onSuccess` invalidation list — pre-existing gap; required for RankScreen to update live after logging.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
