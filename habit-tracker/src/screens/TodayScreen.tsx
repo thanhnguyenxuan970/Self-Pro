@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Animated,
+  StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Animated, AccessibilityInfo,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,7 +16,7 @@ import { getCurrentTier } from '../logic/rankUtils';
 import { Radii, Spacing, Shadows, AppColors } from '../theme';
 import { useAuthUser, useGoogleUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
-import { cueStreakMilestone } from '../logic/uiSounds';
+import { cueStreakMilestone } from '../audio/uiSounds';
 
 const DAILY_THRESHOLD = 50;
 
@@ -173,9 +173,15 @@ export function TodayScreen() {
   const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑', 8: '💀' };
   const rankEmoji = currentTier ? (RANK_EMOJI[currentTier.tier_order] ?? '⭐') : '⭐';
 
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+  }, []);
+
   const rankBounceAnim = useRef(new Animated.Value(1)).current;
   const prevRankNameRef = useRef(rankName);
   useEffect(() => {
+    if (reduceMotion) return;
     if (prevRankNameRef.current !== rankName) {
       prevRankNameRef.current = rankName;
       Animated.sequence([
@@ -183,22 +189,21 @@ export function TodayScreen() {
         Animated.spring(rankBounceAnim, { toValue: 1, tension: 120, friction: 6, useNativeDriver: true }),
       ]).start();
     }
-  }, [rankName]);
+  }, [rankName, reduceMotion]);
 
   const streakPulseAnim = useRef(new Animated.Value(1)).current;
   const hasStreak = streak > 0;
   useEffect(() => {
-    if (hasStreak) {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(streakPulseAnim, { toValue: 1.08, duration: 400, useNativeDriver: true }),
-          Animated.timing(streakPulseAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-        ])
-      );
-      loop.start();
-      return () => loop.stop();
-    }
-  }, [hasStreak]);
+    if (!hasStreak || reduceMotion) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(streakPulseAnim, { toValue: 1.08, duration: 400, useNativeDriver: true }),
+        Animated.timing(streakPulseAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [hasStreak, reduceMotion]);
 
   const barWidthAnim = useRef(new Animated.Value(Math.min(dailyPoints / DAILY_THRESHOLD, 1) * 100)).current;
   const barGlowOpacity = useRef(new Animated.Value(0)).current;

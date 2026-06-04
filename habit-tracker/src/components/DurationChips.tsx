@@ -4,7 +4,7 @@ import {
   StyleSheet, TouchableOpacity, Animated,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { cueChipConfirm } from '../logic/uiSounds';
+import { cueChipConfirm } from '../audio/uiSounds';
 import type { Chip } from '../logic/chipPresets';
 import { formatDuration } from '../logic/points';
 import { Radii, Spacing, Typography, AppColors } from '../theme';

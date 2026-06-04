@@ -1,5 +1,5 @@
-import React, { useRef, useMemo, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Animated } from 'react-native';
+import React, { useRef, useMemo, useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Animated, AccessibilityInfo } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, AppColors } from '../theme';
@@ -23,6 +23,11 @@ export function RankScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const mascotRef = useRef<RankMascotHandle>(null);
   const { data, isLoading } = useRankData(userId);
+
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+  }, []);
 
   // mascotRef is stable (useRef) — empty deps intentional
   useEffect(() => {
@@ -81,7 +86,7 @@ export function RankScreen() {
     }
 
     const glowAnim = glowAnims.current[idx];
-    if (glowAnim) {
+    if (glowAnim && !reduceMotion) {
       glowLoopRef.current = Animated.loop(
         Animated.sequence([
           Animated.timing(glowAnim, { toValue: 0.9, duration: 900, useNativeDriver: true }),
@@ -91,7 +96,7 @@ export function RankScreen() {
       glowLoopRef.current.start();
     }
     return () => glowLoopRef.current?.stop();
-  }, [data]);
+  }, [data, reduceMotion]);
 
   if (isLoading || !data) {
     return (
@@ -128,6 +133,7 @@ export function RankScreen() {
                 tier={currentTier.tier_order - 1}
                 size={100}
                 loop
+                reduceMotion={reduceMotion}
               />
               <Text style={styles.rankNm}>{currentTier.rank_name}</Text>
               <Text style={styles.rankEn}>{cfg.descriptor}</Text>
@@ -195,7 +201,7 @@ export function RankScreen() {
                   />
                 )}
                 <View style={styles.rkMascot}>
-                  <RankMascot tier={tier.tier_order - 1} size={36} loop={isCurrent} />
+                  <RankMascot tier={tier.tier_order - 1} size={36} loop={isCurrent} reduceMotion={reduceMotion} />
                 </View>
                 <View style={styles.rkInfo}>
                   <Text style={[styles.rkA, isCurrent && { color: rc.color }]}>
@@ -238,6 +244,7 @@ export function RankScreen() {
                           tier={weekTier!.tier_order - 1}
                           size={36}
                           loop={false}
+                          reduceMotion={reduceMotion}
                         />
                       ) : (
                         <Text style={styles.rkEm}>—</Text>

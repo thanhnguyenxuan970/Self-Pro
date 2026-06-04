@@ -6,7 +6,7 @@ import {
 import Toast from 'react-native-toast-message';
 import { useTodayTasks, useLogTask } from '../queries/useToday';
 import { useChipPresets, useDurationLogger } from '../queries/useDurationLogger';
-import { cueModalOpen, cueModalClose } from '../logic/uiSounds';
+import { cueModalOpen, cueModalClose } from '../audio/uiSounds';
 import { useAuthUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
 import { DurationChips } from '../components/DurationChips';

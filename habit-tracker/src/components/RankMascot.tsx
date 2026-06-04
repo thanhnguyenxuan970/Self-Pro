@@ -17,7 +17,7 @@ import { Animated, Easing } from 'react-native';
 import Svg, { G, Polygon, Path, Circle, Rect, Ellipse, Line } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { RANKS, STAR_POINTS, type Channel, type SvgEl } from '../config/ranks.config';
-import { playRankSound } from '../logic/rankSound';
+import { playRankSound } from '../audio/rankSound';
 
 // Interpolate a channel from p (0→1); returns constant dflt if channel absent
 function chanInterp(p: Animated.Value, arr: Channel | undefined, dflt: number) {

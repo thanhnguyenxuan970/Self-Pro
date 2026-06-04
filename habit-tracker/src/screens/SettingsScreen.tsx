@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, Typography, AppColors } from '../theme';
-import { useDarkMode, useLanguage, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
+import { useDarkMode, useLanguage, useAudioEnabled, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
 import { useAuthUser } from '../hooks/useAuth';
 import {
   useNotificationTime, useSetNotificationTime,
@@ -22,6 +22,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
   const userId = useAuthUser();
   const [isDark, setIsDark] = useDarkMode();
   const [lang, setLanguage] = useLanguage();
+  const [audioEnabled, setAudioEnabled] = useAudioEnabled();
   const { colors } = useTheme();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -148,6 +149,21 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
               value={isDark}
               onValueChange={setIsDark}
               thumbColor={isDark ? colors.primary : colors.faint}
+              trackColor={{ false: colors.line2, true: colors.primarySoft }}
+            />
+          </View>
+        </View>
+
+        {/* Sound */}
+        <Text style={styles.sectionLabel}>{t.sectionSound}</Text>
+        <View style={styles.card}>
+          <View style={[styles.row, styles.rowLast]}>
+            <Text style={styles.rowIc}>🔊</Text>
+            <Text style={styles.rowLabel}>{t.soundEnabledLabel}</Text>
+            <Switch
+              value={audioEnabled}
+              onValueChange={setAudioEnabled}
+              thumbColor={audioEnabled ? colors.primary : colors.faint}
               trackColor={{ false: colors.line2, true: colors.primarySoft }}
             />
           </View>

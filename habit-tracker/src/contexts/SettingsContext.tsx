@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { parseSettingsBool, parseSettingsLang } from '../logic/settingsLogic';
-import { setAudioEnabled as syncAudioEnabled } from '../logic/audioEnabled';
+import { setAudioEnabled as syncAudioEnabled } from '../audio/audioEnabled';
 
 export type AppLanguage = 'vi' | 'en';
 
