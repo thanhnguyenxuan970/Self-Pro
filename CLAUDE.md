@@ -110,7 +110,7 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 - `AppInner` pattern prevents double `NavigationContainer`. Center FAB uses `tabBarButton: () => <FABButton/>` + `tabPress: e.preventDefault()`.
 - SHA-1 debug key: `18:38:B7:BC:9E:95:24:98:ED:FE:5B:71:A4:F2:74:FE:4F:19:70:91`
 
-Key constants: `src/constants.ts`
+Key constants: `src/config/constants.ts` (after directory restructure)
 Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.md` | Prototype: `Habit-Tracker-Wireframe-Prototype.html`
 
 ---
@@ -127,96 +127,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 | `RNGoogleSignin: 'androidClientId' is not a valid configuration parameter` | `@react-native-google-signin` v13+ removed `androidClientId` from `configure()`; Android reads client ID from `google-services.json` | Remove `androidClientId` from `GoogleSignin.configure()` call |
 | `connectAnimatedNodes: Animated node with tag (parent) [76] does not exist` | `enableScreens()` never called; Fabric batch-dispatches animated node commands before tab bar parent node is registered on native side | Call `enableScreens()` from `react-native-screens` at module level in `index.ts` before `registerRootComponent` |
 | `Requiring unknown module '2289'` | `await import('@react-native-google-signin')` creates async Metro chunk; internal requires reference IDs absent from that chunk | Use `require(...)` inside async function body; `await import()` is for local TS modules only |
-
-## Habit Tracker Day 17 — Session Persistence + UI Fidelity COMPLETE (2026-06-01)
-
-### What Was Built
-- **Auth session persistence**: Returning users skip Onboarding on re-sign-in. `resolveUserRow` now returns `{ id, isNew }`. `signInWithGoogle` returns `boolean` (isNew) and auto-sets `ONBOARDED_KEY='true'` for returning users.
-- **`GoogleUserContext`**: Added at App root level. Tab screens access Google user data via `useGoogleUser()` without prop drilling.
-- **`useTodayLoggedTaskIds`**: New query returning `Set<task_type_id>` of today's logged tasks; queryKey `['today', 'logged', userId, date]` auto-invalidated by existing `['today']` prefix invalidation.
-- **UI fidelity pass** — all 5 screens rewritten to match wireframe design:
-  - Tab bar: SVG icons (react-native-svg), 86px height, Vietnamese labels
-  - TodayScreen: hero LinearGradient card, progress bar toward 50pts, check-circle task list
-  - ProgressScreen: segmented control (Ngày/Tuần/Tháng/Năm), chart card, 2×2 stats grids
-  - FundScreen: dark gradient balance card (`#15402E→#1E6646`), improved ledger rows
-  - RankScreen: rankhero card with glow, rank ladder, philosophy gradient card
-  - ProfileScreen: centered 80px avatar, 3-column life stats row, settings card
-
-### Key Decisions (Day 17)
-- `signInWithGoogle` returns `boolean` (isNew) — navigator only calls `onSignIn()` (→ Onboarding) for new users; returning users let context-driven navigator swap automatically.
-- RANK_EMOJI map in TodayScreen: ascending order `{ 1:'🎮'…7:'👑'…}` — tier_order 1 = lowest = NPC.
-
----
-
-## Habit Tracker Day 18 — Treats System COMPLETE (2026-06-01)
-
-### What Was Built
-- Replaced VND fund/balance with star-based treats wishlist
-- Two-balance split: `weekly_stars` (rank, resets weekly) vs `treat_stars` (treats, never resets)
-- New tables: `treats`, `treat_history`; 4 new user columns (`treat_stars`, `treat_stars_lifetime`, `value_per_star`, `penalty_hits_treats`)
-- `src/logic/treatLogic.ts` — `canEnjoyTreat`, `decorateTreat` pure fns
-- `src/queries/useTreats.ts` — `useTreatPool`, `useTreats`, `useAddTreat`, `useEnjoyTreat`, `useTreatHistory`
-- `FundScreen.tsx` rewritten as TreatsScreen (pool header, wishlist with progress bars, enjoy button, add-treat modal)
-- Streak freeze migrated from VND cost (10,000₫) to star cost (10★)
-- `useLogTask` earns `treat_stars` on GOOD, deducts on BAD (if `penalty_hits_treats=1`), marks `reached_at` for eligible treats in same transaction
-- Deleted: `src/logic/fundDeposit.ts`, `__tests__/fundDeposit.test.ts`
-
-### Key Decisions (Day 18)
-- `treat_stars` independent of weekly cycle — accumulates indefinitely; `treat_stars_lifetime` tracks total earned
-- `markNewlyReached`: single SQL UPDATE inside `useLogTask` transaction — no N+1; one-time flip of `reached_at IS NULL` guard
-- `penalty_hits_treats = 1` default; guard in SQL WHERE clause, not app code
-- `useEnjoyTreat`: `MAX(0, treat_stars - ?)` for extra safety even though transaction + `canEnjoyTreat` prevents underflow
-- `handleEnjoy` in FundScreen: `enjoyingRef` guard now shows Toast("Đang xử lý…") — no silent no-op on double-tap
-- `fund_transactions` table kept (no DROP) — data preserved, no new writes
-- `DEFAULT_VALUE_PER_STAR = 1000` (VND/star); no hardcoded `1000` fallbacks anywhere
-
-
----
-
-## Habit Tracker Day 19 — Startup Crash Fixes COMPLETE (2026-06-01)
-
-### What Was Fixed
-- **`RNGoogleSignin: 'androidClientId' is not a valid configuration parameter`**: Removed `androidClientId` from `GoogleSignin.configure()` in `SignInScreen.tsx`. v16+ reads Android client ID from `google-services.json`; parameter no longer exists in API.
-- **`connectAnimatedNodes: Animated node with tag (parent) [76] does not exist`**: Added `enableScreens()` call (from `react-native-screens`) at module level in `index.ts` before `registerRootComponent`. Without it, Fabric's batch-dispatched animated node commands race against the tab bar mount, causing parent node [76] to not exist when child tries to connect.
-
-### Key Decisions (Day 19)
-- `enableScreens()` called in `index.ts` at module level (not inside a component) — must run before any navigation renders
-- `androidClientId` removal is permanent for `@react-native-google-signin` v13+; Android client ID comes from `google-services.json` only
-
-### [NEEDS USER]
-- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` must be set in `.env.local` — without it, `GoogleSignin.configure()` silently accepts `undefined` and sign-in fails at runtime
-
----
-
-## Habit Tracker Day 20 — Sign-out + Account Picker Fix COMPLETE (2026-06-01)
-
-### What Was Fixed
-- **Sign-out session leak**: `signOut()` in `useAuth.ts` now calls `GoogleSignin.revokeAccess()` before `GoogleSignin.signOut()` — revokes server-side OAuth token so next sign-in cannot silently reuse cached credentials.
-- **Account picker bypass**: `handleGoogleSignIn` in `SignInScreen.tsx` calls `GoogleSignin.signOut()` (try/catch) immediately before `GoogleSignin.signIn()` — clears native session cache so account picker always appears.
-
-### Key Decisions (Day 20)
-- `revokeAccess()` before `signOut()` in sign-out path: revokeAccess revokes the server-side token; signOut clears native session. Both wrapped in single try/catch — failure is non-fatal since local AsyncStorage + React state are cleared in `finally`.
-- `signOut()` in sign-in path: calling signOut before signIn is the canonical `@react-native-google-signin` pattern to force account selection. Silent failure (first-launch user has no session) is expected and benign.
-
----
-
-## Habit Tracker Day 21 — UI/UX Improvements COMPLETE (2026-06-01)
-
-### What Was Built
-- **Logout → bottom of ProfileScreen**: Removed from `CÀI ĐẶT` card; now standalone outlined danger button at end of ScrollView.
-- **SettingsScreen** (new): Gear icon ⚙️ in TodayScreen topbar → `Settings` modal. Sections: GIAO DIỆN (dark mode Switch), NGÔN NGỮ (VN/EN selector with ✓), TÀI KHOẢN (delete account with Alert).
-- **`useSettings.ts`** (new): `useDarkMode()` + `useLanguage()` — AsyncStorage-backed hooks (`habit_dark_mode`, `habit_language`).
-- **`deleteAccount(uid)`** in `useAuth.ts`: deletes all user tables in `withTransactionAsync`, then calls `resetSyncCursors`, then revokes Google + clears AsyncStorage. Propagates DB errors (caller shows Alert).
-- **Activity log bulk delete**: `useRecentActivityLogs` + `useDeleteActivityLogs` in `useProgress.ts`. "NHẬT KÝ HOẠT ĐỘNG" section in ProgressScreen — long-press → selection mode, tap to toggle, "Tất cả" select-all, "Xoá (N)" with Alert confirmation + `.catch` error handler.
-- **Rank milestone gate**: `currentStars >= 5` guard in RankScreen — shows ❓ + "Chưa có rank" + "Tích đủ 5 ★" until first milestone reached.
-
-### Key Decisions (Day 21)
-- `deleteAccount` propagates DB transaction error (no try/catch swallow) — SettingsScreen catch block shows Alert; sign-out only runs on success.
-- `useDarkMode`/`useLanguage` use optimistic state update (state first, then AsyncStorage) — UI instant, storage failure silent but acceptable for settings.
-- Settings navigation: `TodayScreen` uses `navigation.navigate('Settings' as never)` — consistent with existing `navigate('Profile' as never)` pattern.
-- `useDeleteActivityLogs` parameterized placeholders: `ids.map(() => '?').join(',')` — safe, no injection.
-- Dark mode toggle persists to AsyncStorage but does not retheme the app live (requires re-mount). Acceptable MVP.
-
 
 ---
 
@@ -571,8 +481,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0;
 
 ### What Was Built
 - **`src/assets/sounds/`**: 5 new MP3s from `Docs/sound/` — `modal-open.mp3`, `modal-close.mp3`, `streak-milestone.mp3`, `treat-claim.mp3`, `error-invalid.mp3`. `chip-confirm.mp3` sourced from `level1.mp3` (placeholder — swap with spec file without code change).
-- **`src/logic/audioEnabled.ts`** (new, created by hook): `setAudioEnabled(bool)` / `isAudioEnabled()` — module-level toggle for muting all UI sounds.
-- **`src/logic/uiSounds.ts`** (new): Static `require()` map + `playOne(cue)` using `expo-audio`'s `createAudioPlayer` (same pattern as `rankSound.ts`). Exports: `cueChipConfirm`, `cueTreatClaim`, `cueStreakMilestone`, `cueModalOpen`, `cueModalClose`, `cueErrorInvalid`. Haptics bundled per spec timing. Guards `isAudioEnabled()`.
+- **`src/audio/audioEnabled.ts`** (new, created by hook): `setAudioEnabled(bool)` / `isAudioEnabled()` — module-level toggle for muting all UI sounds.
+- **`src/audio/uiSounds.ts`** (new): Static `require()` map + `playOne(cue)` using `expo-audio`'s `createAudioPlayer` (same pattern as `rankSound.ts`). Exports: `cueChipConfirm`, `cueTreatClaim`, `cueStreakMilestone`, `cueModalOpen`, `cueModalClose`, `cueErrorInvalid`. Haptics bundled per spec timing. Guards `isAudioEnabled()`.
 - **`DurationChips.tsx`**: `commit()` → `cueChipConfirm()` after existing Light Impact — sound at t=10ms.
 - **`FundScreen.tsx`**: `handleEnjoy` success → `cueTreatClaim()` — Medium Impact t=0, sound t=50ms.
 - **`TodayScreen.tsx`**: `showStreakToast()` → `cueStreakMilestone()` only when `[3, 7, 30].includes(newStreak)`.
@@ -605,6 +515,33 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0;
 - `FUND_IN_DEV` constant at module level (not env var) — flip to `false` when feature ships; no build config needed.
 - Feedback uses `mailto:` (not URL) — works offline, no external service dependency.
 - Cleaning/Work seed uses `FROM users u` subquery — handles multi-user DBs correctly; `INSERT OR IGNORE` idempotent.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
+
+---
+
+## Habit Tracker — Directory Restructure COMPLETE (2026-06-04)
+
+### What Was Done
+Reorganized `src/` from flat `logic/` blob (18 files) into semantic layers:
+
+| Layer | Path | Contents |
+|-------|------|----------|
+| audio | `src/audio/` | `audioEnabled.ts`, `uiSounds.ts`, `rankSound.ts` |
+| game | `src/game/` | `logTask.ts`, `points.ts`, `chipPresets.ts`, `treatLogic.ts`, `tierUnlocks.ts`, `rankUtils.ts`, `streakFreeze.ts`, `weeklyReset.ts`, `seedTemplates.ts` |
+| utils | `src/utils/` | `formatters.ts`, `notifications.ts`, `settingsLogic.ts`, `weekReset.ts` |
+| api | `src/api/` | `supabase.ts` (from `lib/`), `syncService.ts` (from `services/`) |
+| config | `src/config/` | `constants.ts`, `theme.ts`, `i18n.ts` + existing `ranks.config.ts` |
+
+Deleted: `src/logic/`, `src/services/`, dead `celebrateSound.ts` stub.
+
+Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, `@utils`, `@config`, `@components`, `@contexts`, `@db`, `@hooks`, `@lib`, `@navigation`, `@queries`, `@screens`.
+
+### Key Decisions
+- `baseUrl` removed from `tsconfig.json` — TS 6.0.3 deprecates it (TS5101). Paths use `./src/X/*`; works without `baseUrl` in TS 5+.
+- Dynamic imports in `useAuth.ts` updated with `replace_all: true` — same pattern appears 3× and 2×.
+- `App.tsx` `syncToSupabase(...)` fire-and-forget fixed with `.catch(() => {})` — unhandled rejection guard.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass

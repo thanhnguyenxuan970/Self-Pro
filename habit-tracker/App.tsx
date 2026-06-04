@@ -41,7 +41,7 @@ function AppInner() {
         const { id } = await resolveUserRow(db, googleUser.email);
         resolvedUserId = id;
         setResolvedUserId(resolvedUserId);
-        syncToSupabase(googleUser.email);
+        syncToSupabase(googleUser.email).catch(() => {});
       }
 
       const currentWeekStart = getWeekStart();
