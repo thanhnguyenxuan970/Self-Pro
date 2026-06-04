@@ -73,7 +73,7 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
               cx="30" cy="30" r="22"
               fill="none" stroke="#22C55E" strokeWidth="6"
               strokeLinecap="round" strokeDasharray="115 24"
-              transform="rotate(150 30 30)"
+              transform="rotate(90 30 30)"
             />
             <Circle cx="30" cy="30" r="11" fill="#22C55E" />
             <Path
