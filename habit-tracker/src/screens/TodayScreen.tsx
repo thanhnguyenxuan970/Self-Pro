@@ -12,7 +12,7 @@ import {
 } from '../queries/useToday';
 import { useArchiveTask } from '../queries/useTasks';
 import { useRankData } from '../queries/useRank';
-import { getCurrentTier } from '../logic/rankUtils';
+import { getCurrentTier } from '../game/rankUtils';
 import { Radii, Spacing, Shadows, AppColors } from '../theme';
 import { useAuthUser, useGoogleUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';

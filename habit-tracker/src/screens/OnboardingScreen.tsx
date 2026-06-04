@@ -12,7 +12,7 @@ import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { TEMPLATE_CATEGORIES } from '../constants';
 import { useAuthUser } from '../hooks/useAuth';
-import { buildTemplateTasks } from '../logic/seedTemplates';
+import { buildTemplateTasks } from '../game/seedTemplates';
 import { useCreateTask } from '../queries/useTasks';
 
 type Props = { onComplete: () => Promise<void> };

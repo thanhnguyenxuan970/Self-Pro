@@ -1,7 +1,7 @@
 import {
   computeLogTaskRows,
   ComputeInput,
-} from '../src/logic/logTask';
+} from '../src/game/logTask';
 
 const baseGoodTask: ComputeInput = {
   userId: 1,

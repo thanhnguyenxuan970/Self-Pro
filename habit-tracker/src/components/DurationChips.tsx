@@ -5,8 +5,8 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { cueChipConfirm } from '../audio/uiSounds';
-import type { Chip } from '../logic/chipPresets';
-import { formatDuration } from '../logic/points';
+import type { Chip } from '../game/chipPresets';
+import { formatDuration } from '../game/points';
 import { Radii, Spacing, Typography, AppColors } from '../theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 

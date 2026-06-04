@@ -1,4 +1,4 @@
-import { computeWeeklyReset } from '../src/logic/weeklyReset';
+import { computeWeeklyReset } from '../src/game/weeklyReset';
 
 test('no prior week → no reset', () => {
   const result = computeWeeklyReset({

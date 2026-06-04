@@ -1,4 +1,4 @@
-import { canEnjoyTreat, decorateTreat } from '../src/logic/treatLogic';
+import { canEnjoyTreat, decorateTreat } from '../src/game/treatLogic';
 
 const baseTreat = {
   id: 1, user_id: 1, name: 'Bubble tea', icon: 'gift',

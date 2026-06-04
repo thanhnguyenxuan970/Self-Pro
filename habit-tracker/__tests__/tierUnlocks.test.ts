@@ -1,4 +1,4 @@
-import { computeTierUnlocks, TierRow } from '../src/logic/tierUnlocks';
+import { computeTierUnlocks, TierRow } from '../src/game/tierUnlocks';
 
 const tiers: TierRow[] = [
   { id: 1, stars_required: 10,  reward_amount: 50000,  reward_currency: 'VND' },

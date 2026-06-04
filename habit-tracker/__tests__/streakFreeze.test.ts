@@ -1,4 +1,4 @@
-import { canPurchaseFreeze } from '../src/logic/streakFreeze';
+import { canPurchaseFreeze } from '../src/game/streakFreeze';
 
 const COST = 10;
 const base = { treatStars: 50, existingFreeze: false, existingActivity: false, currentStreak: 5 };

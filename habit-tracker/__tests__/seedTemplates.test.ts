@@ -1,4 +1,4 @@
-import { buildTemplateTasks } from '../src/logic/seedTemplates';
+import { buildTemplateTasks } from '../src/game/seedTemplates';
 
 describe('buildTemplateTasks', () => {
   test('empty selection → 0 tasks', () => {

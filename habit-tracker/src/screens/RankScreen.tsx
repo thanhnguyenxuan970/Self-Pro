@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, AppColors } from '../theme';
 import { useRankData } from '../queries/useRank';
-import { getCurrentTier, getStarsToNextTier } from '../logic/rankUtils';
+import { getCurrentTier, getStarsToNextTier } from '../game/rankUtils';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';

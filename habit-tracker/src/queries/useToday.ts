@@ -2,9 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../db/client';
 import { getStoredGoogleUserEmail } from '../hooks/useAuth';
 import { syncUserStreak } from '../services/syncService';
-import { computeLogTaskRows } from '../logic/logTask';
+import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../logic/formatters';
-import { computeTierUnlocks, TierRow } from '../logic/tierUnlocks';
+import { computeTierUnlocks, TierRow } from '../game/tierUnlocks';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 
 export function useTodayTasks(userId: number) {

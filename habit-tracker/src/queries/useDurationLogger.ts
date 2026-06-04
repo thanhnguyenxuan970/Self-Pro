@@ -2,8 +2,8 @@
 
 import { useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getChipPresets } from '../logic/chipPresets';
-import { computeStars, DEFAULT_POINT_CONFIG, type PointConfig } from '../logic/points';
+import { getChipPresets } from '../game/chipPresets';
+import { computeStars, DEFAULT_POINT_CONFIG, type PointConfig } from '../game/points';
 import { useLogTask } from './useToday';
 
 interface DurationLoggerArgs {
