@@ -4,8 +4,7 @@ import {
   ScrollView, Image,
 } from 'react-native';
 import { useWeeklySummary, useDailySummary } from '../queries/useToday';
-import { useTreatPool } from '../queries/useTreats';
-import { useRecentActivityLogs, ActivityLogEntry } from '../queries/useProgress';
+import { useRecentActivityLogs, useAllTimeStats, ActivityLogEntry } from '../queries/useProgress';
 import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
@@ -24,7 +23,7 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
 
   const { data: weekly } = useWeeklySummary(userId);
   const { data: daily } = useDailySummary(userId);
-  const { data: treatPool } = useTreatPool(userId);
+  const { data: allTime } = useAllTimeStats(userId);
   const { data: actLogs = [] } = useRecentActivityLogs(userId, 100);
 
   const weeklyStars = weekly?.weekly_stars ?? 0;
@@ -62,8 +61,8 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
           <Text style={ph.lifeL}>{t.statStreak}</Text>
         </View>
         <View style={ph.lifeCell}>
-          <Text style={ph.lifeV}>★ {treatPool?.treat_stars ?? 0}</Text>
-          <Text style={ph.lifeL}>{t.statVault}</Text>
+          <Text style={ph.lifeV}>{allTime?.totalStars ?? 0} ★</Text>
+          <Text style={ph.lifeL}>{t.statTotalStars}</Text>
         </View>
       </View>
 

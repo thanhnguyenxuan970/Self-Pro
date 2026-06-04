@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
-import Svg, { Path, Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { TodayScreen } from '../screens/TodayScreen';
 import { ProgressScreen } from '../screens/ProgressScreen';
-import { FundScreen } from '../screens/FundScreen';
+import { CalendarScreen } from '../screens/CalendarScreen';
 import { RankScreen } from '../screens/RankScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
@@ -36,11 +36,11 @@ function IconChart({ color }: { color: string }) {
   );
 }
 
-function IconGift({ color }: { color: string }) {
+function IconCalendar({ color }: { color: string }) {
   return (
     <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-      <Rect x="3.5" y="9" width="17" height="11" rx="1.5" />
-      <Path d="M3.5 13h17M12 9v11M12 9c-1-3-7-3-5 0M12 9c1-3 7-3 5 0" />
+      <Path d="M8 2v3M16 2v3M3 9h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" />
+      <Path d="M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01" />
     </Svg>
   );
 }
@@ -108,9 +108,9 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
         options={{ title: t.tabHome, tabBarIcon: ({ color }) => <IconHome color={color} /> }}
       />
       <Tab.Screen
-        name="Analytics"
-        component={ProgressScreen}
-        options={{ title: t.tabAnalytics, tabBarIcon: ({ color }) => <IconChart color={color} /> }}
+        name="Calendar"
+        component={CalendarScreen}
+        options={{ title: t.tabCalendar, tabBarIcon: ({ color }) => <IconCalendar color={color} /> }}
       />
       <Tab.Screen
         name="Log"
@@ -122,9 +122,9 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
         listeners={{ tabPress: (e) => e.preventDefault() }}
       />
       <Tab.Screen
-        name="Fund"
-        component={FundScreen}
-        options={{ title: t.tabRewards, tabBarIcon: ({ color }) => <IconGift color={color} /> }}
+        name="Analytics"
+        component={ProgressScreen}
+        options={{ title: t.tabAnalytics, tabBarIcon: ({ color }) => <IconChart color={color} /> }}
       />
       <Tab.Screen
         name="Rank"

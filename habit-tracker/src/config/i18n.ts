@@ -43,6 +43,7 @@ const vi = {
   statRank: 'Rank',
   statStreak: 'Streak',
   statVault: 'Kho Sao',
+  statTotalStars: 'Tổng Sao',
   historyTitle: 'Lịch sử',
   noActivity: 'Chưa có hoạt động nào',
   signOut: '↺  Đăng xuất',
@@ -168,6 +169,7 @@ const vi = {
 
   // Navigation labels
   tabHome: 'Trang chủ',
+  tabCalendar: 'Lịch',
   tabAnalytics: 'Phân tích',
   tabRewards: 'Quà thưởng',
   tabRank: 'Rank',
@@ -195,6 +197,15 @@ const vi = {
   // In Development placeholder
   inDevelopmentTitle: 'Đang phát triển',
   inDevelopmentDesc: 'Tính năng này sẽ sớm ra mắt. Hãy tiếp tục tích sao nhé!',
+
+  // CalendarScreen
+  calendarTitle: 'Lịch Hoạt Động',
+  calendarBestDay: 'Ngày tốt nhất',
+  calendarMilestone: 'Cột mốc streak',
+  calendarActive: 'Có hoạt động',
+  calendarTotalStars: 'Tổng sao',
+  calendarActiveDays: 'Ngày hoạt động',
+  calendarBest: 'Ngày cao nhất',
 
   // Feedback
   sectionFeedback: 'PHẢN HỒI',
@@ -247,6 +258,7 @@ const en: typeof vi = {
   statRank: 'Rank',
   statStreak: 'Streak',
   statVault: 'Star Vault',
+  statTotalStars: 'Total Stars',
   historyTitle: 'History',
   noActivity: 'No activity yet',
   signOut: '↺  Sign out',
@@ -372,6 +384,7 @@ const en: typeof vi = {
 
   // Navigation labels
   tabHome: 'Home',
+  tabCalendar: 'Calendar',
   tabAnalytics: 'Analytics',
   tabRewards: 'Rewards',
   tabRank: 'Rank',
@@ -399,6 +412,15 @@ const en: typeof vi = {
   // In Development placeholder
   inDevelopmentTitle: 'In Development',
   inDevelopmentDesc: 'This feature is coming soon. Keep earning stars!',
+
+  // CalendarScreen
+  calendarTitle: 'Activity Calendar',
+  calendarBestDay: 'Best day',
+  calendarMilestone: 'Streak milestone',
+  calendarActive: 'Active day',
+  calendarTotalStars: 'Total stars',
+  calendarActiveDays: 'Active days',
+  calendarBest: 'Best day',
 
   // Feedback
   sectionFeedback: 'FEEDBACK',

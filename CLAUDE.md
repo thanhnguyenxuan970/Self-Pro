@@ -442,3 +442,29 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 ### Release Keystore Fingerprints
 - **SHA-1**: `05:C5:26:C7:E7:8A:16:3C:10:55:19:B7:99:AF:27:18:91:AD:53:C4`
 - **SHA-256**: `39:7A:4C:AB:43:18:51:97:C7:9D:4B:EB:51:78:7D:CB:7C:1D:3A:FB:7B:24:2F:D2:F4:8F:66:BE:E1:2A:5B:E2`
+
+---
+
+## Habit Tracker — Calendar Screen + Fund Removal COMPLETE (2026-06-04)
+
+### What Was Built / Changed
+- **`src/queries/useCalendar.ts`** (new): `useCalendarData(userId, yearMonth)` — queries `activity_log` + `daily_summary` for a month, computes per-day stars, marks `is_best_day` (= max stars day) and `is_milestone` (streak_count in [3,7,14,30,100]).
+- **`src/screens/CalendarScreen.tsx`** (new): Month grid calendar. Prev/next navigation. Day cells: green (milestone streak) > gold (best day) > soft green (active) > plain. Today ring border. Month summary stats (total stars, active days, best day). Legend. Locale-aware month label via `useLanguage`.
+- **`src/navigation/RootNavigator.tsx`**: Tab order changed Home → Calendar → [FAB] → Analytics → Rank. `FundScreen` import replaced with `CalendarScreen`. `IconGift` replaced with `IconCalendar` (SVG). Unused `Rect` import removed.
+- **`src/screens/ProfileScreen.tsx`**: Replaced `useTreatPool` + vault stat with `useAllTimeStats` → shows total all-time stars.
+- **`src/config/i18n.ts`**: Added `tabCalendar`, `calendarTitle`, `calendarBestDay`, `calendarMilestone`, `calendarActive`, `calendarTotalStars`, `calendarActiveDays`, `calendarBest`, `statTotalStars` in both vi + en.
+
+### Deleted
+- `src/screens/FundScreen.tsx`
+- `src/queries/useFund.ts`
+- `src/queries/useTreats.ts`
+- `src/game/treatLogic.ts`
+- `__tests__/treatLogic.test.ts`
+
+### Key Decisions
+- `is_best_day` uses max within current month view only (not all-time), so it updates as user navigates months.
+- Milestone streaks: [3, 7, 14, 30, 100] — milestone takes visual precedence over best-day (green > gold) since streak milestones are rarer.
+- `cells` array memoized on `yearMonth` to avoid rebuild on every render.
+- Locale derived from `useLanguage()` hook (not from `t` object comparison which was always true).
+- `statTotalStars` added; `statVault` kept in i18n (unused but harmless; removing requires en/vi parity update).
+- 90/90 tests pass (8 treatLogic tests removed with the module).
