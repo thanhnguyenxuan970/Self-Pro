@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView, TextInput,
+  View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView, TextInput, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, Typography, AppColors } from '../config/theme';
@@ -243,6 +243,20 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
             />
           </View>
           {notifError3 && <Text style={styles.inputHint}>{t.timeFormatHint}</Text>}
+        </View>
+
+        {/* Feedback */}
+        <Text style={styles.sectionLabel}>{t.sectionFeedback}</Text>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={[styles.row, styles.rowLast]}
+            onPress={() => Linking.openURL('mailto:thanhnguyenxuan970@gmail.com?subject=Habit%20Tracker%20Feedback').catch(() => {})}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.rowIc}>📬</Text>
+            <Text style={styles.rowLabel}>{t.reportBugLabel}</Text>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Danger zone */}

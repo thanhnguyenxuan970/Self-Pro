@@ -486,5 +486,12 @@ function makeStyles(C: AppColors) {
     cancelTxt: { color: C.muted, fontSize: 15, fontWeight: '600' },
     confirmBtn: { backgroundColor: C.primary },
     confirmTxt: { color: C.white, fontSize: 15, fontWeight: '700' },
+    devLock: {
+      flex: 1, alignItems: 'center', justifyContent: 'center',
+      paddingHorizontal: 40, paddingBottom: 80,
+    },
+    devLockIcon: { fontSize: 52, marginBottom: 16 },
+    devLockTitle: { fontSize: 20, fontWeight: '800', color: C.inkDark, marginBottom: 8, textAlign: 'center' },
+    devLockDesc: { fontSize: 14, color: C.muted, textAlign: 'center', lineHeight: 20 },
   });
 }

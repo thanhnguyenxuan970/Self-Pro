@@ -191,6 +191,14 @@ const vi = {
 
   // FundScreen freeze success
   freezeSuccess: '🧊 Streak đã được bảo vệ!',
+
+  // In Development placeholder
+  inDevelopmentTitle: 'Đang phát triển',
+  inDevelopmentDesc: 'Tính năng này sẽ sớm ra mắt. Hãy tiếp tục tích sao nhé!',
+
+  // Feedback
+  sectionFeedback: 'PHẢN HỒI',
+  reportBugLabel: 'Báo lỗi / Phản hồi',
 };
 
 const en: typeof vi = {
@@ -387,6 +395,14 @@ const en: typeof vi = {
 
   // FundScreen freeze success
   freezeSuccess: '🧊 Streak protected!',
+
+  // In Development placeholder
+  inDevelopmentTitle: 'In Development',
+  inDevelopmentDesc: 'This feature is coming soon. Keep earning stars!',
+
+  // Feedback
+  sectionFeedback: 'FEEDBACK',
+  reportBugLabel: 'Report Bug / Feedback',
 };
 
 export type Strings = typeof vi;

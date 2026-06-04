@@ -2,6 +2,21 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "types": ["jest"]
+    "types": ["jest"],
+    "paths": {
+      "@api/*": ["./src/api/*"],
+      "@audio/*": ["./src/audio/*"],
+      "@components/*": ["./src/components/*"],
+      "@config/*": ["./src/config/*"],
+      "@contexts/*": ["./src/contexts/*"],
+      "@db/*": ["./src/db/*"],
+      "@game/*": ["./src/game/*"],
+      "@hooks/*": ["./src/hooks/*"],
+      "@lib/*": ["./src/lib/*"],
+      "@navigation/*": ["./src/navigation/*"],
+      "@queries/*": ["./src/queries/*"],
+      "@screens/*": ["./src/screens/*"],
+      "@utils/*": ["./src/utils/*"]
+    }
   }
 }
