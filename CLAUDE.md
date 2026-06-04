@@ -115,20 +115,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker Day 10 — COMPLETE (2026-05-30)
-
-### What Was Built
-Full "App Fixes & Enhancements": `USER_ID` removed → `useAuthUser()`; `LanguageContext`/`ThemeContext`; Google Sign-In only; `SettingsScreen`; `LogActivitySheet` multi-select checklist; `supabase.ts` + `syncService.ts` (guarded by env var).
-
-### Key Decisions (Day 10)
-- `google_sub` = `googleUser.email` (workaround: expo-auth-session returns `access_token` not `id_token` by default — no Google user ID available without extra config)
-- Legacy `id=1` row claimed by first Google sign-in via `UPDATE users SET google_sub=? WHERE id=1 AND google_sub IS NULL` — preserves all existing device data
-- `AuthProvider` context replaces prop-drilling; `useAuthUser()` throws if called outside auth gate (safe — all callers are behind `googleUser !== null && isOnboarded` gate)
-- `AuthState.value` wrapped in `useMemo` — prevents all-consumer re-renders on unrelated parent renders
-- `doToggle` side-effects (`setExpandedTimeTask`) moved outside `setSelected` updater — no side-effect-in-updater anti-pattern
-- Tier seed UPDATE uses `WHERE tier_order=?` (not `INSERT OR REPLACE`) — `INSERT OR REPLACE` changes ROWID, breaking `reward_unlocks.tier_id` FK refs
-- MP3 files: placeholder empty files committed so Metro bundler succeeds; user replaces with real CC0 audio
-
 ## Known Errors & Fixes
 
 | Error | Cause | Fix |
@@ -556,6 +542,25 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0;
 - `useEffect` empty deps with `// mascotRef is stable — empty deps intentional` comment — `useRef` returns stable object, no dep needed.
 - `playRankUp()` called on currently-mounted mascot: fires correctly for tier 2+ rank-ups (mascot already visible). For first unlock (0→5★), mascot isn't rendered yet so `.current` is null — optional chaining silently no-ops; animation fires on next rank-up.
 - `['rank']` added to `useLogTask.onSuccess` invalidation list — pre-existing gap; required for RankScreen to update live after logging.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
+
+---
+
+## Habit Tracker — Per-Tier Rank-Up Sound Effects COMPLETE (2026-06-04)
+
+### What Was Built
+- **`src/assets/sounds/ranks/`** (new): 7 tier-specific MP3s copied from `Docs/rank/rank_sound_up/` — `delulu-up.mp3` through `goated-up.mp3`.
+- **`src/logic/rankSound.ts`** (new): `playRankSound(tier)` — static `require()` map (Metro bundling constraint), lazy `require('expo-audio')` in try-catch, `createAudioPlayer(source)` + `player.play()`, cleanup via `player.remove()` after 1.1s.
+- **`expo-audio`** added to dependencies via `expo install expo-audio`.
+- **`src/components/RankMascot.tsx`**: `playRankUp()` now fires haptic first, then `setTimeout(() => playRankSound(rank.tier), 50)` — 50ms delay compensates for haptic motor latency per spec.
+
+### Key Decisions
+- Static `require()` map (not dynamic) — Metro bundler requires literal `require()` at build time for asset bundling; dynamic paths are not resolvable.
+- `createAudioPlayer` (not `new AudioPlayer()`) — `AudioPlayer` class not exported from `expo-audio` top-level index; `createAudioPlayer` is the correct imperative API (exported from `ExpoAudio.d.ts`).
+- Lazy `require('expo-audio')` inside try-catch — consistent with codebase pattern for native modules (expo-secure-store, google-signin). Non-fatal if native module absent.
+- `sfx` field in `ranks.config.ts` uses `'main-character'` but file is `main-char-up.mp3` — static map resolves this at tier index (tier 5 → `main-char-up.mp3`) without renaming either.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
