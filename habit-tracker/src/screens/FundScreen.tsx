@@ -16,6 +16,7 @@ import { formatVND } from '../logic/formatters';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { cueTreatClaim } from '../logic/uiSounds';
 import { Strings } from '../i18n';
 
 const CONFETTI_COLORS = ['#FFD700', '#FF6B6B', '#4CAF50', '#2196F3', '#FF9800', '#E91E63'];
@@ -206,6 +207,7 @@ export function FundScreen() {
             enjoyingRef.current = true;
             try {
               await enjoyTreat.mutateAsync(treat.id);
+              cueTreatClaim();
               Toast.show({ type: 'success', text1: t.celebration(treat.name), visibilityTime: 2500 });
             } catch (e: any) {
               Alert.alert(t.error, e?.message === 'NOT_ENOUGH_STARS' ? t.notEnoughStars : t.cantConfirm);

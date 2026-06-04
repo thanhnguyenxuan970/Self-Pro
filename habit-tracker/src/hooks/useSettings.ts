@@ -15,6 +15,11 @@ export function useLanguage(): [AppLanguage, (v: AppLanguage) => void] {
   return [lang, setLanguage];
 }
 
+export function useAudioEnabled(): [boolean, (v: boolean) => void] {
+  const { audioEnabled, setAudioEnabled } = useSettingsContext();
+  return [audioEnabled, setAudioEnabled];
+}
+
 export function useTheme(): { colors: AppColors; isDark: boolean } {
   const { isDark } = useSettingsContext();
   return useMemo(() => ({ colors: getColors(isDark), isDark }), [isDark]);

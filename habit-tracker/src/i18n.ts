@@ -51,6 +51,8 @@ const vi = {
   // SettingsScreen
   sectionAppearance: 'GIAO DIỆN',
   darkModeLabel: 'Chế độ tối',
+  sectionSound: 'ÂM THANH',
+  soundEnabledLabel: 'Âm thanh & hiệu ứng',
   sectionLanguage: 'NGÔN NGỮ',
   sectionNotifications: 'THÔNG BÁO',
   reminderLabel: 'Giờ nhắc 1',
@@ -245,6 +247,8 @@ const en: typeof vi = {
   // SettingsScreen
   sectionAppearance: 'APPEARANCE',
   darkModeLabel: 'Dark mode',
+  sectionSound: 'SOUND',
+  soundEnabledLabel: 'Sound & effects',
   sectionLanguage: 'LANGUAGE',
   sectionNotifications: 'NOTIFICATIONS',
   reminderLabel: 'Reminder 1',

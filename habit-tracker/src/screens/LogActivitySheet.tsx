@@ -7,6 +7,7 @@ import Toast from 'react-native-toast-message';
 import { useTodayTasks, useLogTask } from '../queries/useToday';
 import { useChipPresets, useDurationLogger } from '../queries/useDurationLogger';
 import { playCelebration } from '../logic/celebrateSound';
+import { cueModalOpen, cueModalClose } from '../logic/uiSounds';
 import { useAuthUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
 import { DurationChips } from '../components/DurationChips';
@@ -92,6 +93,7 @@ export function LogActivitySheet({ visible, onClose }: Props) {
 
   useEffect(() => {
     if (visible) {
+      cueModalOpen();
       Animated.parallel([
         Animated.timing(backdropOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
         Animated.spring(sheetTranslateY, { toValue: 0, tension: 120, friction: 12, useNativeDriver: true }),
@@ -131,6 +133,7 @@ export function LogActivitySheet({ visible, onClose }: Props) {
   }
 
   function handleClose() {
+    cueModalClose();
     Animated.parallel([
       Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
       Animated.spring(sheetTranslateY, { toValue: 300, tension: 120, friction: 12, useNativeDriver: true }),

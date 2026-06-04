@@ -1,3 +1,5 @@
+import { isAudioEnabled } from './audioEnabled';
+
 // Static require map — Metro bundler needs literal require() calls for asset bundling.
 // tier matches RANKS[tier].tier (0-based).
 const RANK_SOUNDS: Record<number, number> = {
@@ -14,6 +16,7 @@ const RANK_SOUNDS: Record<number, number> = {
 const CLEANUP_DELAY_MS = 1100;
 
 export function playRankSound(tier: number): void {
+  if (!isAudioEnabled()) return;
   const source = RANK_SOUNDS[tier];
   if (source == null) return;
   try {

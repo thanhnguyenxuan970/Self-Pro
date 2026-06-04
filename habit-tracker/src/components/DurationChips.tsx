@@ -4,6 +4,7 @@ import {
   StyleSheet, TouchableOpacity, Animated,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { cueChipConfirm } from '../logic/uiSounds';
 import type { Chip } from '../logic/chipPresets';
 import { formatDuration } from '../logic/points';
 import { Radii, Spacing, Typography, AppColors } from '../theme';
@@ -43,6 +44,7 @@ export function DurationChips({ activityName, chips, previewStars, onLog }: Prop
 
   const commit = (minutes: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    cueChipConfirm();
     onLog(minutes);
   };
 

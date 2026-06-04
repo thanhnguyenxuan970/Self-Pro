@@ -16,6 +16,7 @@ import { getCurrentTier } from '../logic/rankUtils';
 import { Radii, Spacing, Shadows, AppColors } from '../theme';
 import { useAuthUser, useGoogleUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { cueStreakMilestone } from '../logic/uiSounds';
 
 const DAILY_THRESHOLD = 50;
 
@@ -234,6 +235,7 @@ export function TodayScreen() {
     if (newStreak === 1 && prevStreak > 1) {
       Toast.show({ type: 'error', text1: t.streakBreakTitle, text2: t.streakBreakMsg(prevStreak), visibilityTime: 3000 });
     } else if (newStreak > 1 && newStreak > prevStreak) {
+      if ([3, 7, 30].includes(newStreak)) cueStreakMilestone();
       Toast.show({ type: 'success', text1: t.streakMilestone(newStreak), visibilityTime: 1800 });
     }
   }
