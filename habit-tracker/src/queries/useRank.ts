@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDb } from '../db/client';
-import { getWeekStart } from '../logic/formatters';
+import { getWeekStart } from '../utils/formatters';
 
 type TierRow = {
   id: number;

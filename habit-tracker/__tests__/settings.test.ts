@@ -1,4 +1,4 @@
-import { parseSettingsBool, parseSettingsLang, validateNotificationTime } from '../src/logic/settingsLogic';
+import { parseSettingsBool, parseSettingsLang, validateNotificationTime } from '../src/utils/settingsLogic';
 
 describe('parseSettingsBool', () => {
   test('null → false', () => expect(parseSettingsBool(null)).toBe(false));

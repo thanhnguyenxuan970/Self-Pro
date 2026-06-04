@@ -1,4 +1,4 @@
-import { getRangeLabel } from '../src/logic/formatters';
+import { getRangeLabel } from '../src/utils/formatters';
 
 describe('getRangeLabel', () => {
   // 2026-06-01 is a Monday

@@ -1,4 +1,4 @@
-import { shouldShowWeekResetToast } from '../src/logic/weekReset';
+import { shouldShowWeekResetToast } from '../src/utils/weekReset';
 
 test('shows toast when no last_seen (first open ever)', () => {
   expect(shouldShowWeekResetToast('2026-05-25', null)).toBe(true);

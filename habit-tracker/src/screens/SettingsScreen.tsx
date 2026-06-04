@@ -11,8 +11,8 @@ import {
   useNotificationTime2, useSetNotificationTime2,
   useNotificationTime3, useSetNotificationTime3,
 } from '../queries/useSettings';
-import { validateNotificationTime } from '../logic/settingsLogic';
-import { scheduleAllHabitReminders } from '../logic/notifications';
+import { validateNotificationTime } from '../utils/settingsLogic';
+import { scheduleAllHabitReminders } from '../utils/notifications';
 
 type Props = {
   onDeleteAccount: (userId: number) => Promise<void>;

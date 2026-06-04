@@ -3,7 +3,7 @@ import { getDb } from '../db/client';
 import { getStoredGoogleUserEmail } from '../hooks/useAuth';
 import { syncUserStreak } from '../services/syncService';
 import { computeLogTaskRows } from '../game/logTask';
-import { getLocalDate, getLocalDateFor, getWeekStart } from '../logic/formatters';
+import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
 import { computeTierUnlocks, TierRow } from '../game/tierUnlocks';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 

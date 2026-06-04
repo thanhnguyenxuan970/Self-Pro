@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../db/client';
-import { getLocalDateFor } from '../logic/formatters';
+import { getLocalDateFor } from '../utils/formatters';
 import { canPurchaseFreeze } from '../game/streakFreeze';
 import { STREAK_FREEZE_COST } from '../constants';
 

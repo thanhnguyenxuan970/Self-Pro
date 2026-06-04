@@ -1,4 +1,4 @@
-import { parseNotificationTime } from '../src/logic/notifications';
+import { parseNotificationTime } from '../src/utils/notifications';
 
 test('valid time returns hours and minutes', () => {
   expect(parseNotificationTime('08:30')).toEqual({ hours: 8, minutes: 30 });

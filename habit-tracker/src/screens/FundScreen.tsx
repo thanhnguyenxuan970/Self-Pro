@@ -12,7 +12,7 @@ import {
 import { useStreakFreezeEligibility, usePurchaseStreakFreeze } from '../queries/useFund';
 import { STREAK_FREEZE_COST } from '../constants';
 import Toast from 'react-native-toast-message';
-import { formatVND } from '../logic/formatters';
+import { formatVND } from '../utils/formatters';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
