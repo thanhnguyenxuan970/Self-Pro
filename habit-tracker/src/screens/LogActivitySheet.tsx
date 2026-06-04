@@ -6,7 +6,6 @@ import {
 import Toast from 'react-native-toast-message';
 import { useTodayTasks, useLogTask } from '../queries/useToday';
 import { useChipPresets, useDurationLogger } from '../queries/useDurationLogger';
-import { playCelebration } from '../logic/celebrateSound';
 import { cueModalOpen, cueModalClose } from '../logic/uiSounds';
 import { useAuthUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../theme';
@@ -42,8 +41,7 @@ function TimedTaskLogger({
   const { log, previewStars, isLogging } = useDurationLogger({
     userId,
     task,
-    onSuccess: (minutes) => {
-      playCelebration(minutes);
+    onSuccess: (_minutes) => {
       Toast.show({
         type: 'success',
         text1: t.loggedOk,
@@ -112,7 +110,6 @@ export function LogActivitySheet({ visible, onClose }: Props) {
         basePoints: task.base_points,
         starPenalty: task.star_penalty,
       });
-      playCelebration(0);
       Toast.show({
         type: 'success',
         text1: t.loggedOk,
