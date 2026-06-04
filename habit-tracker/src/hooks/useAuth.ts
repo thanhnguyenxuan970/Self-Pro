@@ -175,7 +175,7 @@ export function useAuth() {
     // Establish Supabase Auth session so RLS policies can verify identity
     if (idToken) {
       try {
-        const { supabase } = await import('../lib/supabase');
+        const { supabase } = await import('../api/supabase');
         if (supabase) {
           await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
         }
@@ -201,7 +201,7 @@ export function useAuth() {
   const deleteAccount = useCallback(async (uid: number) => {
     // Purge remote Supabase data FIRST while the auth session is still active
     try {
-      const { deleteUserFromSupabase, resetSyncCursors } = await import('../services/syncService');
+      const { deleteUserFromSupabase, resetSyncCursors } = await import('../api/syncService');
       const googleUserJson = await readGoogleUser();
       const gu = parseGoogleUser(googleUserJson);
       if (gu) await deleteUserFromSupabase(gu.email);
@@ -222,7 +222,7 @@ export function useAuth() {
     });
     // Sign out from Supabase Auth
     try {
-      const { supabase } = await import('../lib/supabase');
+      const { supabase } = await import('../api/supabase');
       if (supabase) await supabase.auth.signOut();
     } catch { }
     // Revoke Google session
@@ -252,11 +252,11 @@ export function useAuth() {
       // ignore — native sign-out failure doesn't affect local state
     }
     try {
-      const { supabase } = await import('../lib/supabase');
+      const { supabase } = await import('../api/supabase');
       if (supabase) await supabase.auth.signOut();
     } catch { }
     try {
-      const { resetSyncCursors } = await import('../services/syncService');
+      const { resetSyncCursors } = await import('../api/syncService');
       await resetSyncCursors();
     } catch { }
     try {

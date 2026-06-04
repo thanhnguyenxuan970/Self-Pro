@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../db/client';
 import { getStoredGoogleUserEmail } from '../hooks/useAuth';
-import { syncUserStreak } from '../services/syncService';
+import { syncUserStreak } from '../api/syncService';
 import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
 import { computeTierUnlocks, TierRow } from '../game/tierUnlocks';

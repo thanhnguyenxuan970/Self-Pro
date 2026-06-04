@@ -8,7 +8,7 @@ import { getDb } from './src/db/client';
 import { getWeekStart } from './src/utils/formatters';
 import { shouldShowWeekResetToast } from './src/utils/weekReset';
 import { useAuth, resolveUserRow, UserIdContext, GoogleUserContext } from './src/hooks/useAuth';
-import { syncToSupabase } from './src/services/syncService';
+import { syncToSupabase } from './src/api/syncService';
 import { SettingsProvider } from './src/contexts/SettingsContext';
 import { useTheme } from './src/hooks/useSettings';
 

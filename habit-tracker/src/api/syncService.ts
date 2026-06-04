@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '../lib/supabase';
+import { supabase } from './supabase';
 import { getDb } from '../db/client';
 
 const KEY_LAST_ACTIVITY = 'habit_sync_last_activity_id';
