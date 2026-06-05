@@ -468,3 +468,20 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 - Locale derived from `useLanguage()` hook (not from `t` object comparison which was always true).
 - `statTotalStars` added; `statVault` kept in i18n (unused but harmless; removing requires en/vi parity update).
 - 90/90 tests pass (8 treatLogic tests removed with the module).
+
+---
+
+## Habit Tracker — ProgressScreen Stats Refactor COMPLETE (2026-06-05)
+
+### What Was Changed
+- **`src/screens/ProgressScreen.tsx`**: Merged two stat sections (`TỔNG QUAN` + `TOÀN THỜI GIAN`) into one `THỐNG KÊ` section. Single 6-card grid replaces two separate 3-card grids.
+- **`src/config/i18n.ts`**: Removed `overviewSection`, `allTimeSection`, `longestStreak`. Added `statsSection`, `currentStreak`. Relabeled `starsThisWeek` → "Sao hiện tại / Current stars". Relabeled `bestStreak` vi → "Streak kỷ lục".
+
+### Key Decisions
+- `longestStreak` was mislabeled — `useStreakCount` returns current streak, not longest. Renamed key to `currentStreak` and label to "Streak hiện tại".
+- `starsThisWeek` relabeled to "Sao hiện tại" — data is `tierInfo.currentStars` (rank progress), not weekly count.
+- `bestStreak` vi renamed "Streak kỷ lục" (record streak) — clearly distinct from "Streak hiện tại" (current).
+- All 6 stats kept; only structure and labels changed — no data loss.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass

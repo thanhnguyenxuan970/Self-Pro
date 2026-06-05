@@ -160,8 +160,8 @@ export function ProgressScreen() {
           </View>
         </View>
 
-        {/* Stats overview */}
-        <Text style={styles.sectionLabel}>{t.overviewSection}</Text>
+        {/* Stats */}
+        <Text style={styles.sectionLabel}>{t.statsSection}</Text>
         <View style={styles.statGrid}>
           <View style={styles.stat}>
             <Text style={styles.statV}>{tierInfo?.currentStars ?? 0} ★</Text>
@@ -169,7 +169,7 @@ export function ProgressScreen() {
           </View>
           <View style={styles.stat}>
             <Text style={styles.statV}>{streak} 🔥</Text>
-            <Text style={styles.statL}>{t.longestStreak}</Text>
+            <Text style={styles.statL}>{t.currentStreak}</Text>
           </View>
           <View style={styles.stat}>
             <Text style={styles.statV}>
@@ -177,11 +177,6 @@ export function ProgressScreen() {
             </Text>
             <Text style={styles.statL}>{t.toNextRank}</Text>
           </View>
-        </View>
-
-        {/* All-time */}
-        <Text style={styles.sectionLabel}>{t.allTimeSection}</Text>
-        <View style={styles.statGrid}>
           <View style={styles.stat}>
             <Text style={styles.statV}>{allTime?.totalActivities ?? 0}</Text>
             <Text style={styles.statL}>{t.activities}</Text>
