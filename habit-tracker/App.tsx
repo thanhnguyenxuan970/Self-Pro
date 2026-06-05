@@ -63,21 +63,6 @@ function AppInner() {
         );
       }
 
-      try {
-        const Notifications = await import('expo-notifications');
-        Notifications.setNotificationHandler({
-          handleNotification: async () => ({
-            shouldShowAlert: true,
-            shouldShowBanner: true,
-            shouldShowList: true,
-            shouldPlaySound: true,
-            shouldSetBadge: false,
-          }),
-        });
-        await Notifications.requestPermissionsAsync();
-      } catch {
-        // expo-notifications push APIs unavailable in Expo Go (SDK 53+)
-      }
       setDbReady(true);
     }
     init().catch(err => console.error('DB init failed:', err));

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, NativeModules } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { GoogleUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
@@ -20,6 +20,11 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
   async function handleGoogleSignIn() {
     setLoading(true);
     try {
+      if (!NativeModules.RNGoogleSignin) {
+        Alert.alert(t.error, t.signInLibError);
+        setLoading(false);
+        return;
+      }
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } =
         require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
