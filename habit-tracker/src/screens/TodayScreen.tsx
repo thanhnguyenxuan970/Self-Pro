@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import {
   useTodayTasks, useDailySummary, useWeeklySummary,
-  useLogTask, useTodayLoggedTaskIds, useYesterdayLoggedTasks,
+  useLogTask, useUnlogTask, useTodayLoggedTaskIds, useYesterdayLoggedTasks,
 } from '../queries/useToday';
 import { useArchiveTask } from '../queries/useTasks';
 import { useRankData } from '../queries/useRank';
@@ -103,6 +103,7 @@ export function TodayScreen() {
   const { data: loggedIds } = useTodayLoggedTaskIds(userId);
   const { data: rankData } = useRankData(userId);
   const logTask = useLogTask(userId);
+  const unlogTask = useUnlogTask(userId);
 
   const archiveTask = useArchiveTask(userId);
 
@@ -246,6 +247,13 @@ export function TodayScreen() {
   }
 
   async function handleLog(task: Task) {
+    // Toggle: undo if already logged today
+    if (loggedIds?.has(task.id)) {
+      try {
+        await unlogTask.mutateAsync({ taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD' });
+      } catch { Alert.alert(t.error, t.cantLog); }
+      return;
+    }
     if (task.is_time_based) { setModalTask(task); return; }
     if (justLoggedIds.has(task.id)) return;
     try {
@@ -428,7 +436,7 @@ export function TodayScreen() {
                   justLogged={justLoggedIds.has(item.id)}
                   onPress={() => selectionMode ? toggleSelect(item.id) : handleLog(item)}
                   onLongPress={() => enterSelection(item.id)}
-                  logPending={logTask.isPending}
+                  logPending={logTask.isPending || unlogTask.isPending}
                   styles={styles}
                 />
               );

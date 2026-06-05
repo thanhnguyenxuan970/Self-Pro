@@ -6,6 +6,7 @@ import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
 import { computeTierUnlocks, TierRow } from '../game/tierUnlocks';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
+import { DAILY_BONUS_THRESHOLD, DAILY_BONUS_STARS } from '../config/constants';
 
 export function useTodayTasks(userId: number) {
   return useQuery({
@@ -320,6 +321,81 @@ export function useCategories(userId: number) {
         `SELECT id, name, icon FROM categories WHERE user_id = ? AND archived = 0 ORDER BY sort_order`,
         [userId]
       );
+    },
+  });
+}
+
+export function useUnlogTask(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { taskTypeId: number; kind: 'GOOD' | 'BAD' }) => {
+      const db = await getDb();
+      const today = getLocalDate();
+      const weekStart = getWeekStart();
+
+      await db.withTransactionAsync(async () => {
+        const taskRows = await db.getAllAsync<{ id: number; points_earned: number; stars_delta: number }>(
+          `SELECT id, points_earned, stars_delta FROM activity_log
+           WHERE user_id = ? AND local_date = ? AND task_type_id = ? AND source = 'TASK'`,
+          [userId, today, params.taskTypeId]
+        );
+        if (taskRows.length === 0) return;
+
+        const taskPoints = taskRows.reduce((s, r) => s + r.points_earned, 0);
+        const taskStars = taskRows.reduce((s, r) => s + r.stars_delta, 0);
+
+        const daily = await db.getFirstAsync<{ total_points: number; bonus_star_awarded: number }>(
+          `SELECT total_points, bonus_star_awarded FROM daily_summary
+           WHERE user_id = ? AND local_date = ?`,
+          [userId, today]
+        );
+
+        // Reverse daily bonus if removing this task drops points below threshold
+        let bonusStars = 0;
+        const remainingPoints = (daily?.total_points ?? 0) - taskPoints;
+        if (daily?.bonus_star_awarded && remainingPoints < DAILY_BONUS_THRESHOLD) {
+          bonusStars = DAILY_BONUS_STARS;
+          await db.runAsync(
+            `DELETE FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS'`,
+            [userId, today]
+          );
+        }
+
+        const totalStarsDelta = taskStars + bonusStars;
+
+        for (const row of taskRows) {
+          await db.runAsync(`DELETE FROM activity_log WHERE id = ?`, [row.id]);
+        }
+
+        await db.runAsync(
+          `UPDATE daily_summary SET
+             total_points = MAX(0, total_points - ?),
+             bonus_star_awarded = CASE WHEN ? THEN 0 ELSE bonus_star_awarded END
+           WHERE user_id = ? AND local_date = ?`,
+          [taskPoints, bonusStars > 0 ? 1 : 0, userId, today]
+        );
+
+        await db.runAsync(
+          `UPDATE weekly_summary SET
+             total_points = MAX(0, total_points - ?),
+             weekly_stars = MAX(0, weekly_stars - ?)
+           WHERE user_id = ? AND week_start = ?`,
+          [taskPoints, totalStarsDelta, userId, weekStart]
+        );
+
+        if (params.kind === 'GOOD') {
+          await db.runAsync(
+            `UPDATE users SET treat_stars = MAX(0, treat_stars - ?) WHERE id = ?`,
+            [Math.max(0, totalStarsDelta), userId]
+          );
+        }
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['today'] });
+      qc.invalidateQueries({ queryKey: ['week'] });
+      qc.invalidateQueries({ queryKey: ['progress'] });
+      qc.invalidateQueries({ queryKey: ['rank'] });
     },
   });
 }

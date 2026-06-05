@@ -260,4 +260,16 @@ export async function runMigrations(db: SQLiteDatabase) {
     INSERT OR IGNORE INTO task_types (user_id, name, icon, kind, is_time_based, base_points, star_penalty, archived)
     SELECT u.id, 'Work', '💼', 'GOOD', 1, 10, 50, 0 FROM users u;
   `);
+
+  // Idempotent: add Study / Family / Relationship / Sports for all existing users
+  await db.execAsync(`
+    INSERT OR IGNORE INTO task_types (user_id, name, icon, kind, is_time_based, base_points, star_penalty, archived)
+    SELECT u.id, 'Study', '📚', 'GOOD', 1, 10, 50, 0 FROM users u;
+    INSERT OR IGNORE INTO task_types (user_id, name, icon, kind, is_time_based, base_points, star_penalty, archived)
+    SELECT u.id, 'Family', '👨‍👩‍👧', 'GOOD', 0, 10, 50, 0 FROM users u;
+    INSERT OR IGNORE INTO task_types (user_id, name, icon, kind, is_time_based, base_points, star_penalty, archived)
+    SELECT u.id, 'Relationship', '💑', 'GOOD', 0, 10, 50, 0 FROM users u;
+    INSERT OR IGNORE INTO task_types (user_id, name, icon, kind, is_time_based, base_points, star_penalty, archived)
+    SELECT u.id, 'Sports', '⚽', 'GOOD', 1, 10, 50, 0 FROM users u;
+  `);
 }

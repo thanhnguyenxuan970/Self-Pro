@@ -195,63 +195,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker — 12-Agent Simulation + Ship QA COMPLETE (2026-06-03)
-
-### What Was Built / Fixed
-- **12 simulation-report items** (commit `12e0006`): streak chip in hero, flash ✓ on log, repeat-yesterday chip, incomplete-first sort, `‹/›` analytics nav, treat ETA, history limit 100, 3 notification slots, streak toast in `useLogTask.onSuccess`, streak Supabase sync, 45m chip preset, `statVault` label fix.
-- **Ship QA fixes** (this session): streak toasts extracted from `useLogTask.onSuccess` → `showStreakToast` in `TodayScreen` so they use `t` (i18n); dead `scheduleHabitReminder`/`cancelHabitReminder` removed from `notifications.ts`; `t` param shadowing fixed in `selectAll`; regression fixed — `handleLogTime` (timed modal) was missing `showStreakToast` call after extraction.
-- **3 new i18n keys**: `streakBreakTitle`, `streakBreakMsg(n)`, `streakMilestone(n)` in both vi + en.
-
-### Key Decisions
-- Streak toast moved to component level (not query hook) — queries have no React context access; component has `t`.
-- `showStreakToast` called in all 3 log paths: `handleLog`, `handleLogTime`, `handleRepeatYesterday` (last result only for batch).
-- `scheduleHabitReminder` removed (dead after 3-slot refactor; also had bug: cancelled all slots when scheduling slot 1 only).
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
-
-### [NEEDS USER] Supabase Dashboard (streak sync)
-```sql
-ALTER TABLE users ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0;
-```
-
----
-
-## Habit Tracker — Tier 1 UI Animations COMPLETE (2026-06-03)
-
-### What Was Built
-- **`src/components/DurationChips.tsx`**: Extracted `ChipButton` inner component with spring scale press animation (`1→0.92→1`, tension 140, friction 7, `useNativeDriver: true`). Save button glow overlay (`opacity 0.4→1→0.4` loop, 1200ms, JS driver) activates when `inputValid && pickerOpen`.
-- **`src/screens/TodayScreen.tsx`**: Rank chip bounce pop (`1→1.25→1` spring sequence, tension 120, friction 6) fires on rank name change. Streak badge pulse loop (`1→1.08→1`, 800ms, `useNativeDriver: true`) runs while `streak > 0`.
-
-### Key Decisions
-- `ChipButton` as inner component (not inline hooks in `.map()`) — hooks rules forbid calling hooks inside array callbacks.
-- Glow effect guarded by `pickerOpen` in deps — prevents animation loop running on unmounted overlay when modal is closed.
-- `hasStreak = streak > 0` as boolean dep — streak loop only restarts on 0↔non-zero transition, not on every increment (avoids loop restart when streak 2→3).
-- `prevRankNameRef` pattern for rank bounce — fires only on actual tier-name change, not on every query refetch.
-- Built-in `Animated` (not reanimated) — consistent with RankMascot; no babel plugin/rebuild needed.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors
-
----
-
-## Habit Tracker — Rank Ladder Stagger Animation COMPLETE (2026-06-03)
-
-### What Was Built
-- **`src/screens/RankScreen.tsx`**: Staggered slide-in on rank ladder rows. Each row: `translateX -30→0` + `opacity 0→1`, 300ms duration, 50ms stagger per index. Fires once on screen mount after data loads.
-
-### Key Decisions
-- `ladderAnims` ref sized via length-check guard during render — lazy-init pattern for array refs; avoids extra `useEffect`.
-- `hasAnimated.current` gate prevents re-triggering on query refetch / re-render.
-- `sortedTiers` moved to `useMemo` from inline JSX sort — stable dep for `useEffect`, reused in render.
-- `useNativeDriver: true` on both channels — no layout props, stays GPU thread.
-- `anim &&` guard in style array — safe index-mismatch fallback.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
-
----
-
 ## Habit Tracker — Tier 2 Core Interactions COMPLETE (2026-06-03)
 
 ### What Was Built (items 5-11 from simulation report)
@@ -518,6 +461,24 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 - `SafeAreaView` from `react-native-safe-area-context` (not RN core) — consistent with RankScreen pattern; `edges={['top']}` only to allow bottom tab bar to manage its own insets.
 - Stagger animation removed (not just fixed) — with single tier display, slide-in stagger adds zero UX value. Root cause was native driver `translateX: -30` initial value causing invisible row until animation fired; removing the animation eliminates the class of bug.
 - `!tier` null-guard added in map — defensive against `getCurrentTier` returning undefined when `tiers` DB is empty.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---
+
+## Habit Tracker — Toggle-Undo + New Activities COMPLETE (2026-06-05)
+
+### What Was Fixed / Built
+- **`src/queries/useToday.ts`**: Added `useUnlogTask` mutation. Finds all `activity_log` rows for today with `source='TASK'` for the given `task_type_id`, deletes them, reverses `daily_summary` and `weekly_summary`, and reverses `treat_stars`. Also reverses the daily bonus row (deletes `source='DAILY_BONUS'` + un-sets `bonus_star_awarded`) when removing the task drops remaining points below `DAILY_BONUS_THRESHOLD`.
+- **`src/screens/TodayScreen.tsx`**: `handleLog` now checks `loggedIds?.has(task.id)` first — if already logged, calls `unlogTask.mutateAsync` (undo path) instead of logging again. `logPending` prop now includes `unlogTask.isPending` to block double-taps during unlog.
+- **`src/db/migrations.ts`**: Idempotent seed for 4 new activities — Study 📚 (timed), Family 👨‍👩‍👧, Relationship 💑, Sports ⚽ (timed) — inserted for all existing users.
+
+### Key Decisions
+- Toggle check before `is_time_based` guard — clicking a done time-based task also undoes, consistent with non-timed behavior.
+- `weekly_stars = MAX(0, weekly_stars - ?)` floor added — unlog on edge cases (fresh user, negative weekly_stars from prior BAD tasks) stays non-negative.
+- `logPending || unlogTask.isPending` combined — prevents race where tap during in-flight unlog triggers immediate re-log.
+- Study and Sports set `is_time_based = 1` (log duration); Family and Relationship `is_time_based = 0` (check-in habits).
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
