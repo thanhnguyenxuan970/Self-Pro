@@ -132,41 +132,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker — ExpoSecureStore Startup Crash Fix COMPLETE (2026-06-02)
-
-### What Was Fixed
-- **`src/hooks/useAuth.ts`**: Removed top-level `import * as SecureStore from 'expo-secure-store'`. Replaced with lazy `require('expo-secure-store')` inside each async wrapper (`readGoogleUser`, `writeGoogleUser`, `deleteGoogleUser`). Each has AsyncStorage fallback + `console.warn` if SecureStore unavailable.
-
-### Key Decisions
-- Static import caused `requireNativeModule('ExpoSecureStore')` at bundle load time — same crash pattern as `@react-native-google-signin` (Day 15/16). Fix is identical: `require()` inside async fn body.
-- `require()` (not `await import()`) used per established codebase pattern — `await import()` creates Metro async chunks; `require()` is cached after first call, lazy, no chunk split.
-- AsyncStorage fallback restores pre-Day-21 behavior as degraded-but-working fallback. Real SecureStore failures now surface via `console.warn('[auth] SecureStore unavailable...')`.
-- `expo-secure-store` IS in `package.json`. Crash occurs when native build predates package addition — lazy loading is resilient regardless.
-
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `Cannot find native module 'ExpoSecureStore'` | `import * as SecureStore from 'expo-secure-store'` at module top level → `requireNativeModule` runs synchronously at bundle load before native module registers | Replace static import with lazy `require('expo-secure-store')` inside each async function body; add AsyncStorage fallback in catch |
-| `TypeError: Cannot read property 'getItemAsync' of undefined` | `require('expo-secure-store')` returns `undefined` when native module absent (no throw); `undefined.getItemAsync` → TypeError caught as warn | Extract `resolveSecureStore()` helper; null-checks `mod?.default ?? mod` and asserts `typeof store?.getItemAsync === 'function'` before use |
-
----
-
-## Habit Tracker — ExpoSecureStore Crash Fix v2 COMPLETE (2026-06-03)
-
-### What Was Fixed
-- **`src/hooks/useAuth.ts`**: `resolveSecureStore()` now checks `(globalThis as any).ExpoModules?.ExpoSecureStore` before calling `require('expo-secure-store')`. Returns `null` if absent. Callers (`readGoogleUser`, `writeGoogleUser`, `deleteGoogleUser`) handle `null` with AsyncStorage fallback — no throw path.
-
-### Key Decisions
-- Prior fix (lazy `require` + try-catch) was insufficient: Metro's `guardedLoadModule` intercepts throws from module factories **before** they propagate to the caller's try-catch. A `require()` inside a try-catch does NOT protect against errors thrown at the module's `<global>` scope.
-- Real fix: check `globalThis.ExpoModules.ExpoSecureStore` (the native module registry populated by Expo at startup) **before** calling `require`. If absent, skip require entirely — no module factory runs, no crash.
-- `resolveSecureStore` return type changed to `| null` (was throwing). All callers use null-check guard pattern instead of try-catch.
-- Removed unused `React` default import (no JSX in file).
-
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `Cannot find native module 'ExpoSecureStore'` (recurring after lazy-require fix) | Metro `guardedLoadModule` intercepts `requireNativeModule` throw from module factory scope before it reaches caller's try-catch | Check `globalThis.ExpoModules?.ExpoSecureStore` before require; skip require entirely when absent |
-
----
-
 ## Habit Tracker — RankMascot Animated Component COMPLETE (2026-06-03)
 
 ### What Was Built
@@ -493,6 +458,22 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 |-------|-------|-----|
 | `ReferenceError: Property 'ladderAnims' doesn't exist` | Metro cached stale bundle referencing ref removed in prior session | Delete `%LOCALAPPDATA%\Temp\metro-cache`; rebuild |
 | `ReferenceError: Property 'useAllTimeStats' doesn't exist` | Same Metro stale cache | Same fix |
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---
+
+## Habit Tracker — Brand UI + Logo Update COMPLETE (2026-06-05)
+
+### What Was Changed
+- **`src/config/theme.ts`**: Aligned brand colors to logo master — `primary` `#2E9C6A` → `#25B36E`, `primaryHover` `#248057` → `#1E9B5E`, `primaryPress` `#1E6646` → `#177A49`, `primarySoft` `#DCEDE3` → `#C6E9D5`, `starGold` `#D9952B` → `#E0A93B` (both light + dark). Hero shadow updated to `#177A49`.
+- **`src/screens/SignInScreen.tsx`**: SVG logo replaced with exact master geometry — two-tone ring (track `#C6E9D5` + arc `#25B36E`, 315° arc from 12 o'clock clockwise to 9 o'clock), amber dot `#E0A93B` at gap, dark-green checkmark `#0F7A50`. Mint bg rect `#E6F4EC` gives app-icon badge look. Title changed to two-color inline: "habit " inherits dark ink, "ring" uses `colors.primary` green. Logo size 64→88.
+
+### Key Decisions
+- Logo bg rect (`#E6F4EC`) hardcoded (not theme token) — brand color, intentional; mint badge looks correct in both light and dark modes as a brand element.
+- Two-color title via nested `<Text>` — "habit " inherits parent's `inkDark` color; only "ring" span sets override to `colors.primary`.
+- `starGold` updated to `#E0A93B` — matches amber dot from logo; affects star icons across HomeScreen/RankScreen.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass

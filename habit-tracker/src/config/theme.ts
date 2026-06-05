@@ -1,10 +1,10 @@
 // src/theme.ts
 
 export const Colors = {
-  primary: '#2E9C6A',
-  primaryHover: '#248057',
-  primaryPress: '#1E6646',
-  primarySoft: '#DCEDE3',
+  primary: '#25B36E',
+  primaryHover: '#1E9B5E',
+  primaryPress: '#177A49',
+  primarySoft: '#C6E9D5',
   bgBase: '#F5F6F5',
   surface: '#FFFFFF',
   surface2: '#F4F5F4',
@@ -13,7 +13,7 @@ export const Colors = {
   ink2: '#3F4642',
   muted: '#6E7672',
   faint: '#A5ABA7',
-  starGold: '#D9952B',
+  starGold: '#E0A93B',
   starSoft: '#FBEFD3',
   danger: '#D74045',
   dangerSoft: '#FBE2E3',
@@ -23,8 +23,8 @@ export const Colors = {
 };
 
 export const DarkColors = {
-  primary: '#2E9C6A',
-  primaryHover: '#248057',
+  primary: '#25B36E',
+  primaryHover: '#1E9B5E',
   primaryPress: '#5EC69A',
   primarySoft: '#1A3D2E',
   bgBase: '#0F1410',
@@ -35,7 +35,7 @@ export const DarkColors = {
   ink2: '#B5BDB7',
   muted: '#8A9490',
   faint: '#5A6560',
-  starGold: '#D9952B',
+  starGold: '#E0A93B',
   starSoft: '#3D2E0F',
   danger: '#E05A5F',
   dangerSoft: '#3D1A1B',
@@ -91,7 +91,7 @@ export const Shadows = {
     elevation: 4,
   },
   hero: {
-    shadowColor: '#1E6646',
+    shadowColor: '#177A49',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.18,
     shadowRadius: 16,

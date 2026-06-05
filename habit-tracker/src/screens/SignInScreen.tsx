@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, NativeModules } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { GoogleUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
@@ -79,23 +79,30 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
     <View style={styles.container}>
       <View style={styles.card}>
         <View style={styles.logoContainer}>
-          <Svg width={64} height={64} viewBox="0 0 60 60">
-            <Circle
-              cx="30" cy="30" r="22"
-              fill="none" stroke="#22C55E" strokeWidth="6"
-              strokeLinecap="round" strokeDasharray="115 24"
-              transform="rotate(90 30 30)"
-            />
-            <Circle cx="30" cy="30" r="11" fill="#22C55E" />
+          <Svg width={88} height={88} viewBox="0 0 60 60">
+            <Rect x="0" y="0" width="60" height="60" rx="14" ry="14" fill="#E6F4EC" />
+            {/* Track ring — full circle, light green */}
+            <Circle cx="30" cy="30" r="17" fill="none" stroke="#C6E9D5" strokeWidth="6.5" />
+            {/* Progress arc — 315° from top (12 o'clock) clockwise to left (9 o'clock) */}
             <Path
-              d="M24.5 30 L28.5 34 L36 26.5"
-              stroke="white" strokeWidth="2.5"
+              d="M30,13 A17,17 0 1 1 13,30"
+              fill="none" stroke="#25B36E" strokeWidth="6.5"
+              strokeLinecap="round"
+            />
+            {/* Amber dot marks the gap at 9 o'clock */}
+            <Circle cx="13" cy="30" r="2.4" fill="#E0A93B" />
+            {/* Checkmark — dark green */}
+            <Path
+              d="M23,31 L28,36 L38,25"
+              fill="none" stroke="#0F7A50" strokeWidth="4.5"
               strokeLinecap="round" strokeLinejoin="round"
-              fill="none"
             />
           </Svg>
         </View>
-        <Text style={styles.title}>Habit ring</Text>
+        <Text style={styles.title}>
+          {'habit '}
+          <Text style={{ color: colors.primary }}>ring</Text>
+        </Text>
         <Text style={styles.subtitle}>daily completion, the loop</Text>
 
         {loading ? (
