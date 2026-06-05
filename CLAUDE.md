@@ -485,3 +485,20 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---
+
+## Habit Tracker — UI & Logic Fixes COMPLETE (2026-06-05)
+
+### What Was Fixed
+- **`src/screens/CalendarScreen.tsx`**: Wrapped `ScrollView` in `SafeAreaView edges={['top']}` from `react-native-safe-area-context`. `safeArea` style takes `backgroundColor`; `container` is pure `flex: 1`. Fixes header overlapping notch/status bar.
+- **`src/screens/RankScreen.tsx`**: Removed `LinearGradient` philosophy card (dark `#1B1F1D`/`#3F4642` section at bottom of rank screen). Removed associated `philo`/`philoQ`/`philoA` styles and `expo-linear-gradient` import.
+- **`src/screens/RankScreen.tsx`**: `sortedTiers` now returns only `[currentTier]` instead of all 7 tiers sorted desc. Leaderboard restricted to user's current rank only. Removed stagger slide-in animation (`ladderAnims` ref + `hasAnimated` effect) — pointless for 1 item and caused invisible render (`translateX: -30` native animation didn't fire reliably post-hot-reload). Kept glow loop + scale pop on current tier.
+
+### Key Decisions
+- `SafeAreaView` from `react-native-safe-area-context` (not RN core) — consistent with RankScreen pattern; `edges={['top']}` only to allow bottom tab bar to manage its own insets.
+- Stagger animation removed (not just fixed) — with single tier display, slide-in stagger adds zero UX value. Root cause was native driver `translateX: -30` initial value causing invisible row until animation fired; removing the animation eliminates the class of bug.
+- `!tier` null-guard added in map — defensive against `getCurrentTier` returning undefined when `tiers` DB is empty.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass

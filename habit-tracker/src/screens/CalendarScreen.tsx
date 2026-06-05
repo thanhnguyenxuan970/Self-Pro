@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useCalendarData, CalendarDay } from '../queries/useCalendar';
 import { useAuthUser } from '../hooks/useAuth';
@@ -90,6 +91,7 @@ export function CalendarScreen() {
   const locale = lang === 'vi' ? 'vi-VN' : 'en-US';
 
   return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Header */}
       <View style={styles.header}>
@@ -201,12 +203,14 @@ export function CalendarScreen() {
         </View>
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
 function makeStyles(colors: AppColors) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.surface },
+    safeArea: { flex: 1, backgroundColor: colors.surface },
+    container: { flex: 1 },
     content: { paddingHorizontal: Spacing.lg, paddingBottom: 40, paddingTop: 16 },
     header: { marginBottom: 16, marginTop: 8 },
     title: { fontSize: 22, fontWeight: '800', color: colors.inkDark },

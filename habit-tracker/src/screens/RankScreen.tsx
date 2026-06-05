@@ -1,6 +1,5 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Animated, AccessibilityInfo } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useRankData } from '../queries/useRank';
@@ -36,17 +35,13 @@ export function RankScreen() {
   }, []);
 
   const sortedTiers = useMemo(
-    () => (data ? [...data.tiers].sort((a, b) => b.tier_order - a.tier_order) : []),
+    () => {
+      if (!data) return [];
+      const cur = getCurrentTier(data.currentStars, data.tiers);
+      return [cur];
+    },
     [data],
   );
-
-  const ladderAnims = useRef<{ tx: Animated.Value; op: Animated.Value }[]>([]);
-  if (ladderAnims.current.length !== sortedTiers.length) {
-    ladderAnims.current = sortedTiers.map(() => ({
-      tx: new Animated.Value(-30),
-      op: new Animated.Value(0),
-    }));
-  }
 
   const glowAnims = useRef<Animated.Value[]>([]);
   const scaleAnims = useRef<Animated.Value[]>([]);
@@ -56,20 +51,6 @@ export function RankScreen() {
   }
 
   const glowLoopRef = useRef<Animated.CompositeAnimation | null>(null);
-
-  const hasAnimated = useRef(false);
-  useEffect(() => {
-    if (hasAnimated.current || sortedTiers.length === 0) return;
-    hasAnimated.current = true;
-    Animated.parallel(
-      ladderAnims.current.map((anim, idx) =>
-        Animated.parallel([
-          Animated.timing(anim.tx, { toValue: 0, duration: 300, delay: idx * 50, useNativeDriver: true }),
-          Animated.timing(anim.op, { toValue: 1, duration: 300, delay: idx * 50, useNativeDriver: true }),
-        ]),
-      ),
-    ).start();
-  }, [sortedTiers]);
 
   useEffect(() => {
     if (!data || sortedTiers.length === 0) return;
@@ -169,15 +150,15 @@ export function RankScreen() {
         <Text style={styles.sectionLabel}>{t.rankLadder}</Text>
         <View style={styles.card}>
           {sortedTiers.map((tier, idx, arr) => {
+            if (!tier) return null;
             const isCurrent = tier.id === currentTier.id;
             const isLast = idx === arr.length - 1;
             const rc = rankConfig(tier.tier_order);
             const range = idx > 0
               ? `${tier.stars_required}–${(arr[idx - 1]?.stars_required ?? 999) - 1} ★`
               : `${tier.stars_required}+ ★`;
-            const anim = ladderAnims.current[idx];
-            const scalAnim = scaleAnims.current[idx];
             const glowAnim = glowAnims.current[idx];
+            const scalAnim = scaleAnims.current[idx];
             return (
               <Animated.View
                 key={tier.id}
@@ -185,13 +166,7 @@ export function RankScreen() {
                   styles.rk,
                   isCurrent && { ...styles.rkCur, backgroundColor: rc.color + '22' },
                   isLast && styles.rkLast,
-                  anim && {
-                    opacity: anim.op,
-                    transform: [
-                      { translateX: anim.tx },
-                      ...(isCurrent && scalAnim ? [{ scale: scalAnim as any }] : []),
-                    ],
-                  },
+                  isCurrent && scalAnim ? { transform: [{ scale: scalAnim as any }] } : undefined,
                 ]}
               >
                 {isCurrent && glowAnim && (
@@ -214,16 +189,6 @@ export function RankScreen() {
             );
           })}
         </View>
-
-        {/* Philosophy card */}
-        <LinearGradient
-          colors={['#1B1F1D', '#3F4642']}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={styles.philo}
-        >
-          <Text style={styles.philoQ}>{t.philoQuote}</Text>
-          <Text style={styles.philoA}>{t.philoCaption}</Text>
-        </LinearGradient>
 
         {/* Weekly history */}
         {history.length > 0 && (
@@ -328,11 +293,5 @@ function makeStyles(C: AppColors) {
     rkB: { fontSize: 11.5, color: C.muted, marginTop: 2 },
     rkThr: { fontSize: 11.5, fontWeight: '800', color: C.muted },
 
-    philo: {
-      marginHorizontal: Spacing.lg, marginTop: 8,
-      borderRadius: Radii.lg, padding: 18, ...Shadows.light,
-    },
-    philoQ: { fontSize: 14, lineHeight: 22, fontWeight: '600', color: '#fff' },
-    philoA: { fontSize: 11.5, opacity: 0.65, marginTop: 8, fontWeight: '600', color: '#fff' },
   });
 }
