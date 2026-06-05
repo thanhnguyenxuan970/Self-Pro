@@ -3,9 +3,11 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { VictoryChart, VictoryBar, VictoryStack, VictoryAxis } from 'victory-native';
 import {
-  useProgressData, useStreakCount, useStarsToNextTier, useAllTimeStats,
-  useRecentActivityLogs, useDeleteActivityLogs, ActivityLogEntry,
+  useProgressData, useStreakCount, useStarsToNextTier,
+  useRecentActivityLogs, useDeleteActivityLogs, useWeeklyConsistency, useTopActivities,
+  ActivityLogEntry,
 } from '../queries/useProgress';
+import { getLocalDateOffset, getWeekStartOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
 import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
@@ -23,7 +25,8 @@ export function ProgressScreen() {
   const { data: chartData = [], isLoading } = useProgressData(userId, range, offset);
   const { data: streak = 0 } = useStreakCount(userId);
   const { data: tierInfo } = useStarsToNextTier(userId);
-  const { data: allTime } = useAllTimeStats(userId);
+  const { data: activeDays = 0 } = useWeeklyConsistency(userId);
+  const { data: topActivities = [] } = useTopActivities(userId);
   const { data: actLogs = [] } = useRecentActivityLogs(userId);
   const deleteLogs = useDeleteActivityLogs(userId);
 
@@ -89,6 +92,26 @@ export function ProgressScreen() {
     );
   }
 
+  const periodLabel = useMemo(() => {
+    if (offset === 0) {
+      if (range === 'D') return t.periodToday;
+      if (range === 'W') return t.periodThisWeek;
+      if (range === 'M') return t.periodThisMonth;
+      return t.periodThisYear;
+    }
+    if (range === 'D') {
+      const d = new Date(getLocalDateOffset(offset) + 'T00:00:00');
+      return d.toLocaleDateString(t.timeLocale, { day: 'numeric', month: 'short' });
+    }
+    if (range === 'M') {
+      const d = new Date(getMonthOffset(offset) + '-01T00:00:00');
+      return d.toLocaleDateString(t.timeLocale, { month: 'long', year: 'numeric' });
+    }
+    if (range === 'Y') return getYearOffset(offset);
+    const d = new Date(getWeekStartOffset(offset) + 'T00:00:00');
+    return d.toLocaleDateString(t.timeLocale, { day: 'numeric', month: 'short' });
+  }, [range, offset, t]);
+
   const totalSum = chartData.reduce((s, r) => s + r.goodStars + r.badStars, 0);
   const goodData = chartData.map((r, i) => ({ x: i + 1, y: r.goodStars }));
   const badData  = chartData.map((r, i) => ({ x: i + 1, y: r.badStars }));
@@ -116,11 +139,14 @@ export function ProgressScreen() {
           <TouchableOpacity style={styles.navBtn} onPress={() => setOffset(o => o - 1)}>
             <Text style={styles.navBtnText}>{t.prevPeriod}</Text>
           </TouchableOpacity>
-          {offset !== 0 && (
-            <TouchableOpacity style={styles.navCurrent} onPress={() => setOffset(0)}>
-              <Text style={styles.navCurrentText}>{t.currentPeriod}</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={styles.periodLabelBtn}
+            onPress={() => setOffset(0)}
+            disabled={offset === 0}
+          >
+            <Text style={styles.periodLabelTxt}>{periodLabel}</Text>
+            {offset !== 0 && <Text style={styles.periodResetHint}>{t.currentPeriod} →</Text>}
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.navBtn, offset === 0 && styles.navBtnDisabled]}
             onPress={() => setOffset(o => Math.min(0, o + 1))}
@@ -178,18 +204,31 @@ export function ProgressScreen() {
             <Text style={styles.statL}>{t.toNextRank}</Text>
           </View>
           <View style={styles.stat}>
-            <Text style={styles.statV}>{allTime?.totalActivities ?? 0}</Text>
-            <Text style={styles.statL}>{t.activities}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statV}>{allTime?.totalStars ?? 0} ★</Text>
-            <Text style={styles.statL}>{t.totalStars}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statV}>{allTime?.bestStreak ?? 0} 🔥</Text>
-            <Text style={styles.statL}>{t.bestStreak}</Text>
+            <Text style={styles.statV}>{activeDays}/7</Text>
+            <Text style={styles.statL}>{t.weeklyActiveDays}</Text>
           </View>
         </View>
+
+        {/* Top habits */}
+        {topActivities.length > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>{t.topHabits}</Text>
+            <View style={styles.topCard}>
+              {topActivities.map((item, idx) => {
+                const pct = Math.round((item.count / topActivities[0].count) * 100);
+                return (
+                  <View key={idx} style={[styles.topRow, idx === topActivities.length - 1 && styles.topRowLast]}>
+                    <Text style={styles.topName} numberOfLines={1}>{item.name}</Text>
+                    <View style={styles.topBarTrack}>
+                      <View style={[styles.topBarFill, { width: `${pct}%` }]} />
+                    </View>
+                    <Text style={styles.topCount}>{t.times(item.count)}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        )}
 
         {/* Activity log */}
         <View style={styles.logHeader}>
@@ -282,8 +321,9 @@ function makeStyles(C: AppColors) {
     navBtnDisabled: { opacity: 0.3 },
     navBtnText: { fontSize: 20, color: C.inkDark, fontWeight: '600' },
     navBtnTextDisabled: { color: C.muted },
-    navCurrent: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radii.sm, backgroundColor: C.primary + '22' },
-    navCurrentText: { fontSize: 12, color: C.primary, fontWeight: '600' },
+    periodLabelBtn: { flex: 1, alignItems: 'center', paddingVertical: 4 },
+    periodLabelTxt: { fontSize: 13, fontWeight: '700', color: C.inkDark },
+    periodResetHint: { fontSize: 10, color: C.primary, fontWeight: '600', marginTop: 2 },
 
     card: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,
@@ -305,11 +345,11 @@ function makeStyles(C: AppColors) {
       marginHorizontal: Spacing.lg, flexDirection: 'row', flexWrap: 'wrap', gap: 10,
     },
     stat: {
-      flex: 1, minWidth: '45%', backgroundColor: C.surface,
-      borderRadius: Radii.md, padding: 14, borderWidth: 1, borderColor: C.line, ...Shadows.light,
+      width: '47%', backgroundColor: C.surface,
+      borderRadius: Radii.md, padding: 12, borderWidth: 1, borderColor: C.line, ...Shadows.light,
     },
-    statV: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5, color: C.primary },
-    statL: { fontSize: 11, color: C.muted, fontWeight: '700', marginTop: 3 },
+    statV: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5, color: C.primary },
+    statL: { fontSize: 11, color: C.muted, fontWeight: '700', marginTop: 2 },
 
     logHeader: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -344,6 +384,39 @@ function makeStyles(C: AppColors) {
       textAlign: 'center', color: C.muted, fontSize: 13,
       marginHorizontal: Spacing.lg, marginTop: 4,
     },
+    topCard: {
+      marginHorizontal: Spacing.lg,
+      backgroundColor: C.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: C.line,
+      ...Shadows.light,
+      overflow: 'hidden',
+    },
+    topRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      borderBottomWidth: 1,
+      borderColor: C.line,
+      gap: 10,
+    },
+    topRowLast: { borderBottomWidth: 0 },
+    topName: { width: 90, fontSize: 13, fontWeight: '600', color: C.inkDark },
+    topBarTrack: {
+      flex: 1,
+      height: 6,
+      backgroundColor: C.surface2,
+      borderRadius: 3,
+      overflow: 'hidden',
+    },
+    topBarFill: {
+      height: 6,
+      backgroundColor: C.primary,
+      borderRadius: 3,
+    },
+    topCount: { width: 42, fontSize: 12, fontWeight: '700', color: C.muted, textAlign: 'right' },
     checkbox: {
       width: 22, height: 22, borderRadius: 11,
       borderWidth: 2, borderColor: C.line2,

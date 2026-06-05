@@ -488,6 +488,25 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 
 ---
 
+## Habit Tracker — Analytics Screen BA/DA Overhaul COMPLETE (2026-06-05)
+
+### What Was Built
+- **`src/queries/useProgress.ts`**: Added `useWeeklyConsistency(userId)` — COUNT(DISTINCT local_date) FROM activity_log WHERE week_start = current week. Added `useTopActivities(userId, limit=3)` — JOIN task_types, GROUP BY task_type_id, ORDER BY count DESC. Inner JOIN excludes null task_type_id; `source='TASK'` filter ensures all rows have it.
+- **`src/screens/ProgressScreen.tsx`**: Stats 2×2 grid — replaced "Tổng sao" (redundant with Profile) with "X/7 Ngày/tuần này" (weekly consistency). Period nav label now shows "Tuần này"/"Tháng này"/etc. (always visible, tappable to reset to current). Added "THÓI QUEN NHIỀU NHẤT" section — top 3 habits with relative progress bars (bar width = count/maxCount as %). Removed unused `useAllTimeStats` import/query.
+- **`src/config/i18n.ts`**: Added keys: `weeklyActiveDays`, `topHabits`, `times(n)`, `periodToday`, `periodThisWeek`, `periodThisMonth`, `periodThisYear` in both vi + en.
+
+### Key Decisions
+- Weekly consistency from `activity_log` (not `daily_summary`) — `daily_summary` has no `week_start` column; `activity_log` does.
+- Bar width uses percentage string `\`${pct}%\`` — RN `ViewStyle.width` accepts `string` (DimValue); no `as any` cast needed.
+- `topActivities[0].count` divisor safe — rendered only when `topActivities.length > 0`.
+- `useAllTimeStats` kept in `useProgress.ts` — still used by `ProfileScreen`; only removed from `ProgressScreen` import.
+- Stats: current stars, streak, to-next-rank, active-days/week — covers all 4 habit motivation signals (progress, consistency, goal, rank).
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---
+
 ## Habit Tracker — UI & Logic Fixes COMPLETE (2026-06-05)
 
 ### What Was Fixed

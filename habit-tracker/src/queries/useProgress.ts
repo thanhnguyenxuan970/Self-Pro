@@ -160,6 +160,43 @@ export function useDeleteActivityLogs(userId: number) {
   });
 }
 
+export function useWeeklyConsistency(userId: number) {
+  const weekStart = getWeekStart();
+  return useQuery({
+    queryKey: ['progress', 'consistency', userId, weekStart],
+    queryFn: async () => {
+      const db = await getDb();
+      const row = await db.getFirstAsync<{ active_days: number }>(
+        `SELECT COUNT(DISTINCT local_date) AS active_days
+         FROM activity_log
+         WHERE user_id = ? AND week_start = ?`,
+        [userId, weekStart]
+      );
+      return row?.active_days ?? 0;
+    },
+  });
+}
+
+export function useTopActivities(userId: number, limit = 3) {
+  return useQuery({
+    queryKey: ['progress', 'top-activities', userId],
+    queryFn: async () => {
+      const db = await getDb();
+      const rows = await db.getAllAsync<{ name: string; count: number }>(
+        `SELECT tt.name, COUNT(*) AS count
+         FROM activity_log a
+         JOIN task_types tt ON tt.id = a.task_type_id
+         WHERE a.user_id = ? AND a.source = 'TASK'
+         GROUP BY a.task_type_id
+         ORDER BY count DESC
+         LIMIT ?`,
+        [userId, limit]
+      );
+      return rows;
+    },
+  });
+}
+
 export function useAllTimeStats(userId: number) {
   return useQuery({
     queryKey: ['progress', 'alltime', userId],
