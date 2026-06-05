@@ -16,11 +16,12 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
   const { colors } = useTheme();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const googleAvailable = !!NativeModules.RNGoogleSignin;
 
   async function handleGoogleSignIn() {
     setLoading(true);
     try {
-      if (!NativeModules.RNGoogleSignin) {
+      if (!googleAvailable) {
         Alert.alert(t.error, t.signInLibError);
         setLoading(false);
         return;
@@ -56,6 +57,11 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
           if (error.code === statusCodes.IN_PROGRESS) return;
           if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
             Alert.alert(t.error, t.signInNoPlayServices);
+            return;
+          }
+          // DEVELOPER_ERROR (10): SHA-1 or package mismatch in Firebase/Google Cloud Console
+          if ((error as any).code === 10) {
+            Alert.alert(t.error, 'Google OAuth not configured for this build. Add debug SHA-1 to Firebase → Android app → Fingerprints, then re-download google-services.json.');
             return;
           }
         }
@@ -95,15 +101,38 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
         {loading ? (
           <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: Spacing.xl }} />
         ) : (
-          <TouchableOpacity
-            style={styles.googleButton}
-            onPress={handleGoogleSignIn}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.googleIcon}>G</Text>
-            <Text style={styles.googleButtonText}>Đăng nhập bằng Google</Text>
-          </TouchableOpacity>
+          <>
+            {googleAvailable && (
+              <TouchableOpacity
+                style={styles.googleButton}
+                onPress={handleGoogleSignIn}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.googleIcon}>G</Text>
+                <Text style={styles.googleButtonText}>Đăng nhập bằng Google</Text>
+              </TouchableOpacity>
+            )}
+            {__DEV__ && (
+              <TouchableOpacity
+                style={[styles.devButton, !googleAvailable && styles.devButtonPrimary]}
+                onPress={async () => {
+                  setLoading(true);
+                  try {
+                    const isNew = await onSignInWithGoogle({ email: 'dev@habitring.app', name: 'Dev User', picture: '' });
+                    if (isNew) onSignIn();
+                  } catch {
+                    Alert.alert(t.error, 'Dev login failed');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.devButtonText}>{googleAvailable ? '⚡ Dev Login (skip Google)' : '⚡ Dev Login (Google unavailable in Expo Go)'}</Text>
+              </TouchableOpacity>
+            )}
+          </>
         )}
 
         <Text style={styles.hint}>MVP · Xác thực qua Google · Dữ liệu lưu trên máy</Text>
@@ -150,6 +179,19 @@ function makeStyles(C: AppColors) {
     },
     googleIcon: { fontSize: 18, fontWeight: '700', color: '#4285F4', marginRight: 10 },
     googleButtonText: { color: C.inkDark, fontWeight: '600', fontSize: 16 },
+    devButton: {
+      marginTop: Spacing.sm,
+      paddingVertical: 10,
+      paddingHorizontal: Spacing.md,
+      borderRadius: Radii.md,
+      backgroundColor: '#1a1a2e',
+      alignItems: 'center',
+    },
+    devButtonPrimary: {
+      paddingVertical: 14,
+      width: '100%',
+    },
+    devButtonText: { color: '#00ff88', fontSize: 13, fontWeight: '600' },
     hint: {
       ...Typography.caption,
       color: C.faint,

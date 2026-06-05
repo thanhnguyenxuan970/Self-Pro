@@ -150,13 +150,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker — Rank Overhaul: Absurd Mode COMPLETE (2026-06-02)
-
-- **`src/db/migrations.ts`**: Tier seed → 7 tiers (Delulu/5★ … GOATED/320★). Idempotent (`rank_name='Delulu'` guard + `withTransactionAsync`). Tier data/colors now canonical in `src/config/ranks.config.ts` — see RankMascot session.
-- **`src/i18n.ts`**: `rankQuoteMap` updated with Gen Z keys. `en: typeof vi` enforces key parity.
-
----
-
 ## Habit Tracker — ExpoSecureStore Crash Fix v2 COMPLETE (2026-06-03)
 
 ### What Was Fixed
@@ -479,6 +472,27 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 - `weekly_stars = MAX(0, weekly_stars - ?)` floor added — unlog on edge cases (fresh user, negative weekly_stars from prior BAD tasks) stays non-negative.
 - `logPending || unlogTask.isPending` combined — prevents race where tap during in-flight unlog triggers immediate re-log.
 - Study and Sports set `is_time_based = 1` (log duration); Family and Relationship `is_time_based = 0` (check-in habits).
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---
+
+## Habit Tracker — Metro Cache Fix + SignInScreen Updates COMPLETE (2026-06-05)
+
+- **Metro cache**: `ReferenceError: Property 'ladderAnims'/'useAllTimeStats' doesn't exist` — stale bundle, source already clean. Fix: delete `%LOCALAPPDATA%\Temp\metro-cache`. Verified via `expo export --platform android`.
+- **`src/screens/SignInScreen.tsx`**: DEVELOPER_ERROR (code 10) handler + `__DEV__`-only "⚡ Dev Login" button with try/finally guard.
+- **`package.json`**: jest `^30→~29.7`, `@types/jest` `^30→29.5.14` — aligns with ts-jest 29 constraint.
+- **`app.json`**: `adaptiveIcon.backgroundColor` → `#E6F4EC` (green brand alignment).
+
+### Key Decisions
+- Dev login `if (isNew) onSignIn()` correct — returning users navigate via auth context re-render; callback only for new-user onboarding flow.
+- Metro stale-bundle errors: not a code bug. Pattern: source clean → delete cache dir → rebuild.
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `ReferenceError: Property 'ladderAnims' doesn't exist` | Metro cached stale bundle referencing ref removed in prior session | Delete `%LOCALAPPDATA%\Temp\metro-cache`; rebuild |
+| `ReferenceError: Property 'useAllTimeStats' doesn't exist` | Same Metro stale cache | Same fix |
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
