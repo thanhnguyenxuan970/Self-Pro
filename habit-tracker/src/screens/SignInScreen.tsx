@@ -19,13 +19,17 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
   const googleAvailable = !!NativeModules.RNGoogleSignin;
 
   async function handleGoogleSignIn() {
+    if (!googleAvailable) {
+      Alert.alert(
+        'Development Build Required',
+        'Google Sign-In requires a native build.\n\n' +
+        'Run: npx expo run:android\n\n' +
+        'Or use ⚡ Dev Login below to test the app.'
+      );
+      return;
+    }
     setLoading(true);
     try {
-      if (!googleAvailable) {
-        Alert.alert(t.error, t.signInLibError);
-        setLoading(false);
-        return;
-      }
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } =
         require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
@@ -37,21 +41,19 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
       }
       try {
         await GoogleSignin.hasPlayServices();
-        // Clear any cached session so the account picker always appears
         try { await GoogleSignin.signOut(); } catch {}
-        const response = await GoogleSignin.signIn();
-        if (isSuccessResponse(response)) {
-          const { email, name, photo } = response.data.user;
-          const idToken = response.data.idToken ?? undefined;
+        const res = await GoogleSignin.signIn();
+        if (isSuccessResponse(res)) {
+          const { email, name, photo } = res.data.user;
+          const idToken = res.data.idToken ?? undefined;
           if (!email || !name) {
             Alert.alert(t.error, t.signInMissingInfo);
             return;
           }
           const isNew = await onSignInWithGoogle({ email, name, picture: photo ?? '' }, idToken);
-          // Only go to onboarding for new users; returning users skip straight to app
           if (isNew) onSignIn();
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (isErrorWithCode(error)) {
           if (error.code === statusCodes.SIGN_IN_CANCELLED) return;
           if (error.code === statusCodes.IN_PROGRESS) return;
@@ -59,13 +61,13 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
             Alert.alert(t.error, t.signInNoPlayServices);
             return;
           }
-          // DEVELOPER_ERROR (10): SHA-1 or package mismatch in Firebase/Google Cloud Console
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if ((error as any).code === 10) {
             Alert.alert(t.error, 'Google OAuth not configured for this build. Add debug SHA-1 to Firebase → Android app → Fingerprints, then re-download google-services.json.');
             return;
           }
         }
-        const msg = error instanceof Error ? `${(error as any).code ?? ''}: ${error.message}` : String(error);
+        const msg = error instanceof Error ? `${(error as { code?: unknown }).code ?? ''}: ${error.message}` : String(error);
         Alert.alert(t.error, msg);
       }
     } catch {
@@ -81,17 +83,13 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
         <View style={styles.logoContainer}>
           <Svg width={88} height={88} viewBox="0 0 60 60">
             <Rect x="0" y="0" width="60" height="60" rx="14" ry="14" fill="#E6F4EC" />
-            {/* Track ring — full circle, light green */}
             <Circle cx="30" cy="30" r="17" fill="none" stroke="#C6E9D5" strokeWidth="6.5" />
-            {/* Progress arc — 315° from top (12 o'clock) clockwise to left (9 o'clock) */}
             <Path
               d="M30,13 A17,17 0 1 1 13,30"
               fill="none" stroke="#25B36E" strokeWidth="6.5"
               strokeLinecap="round"
             />
-            {/* Amber dot marks the gap at 9 o'clock */}
             <Circle cx="13" cy="30" r="2.4" fill="#E0A93B" />
-            {/* Checkmark — dark green */}
             <Path
               d="M23,31 L28,36 L38,25"
               fill="none" stroke="#0F7A50" strokeWidth="4.5"
@@ -109,20 +107,21 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
           <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: Spacing.xl }} />
         ) : (
           <>
-            {googleAvailable && (
-              <TouchableOpacity
-                style={styles.googleButton}
-                onPress={handleGoogleSignIn}
-                disabled={loading}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.googleIcon}>G</Text>
-                <Text style={styles.googleButtonText}>Đăng nhập bằng Google</Text>
-              </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.googleButton, !googleAvailable && styles.googleButtonDisabled]}
+              onPress={handleGoogleSignIn}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.googleIcon}>G</Text>
+              <Text style={styles.googleButtonText}>Đăng nhập bằng Google</Text>
+            </TouchableOpacity>
+            {!googleAvailable && (
+              <Text style={styles.buildHint}>Requires native build (expo run:android)</Text>
             )}
             {__DEV__ && (
               <TouchableOpacity
-                style={[styles.devButton, !googleAvailable && styles.devButtonPrimary]}
+                style={styles.devButton}
                 onPress={async () => {
                   setLoading(true);
                   try {
@@ -136,7 +135,7 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
                 }}
                 activeOpacity={0.7}
               >
-                <Text style={styles.devButtonText}>{googleAvailable ? '⚡ Dev Login (skip Google)' : '⚡ Dev Login (Google unavailable in Expo Go)'}</Text>
+                <Text style={styles.devButtonText}>⚡ Dev Login (skip Google)</Text>
               </TouchableOpacity>
             )}
           </>
@@ -184,8 +183,17 @@ function makeStyles(C: AppColors) {
       borderColor: C.line,
       ...Shadows.light,
     },
+    googleButtonDisabled: {
+      opacity: 0.5,
+    },
     googleIcon: { fontSize: 18, fontWeight: '700', color: '#4285F4', marginRight: 10 },
     googleButtonText: { color: C.inkDark, fontWeight: '600', fontSize: 16 },
+    buildHint: {
+      ...Typography.caption,
+      color: C.muted,
+      marginTop: 6,
+      textAlign: 'center',
+    },
     devButton: {
       marginTop: Spacing.sm,
       paddingVertical: 10,
@@ -193,10 +201,6 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.md,
       backgroundColor: '#1a1a2e',
       alignItems: 'center',
-    },
-    devButtonPrimary: {
-      paddingVertical: 14,
-      width: '100%',
     },
     devButtonText: { color: '#00ff88', fontSize: 13, fontWeight: '600' },
     hint: {

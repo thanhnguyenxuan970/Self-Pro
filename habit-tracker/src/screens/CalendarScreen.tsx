@@ -134,36 +134,36 @@ export function CalendarScreen() {
 
           let cellBg: string = 'transparent';
           let numColor: string = colors.inkDark;
-          let starsColor: string = colors.muted;
 
           if (isMilestone) {
-            cellBg = colors.primary;
+            cellBg = '#F97316';
             numColor = '#fff';
-            starsColor = 'rgba(255,255,255,0.8)';
           } else if (isBest) {
-            cellBg = colors.starGold;
+            cellBg = '#FBBF24';
             numColor = '#fff';
-            starsColor = 'rgba(255,255,255,0.8)';
           } else if (hasActivity) {
             cellBg = isDark ? colors.surface2 : colors.primarySoft;
             numColor = colors.primary;
-            starsColor = colors.muted;
           }
 
           return (
             <View
               key={idx}
-              style={[
-                styles.cell,
-                { backgroundColor: cellBg },
-                isToday && !isBest && !isMilestone && styles.todayBorder,
-                isToday && !isBest && !isMilestone && { borderColor: colors.primary },
-              ]}
+              style={[styles.cell, { backgroundColor: cellBg }]}
             >
               <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
               {data ? (
-                <Text style={[styles.dayStars, { color: starsColor }]}>{data.stars}★</Text>
+                isMilestone ? (
+                  <Text style={styles.dayIcon}>🔥</Text>
+                ) : isBest ? (
+                  <Text style={styles.dayIcon}>⭐</Text>
+                ) : (
+                  <Text style={[styles.dayStars, { color: colors.muted }]}>{data.stars}★</Text>
+                )
               ) : null}
+              {isToday && !isBest && !isMilestone && (
+                <View style={[styles.todayDot, { backgroundColor: colors.primary }]} />
+              )}
             </View>
           );
         })}
@@ -172,11 +172,11 @@ export function CalendarScreen() {
       {/* Legend */}
       <View style={styles.legend}>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
+          <Text style={styles.legendIcon}>🔥</Text>
           <Text style={styles.legendLabel}>{t.calendarMilestone}</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: colors.starGold }]} />
+          <Text style={styles.legendIcon}>⭐</Text>
           <Text style={styles.legendLabel}>{t.calendarBestDay}</Text>
         </View>
         <View style={styles.legendItem}>
@@ -246,11 +246,10 @@ function makeStyles(colors: AppColors) {
       borderRadius: Radii.sm,
       marginVertical: 2,
     },
-    todayBorder: {
-      borderWidth: 2,
-    },
     dayNum: { fontSize: 13, fontWeight: '700' },
     dayStars: { fontSize: 8, fontWeight: '600', marginTop: 1 },
+    dayIcon: { fontSize: 9, marginTop: 1 },
+    todayDot: { width: 4, height: 4, borderRadius: 2, marginTop: 2 },
     legend: {
       flexDirection: 'row',
       justifyContent: 'center',
@@ -260,6 +259,7 @@ function makeStyles(colors: AppColors) {
     },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     legendDot: { width: 10, height: 10, borderRadius: 5 },
+    legendIcon: { fontSize: 12 },
     legendLabel: { fontSize: 11, color: colors.muted },
     summary: {
       flexDirection: 'row',

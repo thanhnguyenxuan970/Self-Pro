@@ -99,10 +99,8 @@ export async function syncUserStreak(userEmail: string, currentStreak: number): 
   if (!supabase) return;
   const { error } = await supabase
     .from('users')
-    .upsert(
-      { user_email: userEmail, current_streak: currentStreak },
-      { onConflict: 'user_email' }
-    );
+    .update({ current_streak: currentStreak })
+    .eq('user_email', userEmail);
   if (error) console.warn('[sync] streak sync failed:', error.message);
 }
 

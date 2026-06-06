@@ -14,13 +14,6 @@ import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 
 interface Props { visible: boolean; onClose: () => void; }
 
-const DURATION_OPTS = [
-  { label: '15min', minutes: 15 },
-  { label: '30min', minutes: 30 },
-  { label: '45min', minutes: 45 },
-  { label: '1h', minutes: 60 },
-  { label: '2h', minutes: 120 },
-];
 
 export function AddActivitySheet({ visible, onClose }: Props) {
   const userId = useAuthUser();
@@ -35,6 +28,7 @@ export function AddActivitySheet({ visible, onClose }: Props) {
   const [step, setStep] = useState<'name' | 'duration'>('name');
   const [name, setName] = useState('');
   const [selectedSuggestion, setSelectedSuggestion] = useState<TemplateTask | null>(null);
+  const [durationInput, setDurationInput] = useState('');
   const submittingRef = useRef(false);
 
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -59,6 +53,7 @@ export function AddActivitySheet({ visible, onClose }: Props) {
       setStep('name');
       setName('');
       setSelectedSuggestion(null);
+      setDurationInput('');
       submittingRef.current = false;
       onClose();
       backdropOpacity.setValue(0);
@@ -93,6 +88,7 @@ export function AddActivitySheet({ visible, onClose }: Props) {
         isTimeBased: true,
         basePoints: selectedSuggestion?.basePoints ?? 1,
         starPenalty: 0,
+        icon: selectedSuggestion?.icon,
       });
       await logTask.mutateAsync({
         taskTypeId: taskId,
@@ -122,6 +118,7 @@ export function AddActivitySheet({ visible, onClose }: Props) {
         isTimeBased: false,
         basePoints: selectedSuggestion?.basePoints ?? 5,
         starPenalty: 0,
+        icon: selectedSuggestion?.icon,
       });
       await logTask.mutateAsync({
         taskTypeId: taskId,
@@ -206,7 +203,7 @@ export function AddActivitySheet({ visible, onClose }: Props) {
                           activeOpacity={0.7}
                         >
                           <Text style={[styles.chipName, name === s.name && styles.chipNameSelected]}>
-                            {s.name}
+                            {s.icon ? `${s.icon} ${s.name}` : s.name}
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -227,28 +224,44 @@ export function AddActivitySheet({ visible, onClose }: Props) {
 
               <View style={styles.durationBody}>
                 <Text style={styles.durationLabel}>{t.addActivityHowLong}</Text>
-                <View style={styles.durationChips}>
-                  {DURATION_OPTS.map(opt => (
-                    <TouchableOpacity
-                      key={opt.label}
-                      style={[styles.durationChip, isPending && styles.durationChipDisabled]}
-                      onPress={() => handleLogWithDuration(opt.minutes)}
-                      disabled={isPending}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={styles.durationChipText}>{opt.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <TextInput
+                  style={styles.durationInputField}
+                  value={durationInput}
+                  onChangeText={setDurationInput}
+                  placeholder={t.minutesPlaceholder}
+                  placeholderTextColor={colors.faint}
+                  keyboardType="number-pad"
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={() => {
+                    const mins = parseInt(durationInput, 10);
+                    if (!isNaN(mins) && mins > 0) handleLogWithDuration(mins);
+                  }}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.confirmBtn,
+                    (isPending || !durationInput.trim()) && styles.confirmBtnDisabled,
+                  ]}
+                  onPress={() => {
+                    const mins = parseInt(durationInput, 10);
+                    if (!isNaN(mins) && mins > 0) handleLogWithDuration(mins);
+                    else Alert.alert(t.error, t.validMins);
+                  }}
+                  disabled={isPending || !durationInput.trim()}
+                  activeOpacity={0.8}
+                >
+                  {isPending
+                    ? <ActivityIndicator color={colors.white} size="small" />
+                    : <Text style={styles.confirmBtnText}>{t.logBtn}</Text>}
+                </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.noTimerBtn}
                   onPress={handleLogNoTimer}
                   disabled={isPending}
                 >
-                  {isPending
-                    ? <ActivityIndicator color={colors.primary} size="small" />
-                    : <Text style={styles.noTimerText}>{t.addActivityNoTimer}</Text>}
+                  <Text style={styles.noTimerText}>{t.addActivityNoTimer}</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -328,15 +341,18 @@ function makeStyles(C: AppColors) {
       ...Typography.bodyStrong, color: C.inkDark,
       marginBottom: Spacing.sm,
     },
-    durationChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: Spacing.lg },
-    durationChip: {
-      paddingVertical: 10, paddingHorizontal: 18,
-      borderRadius: Radii.pill,
-      backgroundColor: C.primarySoft,
-      borderWidth: 1, borderColor: C.primary,
+    durationInputField: {
+      backgroundColor: C.surface2, color: C.inkDark, padding: 14,
+      borderRadius: Radii.md, fontSize: 18, fontWeight: '700',
+      borderWidth: 1.5, borderColor: C.line2,
+      marginBottom: Spacing.md, textAlign: 'center',
     },
-    durationChipDisabled: { opacity: 0.5 },
-    durationChipText: { fontSize: 14, fontWeight: '700', color: C.primary },
+    confirmBtn: {
+      backgroundColor: C.primary, borderRadius: Radii.md,
+      paddingVertical: 14, alignItems: 'center', marginBottom: Spacing.sm,
+    },
+    confirmBtnDisabled: { backgroundColor: C.line2 },
+    confirmBtnText: { color: C.white, fontSize: 15, fontWeight: '700' },
     noTimerBtn: {
       alignItems: 'center', paddingVertical: 12,
     },
