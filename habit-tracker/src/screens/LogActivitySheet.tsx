@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
-  Modal, View, Text, FlatList, TouchableOpacity,
+  Modal, View, Text, FlatList, TouchableOpacity, TextInput,
   Alert, StyleSheet, ActivityIndicator, Animated,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -20,57 +20,89 @@ type Task = {
 
 interface Props { visible: boolean; onClose: () => void; }
 
-function TimedTaskLogger({
-  task,
-  userId,
-  onSuccess,
-  onCancel,
-  colors,
-  styles,
-  t,
+function DurationStep({
+  task, userId, onSuccess, onBack, colors, styles, t,
 }: {
-  task: Task;
-  userId: number;
-  onSuccess: () => void;
-  onCancel: () => void;
-  colors: AppColors;
-  styles: ReturnType<typeof makeStyles>;
+  task: Task; userId: number; onSuccess: () => void; onBack: () => void;
+  colors: AppColors; styles: ReturnType<typeof makeStyles>;
   t: ReturnType<typeof useTranslations>;
 }) {
   const { data: chips = [] } = useChipPresets(userId, task.id);
   const { log, previewStars, isLogging } = useDurationLogger({
     userId,
     task,
-    onSuccess: (_minutes) => {
-      Toast.show({
-        type: 'success',
-        text1: t.loggedOk,
-        text2: task.name,
-        visibilityTime: 2000,
-      });
+    onSuccess: () => {
+      Toast.show({ type: 'success', text1: t.loggedOk, text2: task.name, visibilityTime: 2000 });
       onSuccess();
     },
     onError: () => Alert.alert(t.error, t.cantLog),
   });
 
   return (
-    <View style={styles.durationBg}>
-      <TouchableOpacity style={styles.durationBackdrop} onPress={onCancel} activeOpacity={1} />
-      <View style={styles.durationBox}>
-        {isLogging ? (
-          <ActivityIndicator color={colors.primary} style={{ marginVertical: 24 }} />
-        ) : (
-          <DurationChips
-            activityName={task.name}
-            chips={chips}
-            previewStars={previewStars}
-            onLog={log}
-          />
-        )}
-        <TouchableOpacity onPress={onCancel} style={styles.durationCancelBtn}>
-          <Text style={styles.durationCancel}>{t.cancel}</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={styles.stepContainer}>
+      <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+        <Text style={styles.backText}>{t.back}</Text>
+      </TouchableOpacity>
+      {isLogging ? (
+        <ActivityIndicator color={colors.primary} style={{ marginVertical: 24 }} />
+      ) : (
+        <DurationChips
+          activityName={task.name}
+          chips={chips}
+          previewStars={previewStars}
+          onLog={log}
+        />
+      )}
+    </View>
+  );
+}
+
+function ConfirmStep({
+  task, userId, onSuccess, onBack, colors, styles, t,
+}: {
+  task: Task; userId: number; onSuccess: () => void; onBack: () => void;
+  colors: AppColors; styles: ReturnType<typeof makeStyles>;
+  t: ReturnType<typeof useTranslations>;
+}) {
+  const logTask = useLogTask(userId);
+  const submittingRef = useRef(false);
+
+  async function handleConfirm() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    try {
+      await logTask.mutateAsync({
+        taskTypeId: task.id,
+        kind: 'GOOD',
+        isTimeBased: false,
+        basePoints: task.base_points,
+        starPenalty: task.star_penalty,
+      });
+      Toast.show({ type: 'success', text1: t.loggedOk, text2: task.name, visibilityTime: 2000 });
+      onSuccess();
+    } catch {
+      Alert.alert(t.error, t.cantLog);
+    } finally {
+      submittingRef.current = false;
+    }
+  }
+
+  return (
+    <View style={styles.stepContainer}>
+      <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+        <Text style={styles.backText}>{t.back}</Text>
+      </TouchableOpacity>
+      <Text style={styles.confirmTitle}>{task.name}</Text>
+      <Text style={styles.confirmMeta}>+{task.base_points}pt</Text>
+      <TouchableOpacity
+        style={[styles.confirmBtn, logTask.isPending && styles.confirmBtnDisabled]}
+        onPress={handleConfirm}
+        disabled={logTask.isPending}
+      >
+        {logTask.isPending
+          ? <ActivityIndicator color={colors.white} />
+          : <Text style={styles.confirmBtnText}>{t.logNow}</Text>}
+      </TouchableOpacity>
     </View>
   );
 }
@@ -82,9 +114,9 @@ export function LogActivitySheet({ visible, onClose }: Props) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const { data: tasks = [], isLoading } = useTodayTasks(userId);
-  const logTask = useLogTask(userId);
-  const [durationTask, setDurationTask] = useState<Task | null>(null);
-  const submittingRef = useRef(false);
+  const [step, setStep] = useState<'name' | 'duration'>('name');
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [filterText, setFilterText] = useState('');
 
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(300)).current;
@@ -99,34 +131,20 @@ export function LogActivitySheet({ visible, onClose }: Props) {
     }
   }, [visible]);
 
-  async function handleSimpleTask(task: Task) {
-    if (submittingRef.current) return;
-    submittingRef.current = true;
-    try {
-      await logTask.mutateAsync({
-        taskTypeId: task.id,
-        kind: task.kind as 'GOOD' | 'BAD',
-        isTimeBased: false,
-        basePoints: task.base_points,
-        starPenalty: task.star_penalty,
-      });
-      Toast.show({
-        type: 'success',
-        text1: t.loggedOk,
-        text2: task.name,
-        visibilityTime: 2000,
-      });
-      handleClose();
-    } catch {
-      Alert.alert(t.error, t.cantLog);
-    } finally {
-      submittingRef.current = false;
-    }
+  const goodTasks = useMemo(() => tasks.filter(task => task.kind === 'GOOD'), [tasks]);
+
+  const filteredTasks = useMemo(() => {
+    const q = filterText.trim().toLowerCase();
+    return q ? goodTasks.filter(task => task.name.toLowerCase().includes(q)) : goodTasks;
+  }, [goodTasks, filterText]);
+
+  function handleSelectTask(task: Task) {
+    setSelectedTask(task);
+    setStep('duration');
   }
 
-  function handleTaskPress(task: Task) {
-    if (task.is_time_based) { setDurationTask(task); return; }
-    handleSimpleTask(task);
+  function handleBack() {
+    setStep('name');
   }
 
   function handleClose() {
@@ -135,7 +153,9 @@ export function LogActivitySheet({ visible, onClose }: Props) {
       Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
       Animated.spring(sheetTranslateY, { toValue: 300, tension: 120, friction: 12, useNativeDriver: true }),
     ]).start(() => {
-      setDurationTask(null);
+      setStep('name');
+      setSelectedTask(null);
+      setFilterText('');
       onClose();
       backdropOpacity.setValue(0);
       sheetTranslateY.setValue(300);
@@ -150,62 +170,81 @@ export function LogActivitySheet({ visible, onClose }: Props) {
         </Animated.View>
         <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}>
           <View style={styles.handle} />
-          <Text style={styles.title}>{t.logSheetTitle}</Text>
 
-          {isLoading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginVertical: 24 }} />
-          ) : tasks.length === 0 ? (
-            <Text style={styles.empty}>{t.logEmpty}</Text>
-          ) : (
-            <FlatList
-              data={tasks}
-              keyExtractor={(task) => String(task.id)}
-              style={styles.list}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.row, item.kind === 'BAD' && styles.badRow]}
-                  onPress={() => handleTaskPress(item)}
-                  disabled={logTask.isPending}
-                >
-                  <Text style={styles.rowIcon}>{item.icon ?? (item.kind === 'GOOD' ? '✅' : '❌')}</Text>
-                  <View style={styles.rowBody}>
-                    <Text style={styles.rowName}>{item.name}</Text>
-                    <Text style={styles.rowMeta}>
-                      {item.kind === 'GOOD'
-                        ? item.is_time_based ? t.logMeta1star30min : `+${item.base_points}pt`
-                        : `-${item.star_penalty}⭐`}
-                    </Text>
-                  </View>
-                  {!!item.is_time_based && <Text style={styles.timeTag}>⏱</Text>}
-                </TouchableOpacity>
+          {step === 'name' ? (
+            <>
+              <Text style={styles.title}>{t.logSheetTitle}</Text>
+              <View style={styles.searchWrap}>
+                <TextInput
+                  style={styles.searchInput}
+                  value={filterText}
+                  onChangeText={setFilterText}
+                  placeholder={t.searchActivities}
+                  placeholderTextColor={colors.faint}
+                  returnKeyType="search"
+                  clearButtonMode="while-editing"
+                />
+              </View>
+              {isLoading ? (
+                <ActivityIndicator color={colors.primary} style={{ marginVertical: 24 }} />
+              ) : filteredTasks.length === 0 ? (
+                <Text style={styles.empty}>{t.logEmpty}</Text>
+              ) : (
+                <FlatList
+                  data={filteredTasks}
+                  keyExtractor={(task) => String(task.id)}
+                  style={styles.list}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={[styles.row, selectedTask?.id === item.id && styles.rowSelected]}
+                      onPress={() => handleSelectTask(item)}
+                    >
+                      <View style={styles.rowBody}>
+                        <Text style={styles.rowName}>{item.name}</Text>
+                        <Text style={styles.rowMeta}>
+                          {item.is_time_based ? t.logMeta1star30min : `+${item.base_points}pt`}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                />
               )}
-            />
-          )}
-
-          <TouchableOpacity style={styles.cancelBtn} onPress={handleClose}>
-            <Text style={styles.cancelText}>{t.close}</Text>
-          </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelBtn} onPress={handleClose}>
+                <Text style={styles.cancelText}>{t.close}</Text>
+              </TouchableOpacity>
+            </>
+          ) : selectedTask ? (
+            selectedTask.is_time_based ? (
+              <DurationStep
+                task={selectedTask}
+                userId={userId}
+                onSuccess={handleClose}
+                onBack={handleBack}
+                colors={colors}
+                styles={styles}
+                t={t}
+              />
+            ) : (
+              <ConfirmStep
+                task={selectedTask}
+                userId={userId}
+                onSuccess={handleClose}
+                onBack={handleBack}
+                colors={colors}
+                styles={styles}
+                t={t}
+              />
+            )
+          ) : null}
         </Animated.View>
       </View>
-
-      {!!durationTask && (
-        <TimedTaskLogger
-          task={durationTask}
-          userId={userId}
-          onSuccess={handleClose}
-          onCancel={() => setDurationTask(null)}
-          colors={colors}
-          styles={styles}
-          t={t}
-        />
-      )}
     </Modal>
   );
 }
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
-    backdrop:        { flex: 1, justifyContent: 'flex-end' },
+    backdrop: { flex: 1, justifyContent: 'flex-end' },
     sheet: {
       backgroundColor: C.surface,
       borderTopLeftRadius: Radii.xxl,
@@ -223,18 +262,31 @@ function makeStyles(C: AppColors) {
       paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg,
       borderBottomWidth: 1, borderColor: C.line,
     },
-    list:            { flexGrow: 0 },
+    searchWrap: {
+      paddingHorizontal: Spacing.lg,
+      paddingVertical: Spacing.sm,
+      borderBottomWidth: 1,
+      borderColor: C.line,
+    },
+    searchInput: {
+      backgroundColor: C.surface2,
+      color: C.inkDark,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderRadius: Radii.sm,
+      fontSize: 15,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.line2,
+    },
+    list: { flexGrow: 0 },
     row: {
-      flexDirection: 'row', alignItems: 'center',
       paddingHorizontal: Spacing.lg, paddingVertical: 14,
       borderBottomWidth: 1, borderColor: C.line,
     },
-    badRow:          { backgroundColor: C.dangerSoft },
-    rowIcon:         { fontSize: 24, marginRight: 12 },
-    rowBody:         { flex: 1 },
-    rowName:         { ...Typography.body, color: C.inkDark },
-    rowMeta:         { ...Typography.caption, color: C.muted, marginTop: 2 },
-    timeTag:         { fontSize: 18, marginLeft: 8 },
+    rowSelected: { backgroundColor: C.primarySoft },
+    rowBody: { flex: 1 },
+    rowName: { ...Typography.body, color: C.inkDark },
+    rowMeta: { ...Typography.caption, color: C.muted, marginTop: 2 },
     empty: {
       textAlign: 'center', color: C.muted, marginVertical: 32,
       paddingHorizontal: Spacing.xl, fontSize: 14,
@@ -244,21 +296,33 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.sm, backgroundColor: C.surface2,
       alignItems: 'center', borderWidth: 1, borderColor: C.line,
     },
-    cancelText:      { color: C.muted, fontWeight: '700' },
-    durationBg:      { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end' },
-    durationBackdrop: {
-      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.55)',
+    cancelText: { color: C.muted, fontWeight: '700' },
+    stepContainer: {
+      paddingHorizontal: Spacing.lg,
+      paddingBottom: Spacing.lg,
     },
-    durationBox: {
-      backgroundColor: C.surface,
-      padding: Spacing.xl,
-      borderTopLeftRadius: Radii.xxl,
-      borderTopRightRadius: Radii.xxl,
-      paddingBottom: 36,
-      ...Shadows.hero,
+    backBtn: {
+      paddingVertical: Spacing.sm,
+      marginBottom: Spacing.xs,
     },
-    durationCancelBtn: { marginTop: 4, alignItems: 'center' },
-    durationCancel:  { color: C.muted, padding: 10, fontSize: 14 },
+    backText: {
+      ...Typography.body, color: C.primary, fontWeight: '600',
+    },
+    confirmTitle: {
+      fontSize: 18, fontWeight: '700' as const, color: C.inkDark,
+      marginTop: Spacing.sm, marginBottom: 4,
+    },
+    confirmMeta: {
+      ...Typography.caption, color: C.muted,
+      marginBottom: Spacing.lg,
+    },
+    confirmBtn: {
+      backgroundColor: C.primary,
+      borderRadius: Radii.sm,
+      paddingVertical: 14,
+      alignItems: 'center',
+    },
+    confirmBtnDisabled: { backgroundColor: C.line2 },
+    confirmBtnText: { color: C.white, fontSize: 15, fontWeight: '700' },
   });
 }

@@ -464,6 +464,28 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 
 ---
 
+## Habit Tracker — FAB 2-Step Flow COMPLETE (2026-06-06)
+
+### What Was Built
+- **`src/screens/AddActivitySheet.tsx`** (rewritten): FAB now opens a 2-step wizard.
+  - **Step 1**: Name input + suggestion chips (from `TEMPLATE_CATEGORIES`, name-only, no emoji). → button (active when name non-empty). Tapping suggestion pre-fills name + advances to Step 2. Suggestions stay highlighted after selection.
+  - **Step 2**: "← Quay lại" back button, activity name header, "Bao lâu?" duration chips (15min 30min 45min 1h 2h), "Không hẹn giờ" no-timer button. Selecting any option creates task template + logs it immediately (CREATE + LOG in one flow).
+- **`src/queries/useTasks.ts`**: `useCreateTask.mutationFn` now returns task ID (SELECT after INSERT OR IGNORE) — needed to chain log call.
+- **`src/config/i18n.ts`**: Added `back`, `searchActivities`, `logNow`, `addActivityHowLong`, `addActivityNoTimer` in vi + en.
+- **`src/screens/LogActivitySheet.tsx`** (also reworked, but currently unused — `AddActivitySheet` is the FAB target): Same 2-step pattern applied; kept for potential future use.
+
+### Key Decisions
+- Combined CREATE + LOG in one flow — user taps FAB → picks activity → picks duration → done. No need to visit TodayScreen and tap separately.
+- `useCreateTask` returns task ID via `SELECT id … WHERE user_id=? AND name=?` after `INSERT OR IGNORE` — safe even if task already exists (idempotent).
+- Duration chips (15/30/45min, 1h, 2h) all set `isTimeBased: true`; "No timer" sets `isTimeBased: false` — replaces the removed hourly-tracking toggle.
+- Removed from AddActivitySheet: emoji icon field, GOOD/BAD kind toggle, `isTimeBased` switch, inline save button.
+- `LogActivitySheet` is an orphaned component (not in navigation); left with 2-step refactor applied.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---
+
 ## Habit Tracker — Brand UI + Logo Update COMPLETE (2026-06-05)
 
 ### What Was Changed

@@ -14,7 +14,7 @@ interface TaskFormParams {
 export function useCreateTask(userId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (params: TaskFormParams) => {
+    mutationFn: async (params: TaskFormParams): Promise<number> => {
       const db = await getDb();
       await db.runAsync(
         `INSERT OR IGNORE INTO task_types
@@ -24,6 +24,11 @@ export function useCreateTask(userId: number) {
          params.basePoints, params.starPenalty, params.icon ?? null,
          params.categoryId ?? null]
       );
+      const row = await db.getFirstAsync<{ id: number }>(
+        'SELECT id FROM task_types WHERE user_id = ? AND name = ?',
+        [userId, params.name]
+      );
+      return row!.id;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['today', 'tasks'] }),
   });

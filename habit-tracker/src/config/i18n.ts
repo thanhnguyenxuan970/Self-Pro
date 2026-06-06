@@ -3,6 +3,7 @@ export type AppLanguage = 'vi' | 'en';
 const vi = {
   // Common
   cancel: 'Huỷ',
+  back: '← Quay lại',
   error: 'Lỗi',
   all: 'Tất cả',
   delete: 'Xoá',
@@ -163,6 +164,8 @@ const vi = {
   logEmpty: 'Chưa có hoạt động. Vào Hồ sơ để thêm.',
   loggedOk: 'Đã ghi nhận! ✅',
   logMeta1star30min: '1★/30ph · giảm sau 2h',
+  searchActivities: 'Tìm hoạt động...',
+  logNow: 'Ghi nhận ngay',
 
   // DurationChips
   durationTitle: (name: string) => `${name} — bao nhiêu phút?`,
@@ -208,6 +211,8 @@ const vi = {
   addActivitySave: 'Thêm hoạt động',
   addActivitySuggestionsTitle: 'GỢI Ý',
   addActivityEmptyName: 'Nhập tên hoạt động',
+  addActivityHowLong: 'Bao lâu?',
+  addActivityNoTimer: 'Không hẹn giờ',
 
   // SignInScreen errors
   signInMissingInfo: 'Tài khoản Google thiếu thông tin (email/tên).',
@@ -238,6 +243,7 @@ const vi = {
 const en: typeof vi = {
   // Common
   cancel: 'Cancel',
+  back: '← Back',
   error: 'Error',
   all: 'All',
   delete: 'Delete',
@@ -401,6 +407,8 @@ const en: typeof vi = {
   logEmpty: 'No activities. Go to Profile to add some.',
   loggedOk: 'Logged! ✅',
   logMeta1star30min: '1★/30min · drops after 2h',
+  searchActivities: 'Search activities...',
+  logNow: 'Log now',
 
   // DurationChips
   durationTitle: (name) => `${name} — how many minutes?`,
@@ -446,6 +454,8 @@ const en: typeof vi = {
   addActivitySave: 'Add Activity',
   addActivitySuggestionsTitle: 'SUGGESTIONS',
   addActivityEmptyName: 'Enter activity name',
+  addActivityHowLong: 'How long?',
+  addActivityNoTimer: 'No timer',
 
   // SignInScreen errors
   signInMissingInfo: 'Google account missing info (email/name).',
