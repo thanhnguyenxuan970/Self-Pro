@@ -234,7 +234,7 @@ export function useAuth() {
     } catch { }
     try {
       await deleteGoogleUser();
-      await AsyncStorage.multiRemove([ONBOARDED_KEY, 'habit_tracker_display_name']);
+      await AsyncStorage.multiRemove([ONBOARDED_KEY, 'habit_tracker_display_name', 'habit_gender', 'habit_birth_year']);
     } finally {
       setIsOnboarded(false);
       setGoogleUser(null);
@@ -261,7 +261,7 @@ export function useAuth() {
     } catch { }
     try {
       await deleteGoogleUser();
-      await AsyncStorage.multiRemove([ONBOARDED_KEY, 'habit_tracker_display_name']);
+      await AsyncStorage.multiRemove([ONBOARDED_KEY, 'habit_tracker_display_name', 'habit_gender', 'habit_birth_year']);
     } finally {
       setIsOnboarded(false);
       setGoogleUser(null);

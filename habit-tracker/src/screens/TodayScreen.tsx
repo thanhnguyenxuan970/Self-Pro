@@ -3,12 +3,13 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Animated, AccessibilityInfo,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import {
   useTodayTasks, useDailySummary, useWeeklySummary,
-  useLogTask, useUnlogTask, useTodayLoggedTaskIds, useYesterdayLoggedTasks,
+  useLogTask, useUnlogTask, useTodayLoggedTaskIds, useConsecutiveSuggestions,
 } from '../queries/useToday';
 import { useArchiveTask } from '../queries/useTasks';
 import { useRankData } from '../queries/useRank';
@@ -112,9 +113,9 @@ export function TodayScreen() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [justLoggedIds, setJustLoggedIds] = useState<Set<number>>(new Set());
-  const [repeating, setRepeating] = useState(false);
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set());
 
-  const { data: yesterdayTasks = [] } = useYesterdayLoggedTasks(userId);
+  const { data: suggestions = [] } = useConsecutiveSuggestions(userId);
 
   const enterSelection = useCallback((id: number) => {
     setSelectionMode(true);
@@ -288,53 +289,51 @@ export function TodayScreen() {
     } catch { Alert.alert(t.error, t.cantLog); }
   }
 
-  async function handleRepeatYesterday() {
-    if (repeating || yesterdayTasks.length === 0) return;
-    setRepeating(true);
+  async function handleSuggestionLog(task: { id: number; name: string; kind: string; is_time_based: number; base_points: number; star_penalty: number }) {
+    if (loggedIds?.has(task.id)) return;
     try {
-      let lastResult: { newStreak: number; prevStreak: number } | null = null;
-      for (const task of yesterdayTasks) {
-        lastResult = await logTask.mutateAsync({
-          taskTypeId: task.task_type_id,
-          kind: task.kind as 'GOOD' | 'BAD',
-          isTimeBased: !!task.is_time_based,
-          basePoints: task.base_points,
-          starPenalty: task.star_penalty,
-          durationMin: task.duration_min ?? undefined,
-        });
-      }
-      if (lastResult) showStreakToast(lastResult.newStreak, lastResult.prevStreak);
+      const result = await logTask.mutateAsync({
+        taskTypeId: task.id,
+        kind: task.kind as 'GOOD' | 'BAD',
+        isTimeBased: !!task.is_time_based,
+        basePoints: task.base_points,
+        starPenalty: task.star_penalty,
+      });
+      showStreakToast(result.newStreak, result.prevStreak);
+      setDismissedSuggestions(prev => new Set(prev).add(task.id));
     } catch { Alert.alert(t.error, t.cantLog); }
-    setRepeating(false);
+  }
+
+  function dismissSuggestion(id: number) {
+    setDismissedSuggestions(prev => new Set(prev).add(id));
   }
 
   if (isLoading) return <ActivityIndicator style={{ flex: 1 }} color={colors.primary} />;
 
   return (
-    <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 }}>
-        {/* Topbar */}
-        <View style={styles.topbar}>
-          <TouchableOpacity
-            style={styles.avatar}
-            onPress={() => navigation.navigate('Profile' as never)}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.avatarText}>{avatarInitial}</Text>
-          </TouchableOpacity>
-          <View style={styles.greet}>
-            <Text style={styles.hi}>{t.greeting(googleUser?.name?.split(' ').pop() ?? '')}</Text>
-            <Text style={styles.date}>{dateStr}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.gearBtn}
-            onPress={() => navigation.navigate('Settings' as never)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.gearIcon}>⚙️</Text>
-          </TouchableOpacity>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Topbar — outside ScrollView so it stays fixed */}
+      <View style={styles.topbar}>
+        <TouchableOpacity
+          style={styles.avatar}
+          onPress={() => navigation.navigate('Profile' as never)}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.avatarText}>{avatarInitial}</Text>
+        </TouchableOpacity>
+        <View style={styles.greet}>
+          <Text style={styles.hi}>{t.greeting(googleUser?.name?.split(' ').pop() ?? '')}</Text>
+          <Text style={styles.date}>{dateStr}</Text>
         </View>
-
+        <TouchableOpacity
+          style={styles.gearBtn}
+          onPress={() => navigation.navigate('Settings' as never)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.gearIcon}>⚙️</Text>
+        </TouchableOpacity>
+      </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 }}>
         {/* Hero card */}
         <LinearGradient
           colors={isDebt ? ['#5C1D1E', '#B0383C'] : ['#1A5039', '#2E9C6A']}
@@ -376,19 +375,31 @@ export function TodayScreen() {
           <Text style={styles.progCap}>{t.streakBonus(DAILY_THRESHOLD)}</Text>
         </View>
 
-        {/* Repeat yesterday chip */}
-        {yesterdayTasks.length > 0 && !selectionMode && (
-          <TouchableOpacity
-            style={styles.repeatChip}
-            onPress={handleRepeatYesterday}
-            disabled={repeating}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.repeatChipText}>
-              {repeating ? t.repeatYesterdayDone : t.repeatYesterday(yesterdayTasks.length)}
-            </Text>
-          </TouchableOpacity>
-        )}
+        {/* Smart suggestion chips */}
+        {!selectionMode && suggestions
+          .filter(s => !dismissedSuggestions.has(s.id) && !(loggedIds?.has(s.id)))
+          .map(s => (
+            <View key={s.id} style={styles.suggestionRow}>
+              <TouchableOpacity
+                style={styles.suggestionChip}
+                onPress={() => handleSuggestionLog(s)}
+                disabled={logTask.isPending}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.suggestionChipText}>
+                  🔄 {t.suggestionPrompt(s.name)}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.suggestionDismiss}
+                onPress={() => dismissSuggestion(s.id)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.suggestionDismissText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ))
+        }
 
         {/* Task list header with selection actions */}
         <View style={styles.taskListHeader}>
@@ -468,7 +479,7 @@ export function TodayScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -478,7 +489,7 @@ function makeStyles(C: AppColors) {
 
     topbar: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
-      paddingHorizontal: Spacing.lg, paddingTop: 52, paddingBottom: 2,
+      paddingHorizontal: Spacing.lg, paddingTop: 12, paddingBottom: 2,
     },
     avatar: {
       width: 42, height: 42, borderRadius: 21,
@@ -594,14 +605,20 @@ function makeStyles(C: AppColors) {
     tPtsPos: { color: C.primary },
     tPtsNeg: { color: C.danger },
     tPtsIdle: { color: C.faint },
-    repeatChip: {
-      marginHorizontal: Spacing.lg, marginBottom: Spacing.sm,
-      backgroundColor: C.surface, borderRadius: Radii.pill,
-      paddingVertical: 8, paddingHorizontal: 16,
-      alignSelf: 'flex-start', borderWidth: 1,
-      borderColor: C.primary + '44', ...Shadows.light,
+    suggestionRow: {
+      flexDirection: 'row', alignItems: 'center',
+      marginHorizontal: Spacing.lg, marginBottom: 6,
     },
-    repeatChipText: { color: C.primary, fontSize: 13, fontWeight: '600' },
+    suggestionChip: {
+      flex: 1, backgroundColor: C.surface, borderRadius: Radii.pill,
+      paddingVertical: 8, paddingHorizontal: 14,
+      borderWidth: 1, borderColor: C.primary + '55', ...Shadows.light,
+    },
+    suggestionChipText: { color: C.primary, fontSize: 13, fontWeight: '600' },
+    suggestionDismiss: {
+      marginLeft: 8, padding: 4,
+    },
+    suggestionDismissText: { color: C.faint, fontSize: 14, fontWeight: '700' },
 
     empty: { padding: 36, paddingHorizontal: 12, alignItems: 'center' },
     emptyEmoji: { fontSize: 42, marginBottom: 8, opacity: 0.6 },

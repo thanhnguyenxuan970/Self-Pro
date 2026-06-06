@@ -26,39 +26,47 @@ export function useTodayTasks(userId: number) {
   });
 }
 
-export type YesterdayTask = {
-  task_type_id: number;
+export type SuggestedTask = {
+  id: number;
   name: string;
   kind: string;
   is_time_based: number;
   base_points: number;
   star_penalty: number;
   icon: string | null;
-  duration_min: number | null;
 };
 
-export function useYesterdayLoggedTasks(userId: number) {
+export function useConsecutiveSuggestions(userId: number) {
+  const today = getLocalDate();
   const yesterday = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+    const d = new Date(); d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const dayBefore = (() => {
+    const d = new Date(); d.setDate(d.getDate() - 2);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   })();
   return useQuery({
-    queryKey: ['today', 'yesterday', userId, yesterday],
+    queryKey: ['today', 'suggestions', userId, today],
     queryFn: async () => {
       const db = await getDb();
-      return db.getAllAsync<YesterdayTask>(
-        `SELECT al.task_type_id, tt.name, tt.kind, tt.is_time_based,
-                tt.base_points, tt.star_penalty, tt.icon, al.duration_min
-         FROM activity_log al
-         JOIN task_types tt ON tt.id = al.task_type_id
-         WHERE al.user_id = ? AND al.local_date = ? AND al.kind = 'GOOD' AND tt.archived = 0
-         GROUP BY al.task_type_id
-         ORDER BY al.logged_at DESC`,
-        [userId, yesterday]
+      return db.getAllAsync<SuggestedTask>(
+        `SELECT tt.id, tt.name, tt.kind, tt.is_time_based, tt.base_points, tt.star_penalty, tt.icon
+         FROM task_types tt
+         WHERE tt.user_id = ? AND tt.archived = 0
+           AND EXISTS (
+             SELECT 1 FROM activity_log WHERE user_id = ? AND task_type_id = tt.id
+               AND local_date = ? AND source = 'TASK'
+           )
+           AND EXISTS (
+             SELECT 1 FROM activity_log WHERE user_id = ? AND task_type_id = tt.id
+               AND local_date = ? AND source = 'TASK'
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM activity_log WHERE user_id = ? AND task_type_id = tt.id
+               AND local_date = ?
+           )`,
+        [userId, userId, yesterday, userId, dayBefore, userId, today]
       );
     },
   });

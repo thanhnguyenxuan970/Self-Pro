@@ -3,55 +3,41 @@ import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
+  TextInput,
   StyleSheet,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
-import { useTheme, useTranslations } from '../hooks/useSettings';
-import { TEMPLATE_CATEGORIES } from '../config/constants';
-import { useAuthUser } from '../hooks/useAuth';
-import { buildTemplateTasks } from '../game/seedTemplates';
-import { useCreateTask } from '../queries/useTasks';
+import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
 
+export const GENDER_KEY = 'habit_gender';
+export const BIRTH_YEAR_KEY = 'habit_birth_year';
+
+type Gender = 'male' | 'female' | 'other';
 type Props = { onComplete: () => Promise<void> };
 
 export function OnboardingScreen({ onComplete }: Props) {
-  const userId = useAuthUser();
-  const [selected, setSelected] = useState<Set<string>>(new Set(['sports']));
+  const [gender, setGender] = useState<Gender | null>(null);
+  const [birthYear, setBirthYear] = useState('');
+  const [lang, setLanguage] = useLanguage();
   const [loading, setLoading] = useState(false);
-  const createTask = useCreateTask(userId);
   const { colors } = useTheme();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const toggle = (key: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  };
-
   const handleStart = async () => {
-    if (selected.size === 0) {
-      Alert.alert(t.onboardMinAlert, t.onboardMinAlertMsg);
-      return;
-    }
     setLoading(true);
     try {
-      const tasks = buildTemplateTasks(Array.from(selected));
-      for (const task of tasks) {
-        await createTask.mutateAsync({
-          name: task.name,
-          kind: task.kind,
-          isTimeBased: task.isTimeBased,
-          basePoints: task.basePoints,
-          starPenalty: task.starPenalty,
-          icon: task.icon,
-        });
-      }
+      const saves: Promise<void>[] = [];
+      if (gender) saves.push(AsyncStorage.setItem(GENDER_KEY, gender));
+      const year = birthYear.trim();
+      if (year) saves.push(AsyncStorage.setItem(BIRTH_YEAR_KEY, year));
+      await Promise.all(saves);
       await onComplete();
     } catch {
       Alert.alert(t.error, t.onboardError);
@@ -59,93 +45,120 @@ export function OnboardingScreen({ onComplete }: Props) {
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{t.onboardTitle}</Text>
-      <Text style={styles.subtitle}>{t.onboardSubtitle}</Text>
+  const genderOptions: { key: Gender; label: string }[] = [
+    { key: 'male', label: t.onboardGenderMale },
+    { key: 'female', label: t.onboardGenderFemale },
+    { key: 'other', label: t.onboardGenderOther },
+  ];
 
-      <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
-        {TEMPLATE_CATEGORIES.map((cat) => {
-          const active = selected.has(cat.key);
-          return (
+  return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.title}>{t.onboardTitle}</Text>
+        <Text style={styles.subtitle}>{t.onboardSubtitle}</Text>
+
+        {/* Language */}
+        <Text style={styles.label}>{t.onboardLangLabel}</Text>
+        <View style={styles.optionRow}>
+          {(['vi', 'en'] as const).map(l => (
             <TouchableOpacity
-              key={cat.key}
-              style={[styles.card, active && styles.cardActive]}
-              onPress={() => toggle(cat.key)}
+              key={l}
+              style={[styles.optionBtn, lang === l && styles.optionBtnActive]}
+              onPress={() => setLanguage(l)}
               activeOpacity={0.7}
             >
-              <Text style={styles.cardIcon}>{cat.icon}</Text>
-              <Text style={[styles.cardName, active && styles.cardNameActive]}>
-                {cat.name}
+              <Text style={[styles.optionBtnText, lang === l && styles.optionBtnTextActive]}>
+                {l === 'vi' ? t.onboardLangVi : t.onboardLangEn}
               </Text>
-              <Text style={[styles.cardCount, active && styles.cardCountActive]}>
-                {t.onboardCatCount(cat.tasks.length)}
-              </Text>
-              {active && <Text style={styles.checkmark}>✓</Text>}
             </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+          ))}
+        </View>
 
-      <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleStart}
-        disabled={loading}
-        activeOpacity={0.8}
-      >
-        {loading ? (
-          <ActivityIndicator color={colors.white} />
-        ) : (
-          <Text style={styles.buttonText}>{t.onboardStart}</Text>
-        )}
-      </TouchableOpacity>
-    </View>
+        {/* Gender */}
+        <Text style={styles.label}>{t.onboardGenderLabel}</Text>
+        <View style={styles.optionRow}>
+          {genderOptions.map(opt => (
+            <TouchableOpacity
+              key={opt.key}
+              style={[styles.optionBtn, gender === opt.key && styles.optionBtnActive]}
+              onPress={() => setGender(opt.key)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.optionBtnText, gender === opt.key && styles.optionBtnTextActive]}>
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Birth Year */}
+        <Text style={styles.label}>{t.onboardBirthYearLabel}</Text>
+        <TextInput
+          style={styles.input}
+          value={birthYear}
+          onChangeText={setBirthYear}
+          placeholder={t.onboardBirthYearPlaceholder}
+          placeholderTextColor={colors.faint}
+          keyboardType="number-pad"
+          maxLength={4}
+          returnKeyType="done"
+        />
+
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleStart}
+          disabled={loading}
+          activeOpacity={0.8}
+        >
+          {loading ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.buttonText}>{t.onboardStart}</Text>
+          )}
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: C.bgBase,
+    container: { flex: 1, backgroundColor: C.bgBase },
+    content: {
       paddingHorizontal: Spacing.lg,
-      paddingTop: 60,
+      paddingTop: 72,
+      paddingBottom: 48,
     },
     title: { ...Typography.title, color: C.inkDark, marginBottom: 8 },
     subtitle: { ...Typography.body, color: C.muted, marginBottom: Spacing.xl },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, paddingBottom: 100 },
-    card: {
-      width: '47%',
-      backgroundColor: C.surface,
-      borderRadius: Radii.lg,
-      padding: Spacing.md,
-      borderWidth: 2,
-      borderColor: C.line,
-      alignItems: 'center',
-      ...Shadows.light,
+    label: {
+      fontSize: 12, fontWeight: '700', color: C.muted,
+      textTransform: 'uppercase', letterSpacing: 0.7,
+      marginBottom: 10, marginTop: Spacing.lg,
     },
-    cardActive: {
-      borderColor: C.primary,
-      backgroundColor: C.primarySoft,
+    optionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    optionBtn: {
+      paddingVertical: 10, paddingHorizontal: 16,
+      borderRadius: Radii.pill, borderWidth: 1.5,
+      borderColor: C.line2, backgroundColor: C.surface,
     },
-    cardIcon: { fontSize: 36, marginBottom: 8 },
-    cardName: { ...Typography.bodyStrong, color: C.inkDark },
-    cardNameActive: { color: C.primaryPress },
-    cardCount: { ...Typography.caption, color: C.muted, marginTop: 2 },
-    cardCountActive: { color: C.primaryHover },
-    checkmark: {
-      position: 'absolute',
-      top: 8,
-      right: 10,
-      color: C.primary,
-      fontWeight: '800',
-      fontSize: 16,
+    optionBtnActive: {
+      borderColor: C.primary, backgroundColor: C.primarySoft,
+    },
+    optionBtnText: { fontSize: 14, fontWeight: '600', color: C.inkDark },
+    optionBtnTextActive: { color: C.primaryPress },
+    input: {
+      backgroundColor: C.surface2, color: C.inkDark, padding: 14,
+      borderRadius: Radii.md, fontSize: 16, fontWeight: '600',
+      borderWidth: 1.5, borderColor: C.line2,
     },
     button: {
-      position: 'absolute',
-      bottom: 32,
-      left: Spacing.lg,
-      right: Spacing.lg,
+      marginTop: 40,
       backgroundColor: C.primary,
       borderRadius: Radii.md,
       paddingVertical: 16,

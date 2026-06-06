@@ -14,7 +14,7 @@ import { SignInScreen } from '../screens/SignInScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { AppColors, Shadows } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
-import { LogActivitySheet } from '../screens/LogActivitySheet';
+import { AddActivitySheet } from '../screens/AddActivitySheet';
 import { GoogleUser } from '../hooks/useAuth';
 
 const Stack = createNativeStackNavigator();
@@ -175,7 +175,7 @@ function AppStack({
           {() => <SettingsScreen onDeleteAccount={onDeleteAccount} />}
         </Stack.Screen>
       </Stack.Navigator>
-      <LogActivitySheet visible={fabVisible} onClose={() => setFabVisible(false)} />
+      <AddActivitySheet visible={fabVisible} onClose={() => setFabVisible(false)} />
     </>
   );
 }
