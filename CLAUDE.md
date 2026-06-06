@@ -132,51 +132,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker — RankMascot Animated Component COMPLETE (2026-06-03)
-
-### What Was Built
-- **`src/config/ranks.config.ts`** (new): Single source of truth for rank system — 7-tier config with per-tier SVG geometry, animation keyframes, colors, haptic patterns. Exports `RANKS`, `rankForStars`, `STAR_POINTS`, all interfaces. Replaces hardcoded maps in RankScreen.
-- **`src/components/RankMascot.tsx`** (new): Animated star-sprite component. RN built-in `Animated` (not reanimated). Looping per-tier signature animation via single `p` (0→1) driving all transform channels via `interpolate`. `RankMascotHandle.playRankUp()` triggers haptic + pop scale. Uses `react-native-svg` + `expo-haptics`.
-- **`src/screens/RankScreen.tsx`** updated: Hero shows animated `RankMascot` (100px, loop=true) when `currentStars >= 5`. Rank ladder shows mini mascots (36px, loop only for current tier). Colors/descriptors from `RANKS[tier_order-1]`. Hardcoded `RANK_EMOJIS`/`RANK_EN`/`RANK_COLORS` maps removed.
-
-### Key Decisions
-- Built-in `Animated` (not reanimated): `react-native-reanimated` absent from deps + requires babel plugin + native rebuild.
-- `skewX` channel skipped: not supported with `useNativeDriver: true`. Only Delulu uses it; `rotate` covers the effect.
-- Pop + loop in nested Views: outer handles `pop` scale, inner handles loop transforms — avoids multiplying two Animated.Values.
-- `chanInterp`/`chanInterpDeg` guard is `< 2` (not `=== 0`): `Animated.interpolate` requires ≥2 input/output points.
-- Tier mapping: DB `tier_order` (1-based) → `RANKS[tier_order - 1]` (0-based). `rankConfig()` helper in RankScreen.
-- `expo-av` not used: removed (ClassNotFoundException: LazyKType crash on SDK 56). Sound field in Rank config exists for future use.
-- `mascotRef.playRankUp()` wired but not yet triggered — hook point for future level-up detection in `useLogTask`.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest` → 98/98 pass
-
----
-
-## Habit Tracker — Tier 2 Core Interactions COMPLETE (2026-06-03)
-
-### What Was Built (items 5-11 from simulation report)
-- **`TodayScreen.tsx` Item 5**: `TaskRow` sub-component with check-off animation — spring `scale 1→0.85` + `translateX 0→40` + `opacity 1→0` (300ms, tension 200) on log success; snaps back instantly to show done state. `prevLogged` ref prevents double-fire.
-- **`TodayScreen.tsx` Item 6**: Animated progress bar — `Animated.Value` springs to new `dailyPoints` (tension 100, friction 8, JS driver). White glow overlay flashes (`opacity 0.7→0`, 700ms) when crossing 50% and 100% thresholds.
-- **`LogActivitySheet.tsx` Item 7**: `animationType="none"` + custom spring backdrop fade (`opacity 0→1`, 220ms) + sheet `translateY 300→0` spring (tension 120). Animate-out runs before `onClose()` so Modal stays visible during exit.
-- **`FundScreen.tsx` Item 8**: `TreatCard` now animates progress bar width (spring, JS driver). Confetti burst (6 colored dots scatter via `translateX/Y + opacity`, 700ms) fires when `treat.unlockable` flips `false→true`.
-- **`FundScreen.tsx` Item 9**: Enjoy button press animation — `pressIn: 1→0.92`, `pressOut: 0.92→1.12→1` spring; on tap: white radial burst inside button (`opacity 0.6→0` + `scale 0.3→2.5`, clipped by `overflow: hidden`).
-- **`FundScreen.tsx` Item 10**: Enjoyed card dims via `Animated.spring` (`opacity 1→0.45`, `scale 1→0.97`) on `isEnjoyed` transition. `prevEnjoyed` ref prevents mount animation for already-enjoyed items.
-- **`RankScreen.tsx` Item 11**: Current tier row gets border glow loop (`opacity 0.15↔0.9`, 900ms each, infinite) + scale pop (`1→1.04→1`, spring) on data load. Both driven by `glowAnims/scaleAnims` ref arrays initialized alongside existing `ladderAnims`.
-
-### Key Decisions
-- `TaskRow` extracts row into sub-component — hooks (animation refs + `useEffect`) cannot live inside `.map()` callbacks; extraction enforces rules of hooks.
-- LogActivitySheet close animation fires before `onClose()` — keeps Modal `visible=true` during exit so animation renders; `setValue` resets after callback for next open.
-- Confetti uses `treat.unlockable` as trigger (not raw `reached_at`) — `DecoratedTreat` type exposes `unlockable` directly; semantically equivalent.
-- `enjoyBtn` has `overflow: 'hidden'` — clips the radial burst `scale 2.5` to button bounds, giving contained ripple effect.
-- Glow loop cleanup in `useEffect` return — prevents memory leak / stale loop on unmount.
-- `barGlowOpacity` uses `useNativeDriver: false` — JS driver required since it drives an overlay that changes `opacity` alongside width (which is also JS-driven).
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
-
----
-
 ## Habit Tracker — mascotRef.playRankUp() Wired + Rank Invalidation Fix COMPLETE (2026-06-04)
 
 ### What Was Built / Fixed
@@ -496,6 +451,26 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 - Logo bg rect (`#E6F4EC`) hardcoded (not theme token) — brand color, intentional; mint badge looks correct in both light and dark modes as a brand element.
 - Two-color title via nested `<Text>` — "habit " inherits parent's `inkDark` color; only "ring" span sets override to `colors.primary`.
 - `starGold` updated to `#E0A93B` — matches amber dot from logo; affects star icons across HomeScreen/RankScreen.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---
+
+## Habit Tracker — ProgressScreen Performance Fixes COMPLETE (2026-06-06)
+
+### What Was Fixed
+- **`src/screens/ProgressScreen.tsx`**: Memoized all chart-derived data to eliminate VictoryChart JS-thread re-animations:
+  - `RANGES` → `useMemo([t.rangeDay/Week/Month/Year])` — stable array ref
+  - `formatBucket` → `useCallback([t.dayAbbr])` + `?? bucket` fallback (was returning `undefined` on bad date/index)
+  - `goodData`, `badData`, `totalSum`, `tickValues` → single `useMemo([chartData])` — Victory re-renders only on actual data change
+  - `tickFormat` → `useCallback([chartData, range, formatBucket])` — stable fn ref for VictoryAxis
+  - `YEAR_MONTHS` hoisted to module-level const — avoids 12-element array allocation per tick call
+  - `VictoryChart animate={false}` — kills JS-thread animation loop (v36 uses react-spring on JS thread)
+
+### Key Decisions
+- Single `useMemo` for all 4 chart arrays: one `[chartData]` dep handles `goodData`/`badData`/`totalSum`/`tickValues` atomically.
+- `animate={false}` correct for v36: VictoryNative v36 animations run on JS thread via react-spring — disabling removes "JS thread busy" dev-console warnings without visual regression.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass

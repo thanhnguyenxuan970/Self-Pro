@@ -14,6 +14,8 @@ import { useTheme, useTranslations } from '../hooks/useSettings';
 
 type Range = 'D' | 'W' | 'M' | 'Y';
 
+const YEAR_MONTHS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+
 export function ProgressScreen() {
   const userId = useAuthUser();
   const { colors } = useTheme();
@@ -33,23 +35,22 @@ export function ProgressScreen() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const RANGES: { key: Range; label: string }[] = [
-    { key: 'D', label: t.rangeDay },
-    { key: 'W', label: t.rangeWeek },
-    { key: 'M', label: t.rangeMonth },
-    { key: 'Y', label: t.rangeYear },
-  ];
+  const RANGES = useMemo(() => [
+    { key: 'D' as Range, label: t.rangeDay },
+    { key: 'W' as Range, label: t.rangeWeek },
+    { key: 'M' as Range, label: t.rangeMonth },
+    { key: 'Y' as Range, label: t.rangeYear },
+  ], [t.rangeDay, t.rangeWeek, t.rangeMonth, t.rangeYear]);
 
-  function formatBucket(bucket: string, r: Range): string {
+  const formatBucket = useCallback((bucket: string, r: Range): string => {
     if (r === 'D') return `${bucket}h`;
     if (r === 'W') {
       const d = new Date(bucket + 'T00:00:00');
-      return t.dayAbbr[d.getDay()];
+      return t.dayAbbr[d.getDay()] ?? bucket;
     }
     if (r === 'M') return bucket.slice(8);
-    const months = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
-    return months[parseInt(bucket.slice(5, 7), 10) - 1];
-  }
+    return YEAR_MONTHS[parseInt(bucket.slice(5, 7), 10) - 1] ?? bucket;
+  }, [t.dayAbbr]);
 
   const enterSelection = useCallback((id: number) => {
     setSelectionMode(true);
@@ -112,9 +113,24 @@ export function ProgressScreen() {
     return d.toLocaleDateString(t.timeLocale, { day: 'numeric', month: 'short' });
   }, [range, offset, t]);
 
-  const totalSum = chartData.reduce((s, r) => s + r.goodStars + r.badStars, 0);
-  const goodData = chartData.map((r, i) => ({ x: i + 1, y: r.goodStars }));
-  const badData  = chartData.map((r, i) => ({ x: i + 1, y: r.badStars }));
+  const tickFormat = useCallback(
+    (tv: number) => formatBucket(chartData[tv - 1]?.bucket ?? '', range),
+    [chartData, range, formatBucket],
+  );
+
+  const { totalSum, goodData, badData, tickValues } = useMemo(() => {
+    let sum = 0;
+    const good: { x: number; y: number }[] = [];
+    const bad: { x: number; y: number }[] = [];
+    const ticks: number[] = [];
+    chartData.forEach((r, i) => {
+      sum += r.goodStars + r.badStars;
+      good.push({ x: i + 1, y: r.goodStars });
+      bad.push({ x: i + 1, y: r.badStars });
+      ticks.push(i + 1);
+    });
+    return { totalSum: sum, goodData: good, badData: bad, tickValues: ticks };
+  }, [chartData]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -170,10 +186,14 @@ export function ProgressScreen() {
                 <Text style={styles.emptyText}>{t.noActivityYet}</Text>
               </View>
             ) : (
-              <VictoryChart height={190} padding={{ top: 10, bottom: 36, left: 36, right: 12 }}>
+              <VictoryChart
+                height={190}
+                padding={{ top: 10, bottom: 36, left: 36, right: 12 }}
+                animate={false}
+              >
                 <VictoryAxis
-                  tickValues={chartData.map((_, i) => i + 1)}
-                  tickFormat={(tv: number) => formatBucket(chartData[tv - 1]?.bucket ?? '', range)}
+                  tickValues={tickValues}
+                  tickFormat={tickFormat}
                   style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.muted, fontSize: 9.5, fontWeight: '600' } }}
                 />
                 <VictoryAxis dependentAxis style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.muted, fontSize: 9.5 } }} />
