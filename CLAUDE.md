@@ -457,6 +457,24 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 
 ---
 
+## Habit Tracker — Duration Unit Selector + No Auto-Log on Create COMPLETE (2026-06-06)
+
+### What Was Changed
+- **`src/screens/AddActivitySheet.tsx`**: FAB Step 2 no longer auto-logs. Replaced numeric duration input + log button with two choice buttons: "⏱ Có hẹn giờ / Timed" and "Không hẹn giờ / No timer". `handleCreate(isTimeBased)` only calls `createTask.mutateAsync` — task appears on TodayScreen unchecked, user logs manually. Removed `useLogTask`, `durationInput` state, and `logTask` usage entirely.
+- **`src/screens/TodayScreen.tsx`**: Duration modal (tap timed task → log) now has Hours/Minutes unit toggle. `durationUnit` state (`'min' | 'hr'`). Two stacked buttons next to numeric input. `handleLogTime` converts: `parsed * 60` when hours selected. Unit resets to `'min'` on success and cancel.
+- **`src/config/i18n.ts`**: Added `addActivityTimedBtn`, `taskAdded`, `unitMin`, `unitHour`, `validDuration` in both vi + en.
+
+### Key Decisions
+- FAB creates only (no log) — user intent at FAB is "I want to track this", not "I did this now". Logging at TodayScreen keeps the intent clear.
+- Step 2 simplified to type selection (Timed / No timer) — duration is irrelevant at creation time since points are computed per actual log duration.
+- `submittingRef` double-submit guard covers both "Timed" and "No timer" paths — no race possible.
+- Unit toggle is vertical (stacked `Min` / `Hr`) alongside the numeric input — fits modal width without wrapping.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---
+
 ## Habit Tracker — ProgressScreen Performance Fixes COMPLETE (2026-06-06)
 
 ### What Was Fixed

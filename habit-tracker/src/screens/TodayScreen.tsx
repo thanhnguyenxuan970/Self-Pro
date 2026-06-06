@@ -110,6 +110,7 @@ export function TodayScreen() {
 
   const [modalTask, setModalTask] = useState<Task | null>(null);
   const [duration, setDuration] = useState('');
+  const [durationUnit, setDurationUnit] = useState<'min' | 'hr'>('min');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [justLoggedIds, setJustLoggedIds] = useState<Set<number>>(new Set());
@@ -276,8 +277,9 @@ export function TodayScreen() {
 
   async function handleLogTime() {
     if (!modalTask) return;
-    const mins = parseInt(duration, 10);
-    if (isNaN(mins) || mins <= 0) { Alert.alert(t.validMins); return; }
+    const parsed = parseInt(duration, 10);
+    if (isNaN(parsed) || parsed <= 0) { Alert.alert(t.validDuration); return; }
+    const mins = durationUnit === 'hr' ? parsed * 60 : parsed;
     try {
       const result = await logTask.mutateAsync({
         taskTypeId: modalTask.id, kind: modalTask.kind as 'GOOD' | 'BAD',
@@ -285,7 +287,7 @@ export function TodayScreen() {
         starPenalty: modalTask.star_penalty, durationMin: mins,
       });
       showStreakToast(result.newStreak, result.prevStreak);
-      setModalTask(null); setDuration('');
+      setModalTask(null); setDuration(''); setDurationUnit('min');
     } catch { Alert.alert(t.error, t.cantLog); }
   }
 
@@ -460,20 +462,40 @@ export function TodayScreen() {
       <Modal visible={!!modalTask} transparent animationType="slide">
         <View style={styles.modalBg}>
           <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>{t.minutesModal}</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="number-pad"
-              value={duration}
-              onChangeText={setDuration}
-              placeholder={t.minutesPlaceholder}
-              placeholderTextColor={colors.faint}
-              autoFocus
-            />
+            <Text style={styles.modalTitle}>{t.addActivityHowLong}</Text>
+            <View style={styles.durationRow}>
+              <TextInput
+                style={[styles.input, styles.durationInput]}
+                keyboardType="number-pad"
+                value={duration}
+                onChangeText={setDuration}
+                placeholder="0"
+                placeholderTextColor={colors.faint}
+                autoFocus
+              />
+              <View style={styles.unitToggle}>
+                <TouchableOpacity
+                  style={[styles.unitBtn, durationUnit === 'min' && styles.unitBtnActive]}
+                  onPress={() => setDurationUnit('min')}
+                >
+                  <Text style={[styles.unitBtnText, durationUnit === 'min' && styles.unitBtnTextActive]}>
+                    {t.unitMin}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.unitBtn, durationUnit === 'hr' && styles.unitBtnActive]}
+                  onPress={() => setDurationUnit('hr')}
+                >
+                  <Text style={[styles.unitBtnText, durationUnit === 'hr' && styles.unitBtnTextActive]}>
+                    {t.unitHour}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
             <TouchableOpacity style={styles.btn} onPress={handleLogTime}>
               <Text style={styles.btnText}>{t.logBtn}</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setModalTask(null); setDuration(''); }}>
+            <TouchableOpacity onPress={() => { setModalTask(null); setDuration(''); setDurationUnit('min'); }}>
               <Text style={styles.cancel}>{t.cancel}</Text>
             </TouchableOpacity>
           </View>
@@ -631,11 +653,26 @@ function makeStyles(C: AppColors) {
       borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl,
     },
     modalTitle: { fontSize: 19, fontWeight: '800', color: C.inkDark, marginBottom: Spacing.md },
+    durationRow: {
+      flexDirection: 'row', alignItems: 'stretch', gap: 10, marginBottom: Spacing.md,
+    },
     input: {
       backgroundColor: C.surface2, color: C.inkDark, padding: 13,
-      borderRadius: Radii.md, fontSize: 14, marginBottom: Spacing.md,
+      borderRadius: Radii.md, fontSize: 14,
       borderWidth: 1.5, borderColor: C.line2,
     },
+    durationInput: { flex: 1, fontSize: 22, fontWeight: '700', textAlign: 'center' },
+    unitToggle: {
+      flexDirection: 'column', borderRadius: Radii.md, overflow: 'hidden',
+      borderWidth: 1.5, borderColor: C.line2,
+    },
+    unitBtn: {
+      flex: 1, paddingHorizontal: 14, justifyContent: 'center', alignItems: 'center',
+      backgroundColor: C.surface2,
+    },
+    unitBtnActive: { backgroundColor: C.primary },
+    unitBtnText: { fontSize: 13, fontWeight: '700', color: C.muted },
+    unitBtnTextActive: { color: C.white },
     btn: { backgroundColor: C.primary, padding: 15, borderRadius: Radii.md, alignItems: 'center', marginBottom: 8 },
     btnText: { color: C.white, fontSize: 15, fontWeight: '700' },
     cancel: { textAlign: 'center', color: C.muted, padding: 8 },

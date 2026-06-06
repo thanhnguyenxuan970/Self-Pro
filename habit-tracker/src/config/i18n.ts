@@ -213,6 +213,11 @@ const vi = {
   addActivityEmptyName: 'Nhập tên hoạt động',
   addActivityHowLong: 'Bao lâu?',
   addActivityNoTimer: 'Không hẹn giờ',
+  addActivityTimedBtn: '⏱ Có hẹn giờ',
+  taskAdded: 'Đã thêm hoạt động',
+  unitMin: 'Phút',
+  unitHour: 'Giờ',
+  validDuration: 'Nhập thời gian hợp lệ (lớn hơn 0)',
 
   // SignInScreen errors
   signInMissingInfo: 'Tài khoản Google thiếu thông tin (email/tên).',
@@ -456,6 +461,11 @@ const en: typeof vi = {
   addActivityEmptyName: 'Enter activity name',
   addActivityHowLong: 'How long?',
   addActivityNoTimer: 'No timer',
+  addActivityTimedBtn: '⏱ Timed',
+  taskAdded: 'Activity added',
+  unitMin: 'Min',
+  unitHour: 'Hr',
+  validDuration: 'Enter valid duration (greater than 0)',
 
   // SignInScreen errors
   signInMissingInfo: 'Google account missing info (email/name).',

@@ -4,7 +4,7 @@ import {
   Alert, StyleSheet, ActivityIndicator, Animated, ScrollView,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { useTodayTasks, useLogTask } from '../queries/useToday';
+import { useTodayTasks } from '../queries/useToday';
 import { useCreateTask } from '../queries/useTasks';
 import { cueModalOpen, cueModalClose } from '../audio/uiSounds';
 import { useAuthUser } from '../hooks/useAuth';
@@ -23,12 +23,10 @@ export function AddActivitySheet({ visible, onClose }: Props) {
 
   const { data: existingTasks = [] } = useTodayTasks(userId);
   const createTask = useCreateTask(userId);
-  const logTask = useLogTask(userId);
 
   const [step, setStep] = useState<'name' | 'duration'>('name');
   const [name, setName] = useState('');
   const [selectedSuggestion, setSelectedSuggestion] = useState<TemplateTask | null>(null);
-  const [durationInput, setDurationInput] = useState('');
   const submittingRef = useRef(false);
 
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -53,7 +51,6 @@ export function AddActivitySheet({ visible, onClose }: Props) {
       setStep('name');
       setName('');
       setSelectedSuggestion(null);
-      setDurationInput('');
       submittingRef.current = false;
       onClose();
       backdropOpacity.setValue(0);
@@ -76,58 +73,23 @@ export function AddActivitySheet({ visible, onClose }: Props) {
     setStep('name');
   }
 
-  async function handleLogWithDuration(minutes: number) {
+  async function handleCreate(isTimeBased: boolean) {
     if (submittingRef.current) return;
     submittingRef.current = true;
     const trimmed = name.trim();
     if (!trimmed) { submittingRef.current = false; return; }
     try {
-      const taskId = await createTask.mutateAsync({
+      await createTask.mutateAsync({
         name: trimmed,
         kind: 'GOOD',
-        isTimeBased: true,
-        basePoints: selectedSuggestion?.basePoints ?? 1,
+        isTimeBased,
+        basePoints: isTimeBased
+          ? (selectedSuggestion?.basePoints ?? 1)
+          : (selectedSuggestion?.basePoints ?? 5),
         starPenalty: 0,
         icon: selectedSuggestion?.icon,
       });
-      await logTask.mutateAsync({
-        taskTypeId: taskId,
-        kind: 'GOOD',
-        isTimeBased: true,
-        basePoints: selectedSuggestion?.basePoints ?? 1,
-        starPenalty: 0,
-        durationMin: minutes,
-      });
-      Toast.show({ type: 'success', text1: t.loggedOk, text2: trimmed, visibilityTime: 2000 });
-      handleClose();
-    } catch {
-      Alert.alert(t.error, t.cantLog);
-      submittingRef.current = false;
-    }
-  }
-
-  async function handleLogNoTimer() {
-    if (submittingRef.current) return;
-    submittingRef.current = true;
-    const trimmed = name.trim();
-    if (!trimmed) { submittingRef.current = false; return; }
-    try {
-      const taskId = await createTask.mutateAsync({
-        name: trimmed,
-        kind: 'GOOD',
-        isTimeBased: false,
-        basePoints: selectedSuggestion?.basePoints ?? 5,
-        starPenalty: 0,
-        icon: selectedSuggestion?.icon,
-      });
-      await logTask.mutateAsync({
-        taskTypeId: taskId,
-        kind: 'GOOD',
-        isTimeBased: false,
-        basePoints: selectedSuggestion?.basePoints ?? 5,
-        starPenalty: 0,
-      });
-      Toast.show({ type: 'success', text1: t.loggedOk, text2: trimmed, visibilityTime: 2000 });
+      Toast.show({ type: 'success', text1: t.taskAdded, text2: trimmed, visibilityTime: 2000 });
       handleClose();
     } catch {
       Alert.alert(t.error, t.cantLog);
@@ -152,7 +114,7 @@ export function AddActivitySheet({ visible, onClose }: Props) {
     return result;
   }, [existingNames]);
 
-  const isPending = createTask.isPending || logTask.isPending;
+  const isPending = createTask.isPending;
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
@@ -224,41 +186,21 @@ export function AddActivitySheet({ visible, onClose }: Props) {
 
               <View style={styles.durationBody}>
                 <Text style={styles.durationLabel}>{t.addActivityHowLong}</Text>
-                <TextInput
-                  style={styles.durationInputField}
-                  value={durationInput}
-                  onChangeText={setDurationInput}
-                  placeholder={t.minutesPlaceholder}
-                  placeholderTextColor={colors.faint}
-                  keyboardType="number-pad"
-                  autoFocus
-                  returnKeyType="done"
-                  onSubmitEditing={() => {
-                    const mins = parseInt(durationInput, 10);
-                    if (!isNaN(mins) && mins > 0) handleLogWithDuration(mins);
-                  }}
-                />
+
                 <TouchableOpacity
-                  style={[
-                    styles.confirmBtn,
-                    (isPending || !durationInput.trim()) && styles.confirmBtnDisabled,
-                  ]}
-                  onPress={() => {
-                    const mins = parseInt(durationInput, 10);
-                    if (!isNaN(mins) && mins > 0) handleLogWithDuration(mins);
-                    else Alert.alert(t.error, t.validMins);
-                  }}
-                  disabled={isPending || !durationInput.trim()}
+                  style={[styles.typeBtn, isPending && styles.confirmBtnDisabled]}
+                  onPress={() => handleCreate(true)}
+                  disabled={isPending}
                   activeOpacity={0.8}
                 >
                   {isPending
                     ? <ActivityIndicator color={colors.white} size="small" />
-                    : <Text style={styles.confirmBtnText}>{t.logBtn}</Text>}
+                    : <Text style={styles.typeBtnText}>{t.addActivityTimedBtn}</Text>}
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.noTimerBtn}
-                  onPress={handleLogNoTimer}
+                  onPress={() => handleCreate(false)}
                   disabled={isPending}
                 >
                   <Text style={styles.noTimerText}>{t.addActivityNoTimer}</Text>
@@ -341,18 +283,12 @@ function makeStyles(C: AppColors) {
       ...Typography.bodyStrong, color: C.inkDark,
       marginBottom: Spacing.sm,
     },
-    durationInputField: {
-      backgroundColor: C.surface2, color: C.inkDark, padding: 14,
-      borderRadius: Radii.md, fontSize: 18, fontWeight: '700',
-      borderWidth: 1.5, borderColor: C.line2,
-      marginBottom: Spacing.md, textAlign: 'center',
-    },
-    confirmBtn: {
+    typeBtn: {
       backgroundColor: C.primary, borderRadius: Radii.md,
-      paddingVertical: 14, alignItems: 'center', marginBottom: Spacing.sm,
+      paddingVertical: 16, alignItems: 'center', marginBottom: Spacing.sm,
     },
     confirmBtnDisabled: { backgroundColor: C.line2 },
-    confirmBtnText: { color: C.white, fontSize: 15, fontWeight: '700' },
+    typeBtnText: { color: C.white, fontSize: 15, fontWeight: '700' },
     noTimerBtn: {
       alignItems: 'center', paddingVertical: 12,
     },
