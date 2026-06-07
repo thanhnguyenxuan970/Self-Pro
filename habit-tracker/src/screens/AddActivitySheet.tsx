@@ -4,7 +4,6 @@ import {
   Alert, StyleSheet, ActivityIndicator, Animated, ScrollView,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { useTodayTasks } from '../queries/useToday';
 import { useCreateTask } from '../queries/useTasks';
 import { cueModalOpen, cueModalClose } from '../audio/uiSounds';
 import { useAuthUser } from '../hooks/useAuth';
@@ -20,7 +19,6 @@ export function AddActivitySheet({ visible, onClose }: Props) {
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const { data: existingTasks = [] } = useTodayTasks(userId);
   const createTask = useCreateTask(userId);
 
   const [name, setName] = useState('');
@@ -84,22 +82,7 @@ export function AddActivitySheet({ visible, onClose }: Props) {
     }
   }
 
-  const existingNames = useMemo(
-    () => new Set(existingTasks.map(task => task.name.toLowerCase())),
-    [existingTasks]
-  );
-
-  const suggestions = useMemo(() => {
-    const result: TemplateTask[] = [];
-    for (const cat of TEMPLATE_CATEGORIES) {
-      for (const task of cat.tasks) {
-        if (!existingNames.has(task.name.toLowerCase())) {
-          result.push(task);
-        }
-      }
-    }
-    return result;
-  }, [existingNames]);
+  const suggestions = useMemo(() => TEMPLATE_CATEGORIES.flatMap(c => c.tasks), []);
 
   const hasName = name.trim().length > 0;
   const isPending = createTask.isPending;

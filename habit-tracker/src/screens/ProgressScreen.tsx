@@ -166,27 +166,29 @@ export function ProgressScreen() {
           ))}
         </View>
 
-        {/* Period navigation */}
-        <View style={styles.periodNav}>
-          <TouchableOpacity style={styles.navBtn} onPress={() => setOffset(o => o - 1)}>
-            <Text style={styles.navBtnText}>{t.prevPeriod}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.periodLabelBtn}
-            onPress={() => setOffset(0)}
-            disabled={offset === 0}
-          >
-            <Text style={styles.periodLabelTxt}>{periodLabel}</Text>
-            {offset !== 0 && <Text style={styles.periodResetHint}>{t.currentPeriod} →</Text>}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.navBtn, offset === 0 && styles.navBtnDisabled]}
-            onPress={() => setOffset(o => Math.min(0, o + 1))}
-            disabled={offset === 0}
-          >
-            <Text style={[styles.navBtnText, offset === 0 && styles.navBtnTextDisabled]}>{t.nextPeriod}</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Period navigation — hidden for Year (locked to current year) */}
+        {range !== 'Y' && (
+          <View style={styles.periodNav}>
+            <TouchableOpacity style={styles.navBtn} onPress={() => setOffset(o => o - 1)}>
+              <Text style={styles.navBtnText}>{t.prevPeriod}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.periodLabelBtn}
+              onPress={() => setOffset(0)}
+              disabled={offset === 0}
+            >
+              <Text style={styles.periodLabelTxt}>{periodLabel}</Text>
+              {offset !== 0 && <Text style={styles.periodResetHint}>{t.currentPeriod} →</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.navBtn, offset === 0 && styles.navBtnDisabled]}
+              onPress={() => setOffset(o => Math.min(0, o + 1))}
+              disabled={offset === 0}
+            >
+              <Text style={[styles.navBtnText, offset === 0 && styles.navBtnTextDisabled]}>{t.nextPeriod}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Chart card */}
         <View style={styles.card}>

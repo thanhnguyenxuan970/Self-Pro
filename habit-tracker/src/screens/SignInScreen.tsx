@@ -22,9 +22,7 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
     if (!googleAvailable) {
       Alert.alert(
         'Development Build Required',
-        'Google Sign-In requires a native build.\n\n' +
-        'Run: npx expo run:android\n\n' +
-        'Or use ⚡ Dev Login below to test the app.'
+        'Google Sign-In requires a native build.\n\nRun: npx expo run:android'
       );
       return;
     }
@@ -119,25 +117,6 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
             {!googleAvailable && (
               <Text style={styles.buildHint}>Requires native build (expo run:android)</Text>
             )}
-            {__DEV__ && (
-              <TouchableOpacity
-                style={styles.devButton}
-                onPress={async () => {
-                  setLoading(true);
-                  try {
-                    const isNew = await onSignInWithGoogle({ email: 'dev@habitring.app', name: 'Dev User', picture: '' });
-                    if (isNew) onSignIn();
-                  } catch {
-                    Alert.alert(t.error, 'Dev login failed');
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.devButtonText}>⚡ Dev Login (skip Google)</Text>
-              </TouchableOpacity>
-            )}
           </>
         )}
 
@@ -194,15 +173,6 @@ function makeStyles(C: AppColors) {
       marginTop: 6,
       textAlign: 'center',
     },
-    devButton: {
-      marginTop: Spacing.sm,
-      paddingVertical: 10,
-      paddingHorizontal: Spacing.md,
-      borderRadius: Radii.md,
-      backgroundColor: '#1a1a2e',
-      alignItems: 'center',
-    },
-    devButtonText: { color: '#00ff88', fontSize: 13, fontWeight: '600' },
     hint: {
       ...Typography.caption,
       color: C.faint,

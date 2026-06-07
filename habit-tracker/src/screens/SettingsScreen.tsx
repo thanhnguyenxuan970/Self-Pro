@@ -250,7 +250,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
         <View style={styles.card}>
           <TouchableOpacity
             style={[styles.row, styles.rowLast]}
-            onPress={() => Linking.openURL('mailto:thanhnguyenxuan970@gmail.com?subject=Habit%20Tracker%20Feedback').catch(() => {})}
+            onPress={() => Linking.openURL('https://forms.gle/REPLACE_WITH_YOUR_FORM_ID').catch(() => {})}
             activeOpacity={0.7}
           >
             <Text style={styles.rowIc}>📬</Text>

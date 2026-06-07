@@ -502,3 +502,31 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---
+
+## Habit Tracker — Product Fixes & Refinements COMPLETE (2026-06-07)
+
+### What Was Fixed
+
+- **`src/screens/ProgressScreen.tsx`**: Year range period nav hidden. When `range === 'Y'`, prev/next arrows and period label are not rendered — always locked to current year (offset resets to 0 on range switch, which already existed). Eliminates confusion from navigating into years with no data.
+- **`src/screens/AddActivitySheet.tsx`**: Removed `existingNames` filter from suggestion chips. All template activities always shown regardless of whether already added — prevents suggestions disappearing after first use. Also removed unused `useTodayTasks` import. `suggestions` useMemo simplified to `TEMPLATE_CATEGORIES.flatMap(c => c.tasks)`.
+- **`src/screens/SignInScreen.tsx`**: Removed `__DEV__` dev login block entirely (button + styles). Google authentication is now the only auth path. Updated alert message that referenced dev login.
+- **`src/screens/SettingsScreen.tsx`**: Feedback button changed from `mailto:` to Google Forms URL (`https://forms.gle/REPLACE_WITH_YOUR_FORM_ID`).
+
+### Feedback System Decision
+**Replaced email with Google Forms.** Rationale: no email client required on user device; responses auto-aggregate to Google Sheets; Apps Script / Zapier / Make can automate tagging and routing; free; reporters need no account. Alternative considered: GitHub Issues (better for devs, requires GitHub account for reporters — not suitable for end users).
+
+### Key Decisions
+- Year lock: hiding nav (not disabling) is cleaner UX — no grayed arrows to confuse. Offset already resets on range change.
+- Suggestions always-show: `INSERT OR IGNORE` on task creation handles duplicates at DB level; showing existing templates gives user quick re-access to already-created habits.
+- Dev login removal: production binary should enforce real auth. If you need dev testing, use a real Google account on an emulator.
+
+### [NEEDS USER] Before shipping feedback button
+1. Create a Google Form at forms.google.com with fields: Type (Bug/Suggestion/Other), Description, Contact (optional).
+2. Get the short URL: Share → Get link → shorten to `forms.gle/...`.
+3. Replace `'https://forms.gle/REPLACE_WITH_YOUR_FORM_ID'` in `src/screens/SettingsScreen.tsx`.
+4. Optionally: set up a Google Sheets trigger to email/Slack you on new response.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
