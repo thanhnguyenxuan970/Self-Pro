@@ -474,3 +474,21 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 | `Unable to load script` on emulator | Metro process dead or stale node on port 8081 | `Stop-Process -Id <PID> -Force`; `start cmd /k "npx expo start"`; `adb reverse tcp:8081 tcp:8081`; `adb shell am force-stop com.habitring.app && adb shell am start -n com.habitring.app/.MainActivity` |
 
 ---
+
+## Habit Tracker — Chart Padding + Duration Chips COMPLETE (2026-06-07)
+
+### What Was Fixed / Built
+
+- **`src/queries/useProgress.ts`**: `useProgressData` now pads chart buckets to fill the full expected range — weekly shows all 7 days (Mon–Sun), daily shows 00h to current hour, monthly shows day 1 to today, yearly shows Jan to current month. Added `fmtDate` helper + `padBuckets` function. Rows from SQL merged into skeleton via Map lookup; missing days default to `{ goodStars: 0, badStars: 0 }`.
+- **`src/screens/AddActivitySheet.tsx`**: Step 2 replaces the Timed/No-Timer binary with duration chips (15 phút, 30 phút, 45 phút, 1 giờ, 2 giờ) + "Không hẹn giờ" text button. All timed chips call `handleCreate(true)`; no-timer calls `handleCreate(false)`. Labels built from `t.unitMin.toLowerCase()` / `t.unitHour.toLowerCase()` for correct case ("15 phút" not "15 Phút").
+
+### Key Decisions
+- Chart padding done in `queryFn` (not component useMemo) — data arrives pre-padded, `tickValues` and `tickFormat` stay consistent with full range.
+- Monthly + daily padding capped at "today" (no future buckets shown) to keep chart honest.
+- Duration chips are visual shortcuts for `isTimeBased` only — actual logged duration is still entered at log time from TodayScreen. Keeps creation intent separate from logging intent.
+- `.toLowerCase()` on i18n unit labels — `unitMin: 'Phút'` (titlecase) looks wrong mid-label; lowercase matches natural Vietnamese usage.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---

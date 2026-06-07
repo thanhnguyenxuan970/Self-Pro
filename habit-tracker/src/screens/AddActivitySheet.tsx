@@ -187,16 +187,22 @@ export function AddActivitySheet({ visible, onClose }: Props) {
               <View style={styles.durationBody}>
                 <Text style={styles.durationLabel}>{t.addActivityHowLong}</Text>
 
-                <TouchableOpacity
-                  style={[styles.typeBtn, isPending && styles.confirmBtnDisabled]}
-                  onPress={() => handleCreate(true)}
-                  disabled={isPending}
-                  activeOpacity={0.8}
-                >
-                  {isPending
-                    ? <ActivityIndicator color={colors.white} size="small" />
-                    : <Text style={styles.typeBtnText}>{t.addActivityTimedBtn}</Text>}
-                </TouchableOpacity>
+                {isPending ? (
+                  <ActivityIndicator color={colors.primary} size="small" style={styles.chipSpinner} />
+                ) : (
+                  <View style={styles.durationChipsWrap}>
+                    {[`15 ${t.unitMin.toLowerCase()}`, `30 ${t.unitMin.toLowerCase()}`, `45 ${t.unitMin.toLowerCase()}`, `1 ${t.unitHour.toLowerCase()}`, `2 ${t.unitHour.toLowerCase()}`].map(label => (
+                      <TouchableOpacity
+                        key={label}
+                        style={styles.durationChip}
+                        onPress={() => handleCreate(true)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.durationChipText}>{label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
 
                 <TouchableOpacity
                   style={styles.noTimerBtn}
@@ -283,12 +289,14 @@ function makeStyles(C: AppColors) {
       ...Typography.bodyStrong, color: C.inkDark,
       marginBottom: Spacing.sm,
     },
-    typeBtn: {
+    durationChipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: Spacing.md },
+    durationChip: {
       backgroundColor: C.primary, borderRadius: Radii.md,
-      paddingVertical: 16, alignItems: 'center', marginBottom: Spacing.sm,
+      paddingVertical: 13, paddingHorizontal: 20,
+      alignItems: 'center', justifyContent: 'center',
     },
-    confirmBtnDisabled: { backgroundColor: C.line2 },
-    typeBtnText: { color: C.white, fontSize: 15, fontWeight: '700' },
+    durationChipText: { color: C.white, fontSize: 15, fontWeight: '700' },
+    chipSpinner: { marginVertical: Spacing.lg },
     noTimerBtn: {
       alignItems: 'center', paddingVertical: 12,
     },

@@ -72,8 +72,61 @@ export function useProgressData(userId: number, range: 'D' | 'W' | 'M' | 'Y', of
       }
 
       const rows = await db.getAllAsync<ChartBucket>(sql, params);
-      return rows;
+      return padBuckets(rows, range, { effectiveWeekStart, effectiveMonth, effectiveYear, offset });
     },
+  });
+}
+
+function fmtDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function padBuckets(
+  rows: ChartBucket[],
+  range: 'D' | 'W' | 'M' | 'Y',
+  ctx: { effectiveWeekStart: string; effectiveMonth: string; effectiveYear: string; offset: number }
+): ChartBucket[] {
+  const empty = (bucket: string): ChartBucket => ({ bucket, goodStars: 0, badStars: 0 });
+
+  if (range === 'W') {
+    const map = new Map(rows.map(r => [r.bucket, r]));
+    const [y, m, d] = ctx.effectiveWeekStart.split('-').map(Number);
+    return Array.from({ length: 7 }, (_, i) => {
+      const key = fmtDate(new Date(y, m - 1, d + i));
+      return map.get(key) ?? empty(key);
+    });
+  }
+
+  if (range === 'D') {
+    const map = new Map(rows.map(r => [r.bucket, r]));
+    const maxHour = ctx.offset === 0 ? new Date().getHours() : 23;
+    return Array.from({ length: maxHour + 1 }, (_, h) => {
+      const key = String(h).padStart(2, '0');
+      return map.get(key) ?? empty(key);
+    });
+  }
+
+  if (range === 'M') {
+    const map = new Map(rows.map(r => [r.bucket, r]));
+    const [y, mo] = ctx.effectiveMonth.split('-').map(Number);
+    const daysInMonth = new Date(y, mo, 0).getDate();
+    const maxDay = ctx.offset === 0 ? Math.min(new Date().getDate(), daysInMonth) : daysInMonth;
+    return Array.from({ length: maxDay }, (_, i) => {
+      const key = `${y}-${String(mo).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
+      return map.get(key) ?? empty(key);
+    });
+  }
+
+  // 'Y'
+  const map = new Map(rows.map(r => [r.bucket, r]));
+  const year = Number(ctx.effectiveYear);
+  const maxMonth = ctx.offset === 0 ? new Date().getMonth() + 1 : 12;
+  return Array.from({ length: maxMonth }, (_, i) => {
+    const key = `${year}-${String(i + 1).padStart(2, '0')}`;
+    return map.get(key) ?? empty(key);
   });
 }
 
