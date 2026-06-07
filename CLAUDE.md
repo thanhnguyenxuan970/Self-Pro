@@ -480,12 +480,13 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 ### What Was Fixed / Built
 
 - **`src/queries/useProgress.ts`**: `useProgressData` now pads chart buckets to fill the full expected range — weekly shows all 7 days (Mon–Sun), daily shows 00h to current hour, monthly shows day 1 to today, yearly shows Jan to current month. Added `fmtDate` helper + `padBuckets` function. Rows from SQL merged into skeleton via Map lookup; missing days default to `{ goodStars: 0, badStars: 0 }`.
-- **`src/screens/AddActivitySheet.tsx`**: Step 2 replaces the Timed/No-Timer binary with duration chips (15 phút, 30 phút, 45 phút, 1 giờ, 2 giờ) + "Không hẹn giờ" text button. All timed chips call `handleCreate(true)`; no-timer calls `handleCreate(false)`. Labels built from `t.unitMin.toLowerCase()` / `t.unitHour.toLowerCase()` for correct case ("15 phút" not "15 Phút").
+- **`src/screens/AddActivitySheet.tsx`**: Eliminated 2-step flow entirely. Now a single screen: name input → suggestion chips → duration chips (always visible, grayed until name entered). Tapping a suggestion fills the name inline (no step navigation). Duration chips `disabled={!hasName}` give visual feedback. Labels use `t.unitMin.toLowerCase()` for correct case ("15 phút" not "15 Phút"). Removed: `step` state, `handleNext`, `handleBack`, `→` button, all Step 2 header styles.
 
 ### Key Decisions
 - Chart padding done in `queryFn` (not component useMemo) — data arrives pre-padded, `tickValues` and `tickFormat` stay consistent with full range.
 - Monthly + daily padding capped at "today" (no future buckets shown) to keep chart honest.
-- Duration chips are visual shortcuts for `isTimeBased` only — actual logged duration is still entered at log time from TodayScreen. Keeps creation intent separate from logging intent.
+- Single-step flow: user said "skip the 'Bao lâu?' step (what they called 'Set Reminder') and jump directly to time selection." Eliminating the step means duration chips appear inline — no intermediate navigation screen.
+- Duration chips are visual shortcuts for `isTimeBased` only — actual logged duration is still entered at log time from TodayScreen.
 - `.toLowerCase()` on i18n unit labels — `unitMin: 'Phút'` (titlecase) looks wrong mid-label; lowercase matches natural Vietnamese usage.
 
 ### Test Results
