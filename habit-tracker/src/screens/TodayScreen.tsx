@@ -291,13 +291,14 @@ export function TodayScreen() {
     } catch { Alert.alert(t.error, t.cantLog); }
   }
 
-  async function handleSuggestionLog(task: { id: number; name: string; kind: string; is_time_based: number; base_points: number; star_penalty: number }) {
+  async function handleSuggestionLog(task: { id: number; name: string; kind: string; is_time_based: number; base_points: number; star_penalty: number; icon: string | null }) {
     if (loggedIds?.has(task.id)) return;
+    if (task.is_time_based) { setModalTask({ ...task, category_id: null, sort_order: 0 }); return; }
     try {
       const result = await logTask.mutateAsync({
         taskTypeId: task.id,
         kind: task.kind as 'GOOD' | 'BAD',
-        isTimeBased: !!task.is_time_based,
+        isTimeBased: false,
         basePoints: task.base_points,
         starPenalty: task.star_penalty,
       });

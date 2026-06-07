@@ -130,45 +130,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
----
-
-## Habit Tracker — mascotRef.playRankUp() Wired + Rank Invalidation Fix COMPLETE (2026-06-04)
-
-### What Was Built / Fixed
-- **`src/lib/rankMascotBridge.ts`** (new): Module singleton `{ ref: RefObject<RankMascotHandle | null> | null }`. Lets `useLogTask.onSuccess` (query layer, no React context) call `playRankUp()` on the hero mascot mounted in `RankScreen`.
-- **`src/queries/useToday.ts`**: `didRankUp` flag hoisted outside `withTransactionAsync` — set `true` when `newUnlocks.length > 0`. Returned in mutation result. `onSuccess` calls `rankMascotBridge.ref?.current?.playRankUp()` when `didRankUp`. Also added missing `qc.invalidateQueries({ queryKey: ['rank'] })` — `useRankData` was never refreshed after task logging, causing RankScreen to show stale star counts indefinitely.
-- **`src/screens/RankScreen.tsx`**: `useEffect([], [])` registers `mascotRef` into bridge on mount, clears on unmount.
-
-### Key Decisions
-- Bridge stores `RefObject` (not `.current`) — ref object is stable; bridge always reads the live `.current` at call time.
-- `useEffect` empty deps with `// mascotRef is stable — empty deps intentional` comment — `useRef` returns stable object, no dep needed.
-- `playRankUp()` called on currently-mounted mascot: fires correctly for tier 2+ rank-ups (mascot already visible). For first unlock (0→5★), mascot isn't rendered yet so `.current` is null — optional chaining silently no-ops; animation fires on next rank-up.
-- `['rank']` added to `useLogTask.onSuccess` invalidation list — pre-existing gap; required for RankScreen to update live after logging.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
-
----
-
-## Habit Tracker — Per-Tier Rank-Up Sound Effects COMPLETE (2026-06-04)
-
-### What Was Built
-- **`src/assets/sounds/ranks/`** (new): 7 tier-specific MP3s copied from `Docs/rank/rank_sound_up/` — `delulu-up.mp3` through `goated-up.mp3`.
-- **`src/logic/rankSound.ts`** (new): `playRankSound(tier)` — static `require()` map (Metro bundling constraint), lazy `require('expo-audio')` in try-catch, `createAudioPlayer(source)` + `player.play()`, cleanup via `player.remove()` after 1.1s.
-- **`expo-audio`** added to dependencies via `expo install expo-audio`.
-- **`src/components/RankMascot.tsx`**: `playRankUp()` now fires haptic first, then `setTimeout(() => playRankSound(rank.tier), 50)` — 50ms delay compensates for haptic motor latency per spec.
-
-### Key Decisions
-- Static `require()` map (not dynamic) — Metro bundler requires literal `require()` at build time for asset bundling; dynamic paths are not resolvable.
-- `createAudioPlayer` (not `new AudioPlayer()`) — `AudioPlayer` class not exported from `expo-audio` top-level index; `createAudioPlayer` is the correct imperative API (exported from `ExpoAudio.d.ts`).
-- Lazy `require('expo-audio')` inside try-catch — consistent with codebase pattern for native modules (expo-secure-store, google-signin). Non-fatal if native module absent.
-- `sfx` field in `ranks.config.ts` uses `'main-character'` but file is `main-char-up.mp3` — static map resolves this at tier index (tier 5 → `main-char-up.mp3`) without renaming either.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
-
----
-
 ## Habit Tracker — UI Sound Effects (P1 + P2) COMPLETE (2026-06-04)
 
 ### What Was Built
@@ -489,6 +450,21 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 ### Key Decisions
 - Single `useMemo` for all 4 chart arrays: one `[chartData]` dep handles `goodData`/`badData`/`totalSum`/`tickValues` atomically.
 - `animate={false}` correct for v36: VictoryNative v36 animations run on JS thread via react-spring — disabling removes "JS thread busy" dev-console warnings without visual regression.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---
+
+## Habit Tracker — Timed Suggestion Log Bug Fix COMPLETE (2026-06-07)
+
+### What Was Fixed
+- **`src/screens/TodayScreen.tsx`**: `handleSuggestionLog` now opens duration modal for timed tasks instead of logging directly with `durationMin: undefined`. Added `icon: string | null` to parameter type to match `SuggestedTask`. Spread + `{ category_id: null, sort_order: 0 }` fills `Task` shape for modal.
+
+### Key Decisions
+- Bug: timed suggestion (Study/Sports) logged with `durationMin: undefined` → `Math.max(1, floor(0/TIME_UNIT))` = 1pt/1★ always, ignoring actual duration.
+- Fix routes timed suggestions through existing duration modal (same path as timed task-list items). Non-timed path unchanged; `isTimeBased: false` hardcoded since branch is now guaranteed non-timed.
+- After modal log, suggestion chip disappears via `loggedIds` query invalidation — `setDismissedSuggestions` not needed for timed path.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
