@@ -468,3 +468,9 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `Unable to load script` on emulator | Metro process dead or stale node on port 8081 | `Stop-Process -Id <PID> -Force`; `start cmd /k "npx expo start"`; `adb reverse tcp:8081 tcp:8081`; `adb shell am force-stop com.habitring.app && adb shell am start -n com.habitring.app/.MainActivity` |
+
+---
