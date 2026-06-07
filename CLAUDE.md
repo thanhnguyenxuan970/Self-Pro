@@ -485,3 +485,20 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---
+
+## Habit Tracker — Analytics X-Axis Tick Fix COMPLETE (2026-06-07)
+
+### What Was Fixed
+- **`src/screens/ProgressScreen.tsx`**: `visibleTicks` useMemo rewritten to eliminate two X-axis UI glitches:
+  - **D range**: Removed `|| i === tickValues.length - 1` — previously appended "23h" as last label on past days, breaking the clean every-3h pattern (21h → 23h = 2h gap vs expected 3h).
+  - **M range**: Replaced fixed step-5 with dynamic step (step=3 when ≤10 days, step=5 otherwise). Last tick only appended when gap to previous sparse tick is `> step / 2` — prevents "06"/"07" crowding when early in the month.
+
+### Key Decisions
+- D range: drop always-append-last. `i % 3 === 0` is sufficient — hour 21 is the natural last clean tick for a 24h chart; forcing "23h" creates an irregular 2h gap.
+- M range: dynamic step because a 7-day chart needs denser labels (step-3 → "01","04","07") than a 30-day chart (step-5 → "01","06",...). Gap threshold `> step/2` prevents adjacent label cramming while allowing meaningful last ticks.
+- Unreachable dead-code guard (`!sparse.length`) removed — `i%step===0` always matches index 0 when `tickValues` is non-empty.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass

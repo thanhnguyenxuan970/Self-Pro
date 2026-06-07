@@ -137,8 +137,14 @@ export function ProgressScreen() {
 
   // Decimate ticks for dense ranges so X-axis labels don't overlap
   const visibleTicks = useMemo(() => {
-    if (range === 'D') return tickValues.filter((_, i) => i % 3 === 0 || i === tickValues.length - 1);
-    if (range === 'M') return tickValues.filter((_, i) => i % 5 === 0 || i === tickValues.length - 1);
+    if (range === 'D') return tickValues.filter((_, i) => i % 3 === 0);
+    if (range === 'M') {
+      const step = tickValues.length <= 10 ? 3 : 5;
+      const sparse = tickValues.filter((_, i) => i % step === 0);
+      const last = tickValues[tickValues.length - 1];
+      // append last only when the gap is more than half a step to avoid crowding
+      return last - sparse[sparse.length - 1] > step / 2 ? [...sparse, last] : sparse;
+    }
     return tickValues;
   }, [range, tickValues]);
 
