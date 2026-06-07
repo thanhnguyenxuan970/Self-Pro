@@ -130,29 +130,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker — UI Sound Effects (P1 + P2) COMPLETE (2026-06-04)
-
-### What Was Built
-- **`src/assets/sounds/`**: 5 new MP3s from `Docs/sound/` — `modal-open.mp3`, `modal-close.mp3`, `streak-milestone.mp3`, `treat-claim.mp3`, `error-invalid.mp3`. `chip-confirm.mp3` sourced from `level1.mp3` (placeholder — swap with spec file without code change).
-- **`src/audio/audioEnabled.ts`** (new, created by hook): `setAudioEnabled(bool)` / `isAudioEnabled()` — module-level toggle for muting all UI sounds.
-- **`src/audio/uiSounds.ts`** (new): Static `require()` map + `playOne(cue)` using `expo-audio`'s `createAudioPlayer` (same pattern as `rankSound.ts`). Exports: `cueChipConfirm`, `cueTreatClaim`, `cueStreakMilestone`, `cueModalOpen`, `cueModalClose`, `cueErrorInvalid`. Haptics bundled per spec timing. Guards `isAudioEnabled()`.
-- **`DurationChips.tsx`**: `commit()` → `cueChipConfirm()` after existing Light Impact — sound at t=10ms.
-- **`FundScreen.tsx`**: `handleEnjoy` success → `cueTreatClaim()` — Medium Impact t=0, sound t=50ms.
-- **`TodayScreen.tsx`**: `showStreakToast()` → `cueStreakMilestone()` only when `[3, 7, 30].includes(newStreak)`.
-- **`LogActivitySheet.tsx`**: `useEffect([visible])` → `cueModalOpen()` on open; `handleClose()` → `cueModalClose()` before animation.
-
-### Key Decisions
-- `expo-audio` `createAudioPlayer` used (not `expo-av`) — `expo-av` removed Day 19 (`ClassNotFoundException: LazyKType` on SDK 56).
-- Haptics bundled inside cue functions (not caller-side), except `cueChipConfirm` which defers to caller's existing Light Impact.
-- `[3, 7, 30].includes(newStreak)` guard — toast fires on every increment, sound only on milestone days per spec.
-- `chip-confirm.mp3` = `level1.mp3` copy — placeholder; swap without code change.
-- `CLEANUP_MS = 1100` — 700ms buffer over longest cue (400ms); consistent with `rankSound.ts`.
-
-### Test Results (after all changes)
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
-
----
-
 ## Habit Tracker — UI/UX Updates (2026-06-04)
 
 ### What Was Built / Fixed
@@ -493,3 +470,18 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
 
 ---
+
+## Habit Tracker — Analytics Chart Fix COMPLETE (2026-06-07)
+
+### What Was Fixed
+- **`src/screens/ProgressScreen.tsx`**: Added `useWindowDimensions` + `chartWidth = windowWidth - 70`. Passed as `width={chartWidth}` to `VictoryChart` — fixes chart overflowing card + Victory's broken domain calculation when width was undefined.
+- **`src/screens/ProgressScreen.tsx`**: `totalSum === 0` added to empty-state guard — when all buckets are zero (no activity today), shows "Chưa có hoạt động nào" instead of VictoryChart with degenerate Y-domain producing garbage axis labels.
+- **`src/screens/ProgressScreen.tsx`**: `visibleTicks` memoized — daily decimates to every 3rd hour, monthly every 5th day. Prevents X-axis label crowding.
+
+### Key Decisions
+- `useWindowDimensions` (not `Dimensions.get`) — hook re-runs on rotation.
+- `totalSum === 0` empty-state guard preferred over `minDomain`/`domain` — avoids fighting Victory's stacking domain logic; zero-bar chart has no UX value anyway.
+- `tickFormat(tv)` still uses `tv - 1` index — correct because `visibleTicks` is a subset of the same 1-based values; Victory passes the original tick value, not the subset index.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass

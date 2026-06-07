@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { VictoryChart, VictoryBar, VictoryStack, VictoryAxis } from 'victory-native';
 import {
@@ -21,6 +21,9 @@ export function ProgressScreen() {
   const { colors } = useTheme();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  const { width: windowWidth } = useWindowDimensions();
+  const chartWidth = windowWidth - 70;
 
   const [range, setRange] = useState<Range>('W');
   const [offset, setOffset] = useState(0);
@@ -132,6 +135,13 @@ export function ProgressScreen() {
     return { totalSum: sum, goodData: good, badData: bad, tickValues: ticks };
   }, [chartData]);
 
+  // Decimate ticks for dense ranges so X-axis labels don't overlap
+  const visibleTicks = useMemo(() => {
+    if (range === 'D') return tickValues.filter((_, i) => i % 3 === 0 || i === tickValues.length - 1);
+    if (range === 'M') return tickValues.filter((_, i) => i % 5 === 0 || i === tickValues.length - 1);
+    return tickValues;
+  }, [range, tickValues]);
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
@@ -181,18 +191,19 @@ export function ProgressScreen() {
           <View style={styles.chartWrap}>
             {isLoading ? (
               <ActivityIndicator color={colors.primary} />
-            ) : chartData.length === 0 ? (
+            ) : chartData.length === 0 || totalSum === 0 ? (
               <View style={styles.emptyChart}>
                 <Text style={styles.emptyText}>{t.noActivityYet}</Text>
               </View>
             ) : (
               <VictoryChart
+                width={chartWidth}
                 height={190}
                 padding={{ top: 10, bottom: 36, left: 36, right: 12 }}
                 animate={false}
               >
                 <VictoryAxis
-                  tickValues={tickValues}
+                  tickValues={visibleTicks}
                   tickFormat={tickFormat}
                   style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.muted, fontSize: 9.5, fontWeight: '600' } }}
                 />
