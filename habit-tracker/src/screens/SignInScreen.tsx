@@ -1,5 +1,5 @@
-import React, { useState, useRef, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, NativeModules } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { GoogleUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
@@ -12,68 +12,37 @@ type Props = {
 
 export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
   const [loading, setLoading] = useState(false);
-  const configuredRef = useRef(false);
   const { colors } = useTheme();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const googleAvailable = !!NativeModules.RNGoogleSignin;
 
-  async function handleGoogleSignIn() {
-    if (!googleAvailable) {
-      Alert.alert(
-        'Development Build Required',
-        'Google Sign-In requires a native build.\n\nRun: npx expo run:android'
-      );
-      return;
-    }
+  const handleGoogleSignIn = async () => {
     setLoading(true);
+    // require() at call-time — avoids TurboModule registration race at bundle load
+    const { GoogleSignin, statusCodes } = require('@react-native-google-signin/google-signin');
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } =
-        require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
-      if (!configuredRef.current) {
-        GoogleSignin.configure({
-          webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-        });
-        configuredRef.current = true;
+      GoogleSignin.configure({ webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID });
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const response = await GoogleSignin.signIn();
+      const user = response.data?.user;
+      if (!user?.email || !user?.name) {
+        Alert.alert(t.error, t.signInMissingInfo);
+        return;
       }
-      try {
-        await GoogleSignin.hasPlayServices();
-        try { await GoogleSignin.signOut(); } catch {}
-        const res = await GoogleSignin.signIn();
-        if (isSuccessResponse(res)) {
-          const { email, name, photo } = res.data.user;
-          const idToken = res.data.idToken ?? undefined;
-          if (!email || !name) {
-            Alert.alert(t.error, t.signInMissingInfo);
-            return;
-          }
-          const isNew = await onSignInWithGoogle({ email, name, picture: photo ?? '' }, idToken);
-          if (isNew) onSignIn();
-        }
-      } catch (error: unknown) {
-        if (isErrorWithCode(error)) {
-          if (error.code === statusCodes.SIGN_IN_CANCELLED) return;
-          if (error.code === statusCodes.IN_PROGRESS) return;
-          if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-            Alert.alert(t.error, t.signInNoPlayServices);
-            return;
-          }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if ((error as any).code === 10) {
-            Alert.alert(t.error, 'Google OAuth not configured for this build. Add debug SHA-1 to Firebase → Android app → Fingerprints, then re-download google-services.json.');
-            return;
-          }
-        }
-        const msg = error instanceof Error ? `${(error as { code?: unknown }).code ?? ''}: ${error.message}` : String(error);
-        Alert.alert(t.error, msg);
+      const isNew = await onSignInWithGoogle(
+        { email: user.email, name: user.name, picture: user.photo ?? '' },
+        response.data?.idToken ?? undefined,
+      );
+      if (isNew) onSignIn();
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code;
+      if (code !== statusCodes.SIGN_IN_CANCELLED) {
+        Alert.alert(t.error, err instanceof Error ? err.message : String(err));
       }
-    } catch {
-      Alert.alert(t.error, t.signInLibError);
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
     <View style={styles.container}>
@@ -104,20 +73,15 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
         {loading ? (
           <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: Spacing.xl }} />
         ) : (
-          <>
-            <TouchableOpacity
-              style={[styles.googleButton, !googleAvailable && styles.googleButtonDisabled]}
-              onPress={handleGoogleSignIn}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.googleIcon}>G</Text>
-              <Text style={styles.googleButtonText}>Đăng nhập bằng Google</Text>
-            </TouchableOpacity>
-            {!googleAvailable && (
-              <Text style={styles.buildHint}>Requires native build (expo run:android)</Text>
-            )}
-          </>
+          <TouchableOpacity
+            style={styles.googleButton}
+            onPress={handleGoogleSignIn}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.googleIcon}>G</Text>
+            <Text style={styles.googleButtonText}>Đăng nhập bằng Google</Text>
+          </TouchableOpacity>
         )}
 
         <Text style={styles.hint}>MVP · Xác thực qua Google · Dữ liệu lưu trên máy</Text>
@@ -162,17 +126,8 @@ function makeStyles(C: AppColors) {
       borderColor: C.line,
       ...Shadows.light,
     },
-    googleButtonDisabled: {
-      opacity: 0.5,
-    },
     googleIcon: { fontSize: 18, fontWeight: '700', color: '#4285F4', marginRight: 10 },
     googleButtonText: { color: C.inkDark, fontWeight: '600', fontSize: 16 },
-    buildHint: {
-      ...Typography.caption,
-      color: C.muted,
-      marginTop: 6,
-      textAlign: 'center',
-    },
     hint: {
       ...Typography.caption,
       color: C.faint,

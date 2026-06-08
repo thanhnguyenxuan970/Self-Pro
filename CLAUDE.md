@@ -91,11 +91,11 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 
 **Status:** Tier 2 Core Interactions COMPLETE (2026-06-03). Code lives at `c:\Users\Admin\Desktop\Self-Pro\habit-tracker\`.
 
-**Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29 + expo-auth-session v5 + expo-web-browser
+**Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29 + @react-native-google-signin v13+
 
 **Data model:** append-only `activity_log` as source of truth; derived rollups via `daily_summary` / `weekly_summary`.
 
-**Navigation:** 5 bottom tabs + center FAB — Home (🏠), Analytics (📊), [+FAB], Fund (💰), Rank (🏆). ProfileScreen accessed via avatar tap (modal). Auth gate: `googleUser !== null && isOnboarded` → AppStack; else → SignIn → Onboarding.
+**Navigation:** 5 bottom tabs + center FAB — Home (🏠), Calendar (🗓), [+FAB], Analytics (📊), Rank (🏆). ProfileScreen accessed via avatar tap (modal). Auth gate: `googleUser !== null && isOnboarded` → AppStack; else → SignIn → Onboarding.
 
 **State:** TanStack Query over local DB; each log mutation invalidates `today`, `week`, `fund`, `progress` queries.
 
@@ -127,88 +127,18 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 | `RNGoogleSignin: 'androidClientId' is not a valid configuration parameter` | `@react-native-google-signin` v13+ removed `androidClientId` from `configure()`; Android reads client ID from `google-services.json` | Remove `androidClientId` from `GoogleSignin.configure()` call |
 | `connectAnimatedNodes: Animated node with tag (parent) [76] does not exist` | `enableScreens()` never called; Fabric batch-dispatches animated node commands before tab bar parent node is registered on native side | Call `enableScreens()` from `react-native-screens` at module level in `index.ts` before `registerRootComponent` |
 | `Requiring unknown module '2289'` | `await import('@react-native-google-signin')` creates async Metro chunk; internal requires reference IDs absent from that chunk | Use `require(...)` inside async function body; `await import()` is for local TS modules only |
+| `None of these files exist: * src\theme(...)` | Metro stale module graph from path moves during restructure | Delete `%TEMP%\metro-cache` + `%TEMP%\metro-file-map-expo-*`; or `expo start --clear` |
+| `DEVELOPER_ERROR code 10` from `GoogleSignin.signIn()` | `android/app/google-services.json` has empty `oauth_client: []` — Android OAuth client not registered | Add Android OAuth client entry (`client_type: 1`, `package_name`, `certificate_hash` SHA-1 no colons lowercase) to `google-services.json`; rebuild |
+| Google account picker shows but `400: invalid_request` | Google blocks ALL custom URI scheme redirects from browser OAuth flows | Use `@react-native-google-signin` (native Play Services auth, no browser redirect); `expo-auth-session` cannot work with Google |
 
 ---
 
-## Habit Tracker — UI/UX Updates (2026-06-04)
+## Habit Tracker — Early UI + Structure (2026-06-04, condensed)
 
-### What Was Built / Fixed
-- **Rank logic**: `currentStars >= 5` gate already in place (confirmed). No change needed.
-- **ProgressScreen `src/screens/ProgressScreen.tsx`**: Removed duplicate "Hoạt động" stat from Overview section. Removed invisible opacity:0 placeholder card from All-time section. Both sections now show 3 stats. `sectionLabel.color` and `statV.color` changed from `C.muted`/`C.inkDark` → `C.primary` (green accent, both light + dark modes).
-- **New activities `src/db/migrations.ts`**: Added idempotent migration — `INSERT OR IGNORE … SELECT u.id FROM users u` inserts "Cleaning" (🧹) and "Work" (💼) for every existing user. Unique index on `(user_id, name)` ensures no duplicates.
-- **`src/screens/FundScreen.tsx`**: `FUND_IN_DEV = true` feature flag. Early return shows 🚧 locked screen (title + "In Development" message). Flip to `false` to restore full screen.
-- **`src/screens/SettingsScreen.tsx`**: Added "PHẢN HỒI / FEEDBACK" section with "Báo lỗi / Phản hồi" button — `Linking.openURL('mailto:...')`.
-- **`src/config/i18n.ts`**: Added `inDevelopmentTitle`, `inDevelopmentDesc`, `sectionFeedback`, `reportBugLabel` keys in both vi + en.
-
-### Key Decisions
-- Accent color on stat values (`C.primary`) applies to both light and dark themes automatically via `getColors(isDark)`.
-- `FUND_IN_DEV` constant at module level (not env var) — flip to `false` when feature ships; no build config needed.
-- Feedback uses `mailto:` (not URL) — works offline, no external service dependency.
-- Cleaning/Work seed uses `FROM users u` subquery — handles multi-user DBs correctly; `INSERT OR IGNORE` idempotent.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
-
----
-
-## Habit Tracker — Directory Restructure COMPLETE (2026-06-04)
-
-### What Was Done
-Reorganized `src/` from flat `logic/` blob (18 files) into semantic layers:
-
-| Layer | Path | Contents |
-|-------|------|----------|
-| audio | `src/audio/` | `audioEnabled.ts`, `uiSounds.ts`, `rankSound.ts` |
-| game | `src/game/` | `logTask.ts`, `points.ts`, `chipPresets.ts`, `treatLogic.ts`, `tierUnlocks.ts`, `rankUtils.ts`, `streakFreeze.ts`, `weeklyReset.ts`, `seedTemplates.ts` |
-| utils | `src/utils/` | `formatters.ts`, `notifications.ts`, `settingsLogic.ts`, `weekReset.ts` |
-| api | `src/api/` | `supabase.ts` (from `lib/`), `syncService.ts` (from `services/`) |
-| config | `src/config/` | `constants.ts`, `theme.ts`, `i18n.ts` + existing `ranks.config.ts` |
-
-Deleted: `src/logic/`, `src/services/`, dead `celebrateSound.ts` stub.
-
-Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, `@utils`, `@config`, `@components`, `@contexts`, `@db`, `@hooks`, `@lib`, `@navigation`, `@queries`, `@screens`.
-
-### Key Decisions
-- `baseUrl` removed from `tsconfig.json` — TS 6.0.3 deprecates it (TS5101). Paths use `./src/X/*`; works without `baseUrl` in TS 5+.
-- Dynamic imports in `useAuth.ts` updated with `replace_all: true` — same pattern appears 3× and 2×.
-- `App.tsx` `syncToSupabase(...)` fire-and-forget fixed with `.catch(() => {})` — unhandled rejection guard.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
-
----
-
-## Habit Tracker — Metro Cache Fix COMPLETE (2026-06-04)
-
-### What Was Fixed
-- **Metro bundler compile error**: `"None of these files exist: * src\theme(...)"` — Metro had stale module graph from when `src/theme.ts` temporarily had old import paths during the directory restructure. All source files already had correct paths (`../config/theme`, `../audio/uiSounds`, etc.); issue was Metro cache, not code.
-- **Fix**: Deleted `C:\Users\Admin\AppData\Local\Temp\metro-cache` + `metro-file-map-expo-*`. Metro rebuilds from scratch on next `expo start`.
-
-### Key Decisions
-- Metro's file-map cache persists across restarts and holds module resolution from any previous bundling attempt — including failed attempts with stale paths.
-- `expo start --clear` or manual cache deletion are equivalent; manual deletion was used since Metro was not running.
-
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `None of these files exist: * src\theme(.android.ts\|.native.ts\|.ts\|...)` | Metro cached stale module graph from directory restructure transition; `src/theme.ts` moved to `src/config/theme.ts` | Delete `%TEMP%\metro-cache` and `%TEMP%\metro-file-map-expo-*`; or `expo start --clear` |
-
----
-
-## Habit Tracker — Rebranding + UI Cleanup COMPLETE (2026-06-04)
-
-### What Was Built / Fixed
-- **`src/screens/SignInScreen.tsx`**: Replaced `🌿` emoji with SVG ring+checkmark logo (react-native-svg: ring arc `strokeDasharray`, filled center circle, white checkmark path). Title changed "Greedy Clock" → "Habit ring". Subtitle changed to "daily completion, the loop". `logo` style renamed `logoContainer`.
-- **`src/screens/TodayScreen.tsx`**: Empty-state `🌱` → `🎯`.
-- **`src/config/i18n.ts`**: Removed `🌿` from `onboardTitle` in both vi and en.
-- **`app.json`**: `"name"` → `"Habit ring"`.
-
-### Key Decisions
-- SVG logo uses `react-native-svg` (already a dep via RankMascot) — no new native dependency.
-- Brand strings ("Habit ring", "daily completion, the loop") hardcoded, not i18n'd — brand identity, not UI copy.
-- `strokeDasharray="115 24"` for r=22 ring: 300° arc (115px) + 60° gap (24px); gap positioned at lower-right via `rotate(150 30 30)`.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 98/98 pass
+- **ProgressScreen**: `C.primary` accent on stat values. Cleaning/Work seeded via idempotent `INSERT OR IGNORE … FROM users u` migration.
+- **Directory restructure**: `src/logic/` → `audio/`, `game/`, `utils/`, `api/`, `config/`. Path aliases `@audio`, `@game`, `@utils`, `@api`, `@config` etc. in `tsconfig.json` + `babel.config.js`.
+- **Branding**: App renamed "Habit ring". SVG ring+checkmark logo in `SignInScreen`. Brand strings hardcoded (not i18n'd).
+- **Metro cache**: Stale module graph causes `None of these files exist: * src\theme(...)`. Fix: delete `%TEMP%\metro-cache` + `%TEMP%\metro-file-map-expo-*`, or `expo start --clear`.
 
 ---
 
@@ -551,6 +481,24 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 - Duration preset chips log immediately (no extra confirm) for 30m/45m/1h — reduces friction for common durations. 1h+ requires explicit input since exact duration matters.
 - `getNextMonday()` returns 7 days later when called on Monday — correct because Monday's reset already fired at 00:00; next reset is next Monday.
 - Countdown `fontVariant: ['tabular-nums']` degrades gracefully on older Android (proportional font, no crash).
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---
+
+## Habit Tracker — Google Sign-In Fix COMPLETE (2026-06-08)
+
+### What Was Fixed
+- **`android/app/google-services.json`**: Added Android OAuth client entry — `client_type: 1`, `package_name: com.habitring.app`, `certificate_hash: 1838b7bc9e952498edfe5b71a4f274fe4f197091` (debug SHA-1, no colons, lowercase). Previously `oauth_client: []` → caused DEVELOPER_ERROR code 10.
+- **`src/screens/SignInScreen.tsx`**: Rewrote auth from `expo-auth-session` back to `@react-native-google-signin`. Uses `require('@react-native-google-signin/google-signin')` inside async function body (avoids TurboModule registration race). Removed `configuredRef`, `NativeModules.RNGoogleSignin` check, `isSuccessResponse`/`isErrorWithCode` helpers. Simplified error handling.
+- **`android/app/src/main/AndroidManifest.xml`**: Added `com.habitring.app` scheme intent-filter (needed for Expo development client deep link).
+
+### Key Decisions
+- `expo-auth-session` cannot work with Google: Google blocks ALL custom URI scheme redirects from browser OAuth flows (400 invalid_request). `@react-native-google-signin` uses native Play Services — no browser, no redirect URI.
+- `google-services.json` gitignored (`android/.gitignore`). Must be re-placed manually from Firebase Console when rebuilding. Debug SHA-1: `18:38:B7:BC:9E:95:24:98:ED:FE:5B:71:A4:F2:74:FE:4F:19:70:91`.
+- `GoogleSignin.configure()` called on every sign-in invocation — idempotent, no performance issue.
+- ADB `input tap` doesn't reach React Native Fabric touch handlers. Google Play Services dialogs (`AccountPickerActivity`) need correct device pixel coordinates from `uiautomator dump`.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
