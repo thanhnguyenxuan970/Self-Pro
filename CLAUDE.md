@@ -530,3 +530,27 @@ Path aliases in `tsconfig.json` + `babel.config.js`: `@api`, `@audio`, `@game`, 
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---
+
+## Habit Tracker — Duration Picker, Time Aggregation, Rank Countdown COMPLETE (2026-06-08)
+
+### What Was Built / Fixed
+
+- **`src/queries/useToday.ts`**: Added `useTodayTaskTotalDurations(userId)` — queries `SUM(duration_min) GROUP BY task_type_id` for today's logs; returns `Map<task_type_id, totalMin>`. Invalidated by existing `['today']` prefix invalidation in `useLogTask`.
+- **`src/screens/TodayScreen.tsx`**:
+  - Duration modal redesigned — preset chips (30m, 45m, 1h, 1h+) replace text input. Tapping 30m/45m/1h logs immediately; 1h+ reveals custom number input + Min/Hr toggle + Log button.
+  - Timed activities: `handleLog` now always opens duration modal on tap (first log or additional). Non-timed activities: toggle undo behavior unchanged.
+  - Cumulative duration shown in task row meta (green, bold) when a timed activity has been logged ≥1× today. `fmtDuration` formats as "45m" or "1h 30m".
+  - `useTodayTaskTotalDurations` wired; `totalDurationMin` passed to `TaskRow`.
+- **`src/screens/RankScreen.tsx`**: Removed static `resetChip` text. Replaced with live countdown timer (`setInterval 1s`) to next Monday 00:00. `getNextMonday()` always resolves to the upcoming Monday midnight (Mon=7d later, Sun=1d, others=8-day). `fmtCountdown` formats as "Xd HH:MM:SS" or "HH:MM:SS". `fontVariant: ['tabular-nums']` for non-shifting digits.
+- **`src/config/i18n.ts`**: Added `resetCountdownLabel` (vi + en) and `durationCustom` ('1h+') keys.
+
+### Key Decisions
+- Timed activities never undo via re-tap (no toggle) — intent is "add more time today", not "undo". Users wanting to remove logs can use long-press → delete selection mode.
+- Duration preset chips log immediately (no extra confirm) for 30m/45m/1h — reduces friction for common durations. 1h+ requires explicit input since exact duration matters.
+- `getNextMonday()` returns 7 days later when called on Monday — correct because Monday's reset already fired at 00:00; next reset is next Monday.
+- Countdown `fontVariant: ['tabular-nums']` degrades gracefully on older Android (proportional font, no crash).
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass

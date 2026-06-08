@@ -15,6 +15,30 @@ function rankConfig(tierOrder: number) {
   return RANKS[Math.min(Math.max(tierOrder - 1, 0), RANKS.length - 1)];
 }
 
+function getNextMonday(): Date {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  // Mon=1 → 7 days; Sun=0 → 1 day; else (8-day) days
+  const daysUntilMon = day === 0 ? 1 : day === 1 ? 7 : 8 - day;
+  const next = new Date(now);
+  next.setDate(now.getDate() + daysUntilMon);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function fmtCountdown(ms: number): string {
+  if (ms <= 0) return '00:00:00';
+  const totalSec = Math.floor(ms / 1000);
+  const d = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const hh = String(h).padStart(2, '0');
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  return d > 0 ? `${d}d ${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`;
+}
+
 export function RankScreen() {
   const userId = useAuthUser();
   const { colors } = useTheme();
@@ -26,6 +50,14 @@ export function RankScreen() {
   const [reduceMotion, setReduceMotion] = useState(false);
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+  }, []);
+
+  const [countdownMs, setCountdownMs] = useState(() => getNextMonday().getTime() - Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdownMs(getNextMonday().getTime() - Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
   }, []);
 
   // mascotRef is stable (useRef) — empty deps intentional
@@ -141,9 +173,10 @@ export function RankScreen() {
           )}
         </View>
 
-        {/* Reset chip */}
+        {/* Weekly reset countdown */}
         <View style={styles.resetChip}>
-          <Text style={styles.resetChipTxt}>{t.resetChip}</Text>
+          <Text style={styles.resetChipLabel}>{t.resetCountdownLabel}</Text>
+          <Text style={styles.resetChipCountdown}>{fmtCountdown(countdownMs)}</Text>
         </View>
 
         {/* Rank ladder */}
@@ -261,10 +294,11 @@ function makeStyles(C: AppColors) {
 
     resetChip: {
       marginHorizontal: Spacing.lg, marginTop: 12,
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-      backgroundColor: C.surface2, borderRadius: Radii.md, padding: 11,
+      alignItems: 'center', justifyContent: 'center',
+      backgroundColor: C.surface2, borderRadius: Radii.md, paddingVertical: 12, paddingHorizontal: 16,
     },
-    resetChipTxt: { fontSize: 12, fontWeight: '700', color: C.ink2, textAlign: 'center' },
+    resetChipLabel: { fontSize: 11, fontWeight: '700', color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+    resetChipCountdown: { fontSize: 22, fontWeight: '800', color: C.inkDark, letterSpacing: 1, marginTop: 4, fontVariant: ['tabular-nums'] },
 
     sectionLabel: {
       fontSize: 11, fontWeight: '700', color: C.muted,

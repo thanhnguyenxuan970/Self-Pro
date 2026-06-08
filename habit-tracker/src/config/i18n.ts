@@ -243,6 +243,12 @@ const vi = {
   // Feedback
   sectionFeedback: 'PHẢN HỒI',
   reportBugLabel: 'Báo lỗi / Phản hồi',
+
+  // RankScreen countdown
+  resetCountdownLabel: 'Reset T2 · 00:00 — Còn lại',
+
+  // Duration picker
+  durationCustom: '1h+',
 };
 
 const en: typeof vi = {
@@ -491,6 +497,12 @@ const en: typeof vi = {
   // Feedback
   sectionFeedback: 'FEEDBACK',
   reportBugLabel: 'Report Bug / Feedback',
+
+  // RankScreen countdown
+  resetCountdownLabel: 'Reset Mon · 00:00 — Time left',
+
+  // Duration picker
+  durationCustom: '1h+',
 };
 
 export type Strings = typeof vi;

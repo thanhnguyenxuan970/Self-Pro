@@ -10,6 +10,7 @@ import { useNavigation } from '@react-navigation/native';
 import {
   useTodayTasks, useDailySummary, useWeeklySummary,
   useLogTask, useUnlogTask, useTodayLoggedTaskIds, useConsecutiveSuggestions,
+  useTodayTaskTotalDurations,
 } from '../queries/useToday';
 import { useArchiveTask } from '../queries/useTasks';
 import { useRankData } from '../queries/useRank';
@@ -27,9 +28,16 @@ type Task = {
   category_id: number | null; sort_order: number;
 };
 
-function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, onPress, onLongPress, logPending, styles }: {
+function fmtDuration(mins: number): string {
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, onPress, onLongPress, logPending, styles }: {
   item: Task; done: boolean; isBad: boolean; isLast: boolean; isSelected: boolean;
-  selectionMode: boolean; justLogged: boolean; onPress: () => void; onLongPress: () => void;
+  selectionMode: boolean; justLogged: boolean; totalDurationMin?: number; onPress: () => void; onLongPress: () => void;
   logPending: boolean; styles: ReturnType<typeof makeStyles>;
 }) {
   const t = useTranslations();
@@ -80,6 +88,9 @@ function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, justLog
             <Text style={styles.tMetaText}>
               {isBad ? t.badHabitMeta : `${item.is_time_based ? '1pt/30m' : t.ptsLabel(item.base_points)}`}
             </Text>
+            {done && item.is_time_based && (totalDurationMin ?? 0) > 0 ? (
+              <><View style={styles.dot} /><Text style={[styles.tMetaText, styles.tMetaDuration]}>{fmtDuration(totalDurationMin!)}</Text></>
+            ) : null}
           </View>
         </View>
         <Text style={[styles.tPts, done ? (isBad ? styles.tPtsNeg : styles.tPtsPos) : styles.tPtsIdle]}>
@@ -102,6 +113,7 @@ export function TodayScreen() {
   const { data: daily } = useDailySummary(userId);
   const { data: weekly } = useWeeklySummary(userId);
   const { data: loggedIds } = useTodayLoggedTaskIds(userId);
+  const { data: totalDurations } = useTodayTaskTotalDurations(userId);
   const { data: rankData } = useRankData(userId);
   const logTask = useLogTask(userId);
   const unlogTask = useUnlogTask(userId);
@@ -111,6 +123,7 @@ export function TodayScreen() {
   const [modalTask, setModalTask] = useState<Task | null>(null);
   const [duration, setDuration] = useState('');
   const [durationUnit, setDurationUnit] = useState<'min' | 'hr'>('min');
+  const [customDuration, setCustomDuration] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [justLoggedIds, setJustLoggedIds] = useState<Set<number>>(new Set());
@@ -249,14 +262,19 @@ export function TodayScreen() {
   }
 
   async function handleLog(task: Task) {
-    // Toggle: undo if already logged today
+    // Timed: always open duration modal (first log or add more time)
+    if (task.is_time_based) {
+      setCustomDuration(false);
+      setModalTask(task);
+      return;
+    }
+    // Non-timed: toggle undo if already logged today
     if (loggedIds?.has(task.id)) {
       try {
         await unlogTask.mutateAsync({ taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD' });
       } catch { Alert.alert(t.error, t.cantLog); }
       return;
     }
-    if (task.is_time_based) { setModalTask(task); return; }
     if (justLoggedIds.has(task.id)) return;
     try {
       const result = await logTask.mutateAsync({
@@ -275,11 +293,16 @@ export function TodayScreen() {
     } catch { Alert.alert(t.error, t.cantLog); }
   }
 
-  async function handleLogTime() {
+  async function handleLogTime(fixedMins?: number) {
     if (!modalTask) return;
-    const parsed = parseInt(duration, 10);
-    if (isNaN(parsed) || parsed <= 0) { Alert.alert(t.validDuration); return; }
-    const mins = durationUnit === 'hr' ? parsed * 60 : parsed;
+    let mins: number;
+    if (fixedMins !== undefined) {
+      mins = fixedMins;
+    } else {
+      const parsed = parseInt(duration, 10);
+      if (isNaN(parsed) || parsed <= 0) { Alert.alert(t.validDuration); return; }
+      mins = durationUnit === 'hr' ? parsed * 60 : parsed;
+    }
     try {
       const result = await logTask.mutateAsync({
         taskTypeId: modalTask.id, kind: modalTask.kind as 'GOOD' | 'BAD',
@@ -287,13 +310,16 @@ export function TodayScreen() {
         starPenalty: modalTask.star_penalty, durationMin: mins,
       });
       showStreakToast(result.newStreak, result.prevStreak);
-      setModalTask(null); setDuration(''); setDurationUnit('min');
+      setModalTask(null); setDuration(''); setDurationUnit('min'); setCustomDuration(false);
     } catch { Alert.alert(t.error, t.cantLog); }
   }
 
   async function handleSuggestionLog(task: { id: number; name: string; kind: string; is_time_based: number; base_points: number; star_penalty: number; icon: string | null }) {
-    if (loggedIds?.has(task.id)) return;
-    if (task.is_time_based) { setModalTask({ ...task, category_id: null, sort_order: 0 }); return; }
+    if (task.is_time_based) {
+      setCustomDuration(false);
+      setModalTask({ ...task, category_id: null, sort_order: 0 });
+      return;
+    }
     try {
       const result = await logTask.mutateAsync({
         taskTypeId: task.id,
@@ -448,6 +474,7 @@ export function TodayScreen() {
                   isSelected={isSelected}
                   selectionMode={selectionMode}
                   justLogged={justLoggedIds.has(item.id)}
+                  totalDurationMin={totalDurations?.get(item.id)}
                   onPress={() => selectionMode ? toggleSelect(item.id) : handleLog(item)}
                   onLongPress={() => enterSelection(item.id)}
                   logPending={logTask.isPending || unlogTask.isPending}
@@ -463,40 +490,70 @@ export function TodayScreen() {
       <Modal visible={!!modalTask} transparent animationType="slide">
         <View style={styles.modalBg}>
           <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>{t.addActivityHowLong}</Text>
-            <View style={styles.durationRow}>
-              <TextInput
-                style={[styles.input, styles.durationInput]}
-                keyboardType="number-pad"
-                value={duration}
-                onChangeText={setDuration}
-                placeholder="0"
-                placeholderTextColor={colors.faint}
-                autoFocus
-              />
-              <View style={styles.unitToggle}>
+            <Text style={styles.modalTitle}>{modalTask?.name}</Text>
+            <Text style={styles.modalSub}>{t.addActivityHowLong}</Text>
+
+            {!customDuration ? (
+              <View style={styles.presetChipsRow}>
+                {([{label: '30m', mins: 30}, {label: '45m', mins: 45}, {label: '1h', mins: 60}] as const).map(p => (
+                  <TouchableOpacity
+                    key={p.label}
+                    style={styles.presetChip}
+                    onPress={() => handleLogTime(p.mins)}
+                    disabled={logTask.isPending}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.presetChipText}>{p.label}</Text>
+                  </TouchableOpacity>
+                ))}
                 <TouchableOpacity
-                  style={[styles.unitBtn, durationUnit === 'min' && styles.unitBtnActive]}
-                  onPress={() => setDurationUnit('min')}
+                  style={[styles.presetChip, styles.presetChipCustom]}
+                  onPress={() => setCustomDuration(true)}
+                  activeOpacity={0.75}
                 >
-                  <Text style={[styles.unitBtnText, durationUnit === 'min' && styles.unitBtnTextActive]}>
-                    {t.unitMin}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.unitBtn, durationUnit === 'hr' && styles.unitBtnActive]}
-                  onPress={() => setDurationUnit('hr')}
-                >
-                  <Text style={[styles.unitBtnText, durationUnit === 'hr' && styles.unitBtnTextActive]}>
-                    {t.unitHour}
-                  </Text>
+                  <Text style={[styles.presetChipText, styles.presetChipCustomText]}>{t.durationCustom}</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-            <TouchableOpacity style={styles.btn} onPress={handleLogTime}>
-              <Text style={styles.btnText}>{t.logBtn}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setModalTask(null); setDuration(''); setDurationUnit('min'); }}>
+            ) : (
+              <>
+                <View style={styles.durationRow}>
+                  <TextInput
+                    style={[styles.input, styles.durationInput]}
+                    keyboardType="number-pad"
+                    value={duration}
+                    onChangeText={setDuration}
+                    placeholder="0"
+                    placeholderTextColor={colors.faint}
+                    autoFocus
+                  />
+                  <View style={styles.unitToggle}>
+                    <TouchableOpacity
+                      style={[styles.unitBtn, durationUnit === 'min' && styles.unitBtnActive]}
+                      onPress={() => setDurationUnit('min')}
+                    >
+                      <Text style={[styles.unitBtnText, durationUnit === 'min' && styles.unitBtnTextActive]}>
+                        {t.unitMin}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.unitBtn, durationUnit === 'hr' && styles.unitBtnActive]}
+                      onPress={() => setDurationUnit('hr')}
+                    >
+                      <Text style={[styles.unitBtnText, durationUnit === 'hr' && styles.unitBtnTextActive]}>
+                        {t.unitHour}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <TouchableOpacity style={styles.btn} onPress={() => handleLogTime()}>
+                  <Text style={styles.btnText}>{t.logBtn}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            <TouchableOpacity onPress={() => {
+              setModalTask(null); setDuration(''); setDurationUnit('min'); setCustomDuration(false);
+            }}>
               <Text style={styles.cancel}>{t.cancel}</Text>
             </TouchableOpacity>
           </View>
@@ -623,6 +680,7 @@ function makeStyles(C: AppColors) {
     tNameDone: { color: C.muted, textDecorationLine: 'line-through' },
     tMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
     tMetaText: { fontSize: 11.5, color: C.muted },
+    tMetaDuration: { color: C.primary, fontWeight: '700' },
     dot: { width: 3, height: 3, backgroundColor: C.faint, borderRadius: 2 },
     tPts: { fontSize: 13, fontWeight: '800', flexShrink: 0 },
     tPtsPos: { color: C.primary },
@@ -653,7 +711,17 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.surface, padding: Spacing.xl,
       borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl,
     },
-    modalTitle: { fontSize: 19, fontWeight: '800', color: C.inkDark, marginBottom: Spacing.md },
+    modalTitle: { fontSize: 19, fontWeight: '800', color: C.inkDark, marginBottom: 4 },
+    modalSub: { fontSize: 13, color: C.muted, marginBottom: Spacing.md },
+    presetChipsRow: { flexDirection: 'row', gap: 10, marginBottom: Spacing.md, flexWrap: 'wrap' },
+    presetChip: {
+      flex: 1, minWidth: 60, backgroundColor: C.primary,
+      borderRadius: Radii.md, paddingVertical: 16,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    presetChipCustom: { backgroundColor: C.surface2, borderWidth: 1.5, borderColor: C.line2 },
+    presetChipText: { color: C.white, fontSize: 16, fontWeight: '800' },
+    presetChipCustomText: { color: C.inkDark },
     durationRow: {
       flexDirection: 'row', alignItems: 'stretch', gap: 10, marginBottom: Spacing.md,
     },

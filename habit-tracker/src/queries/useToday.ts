@@ -320,6 +320,24 @@ export function useLogTask(userId: number) {
   });
 }
 
+export function useTodayTaskTotalDurations(userId: number) {
+  const today = getLocalDate();
+  return useQuery({
+    queryKey: ['today', 'durations', userId, today],
+    queryFn: async () => {
+      const db = await getDb();
+      const rows = await db.getAllAsync<{ task_type_id: number; total_min: number }>(
+        `SELECT task_type_id, SUM(duration_min) AS total_min
+         FROM activity_log
+         WHERE user_id = ? AND local_date = ? AND task_type_id IS NOT NULL AND source = 'TASK'
+         GROUP BY task_type_id`,
+        [userId, today]
+      );
+      return new Map(rows.map(r => [r.task_type_id, r.total_min ?? 0]));
+    },
+  });
+}
+
 export function useCategories(userId: number) {
   return useQuery({
     queryKey: ['categories', userId],
