@@ -1,6 +1,6 @@
 // src/theme.ts
 
-export const Colors = {
+const Colors = {
   primary: '#25B36E',
   primaryHover: '#1E9B5E',
   primaryPress: '#177A49',
@@ -22,7 +22,7 @@ export const Colors = {
   white: '#FFFFFF',
 };
 
-export const DarkColors = {
+const DarkColors = {
   primary: '#25B36E',
   primaryHover: '#1E9B5E',
   primaryPress: '#5EC69A',

@@ -159,7 +159,7 @@ export const RANKS: Rank[] = [
   },
 ];
 
-export const rankForStars = (total: number): Rank => {
+const rankForStars = (total: number): Rank => {
   let r = RANKS[0];
   for (const x of RANKS) if (total >= x.stars) r = x;
   return r;

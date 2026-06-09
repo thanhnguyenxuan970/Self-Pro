@@ -35,7 +35,7 @@ export function useCreateTask(userId: number) {
   });
 }
 
-export function useUpdateTask(userId: number) {
+function useUpdateTask(userId: number) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (params: TaskFormParams & { id: number }) => {
@@ -67,7 +67,7 @@ export function useArchiveTask(userId: number) {
   });
 }
 
-export function useArchiveCategory(userId: number) {
+function useArchiveCategory(userId: number) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (categoryId: number) => {

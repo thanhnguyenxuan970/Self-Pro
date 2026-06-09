@@ -10,7 +10,7 @@ export interface PointConfig {
   hardCap?: boolean;
 }
 
-export const DEFAULT_POINT_CONFIG: PointConfig = {
+const DEFAULT_POINT_CONFIG: PointConfig = {
   minutesPerBlock: 30,
   starsPerFullBlock: 1,
   fullRateBlocks: 4,     // 4 × 30min = 2h at full rate
@@ -45,7 +45,7 @@ export function computeStars(
 }
 
 /** Minutes → "1.5h" / "45m" / "3h 30m" for chip + summary labels. */
-export function formatDuration(min: number): string {
+function formatDuration(min: number): string {
   if (min < 60) return `${min}m`;
   const h = Math.floor(min / 60);
   const m = min % 60;

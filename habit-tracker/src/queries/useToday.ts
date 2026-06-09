@@ -26,7 +26,7 @@ export function useTodayTasks(userId: number) {
   });
 }
 
-export type SuggestedTask = {
+type SuggestedTask = {
   id: number;
   name: string;
   kind: string;
@@ -338,7 +338,7 @@ export function useTodayTaskTotalDurations(userId: number) {
   });
 }
 
-export function useCategories(userId: number) {
+function useCategories(userId: number) {
   return useQuery({
     queryKey: ['categories', userId],
     queryFn: async () => {

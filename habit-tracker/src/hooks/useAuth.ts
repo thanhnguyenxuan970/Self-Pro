@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SQLiteDatabase } from 'expo-sqlite';
 
-export const ONBOARDED_KEY = 'habit_tracker_onboarded';
+const ONBOARDED_KEY = 'habit_tracker_onboarded';
 const GOOGLE_USER_KEY = 'habit_tracker_google_user';
 
 // Guard: check native module registered BEFORE requiring the JS package.

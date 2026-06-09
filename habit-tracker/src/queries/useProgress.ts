@@ -12,7 +12,7 @@ export type ActivityLogEntry = {
   source: string;
 };
 
-export type ChartBucket = { bucket: string; goodStars: number; badStars: number };
+type ChartBucket = { bucket: string; goodStars: number; badStars: number };
 
 /** Returns bucketed chart data for D/W/M/Y range, with optional period offset (0=current, -1=previous, etc.) */
 export function useProgressData(userId: number, range: 'D' | 'W' | 'M' | 'Y', offset: number = 0) {

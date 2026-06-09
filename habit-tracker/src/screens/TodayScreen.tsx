@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Animated, AccessibilityInfo,
@@ -19,6 +19,7 @@ import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useAuthUser, useGoogleUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { cueStreakMilestone } from '../audio/uiSounds';
+import { useSelectionMode } from '../hooks/useSelectionMode';
 
 const DAILY_THRESHOLD = 50;
 
@@ -124,34 +125,12 @@ export function TodayScreen() {
   const [duration, setDuration] = useState('');
   const [durationUnit, setDurationUnit] = useState<'min' | 'hr'>('min');
   const [customDuration, setCustomDuration] = useState(false);
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [justLoggedIds, setJustLoggedIds] = useState<Set<number>>(new Set());
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set());
 
   const { data: suggestions = [] } = useConsecutiveSuggestions(userId);
 
-  const enterSelection = useCallback((id: number) => {
-    setSelectionMode(true);
-    setSelectedIds(new Set([id]));
-  }, []);
-
-  const toggleSelect = useCallback((id: number) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const selectAll = useCallback(() => {
-    setSelectedIds(new Set((tasks ?? []).map(task => task.id)));
-  }, [tasks]);
-
-  const cancelSelection = useCallback(() => {
-    setSelectionMode(false);
-    setSelectedIds(new Set());
-  }, []);
+  const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(tasks ?? []);
 
   function handleDeleteSelected() {
     const ids = Array.from(selectedIds);

@@ -1,28 +1,31 @@
-export function getLocalDate(): string {
-  const d = new Date();
+function toYMD(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+function toYM(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+export function getLocalDate(): string {
+  return toYMD(new Date());
 }
 
 /** Format any Date as YYYY-MM-DD using device local timezone (same logic as getLocalDate) */
 export function getLocalDateFor(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return toYMD(date);
 }
 
 export function getWeekStart(): string {
   const d = new Date();
-  const dow = d.getDay(); // 0=Sun
-  const diff = dow === 0 ? 6 : dow - 1; // Monday=0
+  const dow = d.getDay();
+  const diff = dow === 0 ? 6 : dow - 1;
   d.setDate(d.getDate() - diff);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return toYMD(d);
 }
 
 export function getRangeLabel(range: 'D' | 'W' | 'M' | 'Y', now: Date = new Date()): string {
@@ -52,29 +55,21 @@ export function getWeekStartOffset(weekOffset: number): string {
   const dow = d.getDay();
   const diff = dow === 0 ? 6 : dow - 1;
   d.setDate(d.getDate() - diff + weekOffset * 7);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return toYMD(d);
 }
 
 /** YYYY-MM-DD for day that is `dayOffset` days from today */
 export function getLocalDateOffset(dayOffset: number): string {
   const d = new Date();
   d.setDate(d.getDate() + dayOffset);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return toYMD(d);
 }
 
 /** YYYY-MM for month that is `monthOffset` months from today */
 export function getMonthOffset(monthOffset: number): string {
   const d = new Date();
   d.setMonth(d.getMonth() + monthOffset);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  return `${y}-${m}`;
+  return toYM(d);
 }
 
 /** YYYY for year that is `yearOffset` years from today */
@@ -82,10 +77,3 @@ export function getYearOffset(yearOffset: number): string {
   return String(new Date().getFullYear() + yearOffset);
 }
 
-export function formatVND(amount: number): string {
-  return new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}

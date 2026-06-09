@@ -11,6 +11,7 @@ import { getLocalDateOffset, getWeekStartOffset, getMonthOffset, getYearOffset }
 import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useSelectionMode } from '../hooks/useSelectionMode';
 
 type Range = 'D' | 'W' | 'M' | 'Y';
 
@@ -35,8 +36,7 @@ export function ProgressScreen() {
   const { data: actLogs = [] } = useRecentActivityLogs(userId);
   const deleteLogs = useDeleteActivityLogs(userId);
 
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(actLogs);
 
   const RANGES = useMemo(() => [
     { key: 'D' as Range, label: t.rangeDay },
@@ -55,27 +55,6 @@ export function ProgressScreen() {
     return YEAR_MONTHS[parseInt(bucket.slice(5, 7), 10) - 1] ?? bucket;
   }, [t.dayAbbr]);
 
-  const enterSelection = useCallback((id: number) => {
-    setSelectionMode(true);
-    setSelectedIds(new Set([id]));
-  }, []);
-
-  const toggleSelect = useCallback((id: number) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const selectAll = useCallback(() => {
-    setSelectedIds(new Set(actLogs.map(l => l.id)));
-  }, [actLogs]);
-
-  const cancelSelection = useCallback(() => {
-    setSelectionMode(false);
-    setSelectedIds(new Set());
-  }, []);
 
   function handleDeleteSelected() {
     const ids = Array.from(selectedIds);

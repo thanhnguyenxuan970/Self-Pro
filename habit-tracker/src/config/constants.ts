@@ -3,16 +3,16 @@ export const STARS_PER_TASK = 1;
 export const DAILY_BONUS_THRESHOLD = 50;   // points in a day → +1 star (once/day)
 export const DAILY_BONUS_STARS = 1;
 export const TIME_UNIT_MINUTES = 30;       // +1 pt per 30 min of time-based task
-export const DEFAULT_PENALTY_STARS = 50;  // bad habit star penalty
-export const DEFAULT_CURRENCY = 'VND';
-export const DEFAULT_TIMEZONE = 'Asia/Ho_Chi_Minh';
+const DEFAULT_PENALTY_STARS = 50;  // bad habit star penalty
+const DEFAULT_CURRENCY = 'VND';
+const DEFAULT_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
 export const SOURCE_TASK = 'TASK';
 export const SOURCE_DAILY_BONUS = 'DAILY_BONUS';
-export const SOURCE_PENALTY = 'PENALTY';
+const SOURCE_PENALTY = 'PENALTY';
 
-export const DEFAULT_VALUE_PER_STAR = 1000;
-export const STREAK_FREEZE_COST = 10; // stars (1★ = DEFAULT_VALUE_PER_STAR VND)
+const DEFAULT_VALUE_PER_STAR = 1000;
+const STREAK_FREEZE_COST = 10; // stars (1★ = DEFAULT_VALUE_PER_STAR VND)
 
 export type TemplateTask = {
   name: string;

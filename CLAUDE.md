@@ -147,7 +147,7 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 ### What Was Done
 - **Package name**: Changed `com.anonymous.habittracker` → `com.habitring.app` in `app.json`, `android/app/build.gradle` (namespace + applicationId), `android/app/src/main/java/com/habitring/app/MainActivity.kt` + `MainApplication.kt` (declaration + moved to new dir).
 - **Removed `SYSTEM_ALERT_WINDOW`** from `AndroidManifest.xml` — Play Store rejects without justification; dev-only artifact.
-- **Production keystore** generated: `android/app/habitring-release.keystore` (alias: `habitring`, validity: 10,000 days, password: `***REDACTED***`). **Back this up — losing it = can't update the app on Play Store.**
+- **Production keystore** generated: `android/app/habitring-release.keystore` (alias: `habitring`, validity: 10,000 days, password: `<REDACTED — store in a secret manager, NOT in this repo. This value was previously committed to a public repo and must be treated as COMPROMISED; rotate it and scrub git history>`). **Back this up — losing it = can't update the app on Play Store.**
 - **Release signing** wired in `android/app/build.gradle`: loads `android/keystore.properties`; falls back to debug if file absent (CI-safe).
 - **`android/.gitignore`**: Added `*.keystore` + `keystore.properties`.
 - **`eas.json`** created: development / preview (APK) / production (AAB) profiles.
@@ -502,3 +502,27 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
+
+---
+
+## Habit Tracker — Code Quality Audit (fallow) COMPLETE (2026-06-09)
+
+### What Was Done
+- **Ran `npx fallow`** — initial score: MI 89.8, 36 dead-code issues, 10 clone groups, 38 functions above health threshold.
+- **Deleted 5 dead files**: `src/components/DurationChips.tsx`, `src/game/chipPresets.ts`, `src/queries/useDurationLogger.ts`, `src/screens/LogActivitySheet.tsx`, `src/db/schema.ts`.
+- **Removed 24 unused exports** across 10 files: constants.ts (6), uiSounds.ts (3 + deleted dead fns), theme.ts (2), useTasks.ts (2), OnboardingScreen.tsx (2), ranks.config.ts (1), useAuth.ts (1), useToday.ts (2), useProgress.ts (1), points.ts (2), formatters.ts (1).
+- **Fixed `formatters.ts` duplication** (42 lines): extracted private `toYMD(d: Date)` and `toYM(d: Date)` helpers used by 5 date-formatting functions.
+- **Created `src/hooks/useSelectionMode.ts`**: extracted `enterSelection`/`toggleSelect`/`selectAll`/`cancelSelection` shared by ProgressScreen and TodayScreen. Applied to both screens.
+- **Removed dead sound entries** from `SOUNDS` map in `uiSounds.ts` (`treatClaim`, `errorInvalid`, `chipConfirm`).
+
+### Key Decisions
+- `__mocks__/expo-secure-store.js` NOT deleted — Jest auto-discovers `__mocks__/` without imports; fallow can't see it.
+- Build-tool deps (`@expo/metro-config`, `babel-preset-expo`, etc.) NOT removed — used by metro.config.js/babel.config.js, not TS imports.
+- `Colors`/`DarkColors` in theme.ts made non-exported — used internally by `getColors(isDark)`. `AppColors` + `getColors()` remain public API.
+- `TaskRow` extraction from `TodayScreen.tsx` (CRAP 812) deferred — requires user confirmation; high effort architectural change.
+
+### Final Score
+- MI: **89.8 → 92.3** (+2.5) | Dead-code: **36 → 7** (-81%) | Dupes: **10 → 2** (-80%) | Health above threshold: **38 → 35**
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors

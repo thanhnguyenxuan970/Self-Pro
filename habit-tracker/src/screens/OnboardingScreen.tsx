@@ -15,8 +15,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
 
-export const GENDER_KEY = 'habit_gender';
-export const BIRTH_YEAR_KEY = 'habit_birth_year';
+const GENDER_KEY = 'habit_gender';
+const BIRTH_YEAR_KEY = 'habit_birth_year';
 
 type Gender = 'male' | 'female' | 'other';
 type Props = { onComplete: () => Promise<void> };
