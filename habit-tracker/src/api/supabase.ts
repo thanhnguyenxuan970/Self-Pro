@@ -9,8 +9,8 @@ export const supabase: SupabaseClient | null = url && key
   ? createClient(url, key, {
       auth: {
         storage: AsyncStorage,
-        autoRefreshToken: false,
-        persistSession: false,
+        autoRefreshToken: true,
+        persistSession: true,
         detectSessionInUrl: false,
       },
     })

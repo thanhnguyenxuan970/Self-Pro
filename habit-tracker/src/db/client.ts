@@ -10,5 +10,6 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
     await runMigrations(db);
     return db;
   })();
+  _dbPromise.catch(() => { _dbPromise = null; });
   return _dbPromise;
 }

@@ -193,7 +193,7 @@ export function useRecentActivityLogs(userId: number, limit = 50) {
   });
 }
 
-/** Delete a set of activity_log entries by id */
+/** Delete a set of activity_log entries by id, reversing all derived summaries */
 export function useDeleteActivityLogs(userId: number) {
   const qc = useQueryClient();
   return useMutation({
@@ -201,14 +201,119 @@ export function useDeleteActivityLogs(userId: number) {
       if (ids.length === 0) return;
       const db = await getDb();
       const placeholders = ids.map(() => '?').join(',');
-      await db.runAsync(
-        `DELETE FROM activity_log WHERE user_id = ? AND id IN (${placeholders})`,
-        [userId, ...ids]
-      );
+
+      await db.withTransactionAsync(async () => {
+        const rows = await db.getAllAsync<{
+          id: number; local_date: string; week_start: string;
+          points_earned: number; stars_delta: number; kind: string; source: string;
+        }>(
+          `SELECT id, local_date, week_start, points_earned, stars_delta, kind, source
+           FROM activity_log WHERE user_id = ? AND id IN (${placeholders})`,
+          [userId, ...ids]
+        );
+        if (rows.length === 0) return;
+
+        // Group totals by local_date (each date belongs to exactly one week_start)
+        const byDate = new Map<string, {
+          points: number; stars: number; hasBonus: boolean; weekStart: string;
+        }>();
+        let goodStarsDelta = 0;
+        let badPenaltyAmt = 0;
+
+        for (const row of rows) {
+          const entry = byDate.get(row.local_date) ?? {
+            points: 0, stars: 0, hasBonus: false, weekStart: row.week_start,
+          };
+          entry.points += row.points_earned;
+          entry.stars += row.stars_delta;
+          if (row.source === 'DAILY_BONUS') entry.hasBonus = true;
+          byDate.set(row.local_date, entry);
+
+          if (row.kind === 'GOOD') goodStarsDelta += row.stars_delta;
+          else if (row.kind === 'BAD') badPenaltyAmt += Math.abs(row.stars_delta);
+        }
+
+        // Update daily_summary per date
+        for (const [date, { points, hasBonus }] of byDate) {
+          const daily = await db.getFirstAsync<{ total_points: number }>(
+            `SELECT total_points FROM daily_summary WHERE user_id = ? AND local_date = ?`,
+            [userId, date]
+          );
+          const remaining = (daily?.total_points ?? 0) - points;
+          if (remaining <= 0) {
+            await db.runAsync(
+              `DELETE FROM daily_summary WHERE user_id = ? AND local_date = ?`,
+              [userId, date]
+            );
+          } else {
+            await db.runAsync(
+              `UPDATE daily_summary SET
+                 total_points = MAX(0, total_points - ?),
+                 bonus_star_awarded = CASE WHEN ? THEN 0 ELSE bonus_star_awarded END
+               WHERE user_id = ? AND local_date = ?`,
+              [points, hasBonus ? 1 : 0, userId, date]
+            );
+          }
+        }
+
+        // Accumulate totals per week_start
+        const byWeek = new Map<string, { points: number; stars: number }>();
+        for (const { points, stars, weekStart } of byDate.values()) {
+          const entry = byWeek.get(weekStart) ?? { points: 0, stars: 0 };
+          entry.points += points;
+          entry.stars += stars;
+          byWeek.set(weekStart, entry);
+        }
+
+        for (const [week, { points, stars }] of byWeek) {
+          await db.runAsync(
+            `UPDATE weekly_summary SET
+               total_points = MAX(0, total_points - ?),
+               weekly_stars = MAX(0, weekly_stars - ?)
+             WHERE user_id = ? AND week_start = ?`,
+            [points, stars, userId, week]
+          );
+
+          // Revoke unclaimed unlocks above new star count
+          await db.runAsync(
+            `DELETE FROM reward_unlocks
+             WHERE user_id = ? AND week_start = ? AND claimed = 0
+               AND tier_id IN (
+                 SELECT id FROM tiers WHERE stars_required > (
+                   SELECT MAX(0, weekly_stars) FROM weekly_summary
+                   WHERE user_id = ? AND week_start = ?
+                 )
+               )`,
+            [userId, week, userId, week]
+          );
+        }
+
+        // Reverse treat_stars: subtract GOOD stars, restore BAD penalty
+        if (goodStarsDelta > 0) {
+          await db.runAsync(
+            `UPDATE users SET treat_stars = MAX(0, treat_stars - ?) WHERE id = ?`,
+            [goodStarsDelta, userId]
+          );
+        }
+        if (badPenaltyAmt > 0) {
+          await db.runAsync(
+            `UPDATE users SET treat_stars = treat_stars + ? WHERE id = ? AND penalty_hits_treats = 1`,
+            [badPenaltyAmt, userId]
+          );
+        }
+
+        await db.runAsync(
+          `DELETE FROM activity_log WHERE user_id = ? AND id IN (${placeholders})`,
+          [userId, ...ids]
+        );
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['progress', 'actlog', userId] });
       qc.invalidateQueries({ queryKey: ['progress'] });
+      qc.invalidateQueries({ queryKey: ['today'] });
+      qc.invalidateQueries({ queryKey: ['week'] });
+      qc.invalidateQueries({ queryKey: ['rank'] });
     },
   });
 }

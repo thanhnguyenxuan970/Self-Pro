@@ -338,19 +338,6 @@ export function useTodayTaskTotalDurations(userId: number) {
   });
 }
 
-function useCategories(userId: number) {
-  return useQuery({
-    queryKey: ['categories', userId],
-    queryFn: async () => {
-      const db = await getDb();
-      return db.getAllAsync<{ id: number; name: string; icon: string | null }>(
-        `SELECT id, name, icon FROM categories WHERE user_id = ? AND archived = 0 ORDER BY sort_order`,
-        [userId]
-      );
-    },
-  });
-}
-
 export function useUnlogTask(userId: number) {
   const qc = useQueryClient();
   return useMutation({
@@ -376,6 +363,11 @@ export function useUnlogTask(userId: number) {
           [userId, today]
         );
 
+        const weeklyRow = await db.getFirstAsync<{ weekly_stars: number }>(
+          `SELECT weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
+          [userId, weekStart]
+        );
+
         // Reverse daily bonus if removing this task drops points below threshold
         let bonusStars = 0;
         const remainingPoints = (daily?.total_points ?? 0) - taskPoints;
@@ -388,18 +380,28 @@ export function useUnlogTask(userId: number) {
         }
 
         const totalStarsDelta = taskStars + bonusStars;
+        const newWeeklyStars = Math.max(0, (weeklyRow?.weekly_stars ?? 0) - totalStarsDelta);
 
         for (const row of taskRows) {
           await db.runAsync(`DELETE FROM activity_log WHERE id = ?`, [row.id]);
         }
 
-        await db.runAsync(
-          `UPDATE daily_summary SET
-             total_points = MAX(0, total_points - ?),
-             bonus_star_awarded = CASE WHEN ? THEN 0 ELSE bonus_star_awarded END
-           WHERE user_id = ? AND local_date = ?`,
-          [taskPoints, bonusStars > 0 ? 1 : 0, userId, today]
-        );
+        // (M2c) Delete daily_summary row entirely when day is now empty — prevents
+        // an empty day's streak_count extending tomorrow's streak
+        if (remainingPoints <= 0) {
+          await db.runAsync(
+            `DELETE FROM daily_summary WHERE user_id = ? AND local_date = ?`,
+            [userId, today]
+          );
+        } else {
+          await db.runAsync(
+            `UPDATE daily_summary SET
+               total_points = MAX(0, total_points - ?),
+               bonus_star_awarded = CASE WHEN ? THEN 0 ELSE bonus_star_awarded END
+             WHERE user_id = ? AND local_date = ?`,
+            [taskPoints, bonusStars > 0 ? 1 : 0, userId, today]
+          );
+        }
 
         await db.runAsync(
           `UPDATE weekly_summary SET
@@ -409,10 +411,24 @@ export function useUnlogTask(userId: number) {
           [taskPoints, totalStarsDelta, userId, weekStart]
         );
 
+        // (M2a) Revoke unclaimed tier unlocks that are above the new star count
+        await db.runAsync(
+          `DELETE FROM reward_unlocks
+           WHERE user_id = ? AND week_start = ? AND claimed = 0
+             AND tier_id IN (SELECT id FROM tiers WHERE stars_required > ?)`,
+          [userId, weekStart, newWeeklyStars]
+        );
+
         if (params.kind === 'GOOD') {
           await db.runAsync(
             `UPDATE users SET treat_stars = MAX(0, treat_stars - ?) WHERE id = ?`,
             [Math.max(0, totalStarsDelta), userId]
+          );
+        } else {
+          // (M2b) BAD-task unlog: refund the treat-star penalty that was applied on log
+          await db.runAsync(
+            `UPDATE users SET treat_stars = treat_stars + ? WHERE id = ? AND penalty_hits_treats = 1`,
+            [Math.abs(taskStars), userId]
           );
         }
       });

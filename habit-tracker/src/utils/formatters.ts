@@ -68,6 +68,7 @@ export function getLocalDateOffset(dayOffset: number): string {
 /** YYYY-MM for month that is `monthOffset` months from today */
 export function getMonthOffset(monthOffset: number): string {
   const d = new Date();
+  d.setDate(1); // prevent day-29/30/31 overflow when setMonth wraps (e.g. Jan 31 + 1 → Mar)
   d.setMonth(d.getMonth() + monthOffset);
   return toYM(d);
 }

@@ -42,7 +42,14 @@
       "expo-web-browser",
       "@react-native-google-signin/google-signin",
       "expo-secure-store",
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#25B36E"
+        }
+      ]
     ]
   }
 }

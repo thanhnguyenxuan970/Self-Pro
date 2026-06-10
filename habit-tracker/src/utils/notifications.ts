@@ -11,6 +11,8 @@ export function parseNotificationTime(input: string): { hours: number; minutes: 
 
 export async function scheduleAllHabitReminders(times: (string | null)[]): Promise<void> {
   const Notifications = await import('expo-notifications');
+  const { status } = await Notifications.requestPermissionsAsync();
+  if (status !== 'granted') return;
   await Notifications.cancelAllScheduledNotificationsAsync();
   for (const t of times) {
     if (!t) continue;

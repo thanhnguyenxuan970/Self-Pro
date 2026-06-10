@@ -39,13 +39,19 @@ interface FundRow {
   occurred_at: number;
 }
 
-/** Map a Google email to the local user row id (google_sub stores the email). */
-async function resolveUserId(db: SQLiteDatabase, userEmail: string): Promise<number | null> {
-  const row = await db.getFirstAsync<{ id: number }>(
+/** Map a Google OIDC sub to the local user row id, with email fallback for legacy rows. */
+async function resolveUserId(db: SQLiteDatabase, userSub: string, userEmail: string): Promise<number | null> {
+  const bySub = await db.getFirstAsync<{ id: number }>(
+    'SELECT id FROM users WHERE google_sub = ?',
+    [userSub]
+  );
+  if (bySub) return bySub.id;
+  // Legacy rows (pre-M3 migration) store email in google_sub
+  const byEmail = await db.getFirstAsync<{ id: number }>(
     'SELECT id FROM users WHERE google_sub = ?',
     [userEmail]
   );
-  return row?.id ?? null;
+  return byEmail?.id ?? null;
 }
 
 async function syncActivity(db: SQLiteDatabase, userId: number, userEmail: string): Promise<void> {
@@ -93,10 +99,10 @@ async function syncFund(db: SQLiteDatabase, userId: number, userEmail: string): 
  * Only the signed-in user's own rows are pushed. Safe to call after every
  * log — batches 100 rows at a time.
  */
-export async function syncToSupabase(userEmail: string): Promise<void> {
+export async function syncToSupabase(userSub: string, userEmail: string): Promise<void> {
   if (!supabase) return;
   const db = await getDb();
-  const userId = await resolveUserId(db, userEmail);
+  const userId = await resolveUserId(db, userSub, userEmail);
   if (userId == null) return;
   await Promise.allSettled([
     syncActivity(db, userId, userEmail),

@@ -21,8 +21,7 @@ import { useAuthUser, useGoogleUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { cueStreakMilestone } from '../audio/uiSounds';
 import { useSelectionMode } from '../hooks/useSelectionMode';
-
-const DAILY_THRESHOLD = 50;
+import { DAILY_BONUS_THRESHOLD } from '../config/constants';
 
 export function TodayScreen() {
   const navigation = useNavigation();
@@ -87,7 +86,7 @@ export function TodayScreen() {
     : null;
   const rankName = currentTier?.rank_name ?? '—';
 
-  const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑', 8: '💀' };
+  const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑' };
   const rankEmoji = currentTier ? (RANK_EMOJI[currentTier.tier_order] ?? '⭐') : '⭐';
 
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -122,14 +121,14 @@ export function TodayScreen() {
     return () => loop.stop();
   }, [hasStreak, reduceMotion]);
 
-  const barWidthAnim = useRef(new Animated.Value(Math.min(dailyPoints / DAILY_THRESHOLD, 1) * 100)).current;
+  const barWidthAnim = useRef(new Animated.Value(Math.min(dailyPoints / DAILY_BONUS_THRESHOLD, 1) * 100)).current;
   const barGlowOpacity = useRef(new Animated.Value(0)).current;
   const prevDailyRef = useRef(dailyPoints);
   useEffect(() => {
-    const targetPct = Math.min(dailyPoints / DAILY_THRESHOLD, 1) * 100;
+    const targetPct = Math.min(dailyPoints / DAILY_BONUS_THRESHOLD, 1) * 100;
     Animated.spring(barWidthAnim, { toValue: targetPct, tension: 100, friction: 8, useNativeDriver: false }).start();
     const prev = prevDailyRef.current;
-    const h = DAILY_THRESHOLD;
+    const h = DAILY_BONUS_THRESHOLD;
     if ((prev < h / 2 && dailyPoints >= h / 2) || (prev < h && dailyPoints >= h)) {
       barGlowOpacity.setValue(0.7);
       Animated.timing(barGlowOpacity, { toValue: 0, duration: 700, useNativeDriver: false }).start();
@@ -203,6 +202,7 @@ export function TodayScreen() {
       const parsed = parseInt(duration, 10);
       if (isNaN(parsed) || parsed <= 0) { Alert.alert(t.validDuration); return; }
       mins = durationUnit === 'hr' ? parsed * 60 : parsed;
+      if (mins > 1440) { Alert.alert(t.validDuration); return; } // cap at 24h
     }
     try {
       const result = await logTask.mutateAsync({
@@ -294,7 +294,7 @@ export function TodayScreen() {
         <View style={styles.progCard}>
           <View style={styles.progTop}>
             <Text style={styles.progLabel}>{t.pointsLabel}</Text>
-            <Text style={styles.progPts}><Text style={styles.progPtsBold}>{dailyPoints}</Text> / {DAILY_THRESHOLD}</Text>
+            <Text style={styles.progPts}><Text style={styles.progPtsBold}>{dailyPoints}</Text> / {DAILY_BONUS_THRESHOLD}</Text>
           </View>
           <View style={styles.bar}>
             <Animated.View
@@ -302,7 +302,7 @@ export function TodayScreen() {
             />
             <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', opacity: barGlowOpacity, borderRadius: Radii.pill }]} />
           </View>
-          <Text style={styles.progCap}>{t.streakBonus(DAILY_THRESHOLD)}</Text>
+          <Text style={styles.progCap}>{t.streakBonus(DAILY_BONUS_THRESHOLD)}</Text>
         </View>
 
         {/* Smart suggestion chips */}
@@ -446,7 +446,7 @@ export function TodayScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.btn} onPress={() => handleLogTime()}>
+                <TouchableOpacity style={styles.btn} onPress={() => handleLogTime()} disabled={logTask.isPending}>
                   <Text style={styles.btnText}>{t.logBtn}</Text>
                 </TouchableOpacity>
               </>
