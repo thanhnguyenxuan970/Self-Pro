@@ -12,11 +12,11 @@ type TierRow = {
 type WeekHistory = { week_start: string; weekly_stars: number; current_tier_id: number | null };
 
 export function useRankData(userId: number) {
+  const weekStart = getWeekStart();
   return useQuery({
-    queryKey: ['rank', userId],
+    queryKey: ['rank', userId, weekStart],
     queryFn: async () => {
       const db = await getDb();
-      const weekStart = getWeekStart();
 
       const weekly = await db.getFirstAsync<{ weekly_stars: number; current_tier_id: number | null }>(
         `SELECT weekly_stars, current_tier_id FROM weekly_summary WHERE user_id=? AND week_start=?`,

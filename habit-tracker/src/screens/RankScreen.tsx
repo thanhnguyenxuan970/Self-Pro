@@ -71,7 +71,7 @@ export function RankScreen() {
     () => {
       if (!data) return [];
       const cur = getCurrentTier(data.currentStars, data.tiers);
-      return [cur];
+      return cur ? [cur] : [];
     },
     [data],
   );
@@ -88,6 +88,7 @@ export function RankScreen() {
   useEffect(() => {
     if (!data || sortedTiers.length === 0) return;
     const currentTierLocal = getCurrentTier(data.currentStars, data.tiers);
+    if (!currentTierLocal) return;
     const idx = sortedTiers.findIndex(t => t.id === currentTierLocal.id);
     if (idx < 0) return;
 
@@ -124,13 +125,13 @@ export function RankScreen() {
   const currentTier = getCurrentTier(currentStars, tiers);
   const starsToNext = getStarsToNextTier(currentStars, tiers);
   const nextTier = tiers.find((tr) => tr.stars_required > currentStars);
-  const prevTierStars = currentTier.stars_required;
+  const prevTierStars = currentTier?.stars_required ?? 0;
   const nextTierStars = nextTier?.stars_required ?? prevTierStars;
   const progressPct = nextTier
-    ? Math.min(1, (currentStars - prevTierStars) / Math.max(1, nextTierStars - prevTierStars))
+    ? Math.min(1, Math.max(0, (currentStars - prevTierStars) / Math.max(1, nextTierStars - prevTierStars)))
     : 1;
 
-  const cfg = rankConfig(currentTier.tier_order);
+  const cfg = rankConfig(currentTier?.tier_order ?? 1);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -144,12 +145,12 @@ export function RankScreen() {
             <>
               <RankMascot
                 ref={mascotRef}
-                tier={currentTier.tier_order - 1}
+                tier={(currentTier?.tier_order ?? 1) - 1}
                 size={100}
                 loop
                 reduceMotion={reduceMotion}
               />
-              <Text style={styles.rankNm}>{currentTier.rank_name}</Text>
+              <Text style={styles.rankNm}>{currentTier?.rank_name}</Text>
               <Text style={styles.rankEn}>{cfg.descriptor}</Text>
             </>
           ) : (
@@ -185,7 +186,7 @@ export function RankScreen() {
         <View style={styles.card}>
           {sortedTiers.map((tier, idx, arr) => {
             if (!tier) return null;
-            const isCurrent = tier.id === currentTier.id;
+            const isCurrent = tier.id === currentTier?.id;
             const isLast = idx === arr.length - 1;
             const rc = rankConfig(tier.tier_order);
             const range = idx > 0

@@ -44,10 +44,3 @@ export function computeStars(
   return stars;
 }
 
-/** Minutes → "1.5h" / "45m" / "3h 30m" for chip + summary labels. */
-function formatDuration(min: number): string {
-  if (min < 60) return `${min}m`;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
-}

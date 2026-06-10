@@ -6,7 +6,7 @@ export type Tier = {
   reward_amount: number;
 };
 
-export function getCurrentTier(stars: number, tiers: Tier[]): Tier {
+export function getCurrentTier(stars: number, tiers: Tier[]): Tier | undefined {
   const sorted = [...tiers].sort((a, b) => b.stars_required - a.stars_required);
-  return sorted.find((t) => stars >= t.stars_required) ?? sorted[sorted.length - 1];
+  return sorted.find((t) => stars >= t.stars_required);
 }

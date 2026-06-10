@@ -20,7 +20,7 @@ export function useCreateTask(userId: number) {
         `INSERT INTO task_types
          (user_id, name, kind, is_time_based, base_points, star_penalty, icon, category_id, archived)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-         ON CONFLICT(user_id, name) DO UPDATE SET archived = 0`,
+         ON CONFLICT(user_id, name) DO UPDATE SET archived = 0, is_time_based = excluded.is_time_based`,
         [userId, params.name, params.kind, params.isTimeBased ? 1 : 0,
          params.basePoints, params.starPenalty, params.icon ?? null,
          params.categoryId ?? null]
@@ -30,24 +30,6 @@ export function useCreateTask(userId: number) {
         [userId, params.name]
       );
       return row!.id;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['today', 'tasks'] }),
-  });
-}
-
-function useUpdateTask(userId: number) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (params: TaskFormParams & { id: number }) => {
-      const db = await getDb();
-      await db.runAsync(
-        `UPDATE task_types
-         SET name = ?, kind = ?, is_time_based = ?, base_points = ?, star_penalty = ?, icon = ?, category_id = ?
-         WHERE id = ? AND user_id = ?`,
-        [params.name, params.kind, params.isTimeBased ? 1 : 0,
-         params.basePoints, params.starPenalty, params.icon ?? null,
-         params.categoryId ?? null, params.id, userId]
-      );
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['today', 'tasks'] }),
   });
@@ -67,19 +49,3 @@ export function useArchiveTask(userId: number) {
   });
 }
 
-function useArchiveCategory(userId: number) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (categoryId: number) => {
-      const db = await getDb();
-      await db.runAsync(
-        `UPDATE categories SET archived = 1 WHERE id = ? AND user_id = ?`,
-        [categoryId, userId],
-      );
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['categories', userId] });
-      qc.invalidateQueries({ queryKey: ['today', 'tasks'] });
-    },
-  });
-}
