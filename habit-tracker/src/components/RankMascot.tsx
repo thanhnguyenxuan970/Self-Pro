@@ -20,27 +20,27 @@ import { RANKS, STAR_POINTS, type Channel, type SvgEl } from '../config/ranks.co
 import { playRankSound } from '../audio/rankSound';
 
 // Interpolate a channel from p (0→1); returns constant dflt if channel absent
-function chanInterp(p: Animated.Value, arr: Channel | undefined, dflt: number) {
+function chanInterp(p: Animated.Value, arr: Channel | undefined, dflt: number): Animated.AnimatedInterpolation<number> {
   if (!arr || arr.length < 2) {
-    return p.interpolate({ inputRange: [0, 1], outputRange: [dflt, dflt] });
+    return p.interpolate({ inputRange: [0, 1], outputRange: [dflt, dflt] }) as Animated.AnimatedInterpolation<number>;
   }
   return p.interpolate({
     inputRange: arr.map(k => k[0]),
     outputRange: arr.map(k => k[1]),
     extrapolate: 'clamp',
-  });
+  }) as Animated.AnimatedInterpolation<number>;
 }
 
 // Same but output as '45deg' strings for rotate transform
-function chanInterpDeg(p: Animated.Value, arr: Channel | undefined, dflt: number) {
+function chanInterpDeg(p: Animated.Value, arr: Channel | undefined, dflt: number): Animated.AnimatedInterpolation<string> {
   if (!arr || arr.length < 2) {
-    return p.interpolate({ inputRange: [0, 1], outputRange: [`${dflt}deg`, `${dflt}deg`] });
+    return p.interpolate({ inputRange: [0, 1], outputRange: [`${dflt}deg`, `${dflt}deg`] }) as Animated.AnimatedInterpolation<string>;
   }
   return p.interpolate({
     inputRange: arr.map(k => k[0]),
     outputRange: arr.map(k => `${k[1]}deg`),
     extrapolate: 'clamp',
-  });
+  }) as Animated.AnimatedInterpolation<string>;
 }
 
 function fireHaptic(kind: 'success' | 'heavy-success') {
@@ -125,11 +125,11 @@ export const RankMascot = forwardRef<RankMascotHandle, Props>(
             width: size,
             height: size,
             transform: [
-              { translateX: chanInterp(p, c.translateX, 0) as any },
-              { translateY: chanInterp(p, c.translateY, 0) as any },
-              { rotate: chanInterpDeg(p, c.rotate, 0) as any },
-              { scaleX: chanInterp(p, c.scaleX, 1) as any },
-              { scaleY: chanInterp(p, c.scaleY, 1) as any },
+              { translateX: chanInterp(p, c.translateX, 0) },
+              { translateY: chanInterp(p, c.translateY, 0) },
+              { rotate: chanInterpDeg(p, c.rotate, 0) },
+              { scaleX: chanInterp(p, c.scaleX, 1) },
+              { scaleY: chanInterp(p, c.scaleY, 1) },
             ],
           }}
         >

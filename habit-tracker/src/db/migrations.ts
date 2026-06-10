@@ -1,6 +1,9 @@
-import { SQLiteDatabase } from 'expo-sqlite';
+﻿import { SQLiteDatabase } from 'expo-sqlite';
 
-export async function runMigrations(db: SQLiteDatabase) {
+type MigrationFn = (db: SQLiteDatabase) => Promise<void>;
+
+// v0 -> v1: initial schema + seed data
+async function v1(db: SQLiteDatabase): Promise<void> {
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
 
@@ -105,7 +108,43 @@ export async function runMigrations(db: SQLiteDatabase) {
     );
   `);
 
-  // Day 4 / Day 9+ migrations: new user columns
+  const catCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM categories');
+  if (!catCount || catCount.count === 0) {
+    await db.execAsync(`
+      INSERT INTO categories (user_id, name, icon, sort_order) VALUES
+      (1, 'Health', '🏃', 1),
+      (1, 'Mind',   '🧠', 2),
+      (1, 'Work',   '💼', 3),
+      (1, 'Social', '👥', 4),
+      (1, 'Other',  '⭐', 5);
+    `);
+  }
+
+  const tierCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM tiers');
+  if (!tierCount || tierCount.count === 0) {
+    await db.execAsync(`
+      INSERT INTO tiers (tier_order, stars_required, rank_name, reward_amount, reward_currency) VALUES
+      (1, 5,   'Delulu',         50000,  'VND'),
+      (2, 10,  'Mewing',         100000, 'VND'),
+      (3, 20,  'Rizz',           150000, 'VND'),
+      (4, 40,  'Gigachad',       200000, 'VND'),
+      (5, 80,  'Aura Farmer',    300000, 'VND'),
+      (6, 160, 'Main Character', 500000, 'VND'),
+      (7, 320, 'GOATED',         750000, 'VND');
+    `);
+  }
+
+  const userCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM users');
+  if (!userCount || userCount.count === 0) {
+    await db.execAsync(
+      `INSERT INTO users (username, timezone, carry_debt, currency)
+       VALUES ('me', 'Asia/Ho_Chi_Minh', 0, 'VND')`
+    );
+  }
+}
+
+// v1 -> v2: new user/task columns
+async function v2(db: SQLiteDatabase): Promise<void> {
   for (const sql of [
     `ALTER TABLE users ADD COLUMN last_seen_week_start TEXT`,
     `ALTER TABLE users ADD COLUMN notification_time TEXT`,
@@ -122,40 +161,48 @@ export async function runMigrations(db: SQLiteDatabase) {
       if (!e?.message?.includes('duplicate column')) throw e;
     }
   }
+}
 
-  // Seed default categories if empty
-  const catCount = await db.getFirstAsync<{ count: number }>(
-    'SELECT COUNT(*) as count FROM categories'
-  );
-  if (!catCount || catCount.count === 0) {
-    await db.execAsync(`
-      INSERT INTO categories (user_id, name, icon, sort_order) VALUES
-      (1, 'Health', '🏃', 1),
-      (1, 'Mind',   '🧠', 2),
-      (1, 'Work',   '💼', 3),
-      (1, 'Social', '👥', 4),
-      (1, 'Other',  '⭐', 5);
-    `);
-  }
+// v2 -> v3: streak_freezes + treats + treat_history (AUTOINCREMENT)
+async function v3(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS streak_freezes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      local_date TEXT NOT NULL,
+      purchased_at INTEGER NOT NULL,
+      UNIQUE(user_id, local_date)
+    );
 
-  // Seed default tiers if empty
-  const tierCount = await db.getFirstAsync<{ count: number }>(
-    'SELECT COUNT(*) as count FROM tiers'
-  );
-  if (!tierCount || tierCount.count === 0) {
-    await db.execAsync(`
-      INSERT INTO tiers (tier_order, stars_required, rank_name, reward_amount, reward_currency) VALUES
-      (1, 5,   'Delulu',         50000,  'VND'),
-      (2, 10,  'Mewing',         100000, 'VND'),
-      (3, 20,  'Rizz',           150000, 'VND'),
-      (4, 40,  'Gigachad',       200000, 'VND'),
-      (5, 80,  'Aura Farmer',    300000, 'VND'),
-      (6, 160, 'Main Character', 500000, 'VND'),
-      (7, 320, 'GOATED',         750000, 'VND');
-    `);
-  }
+    CREATE TABLE IF NOT EXISTS treats (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id       INTEGER NOT NULL REFERENCES users(id),
+      name          TEXT NOT NULL,
+      icon          TEXT NOT NULL DEFAULT 'gift',
+      target_stars  INTEGER NOT NULL,
+      approx_amount INTEGER NOT NULL,
+      currency      TEXT NOT NULL DEFAULT 'VND',
+      status        TEXT NOT NULL DEFAULT 'ACTIVE'
+                    CHECK (status IN ('ACTIVE','ENJOYED','ARCHIVED')),
+      sort_order    INTEGER NOT NULL DEFAULT 0,
+      reached_at    TEXT,
+      enjoyed_at    TEXT,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_treats_user ON treats(user_id, status, sort_order);
 
-  // Migrate existing tiers to absurd rank names + new star thresholds (idempotent)
+    CREATE TABLE IF NOT EXISTS treat_history (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER NOT NULL REFERENCES users(id),
+      treat_id    INTEGER NOT NULL REFERENCES treats(id),
+      name        TEXT NOT NULL,
+      stars_spent INTEGER NOT NULL,
+      amount      INTEGER NOT NULL,
+      currency    TEXT NOT NULL DEFAULT 'VND',
+      enjoyed_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
   const hasNewTiers = await db.getFirstAsync<{ count: number }>(
     `SELECT COUNT(*) as count FROM tiers WHERE rank_name='Delulu'`
   );
@@ -178,60 +225,10 @@ export async function runMigrations(db: SQLiteDatabase) {
       }
     });
   }
+}
 
-  // Seed default user if empty
-  const userCount = await db.getFirstAsync<{ count: number }>(
-    'SELECT COUNT(*) as count FROM users'
-  );
-  if (!userCount || userCount.count === 0) {
-    await db.execAsync(
-      `INSERT INTO users (username, timezone, carry_debt, currency)
-       VALUES ('me', 'Asia/Ho_Chi_Minh', 0, 'VND')`
-    );
-  }
-
-  // Day 8 migrations: streak_freezes
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS streak_freezes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      local_date TEXT NOT NULL,
-      purchased_at INTEGER NOT NULL,
-      UNIQUE(user_id, local_date)
-    );
-  `);
-
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS treats (
-      id            INTEGER PRIMARY KEY,
-      user_id       INTEGER NOT NULL REFERENCES users(id),
-      name          TEXT NOT NULL,
-      icon          TEXT NOT NULL DEFAULT 'gift',
-      target_stars  INTEGER NOT NULL,
-      approx_amount INTEGER NOT NULL,
-      currency      TEXT NOT NULL DEFAULT 'VND',
-      status        TEXT NOT NULL DEFAULT 'ACTIVE'
-                    CHECK (status IN ('ACTIVE','ENJOYED','ARCHIVED')),
-      sort_order    INTEGER NOT NULL DEFAULT 0,
-      reached_at    TEXT,
-      enjoyed_at    TEXT,
-      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    CREATE INDEX IF NOT EXISTS idx_treats_user ON treats(user_id, status, sort_order);
-
-    CREATE TABLE IF NOT EXISTS treat_history (
-      id          INTEGER PRIMARY KEY,
-      user_id     INTEGER NOT NULL REFERENCES users(id),
-      treat_id    INTEGER NOT NULL REFERENCES treats(id),
-      name        TEXT NOT NULL,
-      stars_spent INTEGER NOT NULL,
-      amount      INTEGER NOT NULL,
-      currency    TEXT NOT NULL DEFAULT 'VND',
-      enjoyed_at  TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-
-  // Remove duplicate task names per user (keep lowest id), then enforce uniqueness
+// v3 -> v4: remove duplicate task names + enforce uniqueness
+async function v4(db: SQLiteDatabase): Promise<void> {
   await db.execAsync(`
     DELETE FROM task_types WHERE id NOT IN (
       SELECT MIN(id) FROM task_types GROUP BY user_id, name
@@ -241,11 +238,11 @@ export async function runMigrations(db: SQLiteDatabase) {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_task_types_user_name
     ON task_types (user_id, name);
   `);
+}
 
-  // Seed default task_type for Day 1 verification
-  const taskCount = await db.getFirstAsync<{ count: number }>(
-    'SELECT COUNT(*) as count FROM task_types'
-  );
+// v4 -> v5: seed default task types
+async function v5(db: SQLiteDatabase): Promise<void> {
+  const taskCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM task_types');
   if (!taskCount || taskCount.count === 0) {
     await db.execAsync(
       `INSERT OR IGNORE INTO task_types (user_id, name, kind, is_time_based, base_points, star_penalty, archived)
@@ -253,16 +250,11 @@ export async function runMigrations(db: SQLiteDatabase) {
     );
   }
 
-  // Idempotent: add Cleaning + Work for all existing users
   await db.execAsync(`
     INSERT OR IGNORE INTO task_types (user_id, name, icon, kind, is_time_based, base_points, star_penalty, archived)
     SELECT u.id, 'Cleaning', '🧹', 'GOOD', 0, 10, 50, 0 FROM users u;
     INSERT OR IGNORE INTO task_types (user_id, name, icon, kind, is_time_based, base_points, star_penalty, archived)
     SELECT u.id, 'Work', '💼', 'GOOD', 1, 10, 50, 0 FROM users u;
-  `);
-
-  // Idempotent: add Study / Family / Relationship / Sports for all existing users
-  await db.execAsync(`
     INSERT OR IGNORE INTO task_types (user_id, name, icon, kind, is_time_based, base_points, star_penalty, archived)
     SELECT u.id, 'Study', '📚', 'GOOD', 1, 10, 50, 0 FROM users u;
     INSERT OR IGNORE INTO task_types (user_id, name, icon, kind, is_time_based, base_points, star_penalty, archived)
@@ -272,14 +264,27 @@ export async function runMigrations(db: SQLiteDatabase) {
     INSERT OR IGNORE INTO task_types (user_id, name, icon, kind, is_time_based, base_points, star_penalty, archived)
     SELECT u.id, 'Sports', '⚽', 'GOOD', 1, 10, 50, 0 FROM users u;
   `);
+}
 
-  // Performance: activity_log is the hottest/largest table and is queried by
-  // (user_id, local_date) and (user_id, week_start) across Today/Calendar/Progress.
-  // Without these it full-scans; rows grow daily. Idempotent.
+// v5 -> v6: performance indexes on hot tables
+async function v6(db: SQLiteDatabase): Promise<void> {
   await db.execAsync(`
     CREATE INDEX IF NOT EXISTS idx_activity_user_date ON activity_log(user_id, local_date);
     CREATE INDEX IF NOT EXISTS idx_activity_user_week ON activity_log(user_id, week_start);
     CREATE INDEX IF NOT EXISTS idx_activity_user_task_date ON activity_log(user_id, task_type_id, local_date);
     CREATE INDEX IF NOT EXISTS idx_fund_user ON fund_transactions(user_id);
   `);
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6];
+
+export async function runMigrations(db: SQLiteDatabase): Promise<void> {
+  const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+  let version = row?.user_version ?? 0;
+
+  for (; version < MIGRATIONS.length; version++) {
+    await MIGRATIONS[version](db);
+    // Integer literal -- safe to interpolate (never derived from user input)
+    await db.execAsync(`PRAGMA user_version = ${version + 1}`);
+  }
 }

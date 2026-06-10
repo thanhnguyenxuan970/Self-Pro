@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+﻿import React, { useState, useEffect, useCallback } from 'react';
+import { ActivityIndicator, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { queryClient } from './src/queries/queryClient';
@@ -14,8 +14,15 @@ import { useTheme } from './src/hooks/useSettings';
 
 function AppInner() {
   const [dbReady, setDbReady] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [weekReset, setWeekReset] = useState(false);
   const { colors } = useTheme();
+  const retryInit = useCallback(() => {
+    setDbError(null);
+    setDbReady(false);
+    setRetryCount(c => c + 1);
+  }, []);
   const {
     isLoading: authLoading,
     isOnboarded,
@@ -65,10 +72,14 @@ function AppInner() {
 
       setDbReady(true);
     }
-    init().catch(err => console.error('DB init failed:', err));
+    init().catch(err => {
+      console.error('DB init failed:', err);
+      setDbError(err instanceof Error ? err.message : String(err));
+    });
   // googleUser intentionally captured via closure: init() runs once when auth
   // settles. Fresh sign-ins resolve userId via signInWithGoogle() instead.
-  }, [authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  // retryCount bumped by retryInit() to re-trigger this effect after user taps Retry.
+  }, [authLoading, retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (dbReady && weekReset) {
@@ -83,6 +94,17 @@ function AppInner() {
       return () => clearTimeout(id);
     }
   }, [dbReady, weekReset]);
+
+  if (dbError) {
+    return (
+      <View style={[appStyles.center, { backgroundColor: colors.bgBase }]}>
+        <Text style={[appStyles.errorMsg, { color: colors.ink2 }]}>{'Failed to open database.\nPlease restart or tap Retry.'}</Text>
+        <TouchableOpacity style={[appStyles.retryBtn, { backgroundColor: colors.primary }]} onPress={retryInit}>
+          <Text style={appStyles.retryTxt}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (!dbReady || authLoading) {
     return (
@@ -110,6 +132,13 @@ function AppInner() {
     </UserIdContext.Provider>
   );
 }
+
+const appStyles = StyleSheet.create({
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  errorMsg: { fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
+  retryBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 8 },
+  retryTxt: { color: '#fff', fontSize: 15, fontWeight: '600' },
+});
 
 export default function App() {
   return (

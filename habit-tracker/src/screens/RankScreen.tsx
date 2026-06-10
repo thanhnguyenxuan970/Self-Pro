@@ -163,7 +163,7 @@ export function RankScreen() {
             <Text style={styles.rankWkTxt}>{t.weekStars(currentStars)}</Text>
           </View>
           <View style={styles.bar}>
-            <View style={[styles.barFill, { width: `${Math.round(progressPct * 100)}%` as any }]} />
+            <View style={[styles.barFill, { width: `${Math.round(progressPct * 100)}%` as `${number}%` }]} />
           </View>
           {starsToNext > 0 ? (
             <Text style={styles.nextCap}>
@@ -200,7 +200,7 @@ export function RankScreen() {
                   styles.rk,
                   isCurrent && { ...styles.rkCur, backgroundColor: rc.color + '22' },
                   isLast && styles.rkLast,
-                  isCurrent && scalAnim ? { transform: [{ scale: scalAnim as any }] } : undefined,
+                  isCurrent && scalAnim ? { transform: [{ scale: scalAnim }] } : undefined,
                 ]}
               >
                 {isCurrent && glowAnim && (
