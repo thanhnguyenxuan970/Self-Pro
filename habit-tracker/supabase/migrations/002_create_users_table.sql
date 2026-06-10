@@ -8,6 +8,11 @@ CREATE TABLE IF NOT EXISTS users (
 
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "own rows only" ON users;
 CREATE POLICY "own rows only" ON users
-  USING (user_email = auth.email())
+  FOR ALL
+  USING      (user_email = auth.email())
   WITH CHECK (user_email = auth.email());
+
+REVOKE ALL ON users FROM anon;
+GRANT  ALL ON users TO authenticated;

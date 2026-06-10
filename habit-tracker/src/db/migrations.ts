@@ -272,4 +272,14 @@ export async function runMigrations(db: SQLiteDatabase) {
     INSERT OR IGNORE INTO task_types (user_id, name, icon, kind, is_time_based, base_points, star_penalty, archived)
     SELECT u.id, 'Sports', '⚽', 'GOOD', 1, 10, 50, 0 FROM users u;
   `);
+
+  // Performance: activity_log is the hottest/largest table and is queried by
+  // (user_id, local_date) and (user_id, week_start) across Today/Calendar/Progress.
+  // Without these it full-scans; rows grow daily. Idempotent.
+  await db.execAsync(`
+    CREATE INDEX IF NOT EXISTS idx_activity_user_date ON activity_log(user_id, local_date);
+    CREATE INDEX IF NOT EXISTS idx_activity_user_week ON activity_log(user_id, week_start);
+    CREATE INDEX IF NOT EXISTS idx_activity_user_task_date ON activity_log(user_id, task_type_id, local_date);
+    CREATE INDEX IF NOT EXISTS idx_fund_user ON fund_transactions(user_id);
+  `);
 }

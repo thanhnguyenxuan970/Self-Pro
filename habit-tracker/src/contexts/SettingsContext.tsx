@@ -46,7 +46,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         setAudioState(audio);
         syncAudioEnabled(audio);
       })
-      .catch((e) => { console.warn('[SettingsContext] failed to load settings', e); });
+      .catch((e) => { if (__DEV__) console.warn('[SettingsContext] failed to load settings', e); });
   }, []);
 
   const setDarkMode = useCallback((v: boolean) => {

@@ -32,7 +32,7 @@ async function readGoogleUser(): Promise<string | null> {
       }
       return legacy;
     } catch (e) {
-      console.warn('[auth] SecureStore read failed, falling back to AsyncStorage:', e);
+      if (__DEV__) console.warn('[auth] SecureStore read failed, falling back to AsyncStorage:', e);
     }
   }
   return AsyncStorage.getItem(GOOGLE_USER_KEY);
@@ -44,7 +44,7 @@ async function writeGoogleUser(value: string): Promise<void> {
       await SecureStore.setItemAsync(GOOGLE_USER_KEY, value);
       return;
     } catch (e) {
-      console.warn('[auth] SecureStore write failed, falling back to AsyncStorage:', e);
+      if (__DEV__) console.warn('[auth] SecureStore write failed, falling back to AsyncStorage:', e);
     }
   }
   await AsyncStorage.setItem(GOOGLE_USER_KEY, value);
@@ -58,6 +58,7 @@ async function deleteGoogleUser(): Promise<void> {
 }
 
 export interface GoogleUser {
+  sub: string;   // stable OIDC subject id (never changes, unlike email)
   email: string;
   name: string;
   picture: string;
@@ -83,7 +84,8 @@ export function parseGoogleUser(val: string | null): GoogleUser | null {
   try {
     const parsed = JSON.parse(val);
     if (typeof parsed?.email === 'string' && typeof parsed?.name === 'string' && typeof parsed?.picture === 'string') {
-      return parsed as GoogleUser;
+      // sub may be absent in legacy stored values; fall back to email so old sessions still work
+      return { sub: parsed.sub ?? parsed.email, ...parsed } as GoogleUser;
     }
     return null;
   } catch {
@@ -92,22 +94,38 @@ export function parseGoogleUser(val: string | null): GoogleUser | null {
 }
 
 /**
- * Maps a Google email to a DB user row, creating one if needed.
- * - Existing row with matching google_sub → return its id
- * - Legacy anonymous row (id=1, google_sub IS NULL) → claim it, return 1
+ * Maps a Google identity to a DB user row, creating one if needed.
+ * - Existing row with matching google_sub (OIDC sub) → return its id
+ * - Legacy row with google_sub = email (pre-M3 fix) → migrate sub in-place, return its id
+ * - Legacy anonymous row (id=1, google_sub IS NULL) → claim it with real sub, return 1
  * - Otherwise → insert new row (new device/account), return new id
  * Also seeds default categories for brand-new rows.
  */
-export async function resolveUserRow(db: SQLiteDatabase, googleEmail: string): Promise<{ id: number; isNew: boolean }> {
+export async function resolveUserRow(
+  db: SQLiteDatabase,
+  googleSub: string,
+  googleEmail: string,
+): Promise<{ id: number; isNew: boolean }> {
+  // Primary lookup: stable OIDC sub
   const existing = await db.getFirstAsync<{ id: number }>(
     'SELECT id FROM users WHERE google_sub = ?',
-    [googleEmail]
+    [googleSub]
   );
   if (existing) return { id: existing.id, isNew: false };
 
+  // Migration: legacy install stored email in google_sub — upgrade in-place
+  const legacy = await db.getFirstAsync<{ id: number }>(
+    'SELECT id FROM users WHERE google_sub = ?',
+    [googleEmail]
+  );
+  if (legacy) {
+    await db.runAsync('UPDATE users SET google_sub = ? WHERE id = ?', [googleSub, legacy.id]);
+    return { id: legacy.id, isNew: false };
+  }
+
   const claimed = await db.runAsync(
     'UPDATE users SET google_sub = ? WHERE id = 1 AND google_sub IS NULL',
-    [googleEmail]
+    [googleSub]
   );
   if (claimed.changes > 0) return { id: 1, isNew: false };
 
@@ -115,7 +133,7 @@ export async function resolveUserRow(db: SQLiteDatabase, googleEmail: string): P
   const result = await db.runAsync(
     `INSERT INTO users (username, timezone, carry_debt, currency, google_sub)
      VALUES ('me', 'Asia/Ho_Chi_Minh', 0, 'VND', ?)`,
-    [googleEmail]
+    [googleSub]
   );
   const newUserId = result.lastInsertRowId;
   const catSeed = [
@@ -179,14 +197,14 @@ export function useAuth() {
         if (supabase) {
           await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
         }
-      } catch (e) { console.warn('[auth] Supabase signInWithIdToken failed:', e); }
+      } catch (e) { if (__DEV__) console.warn('[auth] Supabase signInWithIdToken failed:', e); }
     }
     // Resolve DB row immediately so userId is ready before onboarding renders
     let isNew = true;
     try {
       const { getDb } = await import('../db/client');
       const db = await getDb();
-      const result = await resolveUserRow(db, user.email);
+      const result = await resolveUserRow(db, user.sub, user.email);
       setUserId(result.id);
       isNew = result.isNew;
       // Returning user: auto-complete onboarding so they skip the onboarding screen
@@ -194,7 +212,7 @@ export function useAuth() {
         await AsyncStorage.setItem(ONBOARDED_KEY, 'true');
         setIsOnboarded(true);
       }
-    } catch (e) { console.warn('[auth] resolveUserRow failed, defaulting to userId=1:', e); }
+    } catch (e) { if (__DEV__) console.warn('[auth] resolveUserRow failed, defaulting to userId=1:', e); }
     return isNew;
   }, []);
 
@@ -206,17 +224,24 @@ export function useAuth() {
       const gu = parseGoogleUser(googleUserJson);
       if (gu) await deleteUserFromSupabase(gu.email);
       await resetSyncCursors();
-    } catch (e) { console.warn('[auth] deleteUserFromSupabase failed (remote data may remain):', e); }
+    } catch (e) { if (__DEV__) console.warn('[auth] deleteUserFromSupabase failed (remote data may remain):', e); }
     // Delete all local SQLite rows
     const { getDb } = await import('../db/client');
     const db = await getDb();
     await db.withTransactionAsync(async () => {
-      for (const table of [
-        'activity_log', 'daily_summary', 'weekly_summary',
-        'reward_unlocks', 'treats', 'treat_history', 'streak_freezes',
-        'task_types', 'categories', 'fund_transactions',
+      for (const sql of [
+        'DELETE FROM activity_log WHERE user_id = ?',
+        'DELETE FROM daily_summary WHERE user_id = ?',
+        'DELETE FROM weekly_summary WHERE user_id = ?',
+        'DELETE FROM reward_unlocks WHERE user_id = ?',
+        'DELETE FROM treats WHERE user_id = ?',
+        'DELETE FROM treat_history WHERE user_id = ?',
+        'DELETE FROM streak_freezes WHERE user_id = ?',
+        'DELETE FROM task_types WHERE user_id = ?',
+        'DELETE FROM categories WHERE user_id = ?',
+        'DELETE FROM fund_transactions WHERE user_id = ?',
       ]) {
-        await db.runAsync(`DELETE FROM ${table} WHERE user_id = ?`, [uid]);
+        await db.runAsync(sql, [uid]);
       }
       await db.runAsync('DELETE FROM users WHERE id = ?', [uid]);
     });

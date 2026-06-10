@@ -31,8 +31,8 @@ CREATE POLICY "own rows only"
   USING      (user_email = auth.email())
   WITH CHECK (user_email = auth.email());
 
--- Step 3 (optional but recommended): restrict anon role to authenticated only
--- REVOKE ALL ON activity_log      FROM anon;
--- REVOKE ALL ON fund_transactions FROM anon;
--- GRANT  ALL ON activity_log      TO authenticated;
--- GRANT  ALL ON fund_transactions TO authenticated;
+-- Step 3: restrict anon role — only authenticated users may access user data
+REVOKE ALL ON activity_log      FROM anon;
+REVOKE ALL ON fund_transactions FROM anon;
+GRANT  ALL ON activity_log      TO authenticated;
+GRANT  ALL ON fund_transactions TO authenticated;

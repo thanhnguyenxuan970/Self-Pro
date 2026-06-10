@@ -14,8 +14,12 @@ describe('parseGoogleUser', () => {
     expect(parseGoogleUser(JSON.stringify({ name: 'Test' }))).toBeNull());
   test('missing picture field → null', () =>
     expect(parseGoogleUser(JSON.stringify({ email: 'a@b.com', name: 'Test' }))).toBeNull());
-  test('valid object → GoogleUser', () => {
-    const user = { email: 'a@b.com', name: 'Test User', picture: 'https://pic.jpg' };
+  test('valid object with sub → GoogleUser', () => {
+    const user = { sub: 'google-uid-123', email: 'a@b.com', name: 'Test User', picture: 'https://pic.jpg' };
     expect(parseGoogleUser(JSON.stringify(user))).toEqual(user);
+  });
+  test('legacy object without sub → falls back to email as sub', () => {
+    const user = { email: 'a@b.com', name: 'Test User', picture: 'https://pic.jpg' };
+    expect(parseGoogleUser(JSON.stringify(user))).toEqual({ sub: 'a@b.com', ...user });
   });
 });

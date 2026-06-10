@@ -30,7 +30,7 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
         return;
       }
       const isNew = await onSignInWithGoogle(
-        { email: user.email, name: user.name, picture: user.photo ?? '' },
+        { sub: user.id, email: user.email, name: user.name, picture: user.photo ?? '' },
         response.data?.idToken ?? undefined,
       );
       if (isNew) onSignIn();
