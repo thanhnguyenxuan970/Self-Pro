@@ -139,19 +139,14 @@ export function AddActivitySheet({ visible, onClose }: Props) {
             {isPending ? (
               <ActivityIndicator color={colors.primary} size="small" style={styles.chipSpinner} />
             ) : (
-              <View style={styles.durationChipsWrap}>
-                {[`15 ${t.unitMin.toLowerCase()}`, `30 ${t.unitMin.toLowerCase()}`, `45 ${t.unitMin.toLowerCase()}`, `1 ${t.unitHour.toLowerCase()}`, `2 ${t.unitHour.toLowerCase()}`].map(label => (
-                  <TouchableOpacity
-                    key={label}
-                    style={[styles.durationChip, !hasName && styles.durationChipDim]}
-                    onPress={() => handleCreate(true)}
-                    disabled={!hasName || isPending}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.durationChipText}>{label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <TouchableOpacity
+                style={[styles.durationChip, !hasName && styles.durationChipDim]}
+                onPress={() => handleCreate(true)}
+                disabled={!hasName || isPending}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.durationChipText}>{t.addActivityTimedBtn}</Text>
+              </TouchableOpacity>
             )}
 
             <TouchableOpacity

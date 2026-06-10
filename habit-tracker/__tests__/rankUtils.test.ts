@@ -12,11 +12,11 @@ const TIERS = [
 ];
 
 describe('getCurrentTier', () => {
-  test('0 stars → NPC', () => expect(getCurrentTier(0, TIERS).rank_name).toBe('NPC'));
-  test('5 stars → Non Tơ', () => expect(getCurrentTier(5, TIERS).rank_name).toBe('Non Tơ'));
-  test('9 stars → Non Tơ (not yet Tấu Hài)', () => expect(getCurrentTier(9, TIERS).rank_name).toBe('Non Tơ'));
-  test('10 stars → Tấu Hài', () => expect(getCurrentTier(10, TIERS).rank_name).toBe('Tấu Hài'));
-  test('200 stars → U Là Trời', () => expect(getCurrentTier(200, TIERS).rank_name).toBe('U Là Trời'));
+  test('0 stars → NPC', () => expect(getCurrentTier(0, TIERS)!.rank_name).toBe('NPC'));
+  test('5 stars → Non Tơ', () => expect(getCurrentTier(5, TIERS)!.rank_name).toBe('Non Tơ'));
+  test('9 stars → Non Tơ (not yet Tấu Hài)', () => expect(getCurrentTier(9, TIERS)!.rank_name).toBe('Non Tơ'));
+  test('10 stars → Tấu Hài', () => expect(getCurrentTier(10, TIERS)!.rank_name).toBe('Tấu Hài'));
+  test('200 stars → U Là Trời', () => expect(getCurrentTier(200, TIERS)!.rank_name).toBe('U Là Trời'));
 });
 
 describe('getStarsToNextTier', () => {
