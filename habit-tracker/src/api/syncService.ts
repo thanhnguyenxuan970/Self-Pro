@@ -98,13 +98,10 @@ export async function syncToSupabase(userEmail: string): Promise<void> {
   const db = await getDb();
   const userId = await resolveUserId(db, userEmail);
   if (userId == null) return;
-  const results = await Promise.allSettled([
+  await Promise.allSettled([
     syncActivity(db, userId, userEmail),
     syncFund(db, userId, userEmail),
   ]);
-  for (const r of results) {
-    if (r.status === 'rejected' && __DEV__) console.warn('[sync] failed:', r.reason);
-  }
 }
 
 /** Reset all sync cursors (call on sign-out so next sign-in re-syncs from scratch). */

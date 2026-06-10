@@ -130,6 +130,7 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 | `None of these files exist: * src\theme(...)` | Metro stale module graph from path moves during restructure | Delete `%TEMP%\metro-cache` + `%TEMP%\metro-file-map-expo-*`; or `expo start --clear` |
 | `DEVELOPER_ERROR code 10` from `GoogleSignin.signIn()` | `android/app/google-services.json` has empty `oauth_client: []` — Android OAuth client not registered | Add Android OAuth client entry (`client_type: 1`, `package_name`, `certificate_hash` SHA-1 no colons lowercase) to `google-services.json`; rebuild |
 | Google account picker shows but `400: invalid_request` | Google blocks ALL custom URI scheme redirects from browser OAuth flows | Use `@react-native-google-signin` (native Play Services auth, no browser redirect); `expo-auth-session` cannot work with Google |
+| `E ReactNativeJS: fetch failed: java.net.UnknownHostException: Unable to resolve host "*.supabase.co"` | `persistSession: true` causes `GoTrueClient._recoverAndRefresh()` on startup → stored session found → `_callRefreshToken()` → DNS fail → GoTrueClient calls `console.error` internally | Set `persistSession: false` + `autoRefreshToken: false` in `createClient` auth config |
 
 ---
 
@@ -526,3 +527,20 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors
+
+---
+
+## Habit Tracker — Supabase DNS Error Fix COMPLETE (2026-06-10)
+
+### What Was Fixed
+- **`src/api/supabase.ts`**: `autoRefreshToken: true → false`, `persistSession: true → false`. Root cause: `persistSession: true` caused `GoTrueClient._recoverAndRefresh()` to run on startup, find a stored session in AsyncStorage, call `_callRefreshToken()`, which failed with DNS error on offline emulator, and internally called `console.error(err)` → `E ReactNativeJS` error in logcat.
+- **`src/api/syncService.ts`**: Removed dead `results` variable and `console.warn('[sync] failed:')` loop from `syncToSupabase`. Fire-and-forget sync is now fully silent on network failure.
+
+### Key Decisions
+- `persistSession: false` is the correct setting for this app: Supabase is used only for data sync (upsert), not for auth. Auth is handled by `@react-native-google-signin` + `expo-secure-store`. GoTrueClient auth features are unused — disabling session persistence prevents spurious startup network calls.
+- `autoRefreshToken: false` follows from `persistSession: false` — no session to refresh.
+- `storage: AsyncStorage` left in config (harmless with `persistSession: false`).
+- Sync failures are expected in offline environments and should not log at any level.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | Logcat: 0 `E ReactNativeJS` errors on startup
