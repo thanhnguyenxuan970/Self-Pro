@@ -1,4 +1,5 @@
-import { getCurrentTier, getStarsToNextTier } from '../src/game/rankUtils';
+import { getCurrentTier } from '../src/game/tierLookup';
+import { getStarsToNextTier } from '../src/game/tierProgress';
 
 const TIERS = [
   { id: 1, tier_order: 1, stars_required: 0,   rank_name: 'NPC',          reward_amount: 0 },

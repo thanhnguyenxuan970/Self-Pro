@@ -3,7 +3,8 @@ import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Animated, Access
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useRankData } from '../queries/useRank';
-import { getCurrentTier, getStarsToNextTier } from '../game/rankUtils';
+import { getCurrentTier } from '../game/tierLookup';
+import { getStarsToNextTier } from '../game/tierProgress';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
