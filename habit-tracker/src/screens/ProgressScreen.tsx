@@ -7,15 +7,12 @@ import {
   useRecentActivityLogs, useDeleteActivityLogs, useWeeklyConsistency, useTopActivities,
   ActivityLogEntry,
 } from '../queries/useProgress';
-import { getLocalDateOffset, getWeekStartOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
 import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useSelectionMode } from '../hooks/useSelectionMode';
 
-type Range = 'D' | 'W' | 'M' | 'Y';
-
-const YEAR_MONTHS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+type Range = 'W' | 'M' | 'Y';
 
 export function ProgressScreen() {
   const userId = useAuthUser();
@@ -26,9 +23,8 @@ export function ProgressScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const chartWidth = windowWidth - 70;
 
-  const [range, setRange] = useState<Range>('W');
-  const [offset, setOffset] = useState(0);
-  const { data: chartData = [], isLoading } = useProgressData(userId, range, offset);
+  const [range, setRange] = useState<Range>('Y');
+  const { data: chartData = [], isLoading } = useProgressData(userId, range, 0);
   const { data: streak = 0 } = useStreakCount(userId);
   const { data: tierInfo } = useStarsToNextTier(userId);
   const { data: activeDays = 0 } = useWeeklyConsistency(userId);
@@ -39,20 +35,18 @@ export function ProgressScreen() {
   const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(actLogs);
 
   const RANGES = useMemo(() => [
-    { key: 'D' as Range, label: t.rangeDay },
     { key: 'W' as Range, label: t.rangeWeek },
     { key: 'M' as Range, label: t.rangeMonth },
     { key: 'Y' as Range, label: t.rangeYear },
-  ], [t.rangeDay, t.rangeWeek, t.rangeMonth, t.rangeYear]);
+  ], [t.rangeWeek, t.rangeMonth, t.rangeYear]);
 
   const formatBucket = useCallback((bucket: string, r: Range): string => {
-    if (r === 'D') return `${bucket}h`;
     if (r === 'W') {
       const d = new Date(bucket + 'T00:00:00');
       return t.dayAbbr[d.getDay()] ?? bucket;
     }
     if (r === 'M') return bucket.slice(8);
-    return YEAR_MONTHS[parseInt(bucket.slice(5, 7), 10) - 1] ?? bucket;
+    return bucket; // 'Y': bucket is "2026", "2027" etc.
   }, [t.dayAbbr]);
 
 
@@ -75,26 +69,6 @@ export function ProgressScreen() {
     );
   }
 
-  const periodLabel = useMemo(() => {
-    if (offset === 0) {
-      if (range === 'D') return t.periodToday;
-      if (range === 'W') return t.periodThisWeek;
-      if (range === 'M') return t.periodThisMonth;
-      return t.periodThisYear;
-    }
-    if (range === 'D') {
-      const d = new Date(getLocalDateOffset(offset) + 'T00:00:00');
-      return d.toLocaleDateString(t.timeLocale, { day: 'numeric', month: 'short' });
-    }
-    if (range === 'M') {
-      const d = new Date(getMonthOffset(offset) + '-01T00:00:00');
-      return d.toLocaleDateString(t.timeLocale, { month: 'long', year: 'numeric' });
-    }
-    if (range === 'Y') return getYearOffset(offset);
-    const d = new Date(getWeekStartOffset(offset) + 'T00:00:00');
-    return d.toLocaleDateString(t.timeLocale, { day: 'numeric', month: 'short' });
-  }, [range, offset, t]);
-
   const tickFormat = useCallback(
     (tv: number) => formatBucket(chartData[tv - 1]?.bucket ?? '', range),
     [chartData, range, formatBucket],
@@ -116,7 +90,6 @@ export function ProgressScreen() {
 
   // Decimate ticks for dense ranges so X-axis labels don't overlap
   const visibleTicks = useMemo(() => {
-    if (range === 'D') return tickValues.filter((_, i) => i % 3 === 0);
     if (range === 'M') {
       const step = tickValues.length <= 10 ? 3 : 5;
       const sparse = tickValues.filter((_, i) => i % step === 0);
@@ -138,36 +111,12 @@ export function ProgressScreen() {
             <TouchableOpacity
               key={key}
               style={[styles.segBtn, range === key && styles.segBtnActive]}
-              onPress={() => { setRange(key); setOffset(0); }}
+              onPress={() => setRange(key)}
             >
               <Text style={[styles.segTxt, range === key && styles.segTxtActive]}>{label}</Text>
             </TouchableOpacity>
           ))}
         </View>
-
-        {/* Period navigation — hidden for Year (locked to current year) */}
-        {range !== 'Y' && (
-          <View style={styles.periodNav}>
-            <TouchableOpacity style={styles.navBtn} onPress={() => setOffset(o => o - 1)}>
-              <Text style={styles.navBtnText}>{t.prevPeriod}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.periodLabelBtn}
-              onPress={() => setOffset(0)}
-              disabled={offset === 0}
-            >
-              <Text style={styles.periodLabelTxt}>{periodLabel}</Text>
-              {offset !== 0 && <Text style={styles.periodResetHint}>{t.currentPeriod} →</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.navBtn, offset === 0 && styles.navBtnDisabled]}
-              onPress={() => setOffset(o => Math.min(0, o + 1))}
-              disabled={offset === 0}
-            >
-              <Text style={[styles.navBtnText, offset === 0 && styles.navBtnTextDisabled]}>{t.nextPeriod}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
 
         {/* Chart card */}
         <View style={styles.card}>
@@ -330,18 +279,6 @@ function makeStyles(C: AppColors) {
     },
     segTxt: { fontSize: 12, fontWeight: '700', color: C.muted },
     segTxtActive: { color: C.inkDark },
-
-    periodNav: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      marginHorizontal: Spacing.lg, marginBottom: 10,
-    },
-    navBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radii.md, backgroundColor: C.surface },
-    navBtnDisabled: { opacity: 0.3 },
-    navBtnText: { fontSize: 20, color: C.inkDark, fontWeight: '600' },
-    navBtnTextDisabled: { color: C.muted },
-    periodLabelBtn: { flex: 1, alignItems: 'center', paddingVertical: 4 },
-    periodLabelTxt: { fontSize: 13, fontWeight: '700', color: C.inkDark },
-    periodResetHint: { fontSize: 10, color: C.primary, fontWeight: '600', marginTop: 2 },
 
     card: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,

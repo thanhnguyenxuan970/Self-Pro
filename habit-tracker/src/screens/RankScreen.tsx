@@ -3,9 +3,10 @@ import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Animated, Access
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useRankData } from '../queries/useRank';
+import { useLeaderboard } from '../queries/useLeaderboard';
 import { getCurrentTier } from '../game/tierLookup';
 import { getStarsToNextTier } from '../game/tierProgress';
-import { useAuthUser } from '../hooks/useAuth';
+import { useAuthUser, useGoogleUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
 import { RANKS } from '../config/ranks.config';
@@ -42,6 +43,7 @@ function fmtCountdown(ms: number): string {
 
 export function RankScreen() {
   const userId = useAuthUser();
+  const googleUser = useGoogleUser();
   const { colors } = useTheme();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -74,6 +76,13 @@ export function RankScreen() {
       return cur ? [cur] : [];
     },
     [data],
+  );
+
+  const currentTierOrder = data ? (getCurrentTier(data.currentStars, data.tiers)?.tier_order ?? 0) : 0;
+  const { data: leaderboard = [], isLoading: lbLoading } = useLeaderboard(
+    googleUser?.email ?? null,
+    currentTierOrder,
+    data?.tiers ?? [],
   );
 
   const glowAnims = useRef<Animated.Value[]>([]);
@@ -225,6 +234,49 @@ export function RankScreen() {
           })}
         </View>
 
+        {/* Leaderboard — same-rank users this week */}
+        {currentTierOrder > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>{t.leaderboardSection}</Text>
+            <View style={styles.card}>
+              {lbLoading ? (
+                <View style={styles.lbEmpty}>
+                  <ActivityIndicator color={colors.primary} />
+                </View>
+              ) : leaderboard.length === 0 ? (
+                <View style={styles.lbEmpty}>
+                  <Text style={styles.lbEmptyTxt}>{t.leaderboardEmpty}</Text>
+                </View>
+              ) : (
+                leaderboard.map((entry, idx) => {
+                  const isLast = idx === leaderboard.length - 1;
+                  return (
+                    <View
+                      key={entry.userEmail}
+                      style={[
+                        styles.lbRow,
+                        isLast && styles.lbRowLast,
+                        entry.isCurrentUser && styles.lbRowMe,
+                      ]}
+                    >
+                      <Text style={[styles.lbRank, entry.rank <= 3 && styles.lbRankTop]}>
+                        #{entry.rank}
+                      </Text>
+                      <View style={styles.lbInfo}>
+                        <Text style={styles.lbName} numberOfLines={1}>
+                          {entry.displayName}
+                          {entry.isCurrentUser ? ` (${t.leaderboardYou})` : ''}
+                        </Text>
+                      </View>
+                      <Text style={styles.lbStars}>{entry.weeklyStars} ★</Text>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          </>
+        )}
+
         {/* Weekly history */}
         {history.length > 0 && (
           <>
@@ -329,5 +381,18 @@ function makeStyles(C: AppColors) {
     rkB: { fontSize: 11.5, color: C.muted, marginTop: 2 },
     rkThr: { fontSize: 11.5, fontWeight: '800', color: C.muted },
 
+    lbRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      paddingVertical: 11, borderBottomWidth: 1, borderColor: C.line,
+    },
+    lbRowLast: { borderBottomWidth: 0 },
+    lbRowMe: { backgroundColor: C.primarySoft, marginHorizontal: -8, paddingHorizontal: 14, borderRadius: Radii.sm, borderBottomWidth: 0, marginVertical: 2 },
+    lbRank: { width: 32, fontSize: 13, fontWeight: '800', color: C.muted, textAlign: 'center' },
+    lbRankTop: { color: C.starGold },
+    lbInfo: { flex: 1, minWidth: 0 },
+    lbName: { fontSize: 13, fontWeight: '600', color: C.inkDark },
+    lbStars: { fontSize: 13, fontWeight: '800', color: C.primary },
+    lbEmpty: { paddingVertical: 20, alignItems: 'center' },
+    lbEmptyTxt: { fontSize: 13, color: C.muted },
   });
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView, TextInput, Linking,
+  View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, Typography, AppColors } from '../config/theme';
@@ -13,6 +13,7 @@ import {
 } from '../queries/useSettings';
 import { validateNotificationTime } from '../utils/settingsLogic';
 import { scheduleAllHabitReminders } from '../utils/notifications';
+import { FeedbackSheet } from './FeedbackSheet';
 
 type Props = {
   onDeleteAccount: (userId: number) => Promise<void>;
@@ -27,6 +28,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [deleting, setDeleting] = useState(false);
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
 
   const { data: savedNotifTime } = useNotificationTime(userId);
   const setNotifTimeMutation = useSetNotificationTime(userId);
@@ -250,7 +252,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
         <View style={styles.card}>
           <TouchableOpacity
             style={[styles.row, styles.rowLast]}
-            onPress={() => Linking.openURL('mailto:thanhnguyenxuan970@gmail.com?subject=Habit%20Ring%20Feedback').catch(() => {})}
+            onPress={() => setFeedbackVisible(true)}
             activeOpacity={0.7}
           >
             <Text style={styles.rowIc}>📬</Text>
@@ -276,6 +278,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
 
         <Text style={styles.hint}>{t.deleteAccountNote}</Text>
       </ScrollView>
+      <FeedbackSheet visible={feedbackVisible} onClose={() => setFeedbackVisible(false)} />
     </SafeAreaView>
   );
 }

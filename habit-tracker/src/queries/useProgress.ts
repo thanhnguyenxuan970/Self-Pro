@@ -62,13 +62,13 @@ export function useProgressData(userId: number, range: 'D' | 'W' | 'M' | 'Y', of
       } else {
         sql = `
           SELECT
-            substr(local_date, 1, 7) AS bucket,
+            substr(local_date, 1, 4) AS bucket,
             COALESCE(SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END), 0) AS goodStars,
             COALESCE(SUM(CASE WHEN stars_delta < 0 THEN ABS(stars_delta) ELSE 0 END), 0) AS badStars
           FROM activity_log
-          WHERE user_id = ? AND substr(local_date, 1, 4) = ?
+          WHERE user_id = ?
           GROUP BY bucket ORDER BY bucket`;
-        params = [userId, effectiveYear];
+        params = [userId];
       }
 
       const rows = await db.getAllAsync<ChartBucket>(sql, params);
@@ -120,12 +120,12 @@ function padBuckets(
     });
   }
 
-  // 'Y'
+  // 'Y' — 4-year window ending at current year
   const map = new Map(rows.map(r => [r.bucket, r]));
-  const year = Number(ctx.effectiveYear);
-  const maxMonth = ctx.offset === 0 ? new Date().getMonth() + 1 : 12;
-  return Array.from({ length: maxMonth }, (_, i) => {
-    const key = `${year}-${String(i + 1).padStart(2, '0')}`;
+  const currentYear = Number(ctx.effectiveYear);
+  const fromYear = currentYear - 3;
+  return Array.from({ length: 4 }, (_, i) => {
+    const key = String(fromYear + i);
     return map.get(key) ?? empty(key);
   });
 }

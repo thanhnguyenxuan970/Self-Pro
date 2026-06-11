@@ -243,12 +243,29 @@ const vi = {
   // Feedback
   sectionFeedback: 'PHẢN HỒI',
   reportBugLabel: 'Báo lỗi / Phản hồi',
+  feedbackTitle: 'Gửi phản hồi',
+  feedbackTypeBug: 'Báo lỗi',
+  feedbackTypeSuggestion: 'Góp ý',
+  feedbackTypeOther: 'Khác',
+  feedbackPlaceholder: 'Mô tả vấn đề hoặc góp ý của bạn…',
+  feedbackSend: 'Gửi',
+  feedbackThanks: 'Cảm ơn bạn đã phản hồi! 💚',
+  feedbackTooSoon: 'Bạn vừa gửi xong — thử lại sau 1 phút.',
+  feedbackTooShort: 'Nội dung quá ngắn.',
+  feedbackUnavailable: 'Tính năng chưa khả dụng. Thử lại sau.',
+  feedbackFailed: 'Gửi thất bại. Kiểm tra mạng và thử lại.',
 
   // RankScreen countdown
   resetCountdownLabel: 'Reset T2 · 00:00 — Còn lại',
 
   // Duration picker
   durationCustom: '1h+',
+
+  // Leaderboard
+  leaderboardSection: 'BẢNG XẾP HẠNG',
+  leaderboardYou: 'Bạn',
+  leaderboardEmpty: 'Chưa có người chơi nào cùng rank tuần này',
+  leaderboardNoSync: 'Kết nối mạng để xem bảng xếp hạng',
 };
 
 const en: typeof vi = {
@@ -497,12 +514,29 @@ const en: typeof vi = {
   // Feedback
   sectionFeedback: 'FEEDBACK',
   reportBugLabel: 'Report Bug / Feedback',
+  feedbackTitle: 'Send feedback',
+  feedbackTypeBug: 'Bug',
+  feedbackTypeSuggestion: 'Suggestion',
+  feedbackTypeOther: 'Other',
+  feedbackPlaceholder: 'Describe the issue or your suggestion…',
+  feedbackSend: 'Send',
+  feedbackThanks: 'Thanks for your feedback! 💚',
+  feedbackTooSoon: 'Just sent — try again in a minute.',
+  feedbackTooShort: 'Message is too short.',
+  feedbackUnavailable: 'Not available right now. Try again later.',
+  feedbackFailed: 'Failed to send. Check your connection and retry.',
 
   // RankScreen countdown
   resetCountdownLabel: 'Reset Mon · 00:00 — Time left',
 
   // Duration picker
   durationCustom: '1h+',
+
+  // Leaderboard
+  leaderboardSection: 'LEADERBOARD',
+  leaderboardYou: 'You',
+  leaderboardEmpty: 'No players at your rank this week yet',
+  leaderboardNoSync: 'Connect to the internet to view the leaderboard',
 };
 
 export type Strings = typeof vi;
