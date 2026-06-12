@@ -35,17 +35,20 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
 
   useEffect(() => {
     if (justLogged && !prevLogged.current) {
-      Animated.parallel([
+      const anim = Animated.parallel([
         Animated.spring(scaleAnim, { toValue: 0.85, tension: 200, friction: 10, useNativeDriver: true }),
         Animated.spring(slideAnim, { toValue: 40, tension: 200, friction: 10, useNativeDriver: true }),
         Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-      ]).start(({ finished }) => {
+      ]);
+      anim.start(({ finished }) => {
         if (finished) {
           fadeAnim.setValue(1);
           scaleAnim.setValue(1);
           slideAnim.setValue(0);
         }
       });
+      prevLogged.current = justLogged;
+      return () => anim.stop();
     }
     prevLogged.current = justLogged;
   }, [justLogged]);

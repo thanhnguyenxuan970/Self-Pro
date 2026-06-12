@@ -74,15 +74,13 @@ function AppInner() {
         );
       }
 
-      // Show level-up celebration on first open of a new week if user ranked up last week
+      // Show level-up celebration on first login after rank promotion
       try {
         const raw = await AsyncStorage.getItem(PENDING_LEVELUP_KEY);
         if (raw) {
           const stored = JSON.parse(raw) as { tierOrder: number; tierName: string; weekStart: string };
-          if (stored.weekStart && currentWeekStart > stored.weekStart) {
-            setCelebrationData({ tierOrder: stored.tierOrder, tierName: stored.tierName });
-            await AsyncStorage.removeItem(PENDING_LEVELUP_KEY);
-          }
+          setCelebrationData({ tierOrder: stored.tierOrder, tierName: stored.tierName });
+          await AsyncStorage.removeItem(PENDING_LEVELUP_KEY);
         }
       } catch {}
 

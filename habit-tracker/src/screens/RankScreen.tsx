@@ -85,12 +85,8 @@ export function RankScreen() {
     data?.tiers ?? [],
   );
 
-  const glowAnims = useRef<Animated.Value[]>([]);
-  const scaleAnims = useRef<Animated.Value[]>([]);
-  if (glowAnims.current.length !== sortedTiers.length) {
-    glowAnims.current = sortedTiers.map(() => new Animated.Value(0.15));
-    scaleAnims.current = sortedTiers.map(() => new Animated.Value(1));
-  }
+  const glowAnim = useRef(new Animated.Value(0.15)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const glowLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -98,19 +94,13 @@ export function RankScreen() {
     if (!data || sortedTiers.length === 0) return;
     const currentTierLocal = getCurrentTier(data.currentStars, data.tiers);
     if (!currentTierLocal) return;
-    const idx = sortedTiers.findIndex(t => t.id === currentTierLocal.id);
-    if (idx < 0) return;
 
-    const scaleAnim = scaleAnims.current[idx];
-    if (scaleAnim) {
-      Animated.sequence([
-        Animated.spring(scaleAnim, { toValue: 1.04, tension: 200, friction: 8, useNativeDriver: true }),
-        Animated.spring(scaleAnim, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }),
-      ]).start();
-    }
+    Animated.sequence([
+      Animated.spring(scaleAnim, { toValue: 1.04, tension: 200, friction: 8, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }),
+    ]).start();
 
-    const glowAnim = glowAnims.current[idx];
-    if (glowAnim && !reduceMotion) {
+    if (!reduceMotion) {
       glowLoopRef.current = Animated.loop(
         Animated.sequence([
           Animated.timing(glowAnim, { toValue: 0.9, duration: 900, useNativeDriver: true }),
@@ -201,8 +191,6 @@ export function RankScreen() {
             const range = idx > 0
               ? `${tier.stars_required}–${(arr[idx - 1]?.stars_required ?? 999) - 1} ★`
               : `${tier.stars_required}+ ★`;
-            const glowAnim = glowAnims.current[idx];
-            const scalAnim = scaleAnims.current[idx];
             return (
               <Animated.View
                 key={tier.id}
@@ -210,10 +198,10 @@ export function RankScreen() {
                   styles.rk,
                   isCurrent && { ...styles.rkCur, backgroundColor: rc.color + '22' },
                   isLast && styles.rkLast,
-                  isCurrent && scalAnim ? { transform: [{ scale: scalAnim }] } : undefined,
+                  isCurrent ? { transform: [{ scale: scaleAnim }] } : undefined,
                 ]}
               >
-                {isCurrent && glowAnim && (
+                {isCurrent && (
                   <Animated.View
                     style={[StyleSheet.absoluteFill, { borderRadius: Radii.md, borderWidth: 1.5, borderColor: rc.color, opacity: glowAnim }]}
                     pointerEvents="none"

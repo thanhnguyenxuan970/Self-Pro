@@ -137,7 +137,7 @@ export function useLogTask(userId: number) {
       basePoints: number;
       starPenalty: number;
       durationMin?: number;
-    }) => {
+    }): Promise<{ newStreak: number; prevStreak: number; didRankUp: boolean; newTier: { tier_order: number; rank_name: string } | null }> => {
       const db = await getDb();
       const today = getLocalDate();
       const weekStart = getWeekStart();
