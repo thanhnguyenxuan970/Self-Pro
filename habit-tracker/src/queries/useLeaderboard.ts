@@ -21,8 +21,6 @@ function maskEmail(email: string): string {
   return `${local.slice(0, Math.min(3, local.length))}***${domain}`;
 }
 
-const EXCLUDED_FROM_LEADERBOARD = new Set(['thanhnguyenxuan970@gmail.com']);
-
 function aggregateStarsByEmail(rows: { user_email: string; stars_delta: number | null }[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const row of rows) {
@@ -47,7 +45,6 @@ function buildLeaderboardEntries(
 ): Omit<LeaderboardEntry, 'rank'>[] {
   const entries: Omit<LeaderboardEntry, 'rank'>[] = [];
   for (const [email, stars] of starsByEmail) {
-    if (EXCLUDED_FROM_LEADERBOARD.has(email)) continue;
     if (stars >= tierMin && stars < tierMax) {
       entries.push({ userEmail: email, displayName: maskEmail(email), weeklyStars: stars, isCurrentUser: email === currentUserEmail });
     }

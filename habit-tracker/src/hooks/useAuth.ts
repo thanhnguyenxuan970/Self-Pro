@@ -212,17 +212,7 @@ export function useAuth() {
         await AsyncStorage.setItem(ONBOARDED_KEY, 'true');
         setIsOnboarded(true);
       }
-      // One-time rank-up celebration seed for test account
-      if (user.email === 'xuanthanhcn2002@gmail.com') {
-        const existing = await AsyncStorage.getItem('pending_levelup_celebration');
-        if (!existing) {
-          await AsyncStorage.setItem('pending_levelup_celebration', JSON.stringify({
-            tierOrder: 3,
-            tierName: 'Rizz',
-            weekStart: '',
-          }));
-        }
-      }
+
     } catch (e) { if (__DEV__) console.warn('[auth] resolveUserRow failed, defaulting to userId=1:', e); }
     return isNew;
   }, []);
