@@ -83,7 +83,9 @@ export function parseGoogleUser(val: string | null): GoogleUser | null {
   if (!val) return null;
   try {
     const parsed = JSON.parse(val);
-    if (typeof parsed?.email === 'string' && typeof parsed?.name === 'string' && typeof parsed?.picture === 'string') {
+    if (typeof parsed?.email === 'string' && parsed.email.length > 0 &&
+        typeof parsed?.name === 'string' && parsed.name.length > 0 &&
+        typeof parsed?.picture === 'string' && parsed.picture.length > 0) {
       // sub may be absent in legacy stored values; fall back to email so old sessions still work
       return { sub: parsed.sub ?? parsed.email, ...parsed } as GoogleUser;
     }
@@ -177,7 +179,7 @@ export function useAuth() {
         setIsOnboarded(parseOnboarded(onboarded));
         setGoogleUser(parseGoogleUser(userJson));
       })
-      .catch(() => {})
+      .catch((e) => { if (__DEV__) console.warn('[useAuth] startup load failed:', e); })
       .finally(() => setIsLoading(false));
   }, []);
 
