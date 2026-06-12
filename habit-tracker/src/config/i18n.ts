@@ -266,6 +266,14 @@ const vi = {
   leaderboardYou: 'Bạn',
   leaderboardEmpty: 'Chưa có người chơi nào cùng rank tuần này',
   leaderboardNoSync: 'Kết nối mạng để xem bảng xếp hạng',
+
+  // AddActivitySheet step 2 — time picker
+  addActivityCreateAndLog: 'Tạo & Ghi ngay',
+
+  // Level-up celebration
+  levelUpTitle: 'THĂNG HẠNG!',
+  levelUpSubtitle: (name: string) => `Tuần trước bạn đã đạt hạng ${name}!\nTiếp tục chinh phục! 💪`,
+  levelUpDismiss: 'Tuyệt! 🚀',
 };
 
 const en: typeof vi = {
@@ -537,6 +545,14 @@ const en: typeof vi = {
   leaderboardYou: 'You',
   leaderboardEmpty: 'No players at your rank this week yet',
   leaderboardNoSync: 'Connect to the internet to view the leaderboard',
+
+  // AddActivitySheet step 2 — time picker
+  addActivityCreateAndLog: 'Create & Log',
+
+  // Level-up celebration
+  levelUpTitle: 'LEVEL UP!',
+  levelUpSubtitle: (name: string) => `Last week you reached ${name}!\nKeep pushing! 💪`,
+  levelUpDismiss: "Let's go! 🚀",
 };
 
 export type Strings = typeof vi;

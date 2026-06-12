@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDb } from '../db/client';
 import { getStoredGoogleUserEmail } from '../hooks/useAuth';
 import { syncUserStreak } from '../api/syncService';
@@ -7,6 +8,10 @@ import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters
 import { computeTierUnlocks, TierRow } from '../game/tierUnlocks';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { DAILY_BONUS_THRESHOLD, DAILY_BONUS_STARS } from '../config/constants';
+
+type FullTierRow = TierRow & { tier_order: number; rank_name: string };
+
+export const PENDING_LEVELUP_KEY = 'pending_levelup_celebration';
 
 export function useTodayTasks(userId: number) {
   return useQuery({
@@ -143,13 +148,14 @@ export function useLogTask(userId: number) {
       const nowMs = now.getTime();
 
       // tiers is a static lookup — never written, safe to read outside transaction
-      const tiers = await db.getAllAsync<TierRow>(
-        `SELECT id, stars_required, reward_amount, reward_currency
+      const tiers = await db.getAllAsync<FullTierRow>(
+        `SELECT id, tier_order, rank_name, stars_required, reward_amount, reward_currency
          FROM tiers ORDER BY stars_required ASC`
       );
 
       let streakResult = { newStreak: 1, prevStreak: 0 };
       let didRankUp = false;
+      let newTier: { tier_order: number; rank_name: string } | null = null;
 
       // All volatile reads + computation + writes inside one transaction.
       // This prevents TOCTOU: two concurrent mutateAsync calls can no longer
@@ -261,7 +267,12 @@ export function useLogTask(userId: number) {
            activityRow.points_earned, totalStarsDelta, totalStarsDelta]
         );
 
-        if (newUnlocks.length > 0) didRankUp = true;
+        if (newUnlocks.length > 0) {
+          didRankUp = true;
+          const firstUnlock = newUnlocks[0];
+          const matched = tiers.find(t => t.id === firstUnlock.tier_id);
+          if (matched) newTier = { tier_order: matched.tier_order, rank_name: matched.rank_name };
+        }
 
         // Insert tier unlocks (no longer deposit to fund — treats system handles rewards)
         for (const unlock of newUnlocks) {
@@ -303,7 +314,7 @@ export function useLogTask(userId: number) {
         );
       });
 
-      return { ...streakResult, didRankUp };
+      return { ...streakResult, didRankUp, newTier };
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['today'] });
@@ -312,6 +323,14 @@ export function useLogTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
       if (data.didRankUp) rankMascotBridge.ref?.current?.playRankUp();
+      if (data.didRankUp && data.newTier) {
+        const weekStart = getWeekStart();
+        AsyncStorage.setItem(PENDING_LEVELUP_KEY, JSON.stringify({
+          tierOrder: data.newTier.tier_order,
+          tierName: data.newTier.rank_name,
+          weekStart,
+        })).catch(() => {});
+      }
       // Fire-and-forget streak sync — non-fatal if Supabase absent or table not migrated
       getStoredGoogleUserEmail()
         .then(email => { if (email) return syncUserStreak(email, data.newStreak); })

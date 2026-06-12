@@ -136,6 +136,7 @@ export function ProgressScreen() {
                 width={chartWidth}
                 height={190}
                 padding={{ top: 10, bottom: 36, left: 36, right: 12 }}
+                domainPadding={{ x: [20, 10] }}
                 animate={false}
               >
                 <VictoryAxis

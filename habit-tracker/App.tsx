@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
 import { ActivityIndicator, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { queryClient } from './src/queries/queryClient';
@@ -11,12 +12,15 @@ import { useAuth, resolveUserRow, UserIdContext, GoogleUserContext } from './src
 import { syncToSupabase } from './src/api/syncService';
 import { SettingsProvider } from './src/contexts/SettingsContext';
 import { useTheme } from './src/hooks/useSettings';
+import { LevelUpCelebrationModal } from './src/components/LevelUpCelebrationModal';
+import { PENDING_LEVELUP_KEY } from './src/queries/useToday';
 
 function AppInner() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [weekReset, setWeekReset] = useState(false);
+  const [celebrationData, setCelebrationData] = useState<{ tierOrder: number; tierName: string } | null>(null);
   const { colors } = useTheme();
   const retryInit = useCallback(() => {
     setDbError(null);
@@ -69,6 +73,18 @@ function AppInner() {
           [currentWeekStart, resolvedUserId]
         );
       }
+
+      // Show level-up celebration on first open of a new week if user ranked up last week
+      try {
+        const raw = await AsyncStorage.getItem(PENDING_LEVELUP_KEY);
+        if (raw) {
+          const stored = JSON.parse(raw) as { tierOrder: number; tierName: string; weekStart: string };
+          if (stored.weekStart && currentWeekStart > stored.weekStart) {
+            setCelebrationData({ tierOrder: stored.tierOrder, tierName: stored.tierName });
+            await AsyncStorage.removeItem(PENDING_LEVELUP_KEY);
+          }
+        }
+      } catch {}
 
       setDbReady(true);
     }
@@ -127,6 +143,14 @@ function AppInner() {
           onDeleteAccount={deleteAccount}
         />
         <Toast />
+        {celebrationData && (
+          <LevelUpCelebrationModal
+            visible
+            tierOrder={celebrationData.tierOrder}
+            tierName={celebrationData.tierName}
+            onDismiss={() => setCelebrationData(null)}
+          />
+        )}
       </>
     </GoogleUserContext.Provider>
     </UserIdContext.Provider>

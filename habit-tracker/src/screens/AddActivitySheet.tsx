@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useCreateTask } from '../queries/useTasks';
+import { useLogTask } from '../queries/useToday';
 import { cueModalOpen, cueModalClose } from '../audio/uiSounds';
 import { useAuthUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
@@ -20,9 +21,13 @@ export function AddActivitySheet({ visible, onClose }: Props) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const createTask = useCreateTask(userId);
+  const logTask = useLogTask(userId);
 
   const [name, setName] = useState('');
   const [selectedSuggestion, setSelectedSuggestion] = useState<TemplateTask | null>(null);
+  const [step, setStep] = useState<'input' | 'time'>('input');
+  const [hoursInput, setHoursInput] = useState('');
+  const [minutesInput, setMinutesInput] = useState('');
   const submittingRef = useRef(false);
 
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -46,6 +51,9 @@ export function AddActivitySheet({ visible, onClose }: Props) {
     ]).start(() => {
       setName('');
       setSelectedSuggestion(null);
+      setStep('input');
+      setHoursInput('');
+      setMinutesInput('');
       submittingRef.current = false;
       onClose();
       backdropOpacity.setValue(0);
@@ -82,10 +90,47 @@ export function AddActivitySheet({ visible, onClose }: Props) {
     }
   }
 
+  async function handleCreateAndLog() {
+    if (submittingRef.current) return;
+    const hrs = Math.max(0, parseInt(hoursInput, 10) || 0);
+    const mins = Math.max(0, parseInt(minutesInput, 10) || 0);
+    const totalMin = hrs * 60 + mins;
+    if (totalMin <= 0 || hrs > 23 || mins > 59) {
+      Alert.alert(t.error, t.validDuration);
+      return;
+    }
+    submittingRef.current = true;
+    const trimmed = name.trim();
+    const basePoints = selectedSuggestion?.basePoints ?? 1;
+    try {
+      const taskId = await createTask.mutateAsync({
+        name: trimmed,
+        kind: 'GOOD',
+        isTimeBased: true,
+        basePoints,
+        starPenalty: 0,
+        icon: selectedSuggestion?.icon,
+      });
+      await logTask.mutateAsync({
+        taskTypeId: taskId,
+        kind: 'GOOD',
+        isTimeBased: true,
+        basePoints,
+        starPenalty: 0,
+        durationMin: totalMin,
+      });
+      Toast.show({ type: 'success', text1: t.taskAdded, text2: trimmed, visibilityTime: 2000 });
+      handleClose();
+    } catch {
+      Alert.alert(t.error, t.cantLog);
+      submittingRef.current = false;
+    }
+  }
+
   const suggestions = useMemo(() => TEMPLATE_CATEGORIES.flatMap(c => c.tasks), []);
 
   const hasName = name.trim().length > 0;
-  const isPending = createTask.isPending;
+  const isPending = createTask.isPending || logTask.isPending;
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
@@ -96,71 +141,129 @@ export function AddActivitySheet({ visible, onClose }: Props) {
 
         <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}>
           <View style={styles.handle} />
-          <Text style={styles.title}>{t.addActivityTitle}</Text>
 
-          <ScrollView
-            style={styles.scroll}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <TextInput
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
-              placeholder={t.addActivityNamePlaceholder}
-              placeholderTextColor={colors.faint}
-              returnKeyType="done"
-            />
-
-            {suggestions.length > 0 && (
-              <>
-                <Text style={styles.suggestionsLabel}>{t.addActivitySuggestionsTitle}</Text>
-                <View style={styles.chipsWrap}>
-                  {suggestions.map(s => (
-                    <TouchableOpacity
-                      key={s.name}
-                      style={[styles.chip, name === s.name && styles.chipSelected]}
-                      onPress={() => handleSuggestionTap(s)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.chipName, name === s.name && styles.chipNameSelected]}>
-                        {s.icon ? `${s.icon} ${s.name}` : s.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
-            )}
-
-            <Text style={[styles.durationLabel, !hasName && styles.durationLabelDim]}>
-              {t.addActivityHowLong}
-            </Text>
-
-            {isPending ? (
-              <ActivityIndicator color={colors.primary} size="small" style={styles.chipSpinner} />
-            ) : (
-              <TouchableOpacity
-                style={[styles.durationChip, !hasName && styles.durationChipDim]}
-                onPress={() => handleCreate(true)}
-                disabled={!hasName || isPending}
-                activeOpacity={0.8}
+          {step === 'input' ? (
+            <>
+              <Text style={styles.title}>{t.addActivityTitle}</Text>
+              <ScrollView
+                style={styles.scroll}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
               >
-                <Text style={styles.durationChipText}>{t.addActivityTimedBtn}</Text>
-              </TouchableOpacity>
-            )}
+                <TextInput
+                  style={styles.input}
+                  value={name}
+                  onChangeText={setName}
+                  placeholder={t.addActivityNamePlaceholder}
+                  placeholderTextColor={colors.faint}
+                  returnKeyType="done"
+                />
 
-            <TouchableOpacity
-              style={styles.noTimerBtn}
-              onPress={() => handleCreate(false)}
-              disabled={!hasName || isPending}
+                {suggestions.length > 0 && (
+                  <>
+                    <Text style={styles.suggestionsLabel}>{t.addActivitySuggestionsTitle}</Text>
+                    <View style={styles.chipsWrap}>
+                      {suggestions.map(s => (
+                        <TouchableOpacity
+                          key={s.name}
+                          style={[styles.chip, name === s.name && styles.chipSelected]}
+                          onPress={() => handleSuggestionTap(s)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.chipName, name === s.name && styles.chipNameSelected]}>
+                            {s.icon ? `${s.icon} ${s.name}` : s.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                <Text style={[styles.durationLabel, !hasName && styles.durationLabelDim]}>
+                  {t.addActivityHowLong}
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.durationChip, !hasName && styles.durationChipDim]}
+                  onPress={() => { if (hasName) setStep('time'); }}
+                  disabled={!hasName || isPending}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.durationChipText}>{t.addActivityTimedBtn}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.noTimerBtn}
+                  onPress={() => handleCreate(false)}
+                  disabled={!hasName || isPending}
+                >
+                  <Text style={[styles.noTimerText, !hasName && styles.noTimerTextDim]}>
+                    {t.addActivityNoTimer}
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={{ height: 32 }} />
+              </ScrollView>
+            </>
+          ) : (
+            /* Step 2: time picker */
+            <ScrollView
+              style={styles.scroll}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
-              <Text style={[styles.noTimerText, !hasName && styles.noTimerTextDim]}>
-                {t.addActivityNoTimer}
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity style={styles.backBtn} onPress={() => setStep('input')} activeOpacity={0.7}>
+                <Text style={styles.backBtnText}>{t.back}</Text>
+              </TouchableOpacity>
 
-            <View style={{ height: 32 }} />
-          </ScrollView>
+              <Text style={styles.step2Name} numberOfLines={1}>{name.trim()}</Text>
+              <Text style={[styles.durationLabel, { marginTop: Spacing.sm }]}>{t.addActivityHowLong}</Text>
+
+              <View style={styles.timeRow}>
+                <View style={styles.timeInputWrap}>
+                  <TextInput
+                    style={styles.timeInput}
+                    value={hoursInput}
+                    onChangeText={setHoursInput}
+                    keyboardType="number-pad"
+                    placeholder="0"
+                    placeholderTextColor={colors.faint}
+                    maxLength={2}
+                    autoFocus
+                  />
+                  <Text style={styles.timeInputLabel}>{t.unitHour}</Text>
+                </View>
+                <Text style={styles.timeSep}>:</Text>
+                <View style={styles.timeInputWrap}>
+                  <TextInput
+                    style={styles.timeInput}
+                    value={minutesInput}
+                    onChangeText={setMinutesInput}
+                    keyboardType="number-pad"
+                    placeholder="0"
+                    placeholderTextColor={colors.faint}
+                    maxLength={2}
+                  />
+                  <Text style={styles.timeInputLabel}>{t.unitMin}</Text>
+                </View>
+              </View>
+
+              {isPending ? (
+                <ActivityIndicator color={colors.primary} size="small" style={styles.chipSpinner} />
+              ) : (
+                <TouchableOpacity
+                  style={styles.createLogBtn}
+                  onPress={handleCreateAndLog}
+                  disabled={isPending}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.createLogBtnText}>{t.addActivityCreateAndLog}</Text>
+                </TouchableOpacity>
+              )}
+
+              <View style={{ height: 32 }} />
+            </ScrollView>
+          )}
         </Animated.View>
       </View>
     </Modal>
@@ -224,5 +327,25 @@ function makeStyles(C: AppColors) {
     noTimerBtn: { alignItems: 'center', paddingVertical: 12 },
     noTimerText: { ...Typography.body, color: C.muted, fontWeight: '600' },
     noTimerTextDim: { color: C.faint },
+
+    backBtn: { paddingVertical: Spacing.sm, marginTop: Spacing.sm },
+    backBtnText: { fontSize: 14, fontWeight: '700', color: C.muted },
+    step2Name: { fontSize: 20, fontWeight: '800', color: C.inkDark, marginTop: Spacing.sm },
+    timeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: Spacing.md, marginBottom: Spacing.md },
+    timeInputWrap: { flex: 1, alignItems: 'center' },
+    timeInput: {
+      width: '100%', textAlign: 'center',
+      backgroundColor: C.surface2, color: C.inkDark,
+      padding: 14, borderRadius: Radii.md,
+      fontSize: 28, fontWeight: '800',
+      borderWidth: 1.5, borderColor: C.line2,
+    },
+    timeInputLabel: { fontSize: 12, fontWeight: '700', color: C.muted, marginTop: 4, textTransform: 'uppercase' },
+    timeSep: { fontSize: 24, fontWeight: '800', color: C.muted, paddingBottom: 20 },
+    createLogBtn: {
+      backgroundColor: C.primary, borderRadius: Radii.md,
+      paddingVertical: 15, alignItems: 'center',
+    },
+    createLogBtnText: { color: C.white, fontSize: 15, fontWeight: '800' },
   });
 }
