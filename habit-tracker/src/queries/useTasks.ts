@@ -18,20 +18,23 @@ export function useCreateTask(userId: number) {
   return useMutation({
     mutationFn: async (params: TaskFormParams): Promise<number> => {
       const db = await getDb();
-      await db.runAsync(
-        `INSERT INTO task_types
-         (user_id, name, kind, is_time_based, base_points, star_penalty, icon, category_id, archived)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-         ON CONFLICT(user_id, name) DO UPDATE SET archived = 0, is_time_based = excluded.is_time_based`,
-        [userId, params.name, params.kind, params.isTimeBased ? 1 : 0,
-         params.basePoints, params.starPenalty, params.icon ?? null,
-         params.categoryId ?? null]
-      );
-      const row = await db.getFirstAsync<{ id: number }>(
-        'SELECT id FROM task_types WHERE user_id = ? AND name = ? AND archived = 0',
-        [userId, params.name]
-      );
-      return row!.id;
+      return await db.withTransactionAsync(async () => {
+        await db.runAsync(
+          `INSERT INTO task_types
+           (user_id, name, kind, is_time_based, base_points, star_penalty, icon, category_id, archived)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+           ON CONFLICT(user_id, name) DO UPDATE SET archived = 0, is_time_based = excluded.is_time_based`,
+          [userId, params.name, params.kind, params.isTimeBased ? 1 : 0,
+           params.basePoints, params.starPenalty, params.icon ?? null,
+           params.categoryId ?? null]
+        );
+        const row = await db.getFirstAsync<{ id: number }>(
+          'SELECT id FROM task_types WHERE user_id = ? AND name = ? AND archived = 0',
+          [userId, params.name]
+        );
+        if (!row) throw new Error(`useCreateTask: task not found after insert (name=${params.name})`);
+        return row.id;
+      });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['today', 'tasks'] }),
   });
