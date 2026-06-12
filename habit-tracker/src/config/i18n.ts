@@ -274,6 +274,16 @@ const vi = {
   levelUpTitle: 'THĂNG HẠNG!',
   levelUpSubtitle: (name: string) => `Tuần trước bạn đã đạt hạng ${name}!\nTiếp tục chinh phục! 💪`,
   levelUpDismiss: 'Tuyệt! 🚀',
+
+  // Template task names
+  tmplRunning: 'Chạy bộ',
+  tmplGym: 'Gym',
+  tmplReading: 'Đọc sách',
+  tmplLanguage: 'Học ngoại ngữ',
+  tmplHomework: 'Làm bài tập',
+  tmplStudying: 'Ôn bài',
+  tmplCleaning: 'Dọn dẹp',
+  tmplCooking: 'Nấu ăn',
 };
 
 const en: typeof vi = {
@@ -553,6 +563,16 @@ const en: typeof vi = {
   levelUpTitle: 'LEVEL UP!',
   levelUpSubtitle: (name: string) => `Last week you reached ${name}!\nKeep pushing! 💪`,
   levelUpDismiss: "Let's go! 🚀",
+
+  // Template task names
+  tmplRunning: 'Running',
+  tmplGym: 'Gym',
+  tmplReading: 'Reading',
+  tmplLanguage: 'Language Learning',
+  tmplHomework: 'Homework',
+  tmplStudying: 'Studying',
+  tmplCleaning: 'Cleaning',
+  tmplCooking: 'Cooking',
 };
 
 export type Strings = typeof vi;

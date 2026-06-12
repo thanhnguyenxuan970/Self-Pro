@@ -62,7 +62,7 @@ export function AddActivitySheet({ visible, onClose }: Props) {
   }
 
   function handleSuggestionTap(task: TemplateTask) {
-    setName(task.name);
+    setName((t as Record<string, unknown>)[task.nameKey] as string ?? task.name);
     setSelectedSuggestion(task);
   }
 
@@ -165,13 +165,13 @@ export function AddActivitySheet({ visible, onClose }: Props) {
                     <View style={styles.chipsWrap}>
                       {suggestions.map(s => (
                         <TouchableOpacity
-                          key={s.name}
-                          style={[styles.chip, name === s.name && styles.chipSelected]}
+                          key={s.nameKey}
+                          style={[styles.chip, name === ((t as Record<string, unknown>)[s.nameKey] as string ?? s.name) && styles.chipSelected]}
                           onPress={() => handleSuggestionTap(s)}
                           activeOpacity={0.7}
                         >
-                          <Text style={[styles.chipName, name === s.name && styles.chipNameSelected]}>
-                            {s.icon ? `${s.icon} ${s.name}` : s.name}
+                          <Text style={[styles.chipName, name === ((t as Record<string, unknown>)[s.nameKey] as string ?? s.name) && styles.chipNameSelected]}>
+                            {s.icon ? `${s.icon} ${(t as Record<string, unknown>)[s.nameKey] as string ?? s.name}` : ((t as Record<string, unknown>)[s.nameKey] as string ?? s.name)}
                           </Text>
                         </TouchableOpacity>
                       ))}

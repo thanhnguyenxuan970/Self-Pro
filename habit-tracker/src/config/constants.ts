@@ -16,6 +16,7 @@ const STREAK_FREEZE_COST = 10; // stars (1★ = DEFAULT_VALUE_PER_STAR VND)
 
 export type TemplateTask = {
   name: string;
+  nameKey: string;
   icon: string;
   isTimeBased: boolean;
   basePoints: number;
@@ -36,8 +37,8 @@ export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
     name: 'Thể thao',
     icon: '🏃',
     tasks: [
-      { name: 'Chạy bộ', icon: '🏃', isTimeBased: true, basePoints: 1, kind: 'GOOD', starPenalty: 0 },
-      { name: 'Gym', icon: '💪', isTimeBased: true, basePoints: 2, kind: 'GOOD', starPenalty: 0 },
+      { name: 'Chạy bộ', nameKey: 'tmplRunning', icon: '🏃', isTimeBased: true, basePoints: 1, kind: 'GOOD', starPenalty: 0 },
+      { name: 'Gym', nameKey: 'tmplGym', icon: '💪', isTimeBased: true, basePoints: 2, kind: 'GOOD', starPenalty: 0 },
     ],
   },
   {
@@ -45,7 +46,7 @@ export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
     name: 'Đọc sách',
     icon: '📚',
     tasks: [
-      { name: 'Đọc sách', icon: '📖', isTimeBased: true, basePoints: 1, kind: 'GOOD', starPenalty: 0 },
+      { name: 'Đọc sách', nameKey: 'tmplReading', icon: '📖', isTimeBased: true, basePoints: 1, kind: 'GOOD', starPenalty: 0 },
     ],
   },
   {
@@ -53,9 +54,9 @@ export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
     name: 'Học tập',
     icon: '✏️',
     tasks: [
-      { name: 'Học ngoại ngữ', icon: '🌍', isTimeBased: true, basePoints: 1, kind: 'GOOD', starPenalty: 0 },
-      { name: 'Làm bài tập', icon: '📝', isTimeBased: false, basePoints: 5, kind: 'GOOD', starPenalty: 0 },
-      { name: 'Ôn bài', icon: '📋', isTimeBased: true, basePoints: 1, kind: 'GOOD', starPenalty: 0 },
+      { name: 'Học ngoại ngữ', nameKey: 'tmplLanguage', icon: '🌍', isTimeBased: true, basePoints: 1, kind: 'GOOD', starPenalty: 0 },
+      { name: 'Làm bài tập', nameKey: 'tmplHomework', icon: '📝', isTimeBased: false, basePoints: 5, kind: 'GOOD', starPenalty: 0 },
+      { name: 'Ôn bài', nameKey: 'tmplStudying', icon: '📋', isTimeBased: true, basePoints: 1, kind: 'GOOD', starPenalty: 0 },
     ],
   },
   {
@@ -63,8 +64,8 @@ export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
     name: 'Nhà cửa',
     icon: '🏠',
     tasks: [
-      { name: 'Dọn dẹp', icon: '🧹', isTimeBased: false, basePoints: 5, kind: 'GOOD', starPenalty: 0 },
-      { name: 'Nấu ăn', icon: '🍳', isTimeBased: false, basePoints: 3, kind: 'GOOD', starPenalty: 0 },
+      { name: 'Dọn dẹp', nameKey: 'tmplCleaning', icon: '🧹', isTimeBased: false, basePoints: 5, kind: 'GOOD', starPenalty: 0 },
+      { name: 'Nấu ăn', nameKey: 'tmplCooking', icon: '🍳', isTimeBased: false, basePoints: 3, kind: 'GOOD', starPenalty: 0 },
     ],
   },
 ];
