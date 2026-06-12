@@ -38,6 +38,23 @@ function firstDowOfMonth(yearMonth: string): number {
   return (new Date(y, m - 1, 1).getDay() + 6) % 7;
 }
 
+function resolveCellColors(
+  isMilestone: boolean, isBest: boolean, hasActivity: boolean,
+  isDark: boolean, colors: AppColors,
+): { cellBg: string; numColor: string } {
+  if (isMilestone) return { cellBg: '#F97316', numColor: '#fff' };
+  if (isBest) return { cellBg: '#FBBF24', numColor: '#fff' };
+  if (hasActivity) return { cellBg: isDark ? colors.surface2 : colors.primarySoft, numColor: colors.primary };
+  return { cellBg: 'transparent', numColor: colors.inkDark };
+}
+
+function resolveCellIcon(data: CalendarDay | undefined, isMilestone: boolean, isBest: boolean, muteColor: string) {
+  if (!data) return null;
+  if (isMilestone) return <Text style={{ fontSize: 9, marginTop: 1 }}>🔥</Text>;
+  if (isBest) return <Text style={{ fontSize: 9, marginTop: 1 }}>⭐</Text>;
+  return <Text style={{ fontSize: 8, fontWeight: '600', marginTop: 1, color: muteColor }}>{parseFloat(data.stars.toFixed(1))}★</Text>;
+}
+
 export function CalendarScreen() {
   const userId = useAuthUser();
   const { colors, isDark } = useTheme();
@@ -123,45 +140,16 @@ export function CalendarScreen() {
       {/* Calendar Grid */}
       <View style={styles.grid}>
         {cells.map((day, idx) => {
-          if (!day) {
-            return <View key={idx} style={styles.cell} />;
-          }
+          if (!day) return <View key={idx} style={styles.cell} />;
           const data = dayMap[day];
-          const isToday = day === today;
           const isBest = data?.is_best_day ?? false;
           const isMilestone = data?.is_milestone ?? false;
-          const hasActivity = !!data;
-
-          let cellBg: string = 'transparent';
-          let numColor: string = colors.inkDark;
-
-          if (isMilestone) {
-            cellBg = '#F97316';
-            numColor = '#fff';
-          } else if (isBest) {
-            cellBg = '#FBBF24';
-            numColor = '#fff';
-          } else if (hasActivity) {
-            cellBg = isDark ? colors.surface2 : colors.primarySoft;
-            numColor = colors.primary;
-          }
-
+          const { cellBg, numColor } = resolveCellColors(isMilestone, isBest, !!data, isDark, colors);
           return (
-            <View
-              key={idx}
-              style={[styles.cell, { backgroundColor: cellBg }]}
-            >
+            <View key={idx} style={[styles.cell, { backgroundColor: cellBg }]}>
               <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
-              {data ? (
-                isMilestone ? (
-                  <Text style={styles.dayIcon}>🔥</Text>
-                ) : isBest ? (
-                  <Text style={styles.dayIcon}>⭐</Text>
-                ) : (
-                  <Text style={[styles.dayStars, { color: colors.muted }]}>{data.stars}★</Text>
-                )
-              ) : null}
-              {isToday && !isBest && !isMilestone && (
+              {resolveCellIcon(data, isMilestone, isBest, colors.muted)}
+              {day === today && !isBest && !isMilestone && (
                 <View style={[styles.todayDot, { backgroundColor: colors.primary }]} />
               )}
             </View>
@@ -188,7 +176,7 @@ export function CalendarScreen() {
       {/* Month Summary */}
       <View style={styles.summary}>
         <View style={styles.summaryCell}>
-          <Text style={styles.summaryV}>{totalStars}★</Text>
+          <Text style={styles.summaryV}>{parseFloat(totalStars.toFixed(1))}★</Text>
           <Text style={styles.summaryL}>{t.calendarTotalStars}</Text>
         </View>
         <View style={styles.summarySep} />
@@ -198,7 +186,7 @@ export function CalendarScreen() {
         </View>
         <View style={styles.summarySep} />
         <View style={styles.summaryCell}>
-          <Text style={styles.summaryV}>{bestStars > 0 ? `${bestStars}★` : '—'}</Text>
+          <Text style={styles.summaryV}>{bestStars > 0 ? `${parseFloat(bestStars.toFixed(1))}★` : '—'}</Text>
           <Text style={styles.summaryL}>{t.calendarBest}</Text>
         </View>
       </View>

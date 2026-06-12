@@ -54,6 +54,20 @@ async function resolveUserId(db: SQLiteDatabase, userSub: string, userEmail: str
   return byEmail?.id ?? null;
 }
 
+async function upsertBatch<T extends { id: number }>(
+  table: string,
+  rows: T[],
+  userEmail: string,
+  cursorKey: string,
+): Promise<void> {
+  const { error } = await supabase!.from(table).upsert(
+    rows.map(({ id, ...r }) => ({ ...r as object, user_email: userEmail, local_id: id })),
+    { onConflict: 'user_email,local_id' },
+  );
+  if (error) throw error;
+  await AsyncStorage.setItem(cursorKey, String(rows[rows.length - 1].id));
+}
+
 async function syncActivity(db: SQLiteDatabase, userId: number, userEmail: string): Promise<void> {
   const key = activityKey(userId);
   const raw = await AsyncStorage.getItem(key);
@@ -64,14 +78,7 @@ async function syncActivity(db: SQLiteDatabase, userId: number, userEmail: strin
     [userId, lastId, BATCH]
   );
   if (!rows.length) return;
-
-  const { error } = await supabase!.from('activity_log').upsert(
-    rows.map(({ id, ...r }) => ({ ...r, user_email: userEmail, local_id: id })),
-    { onConflict: 'user_email,local_id' }
-  );
-  if (error) throw error;
-
-  await AsyncStorage.setItem(key, String(rows[rows.length - 1].id));
+  await upsertBatch('activity_log', rows, userEmail, key);
 }
 
 async function syncFund(db: SQLiteDatabase, userId: number, userEmail: string): Promise<void> {
@@ -84,14 +91,7 @@ async function syncFund(db: SQLiteDatabase, userId: number, userEmail: string): 
     [userId, lastId, BATCH]
   );
   if (!rows.length) return;
-
-  const { error } = await supabase!.from('fund_transactions').upsert(
-    rows.map(({ id, ...r }) => ({ ...r, user_email: userEmail, local_id: id })),
-    { onConflict: 'user_email,local_id' }
-  );
-  if (error) throw error;
-
-  await AsyncStorage.setItem(key, String(rows[rows.length - 1].id));
+  await upsertBatch('fund_transactions', rows, userEmail, key);
 }
 
 /**

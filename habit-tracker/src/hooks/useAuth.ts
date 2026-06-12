@@ -253,6 +253,17 @@ export function useAuth() {
     } catch { }
   }, []);
 
+  const clearLocalAuthState = useCallback(async () => {
+    try {
+      await deleteGoogleUser();
+      await AsyncStorage.multiRemove([ONBOARDED_KEY, 'habit_tracker_display_name', 'habit_gender', 'habit_birth_year']);
+    } finally {
+      setIsOnboarded(false);
+      setGoogleUser(null);
+      setUserId(1);
+    }
+  }, []);
+
   const deleteAccount = useCallback(async (uid: number) => {
     // Purge remote Supabase data FIRST while the auth session is still active
     try {
@@ -294,15 +305,8 @@ export function useAuth() {
       await GoogleSignin.revokeAccess();
       await GoogleSignin.signOut();
     } catch { }
-    try {
-      await deleteGoogleUser();
-      await AsyncStorage.multiRemove([ONBOARDED_KEY, 'habit_tracker_display_name', 'habit_gender', 'habit_birth_year']);
-    } finally {
-      setIsOnboarded(false);
-      setGoogleUser(null);
-      setUserId(1);
-    }
-  }, []);
+    await clearLocalAuthState();
+  }, [clearLocalAuthState]);
 
   const signOut = useCallback(async () => {
     try {
@@ -321,15 +325,8 @@ export function useAuth() {
       const { resetSyncCursors } = await import('../api/syncService');
       await resetSyncCursors();
     } catch { }
-    try {
-      await deleteGoogleUser();
-      await AsyncStorage.multiRemove([ONBOARDED_KEY, 'habit_tracker_display_name', 'habit_gender', 'habit_birth_year']);
-    } finally {
-      setIsOnboarded(false);
-      setGoogleUser(null);
-      setUserId(1);
-    }
-  }, []);
+    await clearLocalAuthState();
+  }, [clearLocalAuthState]);
 
   return {
     isLoading,

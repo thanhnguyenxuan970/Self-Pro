@@ -2,8 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { parseSettingsBool, parseSettingsLang } from '../utils/settingsLogic';
 import { setAudioEnabled as syncAudioEnabled } from '../audio/audioEnabled';
-
-export type AppLanguage = 'vi' | 'en';
+import type { AppLanguage } from '../config/i18n';
+export type { AppLanguage } from '../config/i18n';
 
 const DARK_MODE_KEY = 'habit_dark_mode';
 const LANGUAGE_KEY = 'habit_language';

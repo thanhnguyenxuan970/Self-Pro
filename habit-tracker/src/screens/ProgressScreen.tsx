@@ -14,6 +14,95 @@ import { useSelectionMode } from '../hooks/useSelectionMode';
 
 type Range = 'W' | 'M' | 'Y';
 
+type ProgStyles = ReturnType<typeof makeStyles>;
+type ProgTranslations = ReturnType<typeof useTranslations>;
+
+// fallow-ignore-next-line complexity
+function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, enterSelection, bonusDay, timeLocale, styles }: {
+  item: ActivityLogEntry; isLast: boolean; selectionMode: boolean; selected: boolean;
+  toggleSelect: (id: number) => void; enterSelection: (id: number) => void;
+  bonusDay: string; timeLocale: string; styles: ProgStyles;
+}) {
+  const timeStr = new Date(item.logged_at).toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' });
+  return (
+    <TouchableOpacity
+      style={[styles.logRow, isLast && styles.logRowLast, selected && styles.logRowSelected]}
+      onPress={() => selectionMode ? toggleSelect(item.id) : undefined}
+      onLongPress={() => enterSelection(item.id)}
+      delayLongPress={300}
+      activeOpacity={0.7}
+    >
+      {selectionMode && (
+        <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
+          {selected && <Text style={styles.checkmark}>✓</Text>}
+        </View>
+      )}
+      <View style={styles.logBody}>
+        <Text style={styles.logName} numberOfLines={1}>
+          {item.task_name ?? (item.source === 'BONUS' ? bonusDay : item.source)}
+        </Text>
+        <Text style={styles.logDate}>{item.local_date} · {timeStr}</Text>
+      </View>
+      <Text style={[styles.logStars, item.stars_delta < 0 && styles.logStarsBad]}>
+        {item.stars_delta >= 0 ? '+' : ''}{item.stars_delta.toFixed(1)} ★
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, cancelSelection, enterSelection, toggleSelect, handleDeleteSelected, deleteLogs, t, styles }: {
+  actLogs: ActivityLogEntry[]; selectionMode: boolean; selectedIds: Set<number>;
+  selectAll: () => void; cancelSelection: () => void;
+  enterSelection: (id: number) => void; toggleSelect: (id: number) => void;
+  handleDeleteSelected: () => void; deleteLogs: { isPending: boolean };
+  t: ProgTranslations; styles: ProgStyles;
+}) {
+  return (
+    <>
+      <View style={styles.logHeader}>
+        <Text style={[styles.sectionLabel, { marginHorizontal: 0 }]}>{t.activityLogSection}</Text>
+        {selectionMode ? (
+          <View style={styles.logActions}>
+            <TouchableOpacity onPress={selectAll} style={styles.logActionBtn}>
+              <Text style={styles.logActionTxt}>{t.all}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleDeleteSelected}
+              style={[styles.logActionBtn, styles.logDeleteBtn]}
+              disabled={selectedIds.size === 0 || deleteLogs.isPending}
+            >
+              <Text style={styles.logDeleteTxt}>{t.deleteCount(selectedIds.size)}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={cancelSelection} style={styles.logActionBtn}>
+              <Text style={styles.logActionTxt}>{t.cancel}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </View>
+      {actLogs.length === 0 ? (
+        <Text style={styles.logEmpty}>{t.noActivityYet}</Text>
+      ) : (
+        <View style={styles.logCard}>
+          {actLogs.map((item, idx) => (
+            <ProgressLogRow
+              key={item.id}
+              item={item}
+              isLast={idx === actLogs.length - 1}
+              selectionMode={selectionMode}
+              selected={selectedIds.has(item.id)}
+              toggleSelect={toggleSelect}
+              enterSelection={enterSelection}
+              bonusDay={t.bonusDay}
+              timeLocale={t.timeLocale}
+              styles={styles}
+            />
+          ))}
+        </View>
+      )}
+    </>
+  );
+}
+
 export function ProgressScreen() {
   const userId = useAuthUser();
   const { colors } = useTheme();
@@ -199,63 +288,19 @@ export function ProgressScreen() {
         )}
 
         {/* Activity log */}
-        <View style={styles.logHeader}>
-          <Text style={[styles.sectionLabel, { marginHorizontal: 0 }]}>{t.activityLogSection}</Text>
-          {selectionMode ? (
-            <View style={styles.logActions}>
-              <TouchableOpacity onPress={selectAll} style={styles.logActionBtn}>
-                <Text style={styles.logActionTxt}>{t.all}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleDeleteSelected}
-                style={[styles.logActionBtn, styles.logDeleteBtn]}
-                disabled={selectedIds.size === 0 || deleteLogs.isPending}
-              >
-                <Text style={styles.logDeleteTxt}>{t.deleteCount(selectedIds.size)}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={cancelSelection} style={styles.logActionBtn}>
-                <Text style={styles.logActionTxt}>{t.cancel}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-        </View>
-
-        {actLogs.length === 0 ? (
-          <Text style={styles.logEmpty}>{t.noActivityYet}</Text>
-        ) : (
-          <View style={styles.logCard}>
-            {actLogs.map((item: ActivityLogEntry, idx: number) => {
-              const selected = selectedIds.has(item.id);
-              const isLast = idx === actLogs.length - 1;
-              const timeStr = new Date(item.logged_at).toLocaleTimeString(t.timeLocale, { hour: '2-digit', minute: '2-digit' });
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[styles.logRow, isLast && styles.logRowLast, selected && styles.logRowSelected]}
-                  onPress={() => selectionMode ? toggleSelect(item.id) : undefined}
-                  onLongPress={() => enterSelection(item.id)}
-                  delayLongPress={300}
-                  activeOpacity={0.7}
-                >
-                  {selectionMode && (
-                    <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
-                      {selected && <Text style={styles.checkmark}>✓</Text>}
-                    </View>
-                  )}
-                  <View style={styles.logBody}>
-                    <Text style={styles.logName} numberOfLines={1}>
-                      {item.task_name ?? (item.source === 'BONUS' ? t.bonusDay : item.source)}
-                    </Text>
-                    <Text style={styles.logDate}>{item.local_date} · {timeStr}</Text>
-                  </View>
-                  <Text style={[styles.logStars, item.stars_delta < 0 && styles.logStarsBad]}>
-                    {item.stars_delta >= 0 ? '+' : ''}{item.stars_delta.toFixed(1)} ★
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
+        <ActivityLogSection
+          actLogs={actLogs}
+          selectionMode={selectionMode}
+          selectedIds={selectedIds}
+          selectAll={selectAll}
+          cancelSelection={cancelSelection}
+          enterSelection={enterSelection}
+          toggleSelect={toggleSelect}
+          handleDeleteSelected={handleDeleteSelected}
+          deleteLogs={deleteLogs}
+          t={t}
+          styles={styles}
+        />
       </ScrollView>
     </SafeAreaView>
   );

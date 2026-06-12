@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { getStoredGoogleUserEmail } from '../hooks/useAuth';
 import { syncUserStreak } from '../api/syncService';
@@ -10,6 +11,127 @@ import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { DAILY_BONUS_THRESHOLD, DAILY_BONUS_STARS } from '../config/constants';
 
 type FullTierRow = TierRow & { tier_order: number; rank_name: string };
+
+type DailySummaryRow = { total_points: number; bonus_star_awarded: number; streak_count: number };
+
+async function computeTodayStreak(
+  db: SQLiteDatabase, userId: number, today: string, yesterdayDate: string,
+  daily: DailySummaryRow | undefined | null,
+): Promise<{ todayStreak: number; streakResult: { newStreak: number; prevStreak: number } }> {
+  if (daily === null || daily === undefined) {
+    const yesterdayRow = await db.getFirstAsync<{ streak_count: number }>(
+      `SELECT streak_count FROM daily_summary WHERE user_id = ? AND local_date = ?`,
+      [userId, yesterdayDate]
+    );
+    const prevStreak = yesterdayRow?.streak_count ?? 0;
+    const todayStreak = prevStreak + 1;
+    return { todayStreak, streakResult: { newStreak: todayStreak, prevStreak } };
+  }
+  return { todayStreak: 1, streakResult: { newStreak: daily.streak_count, prevStreak: daily.streak_count } };
+}
+
+type ActivityLogInsert = {
+  user_id: number; task_type_id: number | null; kind: string;
+  duration_min: number | null; points_earned: number; stars_delta: number;
+  source: string; logged_at: number; local_date: string; week_start: string;
+};
+
+async function insertLogRows(
+  db: SQLiteDatabase,
+  activityRow: ActivityLogInsert,
+  bonusRow: ActivityLogInsert | null,
+): Promise<void> {
+  const sql = `INSERT INTO activity_log
+    (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  await db.runAsync(sql, [
+    activityRow.user_id, activityRow.task_type_id, activityRow.kind,
+    activityRow.duration_min, activityRow.points_earned, activityRow.stars_delta,
+    activityRow.source, activityRow.logged_at, activityRow.local_date, activityRow.week_start,
+  ]);
+  if (bonusRow) {
+    await db.runAsync(sql, [
+      bonusRow.user_id, bonusRow.task_type_id, bonusRow.kind, bonusRow.duration_min,
+      bonusRow.points_earned, bonusRow.stars_delta, bonusRow.source,
+      bonusRow.logged_at, bonusRow.local_date, bonusRow.week_start,
+    ]);
+  }
+}
+
+async function handleTierUnlocks(
+  db: SQLiteDatabase,
+  tiers: FullTierRow[],
+  newUnlocks: ReturnType<typeof computeTierUnlocks>,
+): Promise<{ didRankUp: boolean; newTier: { tier_order: number; rank_name: string } | null }> {
+  if (newUnlocks.length === 0) return { didRankUp: false, newTier: null };
+  const firstUnlock = newUnlocks[0];
+  const matched = tiers.find(t => t.id === firstUnlock.tier_id);
+  const newTier = matched ? { tier_order: matched.tier_order, rank_name: matched.rank_name } : null;
+  for (const unlock of newUnlocks) {
+    await db.runAsync(
+      `INSERT OR IGNORE INTO reward_unlocks
+       (user_id, tier_id, week_start, stars_at_unlock, reward_amount, claimed)
+       VALUES (?, ?, ?, ?, ?, 0)`,
+      [unlock.user_id, unlock.tier_id, unlock.week_start, unlock.stars_at_unlock, unlock.reward_amount]
+    );
+  }
+  return { didRankUp: true, newTier };
+}
+
+async function updateTreatPool(
+  db: SQLiteDatabase, userId: number, kind: string, totalStarsDelta: number, nowMs: number,
+): Promise<void> {
+  if (kind === 'GOOD') {
+    await db.runAsync(
+      `UPDATE users SET treat_stars = treat_stars + ?, treat_stars_lifetime = treat_stars_lifetime + ? WHERE id = ?`,
+      [totalStarsDelta, totalStarsDelta, userId]
+    );
+  } else {
+    await db.runAsync(
+      `UPDATE users SET treat_stars = MAX(0, treat_stars - ?) WHERE id = ? AND penalty_hits_treats = 1`,
+      [Math.abs(totalStarsDelta), userId]
+    );
+  }
+  await db.runAsync(
+    `UPDATE treats SET reached_at = ?
+     WHERE user_id = ? AND status = 'ACTIVE' AND reached_at IS NULL
+       AND target_stars <= (SELECT treat_stars FROM users WHERE id = ?)`,
+    [new Date(nowMs).toISOString(), userId, userId]
+  );
+}
+
+async function revertDailySummaryUnlog(
+  db: SQLiteDatabase, userId: number, today: string,
+  taskPoints: number, bonusStars: number, remainingPoints: number,
+): Promise<void> {
+  if (remainingPoints <= 0) {
+    await db.runAsync(`DELETE FROM daily_summary WHERE user_id = ? AND local_date = ?`, [userId, today]);
+  } else {
+    await db.runAsync(
+      `UPDATE daily_summary SET
+         total_points = MAX(0, total_points - ?),
+         bonus_star_awarded = CASE WHEN ? THEN 0 ELSE bonus_star_awarded END
+       WHERE user_id = ? AND local_date = ?`,
+      [taskPoints, bonusStars > 0 ? 1 : 0, userId, today]
+    );
+  }
+}
+
+async function revertTreatStarsUnlog(
+  db: SQLiteDatabase, userId: number, kind: string, totalStarsDelta: number, taskStars: number,
+): Promise<void> {
+  if (kind === 'GOOD') {
+    await db.runAsync(
+      `UPDATE users SET treat_stars = MAX(0, treat_stars - ?) WHERE id = ?`,
+      [Math.max(0, totalStarsDelta), userId]
+    );
+  } else {
+    await db.runAsync(
+      `UPDATE users SET treat_stars = treat_stars + ? WHERE id = ? AND penalty_hits_treats = 1`,
+      [Math.abs(taskStars), userId]
+    );
+  }
+}
 
 export const PENDING_LEVELUP_KEY = 'pending_levelup_celebration';
 
@@ -160,101 +282,53 @@ export function useLogTask(userId: number) {
       // All volatile reads + computation + writes inside one transaction.
       // This prevents TOCTOU: two concurrent mutateAsync calls can no longer
       // read the same stale daily/weekly rows before either commits.
+      // fallow-ignore-next-line complexity
       await db.withTransactionAsync(async () => {
-        const daily = await db.getFirstAsync<{
-          total_points: number; bonus_star_awarded: number; streak_count: number;
-        }>(
+        const daily = await db.getFirstAsync<DailySummaryRow>(
           `SELECT total_points, bonus_star_awarded, streak_count FROM daily_summary
            WHERE user_id = ? AND local_date = ?`,
           [userId, today]
         );
-
         const weeklyRow = await db.getFirstAsync<{ weekly_stars: number }>(
           `SELECT weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
           [userId, weekStart]
         );
-
         const alreadyUnlocked = await db.getAllAsync<{ tier_id: number }>(
           `SELECT tier_id FROM reward_unlocks WHERE user_id = ? AND week_start = ?`,
           [userId, weekStart]
         );
-        const alreadyUnlockedIds = alreadyUnlocked.map(r => r.tier_id);
 
-        let todayStreak = 1;
-        if (daily === null) {
-          const yesterdayRow = await db.getFirstAsync<{ streak_count: number }>(
-            `SELECT streak_count FROM daily_summary WHERE user_id = ? AND local_date = ?`,
-            [userId, yesterdayDate]
-          );
-          const prevStreak = yesterdayRow?.streak_count ?? 0;
-          todayStreak = prevStreak + 1;
-          streakResult = { newStreak: todayStreak, prevStreak };
-        } else {
-          streakResult = { newStreak: daily.streak_count, prevStreak: daily.streak_count };
-        }
+        const { todayStreak, streakResult: sr } = await computeTodayStreak(db, userId, today, yesterdayDate, daily);
+        streakResult = sr;
 
         const { activityRow, bonusRow } = computeLogTaskRows({
-          userId,
-          taskTypeId: params.taskTypeId,
-          kind: params.kind,
-          isTimeBased: params.isTimeBased,
-          basePoints: params.basePoints,
-          starPenalty: params.starPenalty,
-          durationMin: params.durationMin,
+          userId, taskTypeId: params.taskTypeId, kind: params.kind,
+          isTimeBased: params.isTimeBased, basePoints: params.basePoints,
+          starPenalty: params.starPenalty, durationMin: params.durationMin,
           currentDayPoints: daily?.total_points ?? 0,
           bonusAlreadyAwarded: !!daily?.bonus_star_awarded,
-          loggedAt: now,
-          localDate: today,
-          weekStart,
+          loggedAt: now, localDate: today, weekStart,
         });
 
-        const newDayPts = (daily?.total_points ?? 0) + activityRow.points_earned;
         const totalStarsDelta = activityRow.stars_delta + (bonusRow?.stars_delta ?? 0);
         const oldStars = weeklyRow?.weekly_stars ?? 0;
-        const newStars = oldStars + totalStarsDelta;
         const newUnlocks = computeTierUnlocks({
-          userId,
-          weekStart,
-          oldStars,
-          newStars,
-          tiers,
-          alreadyUnlockedTierIds: alreadyUnlockedIds,
+          userId, weekStart, oldStars, newStars: oldStars + totalStarsDelta,
+          tiers, alreadyUnlockedTierIds: alreadyUnlocked.map(r => r.tier_id),
         });
 
-        // Insert main activity row
-        await db.runAsync(
-          `INSERT INTO activity_log
-           (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [activityRow.user_id, activityRow.task_type_id, activityRow.kind,
-           activityRow.duration_min, activityRow.points_earned, activityRow.stars_delta,
-           activityRow.source, activityRow.logged_at, activityRow.local_date, activityRow.week_start]
-        );
+        await insertLogRows(db, activityRow, bonusRow);
 
-        // Insert bonus row if earned
-        if (bonusRow) {
-          await db.runAsync(
-            `INSERT INTO activity_log
-             (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [bonusRow.user_id, bonusRow.task_type_id, bonusRow.kind, bonusRow.duration_min,
-             bonusRow.points_earned, bonusRow.stars_delta, bonusRow.source,
-             bonusRow.logged_at, bonusRow.local_date, bonusRow.week_start]
-          );
-        }
-
-        // Upsert daily_summary
         await db.runAsync(
           `INSERT INTO daily_summary (user_id, local_date, total_points, bonus_star_awarded, streak_count)
            VALUES (?, ?, ?, ?, ?)
            ON CONFLICT(user_id, local_date) DO UPDATE SET
              total_points = total_points + ?,
              bonus_star_awarded = CASE WHEN ? THEN 1 ELSE bonus_star_awarded END`,
-          [userId, today, newDayPts, bonusRow ? 1 : 0, todayStreak,
-           activityRow.points_earned, bonusRow ? 1 : 0]
+          [userId, today, (daily?.total_points ?? 0) + activityRow.points_earned,
+           bonusRow ? 1 : 0, todayStreak, activityRow.points_earned, bonusRow ? 1 : 0]
         );
 
-        // Upsert weekly_summary
         await db.runAsync(
           `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars, peak_stars)
            VALUES (?, ?, ?, ?, ?)
@@ -267,51 +341,11 @@ export function useLogTask(userId: number) {
            activityRow.points_earned, totalStarsDelta, totalStarsDelta]
         );
 
-        if (newUnlocks.length > 0) {
-          didRankUp = true;
-          const firstUnlock = newUnlocks[0];
-          const matched = tiers.find(t => t.id === firstUnlock.tier_id);
-          if (matched) newTier = { tier_order: matched.tier_order, rank_name: matched.rank_name };
-        }
+        const unlockResult = await handleTierUnlocks(db, tiers, newUnlocks);
+        didRankUp = unlockResult.didRankUp;
+        newTier = unlockResult.newTier;
 
-        // Insert tier unlocks (no longer deposit to fund — treats system handles rewards)
-        for (const unlock of newUnlocks) {
-          await db.runAsync(
-            `INSERT OR IGNORE INTO reward_unlocks
-             (user_id, tier_id, week_start, stars_at_unlock, reward_amount, claimed)
-             VALUES (?, ?, ?, ?, ?, 0)`,
-            [unlock.user_id, unlock.tier_id, unlock.week_start,
-             unlock.stars_at_unlock, unlock.reward_amount]
-          );
-        }
-
-        // Update treat_stars pool
-        if (params.kind === 'GOOD') {
-          await db.runAsync(
-            `UPDATE users SET
-               treat_stars = treat_stars + ?,
-               treat_stars_lifetime = treat_stars_lifetime + ?
-             WHERE id = ?`,
-            [totalStarsDelta, totalStarsDelta, userId]
-          );
-        } else {
-          // BAD task penalty: deduct from pool only if penalty_hits_treats = 1, floor at 0
-          const penaltyAmt = Math.abs(totalStarsDelta);
-          await db.runAsync(
-            `UPDATE users SET treat_stars = MAX(0, treat_stars - ?)
-             WHERE id = ? AND penalty_hits_treats = 1`,
-            [penaltyAmt, userId]
-          );
-        }
-
-        // Mark treats as reached if pool now >= their target (one-time flag)
-        const nowIso = new Date(nowMs).toISOString();
-        await db.runAsync(
-          `UPDATE treats SET reached_at = ?
-           WHERE user_id = ? AND status = 'ACTIVE' AND reached_at IS NULL
-             AND target_stars <= (SELECT treat_stars FROM users WHERE id = ?)`,
-          [nowIso, userId, userId]
-        );
+        await updateTreatPool(db, userId, params.kind, totalStarsDelta, nowMs);
       });
 
       return { ...streakResult, didRankUp, newTier };
@@ -365,6 +399,7 @@ export function useUnlogTask(userId: number) {
       const today = getLocalDate();
       const weekStart = getWeekStart();
 
+      // fallow-ignore-next-line complexity
       await db.withTransactionAsync(async () => {
         const taskRows = await db.getAllAsync<{ id: number; points_earned: number; stars_delta: number }>(
           `SELECT id, points_earned, stars_delta FROM activity_log
@@ -377,19 +412,16 @@ export function useUnlogTask(userId: number) {
         const taskStars = taskRows.reduce((s, r) => s + r.stars_delta, 0);
 
         const daily = await db.getFirstAsync<{ total_points: number; bonus_star_awarded: number }>(
-          `SELECT total_points, bonus_star_awarded FROM daily_summary
-           WHERE user_id = ? AND local_date = ?`,
+          `SELECT total_points, bonus_star_awarded FROM daily_summary WHERE user_id = ? AND local_date = ?`,
           [userId, today]
         );
-
         const weeklyRow = await db.getFirstAsync<{ weekly_stars: number }>(
           `SELECT weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
           [userId, weekStart]
         );
 
-        // Reverse daily bonus if removing this task drops points below threshold
-        let bonusStars = 0;
         const remainingPoints = (daily?.total_points ?? 0) - taskPoints;
+        let bonusStars = 0;
         if (daily?.bonus_star_awarded && remainingPoints < DAILY_BONUS_THRESHOLD) {
           bonusStars = DAILY_BONUS_STARS;
           await db.runAsync(
@@ -405,22 +437,7 @@ export function useUnlogTask(userId: number) {
           await db.runAsync(`DELETE FROM activity_log WHERE id = ?`, [row.id]);
         }
 
-        // (M2c) Delete daily_summary row entirely when day is now empty — prevents
-        // an empty day's streak_count extending tomorrow's streak
-        if (remainingPoints <= 0) {
-          await db.runAsync(
-            `DELETE FROM daily_summary WHERE user_id = ? AND local_date = ?`,
-            [userId, today]
-          );
-        } else {
-          await db.runAsync(
-            `UPDATE daily_summary SET
-               total_points = MAX(0, total_points - ?),
-               bonus_star_awarded = CASE WHEN ? THEN 0 ELSE bonus_star_awarded END
-             WHERE user_id = ? AND local_date = ?`,
-            [taskPoints, bonusStars > 0 ? 1 : 0, userId, today]
-          );
-        }
+        await revertDailySummaryUnlog(db, userId, today, taskPoints, bonusStars, remainingPoints);
 
         await db.runAsync(
           `UPDATE weekly_summary SET
@@ -430,7 +447,6 @@ export function useUnlogTask(userId: number) {
           [taskPoints, totalStarsDelta, userId, weekStart]
         );
 
-        // (M2a) Revoke unclaimed tier unlocks that are above the new star count
         await db.runAsync(
           `DELETE FROM reward_unlocks
            WHERE user_id = ? AND week_start = ? AND claimed = 0
@@ -438,18 +454,7 @@ export function useUnlogTask(userId: number) {
           [userId, weekStart, newWeeklyStars]
         );
 
-        if (params.kind === 'GOOD') {
-          await db.runAsync(
-            `UPDATE users SET treat_stars = MAX(0, treat_stars - ?) WHERE id = ?`,
-            [Math.max(0, totalStarsDelta), userId]
-          );
-        } else {
-          // (M2b) BAD-task unlog: refund the treat-star penalty that was applied on log
-          await db.runAsync(
-            `UPDATE users SET treat_stars = treat_stars + ? WHERE id = ? AND penalty_hits_treats = 1`,
-            [Math.abs(taskStars), userId]
-          );
-        }
+        await revertTreatStarsUnlog(db, userId, params.kind, totalStarsDelta, taskStars);
       });
     },
     onSuccess: () => {

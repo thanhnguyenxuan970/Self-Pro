@@ -1,26 +1,24 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Animated, AccessibilityInfo } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useRankData } from '../queries/useRank';
 import { useLeaderboard } from '../queries/useLeaderboard';
 import { getCurrentTier } from '../game/tierLookup';
 import { getStarsToNextTier } from '../game/tierProgress';
-import { useAuthUser, useGoogleUser } from '../hooks/useAuth';
-import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useScreenCommons } from '../hooks/useScreenCommons';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
 import { RANKS } from '../config/ranks.config';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 
-// tier_order (1-based DB) → RANKS index (0-based config)
 function rankConfig(tierOrder: number) {
   return RANKS[Math.min(Math.max(tierOrder - 1, 0), RANKS.length - 1)];
 }
 
 function getNextMonday(): Date {
   const now = new Date();
-  const day = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-  // Mon=1 → 7 days; Sun=0 → 1 day; else (8-day) days
+  const day = now.getDay();
   const daysUntilMon = day === 0 ? 1 : day === 1 ? 7 : 8 - day;
   const next = new Date(now);
   next.setDate(now.getDate() + daysUntilMon);
@@ -41,57 +39,19 @@ function fmtCountdown(ms: number): string {
   return d > 0 ? `${d}d ${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`;
 }
 
-export function RankScreen() {
-  const userId = useAuthUser();
-  const googleUser = useGoogleUser();
-  const { colors } = useTheme();
-  const t = useTranslations();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  const mascotRef = useRef<RankMascotHandle>(null);
-  const { data, isLoading } = useRankData(userId);
+type RankDataType = NonNullable<ReturnType<typeof useRankData>['data']>;
 
-  const [reduceMotion, setReduceMotion] = useState(false);
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
-  }, []);
-
-  const [countdownMs, setCountdownMs] = useState(() => getNextMonday().getTime() - Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdownMs(getNextMonday().getTime() - Date.now());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // mascotRef is stable (useRef) — empty deps intentional
-  useEffect(() => {
-    rankMascotBridge.ref = mascotRef;
-    return () => { rankMascotBridge.ref = null; };
-  }, []);
-
-  const sortedTiers = useMemo(
-    () => {
-      if (!data) return [];
-      const cur = getCurrentTier(data.currentStars, data.tiers);
-      return cur ? [cur] : [];
-    },
-    [data],
-  );
-
-  const currentTierOrder = data ? (getCurrentTier(data.currentStars, data.tiers)?.tier_order ?? 0) : 0;
-  const { data: leaderboard = [], isLoading: lbLoading } = useLeaderboard(
-    googleUser?.email ?? null,
-    currentTierOrder,
-    data?.tiers ?? [],
-  );
-
+function useRankGlowAnimation(
+  data: RankDataType | undefined,
+  sortedTiersLength: number,
+  reduceMotion: boolean,
+): { glowAnim: Animated.Value; scaleAnim: Animated.Value } {
   const glowAnim = useRef(new Animated.Value(0.15)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
-
   const glowLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
-    if (!data || sortedTiers.length === 0) return;
+    if (!data || sortedTiersLength === 0) return;
     const currentTierLocal = getCurrentTier(data.currentStars, data.tiers);
     if (!currentTierLocal) return;
 
@@ -110,14 +70,130 @@ export function RankScreen() {
       glowLoopRef.current.start();
     }
     return () => glowLoopRef.current?.stop();
-  }, [data, reduceMotion]);
+  }, [data, sortedTiersLength, reduceMotion]);
+
+  return { glowAnim, scaleAnim };
+}
+
+type TierItem = RankDataType['tiers'][number];
+
+type RankLadderRowProps = {
+  tier: TierItem;
+  isCurrent: boolean;
+  isLast: boolean;
+  range: string;
+  scaleAnim: Animated.Value;
+  glowAnim: Animated.Value;
+  reduceMotion: boolean;
+  styles: ReturnType<typeof makeStyles>;
+};
+
+function RankLadderRow({ tier, isCurrent, isLast, range, scaleAnim, glowAnim, reduceMotion, styles }: RankLadderRowProps) {
+  const rc = rankConfig(tier.tier_order);
+  return (
+    <Animated.View
+      style={[
+        styles.rk,
+        isCurrent && { ...styles.rkCur, backgroundColor: rc.color + '22' },
+        isLast && styles.rkLast,
+        isCurrent ? { transform: [{ scale: scaleAnim }] } : undefined,
+      ]}
+    >
+      {isCurrent && (
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { borderRadius: Radii.md, borderWidth: 1.5, borderColor: rc.color, opacity: glowAnim }]}
+          pointerEvents="none"
+        />
+      )}
+      <View style={styles.rkMascot}>
+        <RankMascot tier={tier.tier_order - 1} size={36} loop={isCurrent} reduceMotion={reduceMotion} />
+      </View>
+      <View style={styles.rkInfo}>
+        <Text style={[styles.rkA, isCurrent && { color: rc.color }]}>{tier.rank_name}</Text>
+        <Text style={styles.rkB}>{rc.descriptor}</Text>
+      </View>
+      <Text style={[styles.rkThr, isCurrent && { color: rc.color }]}>{range}</Text>
+    </Animated.View>
+  );
+}
+
+type LBEntry = NonNullable<ReturnType<typeof useLeaderboard>['data']>[number];
+
+type LeaderboardSectionProps = {
+  leaderboard: LBEntry[];
+  lbLoading: boolean;
+  styles: ReturnType<typeof makeStyles>;
+  colors: AppColors;
+  youLabel: string;
+  emptyLabel: string;
+};
+
+function LeaderboardSection({ leaderboard, lbLoading, styles, colors, youLabel, emptyLabel }: LeaderboardSectionProps) {
+  if (lbLoading) {
+    return <View style={styles.lbEmpty}><ActivityIndicator color={colors.primary} /></View>;
+  }
+  if (leaderboard.length === 0) {
+    return <View style={styles.lbEmpty}><Text style={styles.lbEmptyTxt}>{emptyLabel}</Text></View>;
+  }
+  return (
+    <>
+      {leaderboard.map((entry, idx) => {
+        const isLast = idx === leaderboard.length - 1;
+        return (
+          <View
+            key={entry.userEmail}
+            style={[styles.lbRow, isLast && styles.lbRowLast, entry.isCurrentUser && styles.lbRowMe]}
+          >
+            <Text style={[styles.lbRank, entry.rank <= 3 && styles.lbRankTop]}>#{entry.rank}</Text>
+            <View style={styles.lbInfo}>
+              <Text style={styles.lbName} numberOfLines={1}>
+                {entry.displayName}{entry.isCurrentUser ? ` (${youLabel})` : ''}
+              </Text>
+            </View>
+            <Text style={styles.lbStars}>{entry.weeklyStars} ★</Text>
+          </View>
+        );
+      })}
+    </>
+  );
+}
+
+// fallow-ignore-next-line complexity
+export function RankScreen() {
+  const { userId, googleUser, colors, t, styles } = useScreenCommons(makeStyles);
+  const mascotRef = useRef<RankMascotHandle>(null);
+  const { data, isLoading } = useRankData(userId);
+
+  const reduceMotion = useReduceMotion();
+
+  const [countdownMs, setCountdownMs] = useState(() => getNextMonday().getTime() - Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setCountdownMs(getNextMonday().getTime() - Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    rankMascotBridge.ref = mascotRef;
+    return () => { rankMascotBridge.ref = null; };
+  }, []);
+
+  const sortedTiers = useMemo(() => {
+    if (!data) return [];
+    const cur = getCurrentTier(data.currentStars, data.tiers);
+    return cur ? [cur] : [];
+  }, [data]);
+
+  const currentTierOrder = data ? (getCurrentTier(data.currentStars, data.tiers)?.tier_order ?? 0) : 0;
+  const { data: leaderboard = [], isLoading: lbLoading } = useLeaderboard(
+    googleUser?.email ?? null,
+    currentTierOrder,
+    data?.tiers ?? [],
+  );
+
+  const { glowAnim, scaleAnim } = useRankGlowAnimation(data, sortedTiers.length, reduceMotion);
 
   if (isLoading || !data) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator color={colors.primary} />
-      </View>
-    );
+    return <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View>;
   }
 
   const { currentStars, tiers, history } = data;
@@ -129,7 +205,6 @@ export function RankScreen() {
   const progressPct = nextTier
     ? Math.min(1, Math.max(0, (currentStars - prevTierStars) / Math.max(1, nextTierStars - prevTierStars)))
     : 1;
-
   const cfg = rankConfig(currentTier?.tier_order ?? 1);
 
   return (
@@ -137,18 +212,11 @@ export function RankScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>{t.rankTitle}</Text>
 
-        {/* Rankhero card */}
         <View style={styles.rankhero}>
           <View style={[styles.rankheroGlow, { backgroundColor: cfg.color }]} />
           {currentStars >= 5 ? (
             <>
-              <RankMascot
-                ref={mascotRef}
-                tier={(currentTier?.tier_order ?? 1) - 1}
-                size={100}
-                loop
-                reduceMotion={reduceMotion}
-              />
+              <RankMascot ref={mascotRef} tier={(currentTier?.tier_order ?? 1) - 1} size={100} loop reduceMotion={reduceMotion} />
               <Text style={styles.rankNm}>{currentTier?.rank_name}</Text>
               <Text style={styles.rankEn}>{cfg.descriptor}</Text>
             </>
@@ -166,126 +234,71 @@ export function RankScreen() {
             <View style={[styles.barFill, { width: `${Math.round(progressPct * 100)}%` as `${number}%` }]} />
           </View>
           {starsToNext > 0 ? (
-            <Text style={styles.nextCap}>
-              {t.nextRank(starsToNext, nextTier?.rank_name ?? '')}
-            </Text>
+            <Text style={styles.nextCap}>{t.nextRank(starsToNext, nextTier?.rank_name ?? '')}</Text>
           ) : (
             <Text style={styles.nextCap}>{t.maxRank}</Text>
           )}
         </View>
 
-        {/* Weekly reset countdown */}
         <View style={styles.resetChip}>
           <Text style={styles.resetChipLabel}>{t.resetCountdownLabel}</Text>
           <Text style={styles.resetChipCountdown}>{fmtCountdown(countdownMs)}</Text>
         </View>
 
-        {/* Rank ladder */}
         <Text style={styles.sectionLabel}>{t.rankLadder}</Text>
         <View style={styles.card}>
           {sortedTiers.map((tier, idx, arr) => {
             if (!tier) return null;
             const isCurrent = tier.id === currentTier?.id;
             const isLast = idx === arr.length - 1;
-            const rc = rankConfig(tier.tier_order);
             const range = idx > 0
               ? `${tier.stars_required}–${(arr[idx - 1]?.stars_required ?? 999) - 1} ★`
               : `${tier.stars_required}+ ★`;
             return (
-              <Animated.View
+              <RankLadderRow
                 key={tier.id}
-                style={[
-                  styles.rk,
-                  isCurrent && { ...styles.rkCur, backgroundColor: rc.color + '22' },
-                  isLast && styles.rkLast,
-                  isCurrent ? { transform: [{ scale: scaleAnim }] } : undefined,
-                ]}
-              >
-                {isCurrent && (
-                  <Animated.View
-                    style={[StyleSheet.absoluteFill, { borderRadius: Radii.md, borderWidth: 1.5, borderColor: rc.color, opacity: glowAnim }]}
-                    pointerEvents="none"
-                  />
-                )}
-                <View style={styles.rkMascot}>
-                  <RankMascot tier={tier.tier_order - 1} size={36} loop={isCurrent} reduceMotion={reduceMotion} />
-                </View>
-                <View style={styles.rkInfo}>
-                  <Text style={[styles.rkA, isCurrent && { color: rc.color }]}>
-                    {tier.rank_name}
-                  </Text>
-                  <Text style={styles.rkB}>{rc.descriptor}</Text>
-                </View>
-                <Text style={[styles.rkThr, isCurrent && { color: rc.color }]}>{range}</Text>
-              </Animated.View>
+                tier={tier}
+                isCurrent={isCurrent}
+                isLast={isLast}
+                range={range}
+                scaleAnim={scaleAnim}
+                glowAnim={glowAnim}
+                reduceMotion={reduceMotion}
+                styles={styles}
+              />
             );
           })}
         </View>
 
-        {/* Leaderboard — same-rank users this week */}
         {currentTierOrder > 0 && (
           <>
             <Text style={styles.sectionLabel}>{t.leaderboardSection}</Text>
             <View style={styles.card}>
-              {lbLoading ? (
-                <View style={styles.lbEmpty}>
-                  <ActivityIndicator color={colors.primary} />
-                </View>
-              ) : leaderboard.length === 0 ? (
-                <View style={styles.lbEmpty}>
-                  <Text style={styles.lbEmptyTxt}>{t.leaderboardEmpty}</Text>
-                </View>
-              ) : (
-                leaderboard.map((entry, idx) => {
-                  const isLast = idx === leaderboard.length - 1;
-                  return (
-                    <View
-                      key={entry.userEmail}
-                      style={[
-                        styles.lbRow,
-                        isLast && styles.lbRowLast,
-                        entry.isCurrentUser && styles.lbRowMe,
-                      ]}
-                    >
-                      <Text style={[styles.lbRank, entry.rank <= 3 && styles.lbRankTop]}>
-                        #{entry.rank}
-                      </Text>
-                      <View style={styles.lbInfo}>
-                        <Text style={styles.lbName} numberOfLines={1}>
-                          {entry.displayName}
-                          {entry.isCurrentUser ? ` (${t.leaderboardYou})` : ''}
-                        </Text>
-                      </View>
-                      <Text style={styles.lbStars}>{entry.weeklyStars} ★</Text>
-                    </View>
-                  );
-                })
-              )}
+              <LeaderboardSection
+                leaderboard={leaderboard}
+                lbLoading={lbLoading}
+                styles={styles}
+                colors={colors}
+                youLabel={t.leaderboardYou}
+                emptyLabel={t.leaderboardEmpty}
+              />
             </View>
           </>
         )}
 
-        {/* Weekly history */}
         {history.length > 0 && (
           <>
             <Text style={styles.sectionLabel}>{t.weeklyHistory}</Text>
             <View style={styles.card}>
               {history.map((week, idx) => {
-                const weekTier = week.current_tier_id
-                  ? tiers.find((tr) => tr.id === week.current_tier_id)
-                  : null;
+                const weekTier = week.current_tier_id ? tiers.find((tr) => tr.id === week.current_tier_id) : null;
                 const isLast = idx === history.length - 1;
                 const wrc = weekTier ? rankConfig(weekTier.tier_order) : null;
                 return (
                   <View key={week.week_start} style={[styles.rk, isLast && styles.rkLast]}>
                     <View style={styles.rkMascot}>
                       {wrc ? (
-                        <RankMascot
-                          tier={weekTier!.tier_order - 1}
-                          size={36}
-                          loop={false}
-                          reduceMotion={reduceMotion}
-                        />
+                        <RankMascot tier={weekTier!.tier_order - 1} size={36} loop={false} reduceMotion={reduceMotion} />
                       ) : (
                         <Text style={styles.rkEm}>—</Text>
                       )}

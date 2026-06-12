@@ -1,3 +1,4 @@
+// fallow-ignore unused-files
 const store = {};
 module.exports = {
   getItemAsync: jest.fn(async (key) => store[key] ?? null),

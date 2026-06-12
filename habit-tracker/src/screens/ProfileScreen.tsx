@@ -14,6 +14,31 @@ type Props = {
   onSignOut: () => Promise<void>;
 };
 
+function formatLogDate(entry: ActivityLogEntry): string {
+  const d = new Date(entry.logged_at);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+type LogRowStyles = ReturnType<typeof makeStyles>;
+
+function ProfileLogRow({ item, isLast, bonusSource, styles }: { item: ActivityLogEntry; isLast: boolean; bonusSource: string; styles: LogRowStyles }) {
+  return (
+    <View style={[styles.row, isLast && styles.rowLast]}>
+      <Text style={styles.icon}>{item.stars_delta >= 0 ? '✅' : '❌'}</Text>
+      <View style={styles.rowBody}>
+        <Text style={styles.taskName} numberOfLines={1}>
+          {item.task_name ?? (item.source === 'BONUS' ? bonusSource : item.source)}
+        </Text>
+        <Text style={styles.taskMeta}>{formatLogDate(item)}</Text>
+      </View>
+      <Text style={[styles.stars, item.stars_delta < 0 && styles.starsNeg]}>
+        {item.stars_delta >= 0 ? '+' : ''}{item.stars_delta.toFixed(1)} ★
+      </Text>
+    </View>
+  );
+}
+
 export function ProfileScreen({ googleUser, onSignOut }: Props) {
   const userId = useAuthUser();
   const { colors } = useTheme();
@@ -26,14 +51,9 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
   const { data: allTime } = useAllTimeStats(userId);
   const { data: actLogs = [] } = useRecentActivityLogs(userId, 100);
 
-  const weeklyStars = weekly?.weekly_stars ?? 0;
-  const streak = daily?.streak_count ?? 0;
-
-  function formatLogDate(entry: ActivityLogEntry): string {
-    const d = new Date(entry.logged_at);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  }
+  const weeklyStars = weekly ? weekly.weekly_stars : 0;
+  const streak = daily ? daily.streak_count : 0;
+  const totalStars = allTime ? allTime.totalStars : 0;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -61,7 +81,7 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
           <Text style={ph.lifeL}>{t.statStreak}</Text>
         </View>
         <View style={ph.lifeCell}>
-          <Text style={ph.lifeV}>{allTime?.totalStars ?? 0} ★</Text>
+          <Text style={ph.lifeV}>{totalStars} ★</Text>
           <Text style={ph.lifeL}>{t.statTotalStars}</Text>
         </View>
       </View>
@@ -78,21 +98,13 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
       ) : (
         <View style={styles.taskCard}>
           {actLogs.map((item, idx) => (
-            <View
+            <ProfileLogRow
               key={item.id}
-              style={[styles.row, idx === actLogs.length - 1 && styles.rowLast]}
-            >
-              <Text style={styles.icon}>{item.stars_delta >= 0 ? '✅' : '❌'}</Text>
-              <View style={styles.rowBody}>
-                <Text style={styles.taskName} numberOfLines={1}>
-                  {item.task_name ?? (item.source === 'BONUS' ? t.bonusSource : item.source)}
-                </Text>
-                <Text style={styles.taskMeta}>{formatLogDate(item)}</Text>
-              </View>
-              <Text style={[styles.stars, item.stars_delta < 0 && styles.starsNeg]}>
-                {item.stars_delta >= 0 ? '+' : ''}{item.stars_delta.toFixed(1)} ★
-              </Text>
-            </View>
+              item={item}
+              isLast={idx === actLogs.length - 1}
+              bonusSource={t.bonusSource}
+              styles={styles}
+            />
           ))}
         </View>
       )}

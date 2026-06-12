@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Animated, AccessibilityInfo,
+  StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -19,19 +19,159 @@ import { getCurrentTier } from '../game/tierLookup';
 import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { Task, TaskRow } from '../components/TaskRow';
 import { LevelUpCelebrationModal } from '../components/LevelUpCelebrationModal';
-import { useAuthUser, useGoogleUser } from '../hooks/useAuth';
-import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useScreenCommons } from '../hooks/useScreenCommons';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import { cueStreakMilestone } from '../audio/uiSounds';
 import { useSelectionMode } from '../hooks/useSelectionMode';
 import { DAILY_BONUS_THRESHOLD } from '../config/constants';
 
+const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑' };
+
+function useRankBounceAnimation(rankName: string, reduceMotion: boolean): Animated.Value {
+  const anim = useRef(new Animated.Value(1)).current;
+  const prevRef = useRef(rankName);
+  useEffect(() => {
+    if (reduceMotion || prevRef.current === rankName) return;
+    prevRef.current = rankName;
+    Animated.sequence([
+      Animated.spring(anim, { toValue: 1.25, tension: 120, friction: 6, useNativeDriver: true }),
+      Animated.spring(anim, { toValue: 1, tension: 120, friction: 6, useNativeDriver: true }),
+    ]).start();
+  }, [rankName, reduceMotion]);
+  return anim;
+}
+
+function useStreakPulseAnimation(hasStreak: boolean, reduceMotion: boolean): Animated.Value {
+  const anim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!hasStreak || reduceMotion) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 1.08, duration: 400, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [hasStreak, reduceMotion]);
+  return anim;
+}
+
+function useProgressBarAnimation(dailyPoints: number): { barWidthAnim: Animated.Value; barGlowOpacity: Animated.Value } {
+  const barWidthAnim = useRef(new Animated.Value(Math.min(dailyPoints / DAILY_BONUS_THRESHOLD, 1) * 100)).current;
+  const barGlowOpacity = useRef(new Animated.Value(0)).current;
+  const prevRef = useRef(dailyPoints);
+  useEffect(() => {
+    const targetPct = Math.min(dailyPoints / DAILY_BONUS_THRESHOLD, 1) * 100;
+    Animated.spring(barWidthAnim, { toValue: targetPct, tension: 100, friction: 8, useNativeDriver: false }).start();
+    const prev = prevRef.current;
+    const h = DAILY_BONUS_THRESHOLD;
+    if ((prev < h / 2 && dailyPoints >= h / 2) || (prev < h && dailyPoints >= h)) {
+      barGlowOpacity.setValue(0.7);
+      Animated.timing(barGlowOpacity, { toValue: 0, duration: 700, useNativeDriver: false }).start();
+    }
+    prevRef.current = dailyPoints;
+  }, [dailyPoints]);
+  return { barWidthAnim, barGlowOpacity };
+}
+
+function parseLogDuration(duration: string, durationUnit: 'min' | 'hr', validDurationMsg: string): number | null {
+  const parsed = parseInt(duration, 10);
+  if (isNaN(parsed) || parsed <= 0) { Alert.alert(validDurationMsg); return null; }
+  const mins = durationUnit === 'hr' ? parsed * 60 : parsed;
+  if (mins > 1440) { Alert.alert(validDurationMsg); return null; }
+  return mins;
+}
+
+type DurationModalLabels = {
+  addActivityHowLong: string;
+  durationCustom: string;
+  unitMin: string;
+  unitHour: string;
+  logBtn: string;
+  cancel: string;
+};
+
+type DurationModalProps = {
+  task: Task | null;
+  duration: string;
+  durationUnit: 'min' | 'hr';
+  customDuration: boolean;
+  logPending: boolean;
+  onPreset: (mins: number) => void;
+  onShowCustom: () => void;
+  onLog: () => void;
+  onClose: () => void;
+  onChangeDuration: (v: string) => void;
+  onChangeUnit: (u: 'min' | 'hr') => void;
+  colors: AppColors;
+  styles: ReturnType<typeof makeStyles>;
+  labels: DurationModalLabels;
+};
+
+function DurationModal({ task, duration, durationUnit, customDuration, logPending, onPreset, onShowCustom, onLog, onClose, onChangeDuration, onChangeUnit, colors, styles, labels }: DurationModalProps) {
+  return (
+    <Modal visible={!!task} transparent animationType="slide">
+      <View style={styles.modalBg}>
+        <View style={styles.modalBox}>
+          <Text style={styles.modalTitle}>{task?.name}</Text>
+          <Text style={styles.modalSub}>{labels.addActivityHowLong}</Text>
+          {!customDuration ? (
+            <View style={styles.presetChipsRow}>
+              {([{ label: '30m', mins: 30 }, { label: '45m', mins: 45 }, { label: '1h', mins: 60 }] as const).map(p => (
+                <TouchableOpacity key={p.label} style={styles.presetChip} onPress={() => onPreset(p.mins)} disabled={logPending} activeOpacity={0.75}>
+                  <Text style={styles.presetChipText}>{p.label}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity style={[styles.presetChip, styles.presetChipCustom]} onPress={onShowCustom} activeOpacity={0.75}>
+                <Text style={[styles.presetChipText, styles.presetChipCustomText]}>{labels.durationCustom}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <View style={styles.durationRow}>
+                <TextInput
+                  style={[styles.input, styles.durationInput]}
+                  keyboardType="number-pad"
+                  value={duration}
+                  onChangeText={onChangeDuration}
+                  placeholder="0"
+                  placeholderTextColor={colors.faint}
+                  autoFocus
+                />
+                <View style={styles.unitToggle}>
+                  <TouchableOpacity
+                    style={[styles.unitBtn, durationUnit === 'min' && styles.unitBtnActive]}
+                    onPress={() => onChangeUnit('min')}
+                  >
+                    <Text style={[styles.unitBtnText, durationUnit === 'min' && styles.unitBtnTextActive]}>{labels.unitMin}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.unitBtn, durationUnit === 'hr' && styles.unitBtnActive]}
+                    onPress={() => onChangeUnit('hr')}
+                  >
+                    <Text style={[styles.unitBtnText, durationUnit === 'hr' && styles.unitBtnTextActive]}>{labels.unitHour}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <TouchableOpacity style={styles.btn} onPress={onLog} disabled={logPending}>
+                <Text style={styles.btnText}>{labels.logBtn}</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          <TouchableOpacity onPress={onClose}>
+            <Text style={styles.cancel}>{labels.cancel}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// fallow-ignore-next-line complexity
 export function TodayScreen() {
   const navigation = useNavigation();
-  const userId = useAuthUser();
-  const googleUser = useGoogleUser();
-  const { colors } = useTheme();
-  const t = useTranslations();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { userId, googleUser, colors, t, styles } = useScreenCommons(makeStyles);
 
   const { data: tasks, isLoading } = useTodayTasks(userId);
   const { data: daily } = useDailySummary(userId);
@@ -41,7 +181,6 @@ export function TodayScreen() {
   const { data: rankData } = useRankData(userId);
   const logTask = useLogTask(userId);
   const unlogTask = useUnlogTask(userId);
-
   const archiveTask = useArchiveTask(userId);
 
   const [modalTask, setModalTask] = useState<Task | null>(null);
@@ -65,94 +204,23 @@ export function TodayScreen() {
   }, []);
 
   const { data: suggestions = [] } = useConsecutiveSuggestions(userId);
-
   const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(tasks ?? []);
-
-  function handleDeleteSelected() {
-    const ids = Array.from(selectedIds);
-    Alert.alert(
-      t.removeTasksTitle,
-      t.hideTasksMsg(ids.length),
-      [
-        { text: t.cancel, style: 'cancel' },
-        {
-          text: t.delete, style: 'destructive',
-          onPress: async () => {
-            try {
-              for (const id of ids) {
-                await archiveTask.mutateAsync(id);
-              }
-              cancelSelection();
-            } catch {
-              Alert.alert(t.error, t.cantLog);
-            }
-          },
-        },
-      ]
-    );
-  }
 
   const weeklyStars = weekly?.weekly_stars ?? 0;
   const dailyPoints = daily?.total_points ?? 0;
   const streak = daily?.streak_count ?? 0;
   const isDebt = weeklyStars < 0;
-  const currentTier = rankData && rankData.tiers.length > 0
-    ? getCurrentTier(weeklyStars, rankData.tiers)
-    : null;
+  const currentTier = rankData && rankData.tiers.length > 0 ? getCurrentTier(weeklyStars, rankData.tiers) : null;
   const rankName = currentTier?.rank_name ?? '—';
-
-  const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑' };
   const rankEmoji = currentTier ? (RANK_EMOJI[currentTier.tier_order] ?? '⭐') : '⭐';
 
-  const [reduceMotion, setReduceMotion] = useState(false);
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
-  }, []);
-
-  const rankBounceAnim = useRef(new Animated.Value(1)).current;
-  const prevRankNameRef = useRef(rankName);
-  useEffect(() => {
-    if (reduceMotion) return;
-    if (prevRankNameRef.current !== rankName) {
-      prevRankNameRef.current = rankName;
-      Animated.sequence([
-        Animated.spring(rankBounceAnim, { toValue: 1.25, tension: 120, friction: 6, useNativeDriver: true }),
-        Animated.spring(rankBounceAnim, { toValue: 1, tension: 120, friction: 6, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [rankName, reduceMotion]);
-
-  const streakPulseAnim = useRef(new Animated.Value(1)).current;
+  const reduceMotion = useReduceMotion();
   const hasStreak = streak > 0;
-  useEffect(() => {
-    if (!hasStreak || reduceMotion) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(streakPulseAnim, { toValue: 1.08, duration: 400, useNativeDriver: true }),
-        Animated.timing(streakPulseAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [hasStreak, reduceMotion]);
-
-  const barWidthAnim = useRef(new Animated.Value(Math.min(dailyPoints / DAILY_BONUS_THRESHOLD, 1) * 100)).current;
-  const barGlowOpacity = useRef(new Animated.Value(0)).current;
-  const prevDailyRef = useRef(dailyPoints);
-  useEffect(() => {
-    const targetPct = Math.min(dailyPoints / DAILY_BONUS_THRESHOLD, 1) * 100;
-    Animated.spring(barWidthAnim, { toValue: targetPct, tension: 100, friction: 8, useNativeDriver: false }).start();
-    const prev = prevDailyRef.current;
-    const h = DAILY_BONUS_THRESHOLD;
-    if ((prev < h / 2 && dailyPoints >= h / 2) || (prev < h && dailyPoints >= h)) {
-      barGlowOpacity.setValue(0.7);
-      Animated.timing(barGlowOpacity, { toValue: 0, duration: 700, useNativeDriver: false }).start();
-    }
-    prevDailyRef.current = dailyPoints;
-  }, [dailyPoints]);
+  const rankBounceAnim = useRankBounceAnimation(rankName, reduceMotion);
+  const streakPulseAnim = useStreakPulseAnimation(hasStreak, reduceMotion);
+  const { barWidthAnim, barGlowOpacity } = useProgressBarAnimation(dailyPoints);
 
   const avatarInitial = (googleUser?.name?.charAt(0) ?? 'B').toUpperCase();
-
   const today = new Date();
   const dateStr = `${t.dayNames[today.getDay()]}, ${t.dateStr(today.getDate(), today.getMonth() + 1)}`;
 
@@ -177,13 +245,11 @@ export function TodayScreen() {
   }
 
   async function handleLog(task: Task) {
-    // Timed: always open duration modal (first log or add more time)
     if (task.is_time_based) {
       setCustomDuration(false);
       setModalTask(task);
       return;
     }
-    // Non-timed: toggle undo if already logged today
     if (loggedIds?.has(task.id)) {
       try {
         await unlogTask.mutateAsync({ taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD' });
@@ -198,27 +264,14 @@ export function TodayScreen() {
       });
       showStreakToast(result.newStreak, result.prevStreak);
       setJustLoggedIds(prev => new Set(prev).add(task.id));
-      setTimeout(() => {
-        setJustLoggedIds(prev => {
-          const next = new Set(prev);
-          next.delete(task.id);
-          return next;
-        });
-      }, 1500);
+      setTimeout(() => setJustLoggedIds(prev => { const n = new Set(prev); n.delete(task.id); return n; }), 1500);
     } catch { Alert.alert(t.error, t.cantLog); }
   }
 
   async function handleLogTime(fixedMins?: number) {
     if (!modalTask) return;
-    let mins: number;
-    if (fixedMins !== undefined) {
-      mins = fixedMins;
-    } else {
-      const parsed = parseInt(duration, 10);
-      if (isNaN(parsed) || parsed <= 0) { Alert.alert(t.validDuration); return; }
-      mins = durationUnit === 'hr' ? parsed * 60 : parsed;
-      if (mins > 1440) { Alert.alert(t.validDuration); return; } // cap at 24h
-    }
+    const mins = fixedMins !== undefined ? fixedMins : parseLogDuration(duration, durationUnit, t.validDuration);
+    if (mins === null) return;
     try {
       const result = await logTask.mutateAsync({
         taskTypeId: modalTask.id, kind: modalTask.kind as 'GOOD' | 'BAD',
@@ -226,7 +279,7 @@ export function TodayScreen() {
         starPenalty: modalTask.star_penalty, durationMin: mins,
       });
       showStreakToast(result.newStreak, result.prevStreak);
-      setModalTask(null); setDuration(''); setDurationUnit('min'); setCustomDuration(false);
+      closeModal();
     } catch { Alert.alert(t.error, t.cantLog); }
   }
 
@@ -238,11 +291,8 @@ export function TodayScreen() {
     }
     try {
       const result = await logTask.mutateAsync({
-        taskTypeId: task.id,
-        kind: task.kind as 'GOOD' | 'BAD',
-        isTimeBased: false,
-        basePoints: task.base_points,
-        starPenalty: task.star_penalty,
+        taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD',
+        isTimeBased: false, basePoints: task.base_points, starPenalty: task.star_penalty,
       });
       showStreakToast(result.newStreak, result.prevStreak);
       setDismissedSuggestions(prev => new Set(prev).add(task.id));
@@ -251,6 +301,26 @@ export function TodayScreen() {
 
   function dismissSuggestion(id: number) {
     setDismissedSuggestions(prev => new Set(prev).add(id));
+  }
+
+  function handleDeleteSelected() {
+    const ids = Array.from(selectedIds);
+    Alert.alert(t.removeTasksTitle, t.hideTasksMsg(ids.length), [
+      { text: t.cancel, style: 'cancel' },
+      {
+        text: t.delete, style: 'destructive',
+        onPress: async () => {
+          try {
+            for (const id of ids) await archiveTask.mutateAsync(id);
+            cancelSelection();
+          } catch { Alert.alert(t.error, t.cantLog); }
+        },
+      },
+    ]);
+  }
+
+  function closeModal() {
+    setModalTask(null); setDuration(''); setDurationUnit('min'); setCustomDuration(false);
   }
 
   if (isLoading) return <ActivityIndicator style={{ flex: 1 }} color={colors.primary} />;
@@ -266,29 +336,19 @@ export function TodayScreen() {
           AsyncStorage.removeItem(PENDING_LEVELUP_KEY).catch(() => {});
         }}
       />
-      {/* Topbar — outside ScrollView so it stays fixed */}
       <View style={styles.topbar}>
-        <TouchableOpacity
-          style={styles.avatar}
-          onPress={() => navigation.navigate('Profile' as never)}
-          activeOpacity={0.85}
-        >
+        <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile' as never)} activeOpacity={0.85}>
           <Text style={styles.avatarText}>{avatarInitial}</Text>
         </TouchableOpacity>
         <View style={styles.greet}>
           <Text style={styles.hi}>{t.greeting(googleUser?.name?.split(' ').pop() ?? '')}</Text>
           <Text style={styles.date}>{dateStr}</Text>
         </View>
-        <TouchableOpacity
-          style={styles.gearBtn}
-          onPress={() => navigation.navigate('Settings' as never)}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity style={styles.gearBtn} onPress={() => navigation.navigate('Settings' as never)} activeOpacity={0.7}>
           <Text style={styles.gearIcon}>⚙️</Text>
         </TouchableOpacity>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 }}>
-        {/* Hero card */}
         <LinearGradient
           colors={isDebt ? ['#5C1D1E', '#B0383C'] : ['#1A5039', '#2E9C6A']}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
@@ -314,48 +374,32 @@ export function TodayScreen() {
           )}
         </LinearGradient>
 
-        {/* Progress card */}
         <View style={styles.progCard}>
           <View style={styles.progTop}>
             <Text style={styles.progLabel}>{t.pointsLabel}</Text>
             <Text style={styles.progPts}><Text style={styles.progPtsBold}>{dailyPoints}</Text> / {DAILY_BONUS_THRESHOLD}</Text>
           </View>
           <View style={styles.bar}>
-            <Animated.View
-              style={[styles.barFill, { width: barWidthAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) }]}
-            />
+            <Animated.View style={[styles.barFill, { width: barWidthAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) }]} />
             <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', opacity: barGlowOpacity, borderRadius: Radii.pill }]} />
           </View>
           <Text style={styles.progCap}>{t.streakBonus(DAILY_BONUS_THRESHOLD)}</Text>
         </View>
 
-        {/* Smart suggestion chips */}
         {!selectionMode && suggestions
           .filter(s => !dismissedSuggestions.has(s.id) && !(loggedIds?.has(s.id)))
           .map(s => (
             <View key={s.id} style={styles.suggestionRow}>
-              <TouchableOpacity
-                style={styles.suggestionChip}
-                onPress={() => handleSuggestionLog(s)}
-                disabled={logTask.isPending}
-                activeOpacity={0.75}
-              >
-                <Text style={styles.suggestionChipText}>
-                  🔄 {t.suggestionPrompt(s.name)}
-                </Text>
+              <TouchableOpacity style={styles.suggestionChip} onPress={() => handleSuggestionLog(s)} disabled={logTask.isPending} activeOpacity={0.75}>
+                <Text style={styles.suggestionChipText}>🔄 {t.suggestionPrompt(s.name)}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.suggestionDismiss}
-                onPress={() => dismissSuggestion(s.id)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
+              <TouchableOpacity style={styles.suggestionDismiss} onPress={() => dismissSuggestion(s.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Text style={styles.suggestionDismissText}>✕</Text>
               </TouchableOpacity>
             </View>
           ))
         }
 
-        {/* Task list header with selection actions */}
         <View style={styles.taskListHeader}>
           <Text style={styles.sectionLabel}>{t.sectionToday}</Text>
           {selectionMode && (
@@ -363,11 +407,7 @@ export function TodayScreen() {
               <TouchableOpacity onPress={selectAll} style={styles.selBtn}>
                 <Text style={styles.selBtnTxt}>{t.all}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleDeleteSelected}
-                style={[styles.selBtn, styles.selDeleteBtn]}
-                disabled={selectedIds.size === 0 || archiveTask.isPending}
-              >
+              <TouchableOpacity onPress={handleDeleteSelected} style={[styles.selBtn, styles.selDeleteBtn]} disabled={selectedIds.size === 0 || archiveTask.isPending}>
                 <Text style={styles.selDeleteTxt}>{t.deleteCount(selectedIds.size)}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={cancelSelection} style={styles.selBtn}>
@@ -411,79 +451,29 @@ export function TodayScreen() {
         </View>
       </ScrollView>
 
-      {/* Duration modal */}
-      <Modal visible={!!modalTask} transparent animationType="slide">
-        <View style={styles.modalBg}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>{modalTask?.name}</Text>
-            <Text style={styles.modalSub}>{t.addActivityHowLong}</Text>
-
-            {!customDuration ? (
-              <View style={styles.presetChipsRow}>
-                {([{label: '30m', mins: 30}, {label: '45m', mins: 45}, {label: '1h', mins: 60}] as const).map(p => (
-                  <TouchableOpacity
-                    key={p.label}
-                    style={styles.presetChip}
-                    onPress={() => handleLogTime(p.mins)}
-                    disabled={logTask.isPending}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={styles.presetChipText}>{p.label}</Text>
-                  </TouchableOpacity>
-                ))}
-                <TouchableOpacity
-                  style={[styles.presetChip, styles.presetChipCustom]}
-                  onPress={() => setCustomDuration(true)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[styles.presetChipText, styles.presetChipCustomText]}>{t.durationCustom}</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <>
-                <View style={styles.durationRow}>
-                  <TextInput
-                    style={[styles.input, styles.durationInput]}
-                    keyboardType="number-pad"
-                    value={duration}
-                    onChangeText={setDuration}
-                    placeholder="0"
-                    placeholderTextColor={colors.faint}
-                    autoFocus
-                  />
-                  <View style={styles.unitToggle}>
-                    <TouchableOpacity
-                      style={[styles.unitBtn, durationUnit === 'min' && styles.unitBtnActive]}
-                      onPress={() => setDurationUnit('min')}
-                    >
-                      <Text style={[styles.unitBtnText, durationUnit === 'min' && styles.unitBtnTextActive]}>
-                        {t.unitMin}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.unitBtn, durationUnit === 'hr' && styles.unitBtnActive]}
-                      onPress={() => setDurationUnit('hr')}
-                    >
-                      <Text style={[styles.unitBtnText, durationUnit === 'hr' && styles.unitBtnTextActive]}>
-                        {t.unitHour}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                <TouchableOpacity style={styles.btn} onPress={() => handleLogTime()} disabled={logTask.isPending}>
-                  <Text style={styles.btnText}>{t.logBtn}</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            <TouchableOpacity onPress={() => {
-              setModalTask(null); setDuration(''); setDurationUnit('min'); setCustomDuration(false);
-            }}>
-              <Text style={styles.cancel}>{t.cancel}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <DurationModal
+        task={modalTask}
+        duration={duration}
+        durationUnit={durationUnit}
+        customDuration={customDuration}
+        logPending={logTask.isPending}
+        onPreset={handleLogTime}
+        onShowCustom={() => setCustomDuration(true)}
+        onLog={handleLogTime}
+        onClose={closeModal}
+        onChangeDuration={setDuration}
+        onChangeUnit={setDurationUnit}
+        colors={colors}
+        styles={styles}
+        labels={{
+          addActivityHowLong: t.addActivityHowLong,
+          durationCustom: t.durationCustom,
+          unitMin: t.unitMin,
+          unitHour: t.unitHour,
+          logBtn: t.logBtn,
+          cancel: t.cancel,
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -528,12 +518,8 @@ function makeStyles(C: AppColors) {
     },
     rankChipText: { fontSize: 12.5, fontWeight: '800', color: '#fff' },
     heroStreak: {
-      color: 'rgba(255,255,255,0.85)',
-      fontSize: 13,
-      fontWeight: '600',
-      marginTop: 8,
-      alignSelf: 'center',
-      letterSpacing: 0.3,
+      color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '600',
+      marginTop: 8, alignSelf: 'center', letterSpacing: 0.3,
     },
 
     progCard: {
@@ -549,11 +535,7 @@ function makeStyles(C: AppColors) {
       height: 10, backgroundColor: C.surface2, borderRadius: Radii.pill,
       marginTop: 10, overflow: 'hidden',
     },
-    barFill: {
-      height: '100%',
-      backgroundColor: C.primary,
-      borderRadius: Radii.pill,
-    },
+    barFill: { height: '100%', backgroundColor: C.primary, borderRadius: Radii.pill },
     progCap: { fontSize: 11.5, color: C.muted, marginTop: 8 },
 
     sectionLabel: {
@@ -590,9 +572,7 @@ function makeStyles(C: AppColors) {
       borderWidth: 1, borderColor: C.primary + '55', ...Shadows.light,
     },
     suggestionChipText: { color: C.primary, fontSize: 13, fontWeight: '600' },
-    suggestionDismiss: {
-      marginLeft: 8, padding: 4,
-    },
+    suggestionDismiss: { marginLeft: 8, padding: 4 },
     suggestionDismissText: { color: C.faint, fontSize: 14, fontWeight: '700' },
 
     empty: { padding: 36, paddingHorizontal: 12, alignItems: 'center' },

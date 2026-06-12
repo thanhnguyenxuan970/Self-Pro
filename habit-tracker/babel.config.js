@@ -1,3 +1,7 @@
+// fallow-ignore unused-dependencies — these are referenced via string in presets/plugins below
+void require('babel-preset-expo');
+void require('babel-plugin-module-resolver');
+
 module.exports = function(api) {
   api.cache(true);
   return {

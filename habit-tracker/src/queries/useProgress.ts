@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { getLocalDate, getWeekStart, getLocalDateOffset, getWeekStartOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
 
@@ -193,6 +194,79 @@ export function useRecentActivityLogs(userId: number, limit = 50) {
   });
 }
 
+type DeleteRow = { id: number; local_date: string; week_start: string; points_earned: number; stars_delta: number; kind: string; source: string };
+type DateEntry = { points: number; stars: number; hasBonus: boolean; weekStart: string };
+
+function groupDeleteRows(rows: DeleteRow[]): { byDate: Map<string, DateEntry>; goodStarsDelta: number; badPenaltyAmt: number } {
+  const byDate = new Map<string, DateEntry>();
+  let goodStarsDelta = 0;
+  let badPenaltyAmt = 0;
+  for (const row of rows) {
+    const entry = byDate.get(row.local_date) ?? { points: 0, stars: 0, hasBonus: false, weekStart: row.week_start };
+    entry.points += row.points_earned;
+    entry.stars += row.stars_delta;
+    if (row.source === 'DAILY_BONUS') entry.hasBonus = true;
+    byDate.set(row.local_date, entry);
+    if (row.kind === 'GOOD') goodStarsDelta += row.stars_delta;
+    else if (row.kind === 'BAD') badPenaltyAmt += Math.abs(row.stars_delta);
+  }
+  return { byDate, goodStarsDelta, badPenaltyAmt };
+}
+
+async function revertDailySummariesForDelete(
+  db: SQLiteDatabase, userId: number, byDate: Map<string, DateEntry>,
+): Promise<void> {
+  for (const [date, { points, hasBonus }] of byDate) {
+    const daily = await db.getFirstAsync<{ total_points: number }>(
+      `SELECT total_points FROM daily_summary WHERE user_id = ? AND local_date = ?`,
+      [userId, date]
+    );
+    const remaining = (daily?.total_points ?? 0) - points;
+    if (remaining <= 0) {
+      await db.runAsync(`DELETE FROM daily_summary WHERE user_id = ? AND local_date = ?`, [userId, date]);
+    } else {
+      await db.runAsync(
+        `UPDATE daily_summary SET
+           total_points = MAX(0, total_points - ?),
+           bonus_star_awarded = CASE WHEN ? THEN 0 ELSE bonus_star_awarded END
+         WHERE user_id = ? AND local_date = ?`,
+        [points, hasBonus ? 1 : 0, userId, date]
+      );
+    }
+  }
+}
+
+async function revertWeeklySummariesForDelete(
+  db: SQLiteDatabase, userId: number, byDate: Map<string, DateEntry>,
+): Promise<void> {
+  const byWeek = new Map<string, { points: number; stars: number }>();
+  for (const { points, stars, weekStart } of byDate.values()) {
+    const entry = byWeek.get(weekStart) ?? { points: 0, stars: 0 };
+    entry.points += points;
+    entry.stars += stars;
+    byWeek.set(weekStart, entry);
+  }
+  for (const [week, { points, stars }] of byWeek) {
+    await db.runAsync(
+      `UPDATE weekly_summary SET
+         total_points = MAX(0, total_points - ?),
+         weekly_stars = MAX(0, weekly_stars - ?)
+       WHERE user_id = ? AND week_start = ?`,
+      [points, stars, userId, week]
+    );
+    await db.runAsync(
+      `DELETE FROM reward_unlocks
+       WHERE user_id = ? AND week_start = ? AND claimed = 0
+         AND tier_id IN (
+           SELECT id FROM tiers WHERE stars_required > (
+             SELECT MAX(0, weekly_stars) FROM weekly_summary WHERE user_id = ? AND week_start = ?
+           )
+         )`,
+      [userId, week, userId, week]
+    );
+  }
+}
+
 /** Delete a set of activity_log entries by id, reversing all derived summaries */
 export function useDeleteActivityLogs(userId: number) {
   const qc = useQueryClient();
@@ -203,92 +277,17 @@ export function useDeleteActivityLogs(userId: number) {
       const placeholders = ids.map(() => '?').join(',');
 
       await db.withTransactionAsync(async () => {
-        const rows = await db.getAllAsync<{
-          id: number; local_date: string; week_start: string;
-          points_earned: number; stars_delta: number; kind: string; source: string;
-        }>(
+        const rows = await db.getAllAsync<DeleteRow>(
           `SELECT id, local_date, week_start, points_earned, stars_delta, kind, source
            FROM activity_log WHERE user_id = ? AND id IN (${placeholders})`,
           [userId, ...ids]
         );
         if (rows.length === 0) return;
 
-        // Group totals by local_date (each date belongs to exactly one week_start)
-        const byDate = new Map<string, {
-          points: number; stars: number; hasBonus: boolean; weekStart: string;
-        }>();
-        let goodStarsDelta = 0;
-        let badPenaltyAmt = 0;
+        const { byDate, goodStarsDelta, badPenaltyAmt } = groupDeleteRows(rows);
+        await revertDailySummariesForDelete(db, userId, byDate);
+        await revertWeeklySummariesForDelete(db, userId, byDate);
 
-        for (const row of rows) {
-          const entry = byDate.get(row.local_date) ?? {
-            points: 0, stars: 0, hasBonus: false, weekStart: row.week_start,
-          };
-          entry.points += row.points_earned;
-          entry.stars += row.stars_delta;
-          if (row.source === 'DAILY_BONUS') entry.hasBonus = true;
-          byDate.set(row.local_date, entry);
-
-          if (row.kind === 'GOOD') goodStarsDelta += row.stars_delta;
-          else if (row.kind === 'BAD') badPenaltyAmt += Math.abs(row.stars_delta);
-        }
-
-        // Update daily_summary per date
-        for (const [date, { points, hasBonus }] of byDate) {
-          const daily = await db.getFirstAsync<{ total_points: number }>(
-            `SELECT total_points FROM daily_summary WHERE user_id = ? AND local_date = ?`,
-            [userId, date]
-          );
-          const remaining = (daily?.total_points ?? 0) - points;
-          if (remaining <= 0) {
-            await db.runAsync(
-              `DELETE FROM daily_summary WHERE user_id = ? AND local_date = ?`,
-              [userId, date]
-            );
-          } else {
-            await db.runAsync(
-              `UPDATE daily_summary SET
-                 total_points = MAX(0, total_points - ?),
-                 bonus_star_awarded = CASE WHEN ? THEN 0 ELSE bonus_star_awarded END
-               WHERE user_id = ? AND local_date = ?`,
-              [points, hasBonus ? 1 : 0, userId, date]
-            );
-          }
-        }
-
-        // Accumulate totals per week_start
-        const byWeek = new Map<string, { points: number; stars: number }>();
-        for (const { points, stars, weekStart } of byDate.values()) {
-          const entry = byWeek.get(weekStart) ?? { points: 0, stars: 0 };
-          entry.points += points;
-          entry.stars += stars;
-          byWeek.set(weekStart, entry);
-        }
-
-        for (const [week, { points, stars }] of byWeek) {
-          await db.runAsync(
-            `UPDATE weekly_summary SET
-               total_points = MAX(0, total_points - ?),
-               weekly_stars = MAX(0, weekly_stars - ?)
-             WHERE user_id = ? AND week_start = ?`,
-            [points, stars, userId, week]
-          );
-
-          // Revoke unclaimed unlocks above new star count
-          await db.runAsync(
-            `DELETE FROM reward_unlocks
-             WHERE user_id = ? AND week_start = ? AND claimed = 0
-               AND tier_id IN (
-                 SELECT id FROM tiers WHERE stars_required > (
-                   SELECT MAX(0, weekly_stars) FROM weekly_summary
-                   WHERE user_id = ? AND week_start = ?
-                 )
-               )`,
-            [userId, week, userId, week]
-          );
-        }
-
-        // Reverse treat_stars: subtract GOOD stars, restore BAD penalty
         if (goodStarsDelta > 0) {
           await db.runAsync(
             `UPDATE users SET treat_stars = MAX(0, treat_stars - ?) WHERE id = ?`,

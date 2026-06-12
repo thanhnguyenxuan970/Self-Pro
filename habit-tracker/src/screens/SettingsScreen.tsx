@@ -20,6 +20,28 @@ type Props = {
   onResetProgress: (userId: number) => Promise<void>;
 };
 
+function nullIfEmpty(s: string): string | null {
+  return s || null;
+}
+
+function NotifHint({ visible, label, style }: { visible: boolean; label: string; style: object }) {
+  return visible ? <Text style={style}>{label}</Text> : null;
+}
+
+function LanguageOption({ lang, l, isLast, onPress, styles }: { lang: string; l: AppLanguage; isLast: boolean; onPress: () => void; styles: ReturnType<typeof makeStyles> }) {
+  return (
+    <TouchableOpacity
+      style={[styles.row, isLast && styles.rowLast]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Text style={styles.rowIc}>{l === 'vi' ? '🇻🇳' : '🇬🇧'}</Text>
+      <Text style={styles.rowLabel}>{l === 'vi' ? 'Tiếng Việt' : 'English'}</Text>
+      {lang === l && <Text style={styles.check}>✓</Text>}
+    </TouchableOpacity>
+  );
+}
+
 export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
   const userId = useAuthUser();
   const [isDark, setIsDark] = useDarkMode();
@@ -83,7 +105,7 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
       if (input === '') {
         setError(false);
         mutate(null);
-        scheduleAllHabitReminders([t1 || null, t2 || null, t3 || null]).catch(() => {});
+        scheduleAllHabitReminders([nullIfEmpty(t1), nullIfEmpty(t2), nullIfEmpty(t3)]).catch(() => {});
       } else if (validateNotificationTime(input)) {
         setError(false);
         mutate(input);
@@ -202,16 +224,14 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
         <Text style={styles.sectionLabel}>{t.sectionLanguage}</Text>
         <View style={styles.card}>
           {(['vi', 'en'] as AppLanguage[]).map((l, idx) => (
-            <TouchableOpacity
+            <LanguageOption
               key={l}
-              style={[styles.row, idx === 1 && styles.rowLast]}
+              lang={lang}
+              l={l}
+              isLast={idx === 1}
               onPress={() => setLanguage(l)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.rowIc}>{l === 'vi' ? '🇻🇳' : '🇬🇧'}</Text>
-              <Text style={styles.rowLabel}>{l === 'vi' ? 'Tiếng Việt' : 'English'}</Text>
-              {lang === l && <Text style={styles.check}>✓</Text>}
-            </TouchableOpacity>
+              styles={styles}
+            />
           ))}
         </View>
 
@@ -235,7 +255,7 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
               returnKeyType="done"
             />
           </View>
-          {notifError && <Text style={styles.inputHint}>{t.timeFormatHint}</Text>}
+          <NotifHint visible={notifError} label={t.timeFormatHint} style={styles.inputHint} />
           <View style={styles.row}>
             <Text style={styles.rowIc}>🔔</Text>
             <Text style={styles.rowLabel}>{t.reminderLabel2}</Text>
@@ -253,7 +273,7 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
               returnKeyType="done"
             />
           </View>
-          {notifError2 && <Text style={styles.inputHint}>{t.timeFormatHint}</Text>}
+          <NotifHint visible={notifError2} label={t.timeFormatHint} style={styles.inputHint} />
           <View style={[styles.row, styles.rowLast]}>
             <Text style={styles.rowIc}>🔔</Text>
             <Text style={styles.rowLabel}>{t.reminderLabel3}</Text>
@@ -271,7 +291,7 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
               returnKeyType="done"
             />
           </View>
-          {notifError3 && <Text style={styles.inputHint}>{t.timeFormatHint}</Text>}
+          <NotifHint visible={notifError3} label={t.timeFormatHint} style={styles.inputHint} />
         </View>
 
         {/* Feedback */}

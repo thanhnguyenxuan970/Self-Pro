@@ -14,6 +14,39 @@ import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 
 interface Props { visible: boolean; onClose: () => void; }
 
+function parseDurationInput(hoursInput: string, minutesInput: string): number | null {
+  const hrs = Math.max(0, parseInt(hoursInput, 10) || 0);
+  const mins = Math.max(0, parseInt(minutesInput, 10) || 0);
+  const totalMin = hrs * 60 + mins;
+  if (totalMin <= 0 || hrs > 23 || mins > 59) return null;
+  return totalMin;
+}
+
+type SuggestionChipProps = {
+  s: TemplateTask;
+  isSelected: boolean;
+  onPress: () => void;
+  t: Record<string, unknown>;
+  styles: ReturnType<typeof makeStyles>;
+};
+
+function SuggestionChip({ s, isSelected, onPress, t, styles }: SuggestionChipProps) {
+  const label = (t[s.nameKey] as string) ?? s.name;
+  return (
+    <TouchableOpacity
+      key={s.nameKey}
+      style={[styles.chip, isSelected && styles.chipSelected]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Text style={[styles.chipName, isSelected && styles.chipNameSelected]}>
+        {s.icon ? `${s.icon} ${label}` : label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+// fallow-ignore-next-line complexity
 export function AddActivitySheet({ visible, onClose }: Props) {
   const userId = useAuthUser();
   const { colors } = useTheme();
@@ -61,11 +94,21 @@ export function AddActivitySheet({ visible, onClose }: Props) {
     });
   }
 
+  function onMutationSuccess(trimmed: string) {
+    Toast.show({ type: 'success', text1: t.taskAdded, text2: trimmed, visibilityTime: 2000 });
+    handleClose();
+  }
+  function onMutationError() {
+    Alert.alert(t.error, t.cantLog);
+    submittingRef.current = false;
+  }
+
   function handleSuggestionTap(task: TemplateTask) {
     setName((t as Record<string, unknown>)[task.nameKey] as string ?? task.name);
     setSelectedSuggestion(task);
   }
 
+  // fallow-ignore-next-line complexity
   async function handleCreate(isTimeBased: boolean) {
     if (submittingRef.current) return;
     submittingRef.current = true;
@@ -82,20 +125,16 @@ export function AddActivitySheet({ visible, onClose }: Props) {
         starPenalty: 0,
         icon: selectedSuggestion?.icon,
       });
-      Toast.show({ type: 'success', text1: t.taskAdded, text2: trimmed, visibilityTime: 2000 });
-      handleClose();
+      onMutationSuccess(trimmed);
     } catch {
-      Alert.alert(t.error, t.cantLog);
-      submittingRef.current = false;
+      onMutationError();
     }
   }
 
   async function handleCreateAndLog() {
     if (submittingRef.current) return;
-    const hrs = Math.max(0, parseInt(hoursInput, 10) || 0);
-    const mins = Math.max(0, parseInt(minutesInput, 10) || 0);
-    const totalMin = hrs * 60 + mins;
-    if (totalMin <= 0 || hrs > 23 || mins > 59) {
+    const totalMin = parseDurationInput(hoursInput, minutesInput);
+    if (totalMin === null) {
       Alert.alert(t.error, t.validDuration);
       return;
     }
@@ -119,11 +158,9 @@ export function AddActivitySheet({ visible, onClose }: Props) {
         starPenalty: 0,
         durationMin: totalMin,
       });
-      Toast.show({ type: 'success', text1: t.taskAdded, text2: trimmed, visibilityTime: 2000 });
-      handleClose();
+      onMutationSuccess(trimmed);
     } catch {
-      Alert.alert(t.error, t.cantLog);
-      submittingRef.current = false;
+      onMutationError();
     }
   }
 
@@ -163,18 +200,19 @@ export function AddActivitySheet({ visible, onClose }: Props) {
                   <>
                     <Text style={styles.suggestionsLabel}>{t.addActivitySuggestionsTitle}</Text>
                     <View style={styles.chipsWrap}>
-                      {suggestions.map(s => (
-                        <TouchableOpacity
-                          key={s.nameKey}
-                          style={[styles.chip, name === ((t as Record<string, unknown>)[s.nameKey] as string ?? s.name) && styles.chipSelected]}
-                          onPress={() => handleSuggestionTap(s)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={[styles.chipName, name === ((t as Record<string, unknown>)[s.nameKey] as string ?? s.name) && styles.chipNameSelected]}>
-                            {s.icon ? `${s.icon} ${(t as Record<string, unknown>)[s.nameKey] as string ?? s.name}` : ((t as Record<string, unknown>)[s.nameKey] as string ?? s.name)}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
+                      {suggestions.map(s => {
+                        const label = (t as Record<string, unknown>)[s.nameKey] as string ?? s.name;
+                        return (
+                          <SuggestionChip
+                            key={s.nameKey}
+                            s={s}
+                            isSelected={name === label}
+                            onPress={() => handleSuggestionTap(s)}
+                            t={t as Record<string, unknown>}
+                            styles={styles}
+                          />
+                        );
+                      })}
                     </View>
                   </>
                 )}
