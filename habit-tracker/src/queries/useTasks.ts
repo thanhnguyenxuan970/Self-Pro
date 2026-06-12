@@ -18,7 +18,8 @@ export function useCreateTask(userId: number) {
   return useMutation({
     mutationFn: async (params: TaskFormParams): Promise<number> => {
       const db = await getDb();
-      return await db.withTransactionAsync(async () => {
+      let taskId: number | undefined;
+      await db.withTransactionAsync(async () => {
         await db.runAsync(
           `INSERT INTO task_types
            (user_id, name, kind, is_time_based, base_points, star_penalty, icon, category_id, archived)
@@ -33,8 +34,10 @@ export function useCreateTask(userId: number) {
           [userId, params.name]
         );
         if (!row) throw new Error(`useCreateTask: task not found after insert (name=${params.name})`);
-        return row.id;
+        taskId = row.id;
       });
+      if (taskId === undefined) throw new Error('useCreateTask: transaction completed without taskId');
+      return taskId;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['today', 'tasks'] }),
   });
