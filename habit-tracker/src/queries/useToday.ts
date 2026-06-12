@@ -422,12 +422,18 @@ export function useUnlogTask(userId: number) {
 
         const remainingPoints = (daily?.total_points ?? 0) - taskPoints;
         let bonusStars = 0;
-        if (daily?.bonus_star_awarded && remainingPoints < DAILY_BONUS_THRESHOLD) {
-          bonusStars = DAILY_BONUS_STARS;
-          await db.runAsync(
-            `DELETE FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS'`,
+        if (remainingPoints < DAILY_BONUS_THRESHOLD) {
+          const bonusRow = await db.getFirstAsync<{ id: number }>(
+            `SELECT id FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS' LIMIT 1`,
             [userId, today]
           );
+          if (bonusRow) {
+            bonusStars = DAILY_BONUS_STARS;
+            await db.runAsync(
+              `DELETE FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS'`,
+              [userId, today]
+            );
+          }
         }
 
         const totalStarsDelta = taskStars + bonusStars;
