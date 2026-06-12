@@ -23,6 +23,8 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
     try {
       GoogleSignin.configure({ webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID });
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      // Clear any cached account so Play Services always shows the account picker
+      try { await GoogleSignin.signOut(); } catch { }
       const response = await GoogleSignin.signIn();
       const user = response.data?.user;
       if (!user?.email || !user?.name) {

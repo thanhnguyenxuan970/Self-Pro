@@ -7,16 +7,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   useTodayTasks, useDailySummary, useWeeklySummary,
   useLogTask, useUnlogTask, useTodayLoggedTaskIds, useConsecutiveSuggestions,
-  useTodayTaskTotalDurations,
+  useTodayTaskTotalDurations, PENDING_LEVELUP_KEY,
 } from '../queries/useToday';
 import { useArchiveTask } from '../queries/useTasks';
 import { useRankData } from '../queries/useRank';
 import { getCurrentTier } from '../game/tierLookup';
 import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { Task, TaskRow } from '../components/TaskRow';
+import { LevelUpCelebrationModal } from '../components/LevelUpCelebrationModal';
 import { useAuthUser, useGoogleUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { cueStreakMilestone } from '../audio/uiSounds';
@@ -48,6 +50,19 @@ export function TodayScreen() {
   const [customDuration, setCustomDuration] = useState(false);
   const [justLoggedIds, setJustLoggedIds] = useState<Set<number>>(new Set());
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set());
+  const [pendingLevelUp, setPendingLevelUp] = useState<{ tierOrder: number; tierName: string } | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(PENDING_LEVELUP_KEY).then(raw => {
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed?.tierOrder === 'number' && typeof parsed?.tierName === 'string') {
+          setPendingLevelUp({ tierOrder: parsed.tierOrder, tierName: parsed.tierName });
+        }
+      } catch { }
+    }).catch(() => {});
+  }, []);
 
   const { data: suggestions = [] } = useConsecutiveSuggestions(userId);
 
@@ -242,6 +257,15 @@ export function TodayScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <LevelUpCelebrationModal
+        visible={pendingLevelUp !== null}
+        tierOrder={pendingLevelUp?.tierOrder ?? 1}
+        tierName={pendingLevelUp?.tierName ?? ''}
+        onDismiss={() => {
+          setPendingLevelUp(null);
+          AsyncStorage.removeItem(PENDING_LEVELUP_KEY).catch(() => {});
+        }}
+      />
       {/* Topbar — outside ScrollView so it stays fixed */}
       <View style={styles.topbar}>
         <TouchableOpacity
