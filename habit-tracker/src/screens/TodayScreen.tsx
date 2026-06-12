@@ -188,6 +188,7 @@ export function TodayScreen() {
   const [durationUnit, setDurationUnit] = useState<'min' | 'hr'>('min');
   const [customDuration, setCustomDuration] = useState(false);
   const [justLoggedIds, setJustLoggedIds] = useState<Set<number>>(new Set());
+  const pendingLogTaskIds = useRef(new Set<number>());
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set());
   const [pendingLevelUp, setPendingLevelUp] = useState<{ tierOrder: number; tierName: string } | null>(null);
 
@@ -256,7 +257,8 @@ export function TodayScreen() {
       } catch { Alert.alert(t.error, t.cantLog); }
       return;
     }
-    if (justLoggedIds.has(task.id)) return;
+    if (justLoggedIds.has(task.id) || pendingLogTaskIds.current.has(task.id)) return;
+    pendingLogTaskIds.current.add(task.id);
     try {
       const result = await logTask.mutateAsync({
         taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD',
@@ -266,6 +268,7 @@ export function TodayScreen() {
       setJustLoggedIds(prev => new Set(prev).add(task.id));
       setTimeout(() => setJustLoggedIds(prev => { const n = new Set(prev); n.delete(task.id); return n; }), 1500);
     } catch { Alert.alert(t.error, t.cantLog); }
+    finally { pendingLogTaskIds.current.delete(task.id); }
   }
 
   async function handleLogTime(fixedMins?: number) {
