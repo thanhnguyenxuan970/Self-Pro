@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Model Usage
+
+- **Planning** (writing plans, brainstorming, architecture decisions): use **Opus**
+- **Everything else** (implementation, review, debugging, commits): use **Sonnet**
+
 ## MCP Tools: code-review-graph
 
 **IMPORTANT: This project has a knowledge graph. ALWAYS use the
