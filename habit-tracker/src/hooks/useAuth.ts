@@ -227,6 +227,32 @@ export function useAuth() {
     return isNew;
   }, []);
 
+  const resetProgress = useCallback(async (uid: number) => {
+    const { getDb } = await import('../db/client');
+    const db = await getDb();
+    await db.withTransactionAsync(async () => {
+      for (const sql of [
+        'DELETE FROM activity_log WHERE user_id = ?',
+        'DELETE FROM daily_summary WHERE user_id = ?',
+        'DELETE FROM weekly_summary WHERE user_id = ?',
+        'DELETE FROM reward_unlocks WHERE user_id = ?',
+        'DELETE FROM treat_history WHERE user_id = ?',
+        'DELETE FROM streak_freezes WHERE user_id = ?',
+        'DELETE FROM fund_transactions WHERE user_id = ?',
+      ]) {
+        await db.runAsync(sql, [uid]);
+      }
+      await db.runAsync(
+        `UPDATE users SET treat_stars = 0, treat_stars_lifetime = 0, carry_debt = 0 WHERE id = ?`,
+        [uid],
+      );
+    });
+    try {
+      const { resetSyncCursors } = await import('../api/syncService');
+      await resetSyncCursors();
+    } catch { }
+  }, []);
+
   const deleteAccount = useCallback(async (uid: number) => {
     // Purge remote Supabase data FIRST while the auth session is still active
     try {
@@ -315,5 +341,6 @@ export function useAuth() {
     signInWithGoogle,
     signOut,
     deleteAccount,
+    resetProgress,
   };
 }

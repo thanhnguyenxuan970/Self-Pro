@@ -67,6 +67,12 @@ const vi = {
   deleteAccountBtn: 'Xoá tài khoản',
   deleteAccountError: 'Không thể xoá tài khoản. Thử lại sau.',
   deleteAccountNote: 'Xoá tài khoản sẽ xoá toàn bộ dữ liệu bao gồm lịch sử hoạt động, rank, và phần thưởng. Hành động này không thể hoàn tác.',
+  resetProgressLabel: 'Đặt lại tiến độ',
+  resetProgressTitle: 'Đặt lại tiến độ?',
+  resetProgressMsg: 'Toàn bộ lịch sử hoạt động, sao, streak và rank sẽ bị xoá. Thói quen của bạn sẽ được giữ lại. Hành động này không thể hoàn tác.',
+  resetProgressBtn: 'Đặt lại',
+  resetProgressError: 'Không thể đặt lại tiến độ. Thử lại sau.',
+  resetProgressSuccess: 'Tiến độ đã được đặt lại về 0.',
 
   // ProgressScreen
   analyticsTitle: 'Phân tích',
@@ -356,6 +362,12 @@ const en: typeof vi = {
   deleteAccountBtn: 'Delete account',
   deleteAccountError: 'Could not delete account. Try again.',
   deleteAccountNote: 'Deleting your account will erase all data including activity history, rank, and rewards. This action cannot be undone.',
+  resetProgressLabel: 'Reset progress',
+  resetProgressTitle: 'Reset progress?',
+  resetProgressMsg: 'All activity history, stars, streaks, and rank will be deleted. Your habits will be kept. This action cannot be undone.',
+  resetProgressBtn: 'Reset',
+  resetProgressError: 'Could not reset progress. Try again.',
+  resetProgressSuccess: 'Progress has been reset to zero.',
 
   // ProgressScreen
   analyticsTitle: 'Analytics',

@@ -17,9 +17,10 @@ import { FeedbackSheet } from './FeedbackSheet';
 
 type Props = {
   onDeleteAccount: (userId: number) => Promise<void>;
+  onResetProgress: (userId: number) => Promise<void>;
 };
 
-export function SettingsScreen({ onDeleteAccount }: Props) {
+export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
   const userId = useAuthUser();
   const [isDark, setIsDark] = useDarkMode();
   const [lang, setLanguage] = useLanguage();
@@ -28,6 +29,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [deleting, setDeleting] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
 
   const { data: savedNotifTime } = useNotificationTime(userId);
@@ -111,6 +113,31 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
   function handleNotifBlur3() {
     if (submitHandledRef3.current) { submitHandledRef3.current = false; return; }
     saveNotifTime3();
+  }
+
+  function handleResetProgress() {
+    Alert.alert(
+      t.resetProgressTitle,
+      t.resetProgressMsg,
+      [
+        { text: t.cancel, style: 'cancel' },
+        {
+          text: t.resetProgressBtn,
+          style: 'destructive',
+          onPress: async () => {
+            setResetting(true);
+            try {
+              await onResetProgress(userId);
+              Alert.alert('', t.resetProgressSuccess);
+            } catch {
+              Alert.alert(t.error, t.resetProgressError);
+            } finally {
+              setResetting(false);
+            }
+          },
+        },
+      ],
+    );
   }
 
   function handleDeleteAccount() {
@@ -264,6 +291,16 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
         {/* Danger zone */}
         <Text style={styles.sectionLabel}>{t.sectionAccount}</Text>
         <View style={styles.card}>
+          <TouchableOpacity
+            style={[styles.row, { opacity: resetting ? 0.5 : 1 }]}
+            onPress={handleResetProgress}
+            disabled={resetting}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.rowIc}>🔄</Text>
+            <Text style={[styles.rowLabel, { color: colors.danger }]}>{t.resetProgressLabel}</Text>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.row, styles.rowLast, { opacity: deleting ? 0.5 : 1 }]}
             onPress={handleDeleteAccount}
