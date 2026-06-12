@@ -73,10 +73,13 @@ export function useLeaderboard(
     queryFn: async (): Promise<LeaderboardEntry[]> => {
       if (!supabase) return [];
 
+      // 10 000 row ceiling — well above expected weekly activity for current user base.
+      // Proper fix: server-side aggregate view (SUM stars_delta GROUP BY user_email).
       const { data, error } = await supabase
         .from('activity_log')
         .select('user_email, stars_delta')
-        .eq('week_start', weekStart);
+        .eq('week_start', weekStart)
+        .limit(10000);
 
       if (error) throw error;
       if (!data?.length) return [];
