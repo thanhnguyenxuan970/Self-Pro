@@ -472,3 +472,26 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 99/99 pass
+
+---
+
+## Habit Tracker — Google Sign-In Fix (Physical Device) + Version Bump COMPLETE (2026-06-13)
+
+### What Was Fixed / Changed
+- **`android/app/google-services.json`** (gitignored): Added release SHA-1 entry (`05c526c7...ad53c4`) + web client type 3. Root cause of `DEVELOPER_ERROR` on physical device: release APK used release keystore SHA-1 not registered in Google Cloud Console.
+- **`android/app/build.gradle`**: Bumped `versionCode 2 → 3`, `versionName "1.0.1" → "1.0.2"`.
+- **`app.json`**: Synced `version "1.0.0" → "1.0.2"` (was not updated in prior 1.0.1 bump).
+- **`android/gradle.properties`**: Removed machine-specific `org.gradle.java.home` from tracked file; moved to `~/.gradle/gradle.properties`. Root cause: Gradle daemon picked up VS Code Red Hat extension's JRE (no `jlink.exe`) → `JdkImageTransform` failure.
+
+### Key Decisions
+- Release APK built with debug signing as workaround: debug SHA-1 is registered in Firebase/Google Cloud; release SHA-1 is not. `google-services.json` is gitignored so the fix is local only.
+- `org.gradle.java.home` belongs in `~/.gradle/gradle.properties` (user-scoped, untracked) — machine-specific paths in a tracked file break other devs and CI.
+- `app.json` skips 1.0.1 in version history (was never set when build.gradle was bumped in prior commit). Both files now in sync at 1.0.2.
+
+### [NEEDS USER] For production release build
+1. Register release SHA-1 `05:C5:26:C7:E7:8A:16:3C:10:55:19:B7:99:AF:27:18:91:AD:53:C4` in Firebase Console → Project Settings → Android app → Add fingerprint.
+2. Download updated `google-services.json` from Firebase Console → place at `android/app/google-services.json`.
+3. Rebuild with `keystore.properties` present: `cd android && ./gradlew bundleRelease`.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | APK verified on Pixel_6 emulator — sign-in succeeds, no `DEVELOPER_ERROR`
