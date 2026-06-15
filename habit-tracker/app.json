@@ -39,7 +39,6 @@
     },
     "plugins": [
       "expo-sqlite",
-      "expo-web-browser",
       "@react-native-google-signin/google-signin",
       "expo-secure-store",
       "expo-audio",
