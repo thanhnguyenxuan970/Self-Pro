@@ -121,11 +121,12 @@ function padBuckets(
     });
   }
 
-  // 'Y' — 4-year window ending at current year
+  // 'Y' — from app launch year (2026) to current year
   const map = new Map(rows.map(r => [r.bucket, r]));
   const currentYear = Number(ctx.effectiveYear);
-  const fromYear = currentYear - 3;
-  return Array.from({ length: 4 }, (_, i) => {
+  const fromYear = 2026;
+  const numYears = Math.max(1, currentYear - fromYear + 1);
+  return Array.from({ length: numYears }, (_, i) => {
     const key = String(fromYear + i);
     return map.get(key) ?? empty(key);
   });

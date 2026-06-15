@@ -211,7 +211,6 @@ export function ProgressScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>{t.chartTitle}</Text>
-            <Text style={styles.chartSum}>Σ {totalSum}</Text>
           </View>
           <View style={styles.chartWrap}>
             {isLoading ? (
