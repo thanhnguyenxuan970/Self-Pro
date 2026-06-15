@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Alert,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { Typography, Radii, Spacing, AppColors } from '../config/theme';
@@ -71,6 +72,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
@@ -117,6 +119,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
           </TouchableOpacity>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

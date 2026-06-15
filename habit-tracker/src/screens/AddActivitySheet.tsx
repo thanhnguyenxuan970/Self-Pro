@@ -78,41 +78,40 @@ export function AddActivitySheet({ visible, onClose }: Props) {
     });
   }
 
-  function onMutationSuccess(trimmed: string) {
-    Toast.show({ type: 'success', text1: t.taskAdded, text2: trimmed, visibilityTime: 2000 });
-    handleClose();
-  }
-  function onMutationError() {
-    Alert.alert(t.error, t.cantLog);
-    submittingRef.current = false;
-  }
-
   function handleSuggestionTap(task: TemplateTask) {
     setName((t as Record<string, unknown>)[task.nameKey] as string ?? task.name);
     setSelectedSuggestion(task);
   }
 
   // fallow-ignore-next-line complexity
-  async function handleCreate(isTimeBased: boolean) {
+  function handleCreate(isTimeBased: boolean) {
     if (submittingRef.current) return;
     submittingRef.current = true;
     const trimmed = name.trim();
     if (!trimmed) { submittingRef.current = false; return; }
-    try {
-      await createTask.mutateAsync({
-        name: trimmed,
-        kind: 'GOOD',
-        isTimeBased,
-        basePoints: isTimeBased
-          ? (selectedSuggestion?.basePoints ?? 1)
-          : (selectedSuggestion?.basePoints ?? 5),
-        starPenalty: 0,
-        icon: selectedSuggestion?.icon,
-      });
-      onMutationSuccess(trimmed);
-    } catch {
-      onMutationError();
-    }
+
+    // Capture before close resets state
+    const taskName = trimmed;
+    const taskIcon = selectedSuggestion?.icon;
+    const taskBasePoints = isTimeBased
+      ? (selectedSuggestion?.basePoints ?? 1)
+      : (selectedSuggestion?.basePoints ?? 5);
+
+    // Close immediately — no waiting on DB
+    handleClose();
+
+    createTask.mutateAsync({
+      name: taskName,
+      kind: 'GOOD',
+      isTimeBased,
+      basePoints: taskBasePoints,
+      starPenalty: 0,
+      icon: taskIcon,
+    }).then(() => {
+      Toast.show({ type: 'success', text1: t.taskAdded, text2: taskName, visibilityTime: 2000 });
+    }).catch(() => {
+      Alert.alert(t.error, t.cantLog);
+    });
   }
 
   const suggestions = useMemo(() => TEMPLATE_CATEGORIES.flatMap(c => c.tasks), []);

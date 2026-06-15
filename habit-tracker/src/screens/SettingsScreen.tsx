@@ -28,6 +28,48 @@ function NotifHint({ visible, label, style }: { visible: boolean; label: string;
   return visible ? <Text style={style}>{label}</Text> : null;
 }
 
+type ReminderTimeRowProps = {
+  value: string;
+  error: boolean;
+  label: string;
+  isLast: boolean;
+  onFocus: () => void;
+  onChange: (v: string) => void;
+  onSave: () => void;
+  colors: AppColors;
+  styles: ReturnType<typeof makeStyles>;
+  hintLabel: string;
+};
+
+function ReminderTimeRow({ value, error, label, isLast, onFocus, onChange, onSave, colors, styles, hintLabel }: ReminderTimeRowProps) {
+  const submitHandled = useRef(false);
+  return (
+    <>
+      <View style={[styles.row, isLast && !error && styles.rowLast]}>
+        <Text style={styles.rowIc}>🔔</Text>
+        <Text style={styles.rowLabel}>{label}</Text>
+        <TextInput
+          style={[styles.timeInput, error && styles.timeInputError]}
+          value={value}
+          placeholder="HH:MM"
+          placeholderTextColor={colors.faint}
+          keyboardType="numbers-and-punctuation"
+          maxLength={5}
+          onFocus={onFocus}
+          onChangeText={onChange}
+          onBlur={() => {
+            if (submitHandled.current) { submitHandled.current = false; return; }
+            onSave();
+          }}
+          onSubmitEditing={() => { submitHandled.current = true; onSave(); }}
+          returnKeyType="done"
+        />
+      </View>
+      <NotifHint visible={error} label={hintLabel} style={[styles.inputHint, isLast && styles.rowLast]} />
+    </>
+  );
+}
+
 function LanguageOption({ lang, l, isLast, onPress, styles }: { lang: string; l: AppLanguage; isLast: boolean; onPress: () => void; styles: ReturnType<typeof makeStyles> }) {
   return (
     <TouchableOpacity
@@ -61,80 +103,40 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
   const { data: savedNotifTime3 } = useNotificationTime3(userId);
   const setNotifTimeMutation3 = useSetNotificationTime3(userId);
 
-  const [notifInput, setNotifInput] = useState('');
-  const [notifEditing, setNotifEditing] = useState(false);
-  const [notifError, setNotifError] = useState(false);
-  const submitHandledRef = useRef(false);
+  const [notifInputs, setNotifInputs] = useState(['', '', '']);
+  const [notifEditing, setNotifEditing] = useState([false, false, false]);
+  const [notifErrors, setNotifErrors] = useState([false, false, false]);
 
-  const [notifInput2, setNotifInput2] = useState('');
-  const [notifEditing2, setNotifEditing2] = useState(false);
-  const [notifError2, setNotifError2] = useState(false);
-  const submitHandledRef2 = useRef(false);
+  const savedTimes = [savedNotifTime, savedNotifTime2, savedNotifTime3];
+  const notifMutations = [setNotifTimeMutation, setNotifTimeMutation2, setNotifTimeMutation3];
 
-  const [notifInput3, setNotifInput3] = useState('');
-  const [notifEditing3, setNotifEditing3] = useState(false);
-  const [notifError3, setNotifError3] = useState(false);
-  const submitHandledRef3 = useRef(false);
-
+  const [e0, e1, e2] = notifEditing;
   useEffect(() => {
-    if (!notifEditing) { setNotifInput(savedNotifTime ?? ''); setNotifError(false); }
-  }, [savedNotifTime, notifEditing]);
-
+    if (!e0) { setNotifInputs(p => { const n=[...p]; n[0]=savedNotifTime??''; return n; }); setNotifErrors(p => { const n=[...p]; n[0]=false; return n; }); }
+  }, [savedNotifTime, e0]);
   useEffect(() => {
-    if (!notifEditing2) { setNotifInput2(savedNotifTime2 ?? ''); setNotifError2(false); }
-  }, [savedNotifTime2, notifEditing2]);
-
+    if (!e1) { setNotifInputs(p => { const n=[...p]; n[1]=savedNotifTime2??''; return n; }); setNotifErrors(p => { const n=[...p]; n[1]=false; return n; }); }
+  }, [savedNotifTime2, e1]);
   useEffect(() => {
-    if (!notifEditing3) { setNotifInput3(savedNotifTime3 ?? ''); setNotifError3(false); }
-  }, [savedNotifTime3, notifEditing3]);
+    if (!e2) { setNotifInputs(p => { const n=[...p]; n[2]=savedNotifTime3??''; return n; }); setNotifErrors(p => { const n=[...p]; n[2]=false; return n; }); }
+  }, [savedNotifTime3, e2]);
 
-  function makeNotifSaver(
-    input: string,
-    savedTime: string | null | undefined,
-    setEditing: (v: boolean) => void,
-    setError: (v: boolean) => void,
-    setInput: (v: string) => void,
-    mutate: (t: string | null) => void,
-    slotIndex: number,
-  ) {
-    return () => {
-      setEditing(false);
-      const t1 = slotIndex === 0 ? input : notifInput;
-      const t2 = slotIndex === 1 ? input : notifInput2;
-      const t3 = slotIndex === 2 ? input : notifInput3;
-      if (input === '') {
-        setError(false);
-        mutate(null);
-        scheduleAllHabitReminders([nullIfEmpty(t1), nullIfEmpty(t2), nullIfEmpty(t3)]).catch(() => {});
-      } else if (validateNotificationTime(input)) {
-        setError(false);
-        mutate(input);
-        scheduleAllHabitReminders([t1, t2, t3]).catch(() => {});
-      } else {
-        setError(true);
-        setInput(savedTime ?? '');
-      }
-    };
-  }
-
-  const saveNotifTime = makeNotifSaver(notifInput, savedNotifTime, setNotifEditing, setNotifError, setNotifInput, (t) => setNotifTimeMutation.mutate(t), 0);
-  const saveNotifTime2 = makeNotifSaver(notifInput2, savedNotifTime2, setNotifEditing2, setNotifError2, setNotifInput2, (t) => setNotifTimeMutation2.mutate(t), 1);
-  const saveNotifTime3 = makeNotifSaver(notifInput3, savedNotifTime3, setNotifEditing3, setNotifError3, setNotifInput3, (t) => setNotifTimeMutation3.mutate(t), 2);
-
-  function handleNotifSubmit() { submitHandledRef.current = true; saveNotifTime(); }
-  function handleNotifBlur() {
-    if (submitHandledRef.current) { submitHandledRef.current = false; return; }
-    saveNotifTime();
-  }
-  function handleNotifSubmit2() { submitHandledRef2.current = true; saveNotifTime2(); }
-  function handleNotifBlur2() {
-    if (submitHandledRef2.current) { submitHandledRef2.current = false; return; }
-    saveNotifTime2();
-  }
-  function handleNotifSubmit3() { submitHandledRef3.current = true; saveNotifTime3(); }
-  function handleNotifBlur3() {
-    if (submitHandledRef3.current) { submitHandledRef3.current = false; return; }
-    saveNotifTime3();
+  function handleReminderSave(idx: number) {
+    const input = notifInputs[idx];
+    setNotifEditing(p => { const n=[...p]; n[idx]=false; return n; });
+    const times = notifInputs.map((v, i) => i === idx ? input : v);
+    if (input === '') {
+      setNotifErrors(p => { const n=[...p]; n[idx]=false; return n; });
+      notifMutations[idx].mutate(null);
+      scheduleAllHabitReminders(times.map(nullIfEmpty)).catch(() => {});
+    } else if (validateNotificationTime(input)) {
+      setNotifErrors(p => { const n=[...p]; n[idx]=false; return n; });
+      notifMutations[idx].mutate(input);
+      scheduleAllHabitReminders(times).catch(() => {});
+    } else {
+      setNotifErrors(p => { const n=[...p]; n[idx]=true; return n; });
+      setNotifInputs(p => { const n=[...p]; n[idx]=savedTimes[idx]??''; return n; });
+    }
   }
 
   function handleResetProgress() {
@@ -238,60 +240,24 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
         {/* Notification */}
         <Text style={styles.sectionLabel}>{t.sectionNotifications}</Text>
         <View style={styles.card}>
-          <View style={styles.row}>
-            <Text style={styles.rowIc}>🔔</Text>
-            <Text style={styles.rowLabel}>{t.reminderLabel}</Text>
-            <TextInput
-              style={[styles.timeInput, notifError && styles.timeInputError]}
-              value={notifInput}
-              placeholder="HH:MM"
-              placeholderTextColor={colors.faint}
-              keyboardType="numbers-and-punctuation"
-              maxLength={5}
-              onFocus={() => setNotifEditing(true)}
-              onChangeText={(tx) => { setNotifInput(tx); setNotifError(false); }}
-              onBlur={handleNotifBlur}
-              onSubmitEditing={handleNotifSubmit}
-              returnKeyType="done"
+          {([t.reminderLabel, t.reminderLabel2, t.reminderLabel3] as string[]).map((label, idx) => (
+            <ReminderTimeRow
+              key={idx}
+              value={notifInputs[idx]}
+              error={notifErrors[idx]}
+              label={label}
+              isLast={idx === 2}
+              onFocus={() => setNotifEditing(p => { const n=[...p]; n[idx]=true; return n; })}
+              onChange={(v) => {
+                setNotifInputs(p => { const n=[...p]; n[idx]=v; return n; });
+                setNotifErrors(p => { const n=[...p]; n[idx]=false; return n; });
+              }}
+              onSave={() => handleReminderSave(idx)}
+              colors={colors}
+              styles={styles}
+              hintLabel={t.timeFormatHint}
             />
-          </View>
-          <NotifHint visible={notifError} label={t.timeFormatHint} style={styles.inputHint} />
-          <View style={styles.row}>
-            <Text style={styles.rowIc}>🔔</Text>
-            <Text style={styles.rowLabel}>{t.reminderLabel2}</Text>
-            <TextInput
-              style={[styles.timeInput, notifError2 && styles.timeInputError]}
-              value={notifInput2}
-              placeholder="HH:MM"
-              placeholderTextColor={colors.faint}
-              keyboardType="numbers-and-punctuation"
-              maxLength={5}
-              onFocus={() => setNotifEditing2(true)}
-              onChangeText={(tx) => { setNotifInput2(tx); setNotifError2(false); }}
-              onBlur={handleNotifBlur2}
-              onSubmitEditing={handleNotifSubmit2}
-              returnKeyType="done"
-            />
-          </View>
-          <NotifHint visible={notifError2} label={t.timeFormatHint} style={styles.inputHint} />
-          <View style={[styles.row, styles.rowLast]}>
-            <Text style={styles.rowIc}>🔔</Text>
-            <Text style={styles.rowLabel}>{t.reminderLabel3}</Text>
-            <TextInput
-              style={[styles.timeInput, notifError3 && styles.timeInputError]}
-              value={notifInput3}
-              placeholder="HH:MM"
-              placeholderTextColor={colors.faint}
-              keyboardType="numbers-and-punctuation"
-              maxLength={5}
-              onFocus={() => setNotifEditing3(true)}
-              onChangeText={(tx) => { setNotifInput3(tx); setNotifError3(false); }}
-              onBlur={handleNotifBlur3}
-              onSubmitEditing={handleNotifSubmit3}
-              returnKeyType="done"
-            />
-          </View>
-          <NotifHint visible={notifError3} label={t.timeFormatHint} style={styles.inputHint} />
+          ))}
         </View>
 
         {/* Feedback */}

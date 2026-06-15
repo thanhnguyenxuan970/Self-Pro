@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, StatusBar, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -86,6 +87,8 @@ const fabStyles = StyleSheet.create({
 function MainTabs({ onFABPress }: { onFABPress: () => void }) {
   const { colors } = useTheme();
   const t = useTranslations();
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = 64 + insets.bottom;
   return (
     <Tab.Navigator
       screenOptions={{
@@ -93,8 +96,8 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.line,
-          height: 86,
-          paddingBottom: 0,
+          height: tabBarHeight,
+          paddingBottom: insets.bottom + (Platform.OS === 'android' ? 4 : 0),
           paddingTop: 9,
         },
         tabBarActiveTintColor: colors.primary,

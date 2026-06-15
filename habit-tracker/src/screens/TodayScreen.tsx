@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Animated,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -112,6 +113,7 @@ type DurationModalProps = {
 function DurationModal({ task, duration, durationUnit, customDuration, logPending, onPreset, onShowCustom, onLog, onClose, onChangeDuration, onChangeUnit, colors, styles, labels }: DurationModalProps) {
   return (
     <Modal visible={!!task} transparent animationType="slide">
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.modalBg}>
         <View style={styles.modalBox}>
           <Text style={styles.modalTitle}>{task?.name}</Text>
@@ -164,6 +166,7 @@ function DurationModal({ task, duration, durationUnit, customDuration, logPendin
           </TouchableOpacity>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
