@@ -260,6 +260,11 @@ const vi = {
   feedbackTooShort: 'Nội dung quá ngắn.',
   feedbackUnavailable: 'Tính năng chưa khả dụng. Thử lại sau.',
   feedbackFailed: 'Gửi thất bại. Kiểm tra mạng và thử lại.',
+  feedbackAttachImage: 'Đính kèm ảnh',
+  feedbackImagePermission: 'Cần quyền truy cập thư viện ảnh.',
+
+  // Notifications
+  addReminder: '+ Thêm nhắc nhở',
 
   // RankScreen countdown
   resetCountdownLabel: 'Reset T2 · 00:00 — Còn lại',
@@ -555,6 +560,11 @@ const en: typeof vi = {
   feedbackTooShort: 'Message is too short.',
   feedbackUnavailable: 'Not available right now. Try again later.',
   feedbackFailed: 'Failed to send. Check your connection and retry.',
+  feedbackAttachImage: 'Attach image',
+  feedbackImagePermission: 'Photo library permission is required.',
+
+  // Notifications
+  addReminder: '+ Add reminder',
 
   // RankScreen countdown
   resetCountdownLabel: 'Reset Mon · 00:00 — Time left',

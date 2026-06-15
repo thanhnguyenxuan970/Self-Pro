@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Alert,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import Toast from 'react-native-toast-message';
 import { Typography, Radii, Spacing, AppColors } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
@@ -26,6 +27,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
 
   const [type, setType] = useState<FeedbackType>('BUG');
   const [message, setMessage] = useState('');
+  const [imageUri, setImageUri] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
   const typeLabel: Record<FeedbackType, string> = {
@@ -39,7 +41,24 @@ export function FeedbackSheet({ visible, onClose }: Props) {
   function handleClose() {
     setMessage('');
     setType('BUG');
+    setImageUri(null);
     onClose();
+  }
+
+  async function handlePickImage() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(t.error, t.feedbackImagePermission);
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: false,
+      quality: 0.6,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setImageUri(result.assets[0].uri);
+    }
   }
 
   async function handleSend() {
@@ -50,6 +69,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
         type,
         message,
         userEmail: googleUser?.email ?? null,
+        imageUri,
       });
       if (result === 'OK') {
         Toast.show({ type: 'success', text1: t.feedbackThanks, visibilityTime: 2500 });
@@ -105,6 +125,31 @@ export function FeedbackSheet({ visible, onClose }: Props) {
           />
           <Text style={styles.counter}>{message.trim().length}/{FEEDBACK_MAX_LENGTH}</Text>
 
+          <View style={styles.imageRow}>
+            {imageUri ? (
+              <View style={styles.imagePreviewer}>
+                <Image source={{ uri: imageUri }} style={styles.imageThumb} resizeMode="cover" />
+                <TouchableOpacity
+                  style={styles.imageRemoveBtn}
+                  onPress={() => setImageUri(null)}
+                  disabled={sending}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.imageRemoveText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.imagePickBtn}
+                onPress={handlePickImage}
+                disabled={sending}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.imagePickText}>📎 {t.feedbackAttachImage}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           <TouchableOpacity
             style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
             onPress={handleSend}
@@ -151,6 +196,25 @@ function makeStyles(C: AppColors) {
       borderWidth: 1.5, borderColor: C.line2,
     },
     counter: { fontSize: 11, color: C.faint, textAlign: 'right', marginTop: 4, marginBottom: Spacing.sm },
+    imageRow: { marginBottom: Spacing.sm },
+    imagePickBtn: {
+      flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start',
+      backgroundColor: C.surface2, borderRadius: Radii.md,
+      paddingVertical: 8, paddingHorizontal: 14,
+      borderWidth: 1.5, borderColor: C.line2,
+    },
+    imagePickText: { fontSize: 13, fontWeight: '600', color: C.inkDark },
+    imagePreviewer: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    imageThumb: {
+      width: 72, height: 72, borderRadius: Radii.md,
+      borderWidth: 1, borderColor: C.line2,
+    },
+    imageRemoveBtn: {
+      backgroundColor: C.surface2, borderRadius: 12,
+      width: 24, height: 24, alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1, borderColor: C.line2,
+    },
+    imageRemoveText: { fontSize: 12, fontWeight: '700', color: C.muted },
     sendBtn: {
       backgroundColor: C.primary, padding: 15, borderRadius: Radii.md,
       alignItems: 'center', marginBottom: 8,

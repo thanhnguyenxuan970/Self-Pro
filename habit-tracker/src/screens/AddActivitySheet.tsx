@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity,
   Alert, StyleSheet, ActivityIndicator, Animated, ScrollView,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useCreateTask } from '../queries/useTasks';
@@ -74,6 +74,7 @@ export function AddActivitySheet({ visible, onClose }: Props) {
   }, [visible]);
 
   function handleClose() {
+    Keyboard.dismiss();
     cueModalClose();
     Animated.parallel([
       Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
@@ -120,7 +121,8 @@ export function AddActivitySheet({ visible, onClose }: Props) {
       });
 
       if (isTimeBased) {
-        // Advance to duration picker — keep sheet open
+        // Advance to duration picker — keep sheet open; dismiss keyboard from name input
+        Keyboard.dismiss();
         setPendingTask({ id: taskId, name: trimmed, basePoints: taskBasePoints, starPenalty: 0 });
         setStep('duration');
         submittingRef.current = false;

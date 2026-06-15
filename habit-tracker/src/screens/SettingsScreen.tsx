@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView, TextInput,
+  View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Radii, Spacing, Shadows, Typography, AppColors } from '../config/theme';
 import { useDarkMode, useLanguage, useAudioEnabled, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
 import { useAuthUser } from '../hooks/useAuth';
@@ -11,7 +12,6 @@ import {
   useNotificationTime2, useSetNotificationTime2,
   useNotificationTime3, useSetNotificationTime3,
 } from '../queries/useSettings';
-import { validateNotificationTime } from '../utils/settingsLogic';
 import { scheduleAllHabitReminders } from '../utils/notifications';
 import { FeedbackSheet } from './FeedbackSheet';
 
@@ -20,54 +20,25 @@ type Props = {
   onResetProgress: (userId: number) => Promise<void>;
 };
 
-function nullIfEmpty(s: string): string | null {
-  return s || null;
-}
-
-function NotifHint({ visible, label, style }: { visible: boolean; label: string; style: object }) {
-  return visible ? <Text style={style}>{label}</Text> : null;
-}
-
-type ReminderTimeRowProps = {
-  value: string;
-  error: boolean;
-  label: string;
-  isLast: boolean;
-  onFocus: () => void;
-  onChange: (v: string) => void;
-  onSave: () => void;
-  colors: AppColors;
-  styles: ReturnType<typeof makeStyles>;
-  hintLabel: string;
-};
-
-function ReminderTimeRow({ value, error, label, isLast, onFocus, onChange, onSave, colors, styles, hintLabel }: ReminderTimeRowProps) {
-  const submitHandled = useRef(false);
-  return (
-    <>
-      <View style={[styles.row, isLast && !error && styles.rowLast]}>
-        <Text style={styles.rowIc}>🔔</Text>
-        <Text style={styles.rowLabel}>{label}</Text>
-        <TextInput
-          style={[styles.timeInput, error && styles.timeInputError]}
-          value={value}
-          placeholder="HH:MM"
-          placeholderTextColor={colors.faint}
-          keyboardType="numbers-and-punctuation"
-          maxLength={5}
-          onFocus={onFocus}
-          onChangeText={onChange}
-          onBlur={() => {
-            if (submitHandled.current) { submitHandled.current = false; return; }
-            onSave();
-          }}
-          onSubmitEditing={() => { submitHandled.current = true; onSave(); }}
-          returnKeyType="done"
-        />
-      </View>
-      <NotifHint visible={error} label={hintLabel} style={[styles.inputHint, isLast && styles.rowLast]} />
-    </>
-  );
+function openTimePicker(currentVal: string | null, onSet: (time: string) => void) {
+  if (Platform.OS !== 'android') return;
+  const date = new Date();
+  if (currentVal) {
+    const [h, m] = currentVal.split(':').map(Number);
+    date.setHours(h, m, 0, 0);
+  }
+  DateTimePickerAndroid.open({
+    mode: 'time',
+    value: date,
+    is24Hour: true,
+    onChange: (event, selectedDate) => {
+      if (event.type === 'set' && selectedDate) {
+        const hh = String(selectedDate.getHours()).padStart(2, '0');
+        const mm = String(selectedDate.getMinutes()).padStart(2, '0');
+        onSet(`${hh}:${mm}`);
+      }
+    },
+  });
 }
 
 function LanguageOption({ lang, l, isLast, onPress, styles }: { lang: string; l: AppLanguage; isLast: boolean; onPress: () => void; styles: ReturnType<typeof makeStyles> }) {
@@ -103,40 +74,33 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
   const { data: savedNotifTime3 } = useNotificationTime3(userId);
   const setNotifTimeMutation3 = useSetNotificationTime3(userId);
 
-  const [notifInputs, setNotifInputs] = useState(['', '', '']);
-  const [notifEditing, setNotifEditing] = useState([false, false, false]);
-  const [notifErrors, setNotifErrors] = useState([false, false, false]);
-
-  const savedTimes = [savedNotifTime, savedNotifTime2, savedNotifTime3];
+  const savedTimes: (string | null)[] = [
+    savedNotifTime ?? null,
+    savedNotifTime2 ?? null,
+    savedNotifTime3 ?? null,
+  ];
   const notifMutations = [setNotifTimeMutation, setNotifTimeMutation2, setNotifTimeMutation3];
 
-  const [e0, e1, e2] = notifEditing;
-  useEffect(() => {
-    if (!e0) { setNotifInputs(p => { const n=[...p]; n[0]=savedNotifTime??''; return n; }); setNotifErrors(p => { const n=[...p]; n[0]=false; return n; }); }
-  }, [savedNotifTime, e0]);
-  useEffect(() => {
-    if (!e1) { setNotifInputs(p => { const n=[...p]; n[1]=savedNotifTime2??''; return n; }); setNotifErrors(p => { const n=[...p]; n[1]=false; return n; }); }
-  }, [savedNotifTime2, e1]);
-  useEffect(() => {
-    if (!e2) { setNotifInputs(p => { const n=[...p]; n[2]=savedNotifTime3??''; return n; }); setNotifErrors(p => { const n=[...p]; n[2]=false; return n; }); }
-  }, [savedNotifTime3, e2]);
+  function handleSetReminder(idx: number, time: string) {
+    notifMutations[idx].mutate(time);
+    const updated = savedTimes.map((v, i) => (i === idx ? time : v));
+    scheduleAllHabitReminders(updated).catch(() => {});
+  }
 
-  function handleReminderSave(idx: number) {
-    const input = notifInputs[idx];
-    setNotifEditing(p => { const n=[...p]; n[idx]=false; return n; });
-    const times = notifInputs.map((v, i) => i === idx ? input : v);
-    if (input === '') {
-      setNotifErrors(p => { const n=[...p]; n[idx]=false; return n; });
-      notifMutations[idx].mutate(null);
-      scheduleAllHabitReminders(times.map(nullIfEmpty)).catch(() => {});
-    } else if (validateNotificationTime(input)) {
-      setNotifErrors(p => { const n=[...p]; n[idx]=false; return n; });
-      notifMutations[idx].mutate(input);
-      scheduleAllHabitReminders(times).catch(() => {});
-    } else {
-      setNotifErrors(p => { const n=[...p]; n[idx]=true; return n; });
-      setNotifInputs(p => { const n=[...p]; n[idx]=savedTimes[idx]??''; return n; });
-    }
+  function handleClearReminder(idx: number) {
+    notifMutations[idx].mutate(null);
+    const updated = savedTimes.map((v, i) => (i === idx ? null : v));
+    scheduleAllHabitReminders(updated).catch(() => {});
+  }
+
+  function handleOpenPicker(idx: number) {
+    openTimePicker(savedTimes[idx], (time) => handleSetReminder(idx, time));
+  }
+
+  function handleAddReminder() {
+    const nextIdx = savedTimes.findIndex(v => !v);
+    if (nextIdx === -1) return;
+    openTimePicker(null, (time) => handleSetReminder(nextIdx, time));
   }
 
   function handleResetProgress() {
@@ -240,24 +204,38 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
         {/* Notification */}
         <Text style={styles.sectionLabel}>{t.sectionNotifications}</Text>
         <View style={styles.card}>
-          {([t.reminderLabel, t.reminderLabel2, t.reminderLabel3] as string[]).map((label, idx) => (
-            <ReminderTimeRow
-              key={idx}
-              value={notifInputs[idx]}
-              error={notifErrors[idx]}
-              label={label}
-              isLast={idx === 2}
-              onFocus={() => setNotifEditing(p => { const n=[...p]; n[idx]=true; return n; })}
-              onChange={(v) => {
-                setNotifInputs(p => { const n=[...p]; n[idx]=v; return n; });
-                setNotifErrors(p => { const n=[...p]; n[idx]=false; return n; });
-              }}
-              onSave={() => handleReminderSave(idx)}
-              colors={colors}
-              styles={styles}
-              hintLabel={t.timeFormatHint}
-            />
-          ))}
+          {savedTimes.map((time, idx) => {
+            if (!time) return null;
+            const canAddMore = savedTimes.filter(Boolean).length < 3;
+            const isLast = !canAddMore && !savedTimes.slice(idx + 1).some(Boolean);
+            return (
+              <TouchableOpacity
+                key={idx}
+                style={[styles.row, isLast && styles.rowLast]}
+                onPress={() => handleOpenPicker(idx)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.rowIc}>🔔</Text>
+                <Text style={[styles.rowLabel, styles.reminderTime]}>{time}</Text>
+                <TouchableOpacity
+                  onPress={() => handleClearReminder(idx)}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.reminderClear}>✕</Text>
+                </TouchableOpacity>
+              </TouchableOpacity>
+            );
+          })}
+          {savedTimes.filter(Boolean).length < 3 && (
+            <TouchableOpacity
+              style={[styles.row, styles.rowLast]}
+              onPress={handleAddReminder}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.rowLabel, styles.addReminderText]}>{t.addReminder}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Feedback */}
@@ -345,26 +323,20 @@ function makeStyles(C: AppColors) {
       color: C.muted,
       lineHeight: 18,
     },
-    timeInput: {
-      fontSize: 15,
-      fontWeight: '600',
-      color: C.inkDark,
-      textAlign: 'right',
-      minWidth: 60,
-      paddingVertical: 2,
-      paddingHorizontal: 6,
-      borderRadius: 6,
-      borderWidth: 1,
-      borderColor: C.line,
+    reminderTime: {
+      fontSize: 17,
+      fontWeight: '700',
+      color: C.primary,
     },
-    timeInputError: {
-      borderColor: C.danger,
-      color: C.danger,
+    reminderClear: {
+      fontSize: 16,
+      color: C.faint,
+      fontWeight: '700',
+      paddingHorizontal: 4,
     },
-    inputHint: {
-      fontSize: 11,
-      color: C.danger,
-      paddingBottom: 10,
+    addReminderText: {
+      color: C.primary,
+      fontWeight: '700',
     },
   });
 }

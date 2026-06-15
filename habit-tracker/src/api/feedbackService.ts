@@ -10,7 +10,7 @@ import {
 const LAST_SUBMIT_KEY = 'habit_feedback_last_submit';
 
 // Keep in sync with app.json "version" (no expo-application dep needed).
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.13';
 
 export type FeedbackResult = 'OK' | 'INVALID' | 'RATE_LIMITED' | 'UNAVAILABLE' | 'FAILED';
 
@@ -24,14 +24,33 @@ function getDeviceInfo(): { device: string; osVersion: string } {
   return { device: device.slice(0, 128), osVersion: release.slice(0, 64) };
 }
 
+async function uploadFeedbackImage(imageUri: string): Promise<string | null> {
+  if (!supabase) return null;
+  try {
+    const response = await fetch(imageUri);
+    const blob = await response.blob();
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+    const { error } = await supabase.storage
+      .from('feedback-attachments')
+      .upload(filename, blob, { contentType: 'image/jpeg', upsert: false });
+    if (error) return null;
+    const { data } = supabase.storage.from('feedback-attachments').getPublicUrl(filename);
+    return data.publicUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Insert feedback into Supabase (write-only table — see 003_create_feedback_table.sql).
  * Works with or without an active Supabase Auth session (anon INSERT allowed).
+ * imageUri: local file URI from expo-image-picker (optional). Uploaded to feedback-attachments bucket.
  */
 export async function submitFeedback(params: {
   type: FeedbackType;
   message: string;
   userEmail: string | null;
+  imageUri?: string | null;
 }): Promise<FeedbackResult> {
   if (!validateFeedbackMessage(params.message)) return 'INVALID';
   if (!supabase) return 'UNAVAILABLE';
@@ -41,6 +60,9 @@ export async function submitFeedback(params: {
   if (!canSubmitFeedback(last, Date.now())) return 'RATE_LIMITED';
 
   const { device, osVersion } = getDeviceInfo();
+
+  const imageUrl = params.imageUri ? await uploadFeedbackImage(params.imageUri) : null;
+
   const { error } = await supabase.from('feedback').insert({
     user_email: params.userEmail,
     type: params.type,
@@ -48,6 +70,7 @@ export async function submitFeedback(params: {
     app_version: APP_VERSION,
     device,
     os_version: osVersion,
+    ...(imageUrl ? { image_url: imageUrl } : {}),
   });
   if (error) return 'FAILED';
 
