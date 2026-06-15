@@ -156,7 +156,7 @@ function DurationModal({ task, duration, durationUnit, customDuration, logPendin
                   </TouchableOpacity>
                 </View>
               </View>
-              <TouchableOpacity style={styles.btn} onPress={onLog} disabled={logPending}>
+              <TouchableOpacity style={styles.btn} onPress={() => onLog()} disabled={logPending}>
                 <Text style={styles.btnText}>{labels.logBtn}</Text>
               </TouchableOpacity>
             </>
@@ -276,7 +276,7 @@ export function TodayScreen() {
 
   async function handleLogTime(fixedMins?: number) {
     if (!modalTask) return;
-    const mins = fixedMins !== undefined ? fixedMins : parseLogDuration(duration, durationUnit, t.validDuration);
+    const mins = typeof fixedMins === 'number' ? fixedMins : parseLogDuration(duration, durationUnit, t.validDuration);
     if (mins === null) return;
     try {
       const result = await logTask.mutateAsync({
