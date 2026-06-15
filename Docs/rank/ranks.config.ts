@@ -39,12 +39,12 @@ export interface Rank {
 }
 
 // shared star body (R22) — same silhouette for every rank
-export const STAR_POINTS =
+const STAR_POINTS =
   '0,-22 5.41,-7.44 20.92,-6.8 8.75,2.84 12.93,17.8 0,9.2 -12.93,17.8 -8.75,2.84 -20.92,-6.8 -5.41,-7.44';
 
 const FACE = (els: SvgEl[]): SvgEl[] => els;
 
-export const RANKS: Rank[] = [
+const RANKS: Rank[] = [
   {
     tier: 0, name: 'Delulu', stars: 5, descriptor: 'noodle mode',
     color: '#A78BFA', edge: '#7C5CE0',
@@ -159,7 +159,7 @@ export const RANKS: Rank[] = [
   },
 ];
 
-export const rankForStars = (total: number): Rank => {
+const rankForStars = (total: number): Rank => {
   let r = RANKS[0];
   for (const x of RANKS) if (total >= x.stars) r = x;
   return r;

@@ -2,10 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Collaboration Rules
+
+- **When waiting on user action**: If you asked the user to do something manually (e.g. run a command, update a file, check a device, confirm a result), STOP. Do not proceed, do not do next steps, do not speculate. Wait for user to reply before continuing.
+
 ## Model Usage
 
 - **Planning** (writing plans, brainstorming, architecture decisions): use **Opus**
-- **Everything else** (implementation, review, debugging, commits): use **Sonnet**
+- **Fixing** (bug fixes, error resolution, debugging): use **Opus 4.8** (`claude-opus-4-8`)
+- **Everything else** (implementation, review, commits): use **Sonnet**
 
 ## MCP Tools: code-review-graph
 
