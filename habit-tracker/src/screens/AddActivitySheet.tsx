@@ -2,9 +2,11 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity,
   Alert, StyleSheet, ActivityIndicator, Animated, ScrollView,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useCreateTask } from '../queries/useTasks';
+import { useLogTask } from '../queries/useToday';
 import { cueModalOpen, cueModalClose } from '../audio/uiSounds';
 import { useAuthUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
@@ -45,10 +47,18 @@ export function AddActivitySheet({ visible, onClose }: Props) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const createTask = useCreateTask(userId);
+  const logTask = useLogTask(userId);
 
   const [name, setName] = useState('');
   const [selectedSuggestion, setSelectedSuggestion] = useState<TemplateTask | null>(null);
   const submittingRef = useRef(false);
+
+  type PendingTask = { id: number; name: string; basePoints: number; starPenalty: number };
+  const [step, setStep] = useState<'create' | 'duration'>('create');
+  const [pendingTask, setPendingTask] = useState<PendingTask | null>(null);
+  const [duration, setDuration] = useState('');
+  const [durationUnit, setDurationUnit] = useState<'min' | 'hr'>('min');
+  const [customDuration, setCustomDuration] = useState(false);
 
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(300)).current;
@@ -71,6 +81,11 @@ export function AddActivitySheet({ visible, onClose }: Props) {
     ]).start(() => {
       setName('');
       setSelectedSuggestion(null);
+      setStep('create');
+      setPendingTask(null);
+      setDuration('');
+      setDurationUnit('min');
+      setCustomDuration(false);
       submittingRef.current = false;
       onClose();
       backdropOpacity.setValue(0);
@@ -84,40 +99,70 @@ export function AddActivitySheet({ visible, onClose }: Props) {
   }
 
   // fallow-ignore-next-line complexity
-  function handleCreate(isTimeBased: boolean) {
+  async function handleCreate(isTimeBased: boolean) {
     if (submittingRef.current) return;
     submittingRef.current = true;
     const trimmed = name.trim();
     if (!trimmed) { submittingRef.current = false; return; }
 
-    // Capture before close resets state
-    const taskName = trimmed;
-    const taskIcon = selectedSuggestion?.icon;
     const taskBasePoints = isTimeBased
       ? (selectedSuggestion?.basePoints ?? 1)
       : (selectedSuggestion?.basePoints ?? 5);
 
-    // Close immediately — no waiting on DB
-    handleClose();
+    try {
+      const taskId = await createTask.mutateAsync({
+        name: trimmed,
+        kind: 'GOOD',
+        isTimeBased,
+        basePoints: taskBasePoints,
+        starPenalty: 0,
+        icon: selectedSuggestion?.icon,
+      });
 
-    createTask.mutateAsync({
-      name: taskName,
-      kind: 'GOOD',
-      isTimeBased,
-      basePoints: taskBasePoints,
-      starPenalty: 0,
-      icon: taskIcon,
-    }).then(() => {
-      Toast.show({ type: 'success', text1: t.taskAdded, text2: taskName, visibilityTime: 2000 });
-    }).catch(() => {
+      if (isTimeBased) {
+        // Advance to duration picker — keep sheet open
+        setPendingTask({ id: taskId, name: trimmed, basePoints: taskBasePoints, starPenalty: 0 });
+        setStep('duration');
+        submittingRef.current = false;
+      } else {
+        Toast.show({ type: 'success', text1: t.taskAdded, text2: trimmed, visibilityTime: 2000 });
+        handleClose();
+      }
+    } catch {
       Alert.alert(t.error, t.cantLog);
-    });
+      submittingRef.current = false;
+    }
+  }
+
+  async function handleLogDuration(fixedMins?: number) {
+    if (!pendingTask) return;
+    let mins = fixedMins;
+    if (mins === undefined) {
+      const parsed = parseInt(duration, 10);
+      if (isNaN(parsed) || parsed <= 0) { Alert.alert(t.validDuration); return; }
+      mins = durationUnit === 'hr' ? parsed * 60 : parsed;
+      if (mins > 1440) { Alert.alert(t.validDuration); return; }
+    }
+    try {
+      await logTask.mutateAsync({
+        taskTypeId: pendingTask.id,
+        kind: 'GOOD',
+        isTimeBased: true,
+        basePoints: pendingTask.basePoints,
+        starPenalty: pendingTask.starPenalty,
+        durationMin: mins,
+      });
+      Toast.show({ type: 'success', text1: t.taskAdded, text2: pendingTask.name, visibilityTime: 2000 });
+      handleClose();
+    } catch {
+      Alert.alert(t.error, t.cantLog);
+    }
   }
 
   const suggestions = useMemo(() => TEMPLATE_CATEGORIES.flatMap(c => c.tasks), []);
 
   const hasName = name.trim().length > 0;
-  const isPending = createTask.isPending;
+  const isPending = createTask.isPending || logTask.isPending;
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
@@ -129,7 +174,8 @@ export function AddActivitySheet({ visible, onClose }: Props) {
         <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}>
           <View style={styles.handle} />
 
-          <>
+          {step === 'create' ? (
+            <>
               <Text style={styles.title}>{t.addActivityTitle}</Text>
               <ScrollView
                 style={styles.scroll}
@@ -176,7 +222,11 @@ export function AddActivitySheet({ visible, onClose }: Props) {
                   disabled={!hasName || isPending}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.durationChipText}>{t.addActivityTimedBtn}</Text>
+                  {createTask.isPending ? (
+                    <ActivityIndicator color={colors.white} />
+                  ) : (
+                    <Text style={styles.durationChipText}>{t.addActivityTimedBtn}</Text>
+                  )}
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -192,6 +242,82 @@ export function AddActivitySheet({ visible, onClose }: Props) {
                 <View style={{ height: 32 }} />
               </ScrollView>
             </>
+          ) : (
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+              <ScrollView
+                style={styles.scroll}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={styles.durationStepTitle}>{pendingTask?.name}</Text>
+                <Text style={[styles.durationLabel, { marginTop: 4 }]}>{t.addActivityHowLong}</Text>
+
+                {!customDuration ? (
+                  <View style={styles.presetChipsRow}>
+                    {([{ label: '30m', mins: 30 }, { label: '45m', mins: 45 }, { label: '1h', mins: 60 }] as const).map(p => (
+                      <TouchableOpacity
+                        key={p.label}
+                        style={styles.presetChip}
+                        onPress={() => handleLogDuration(p.mins)}
+                        disabled={isPending}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={styles.presetChipText}>{p.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                    <TouchableOpacity
+                      style={[styles.presetChip, styles.presetChipCustom]}
+                      onPress={() => setCustomDuration(true)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[styles.presetChipText, styles.presetChipCustomText]}>{t.durationCustom}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <>
+                    <View style={styles.durationRow}>
+                      <TextInput
+                        style={[styles.input, styles.durationInput]}
+                        keyboardType="number-pad"
+                        value={duration}
+                        onChangeText={setDuration}
+                        placeholder="0"
+                        placeholderTextColor={colors.faint}
+                        autoFocus
+                      />
+                      <View style={styles.unitToggle}>
+                        <TouchableOpacity
+                          style={[styles.unitBtn, durationUnit === 'min' && styles.unitBtnActive]}
+                          onPress={() => setDurationUnit('min')}
+                        >
+                          <Text style={[styles.unitBtnText, durationUnit === 'min' && styles.unitBtnTextActive]}>{t.unitMin}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.unitBtn, durationUnit === 'hr' && styles.unitBtnActive]}
+                          onPress={() => setDurationUnit('hr')}
+                        >
+                          <Text style={[styles.unitBtnText, durationUnit === 'hr' && styles.unitBtnTextActive]}>{t.unitHour}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    <TouchableOpacity style={styles.durationChip} onPress={() => handleLogDuration()} disabled={isPending}>
+                      {isPending ? (
+                        <ActivityIndicator color={colors.white} />
+                      ) : (
+                        <Text style={styles.durationChipText}>{t.logBtn}</Text>
+                      )}
+                    </TouchableOpacity>
+                  </>
+                )}
+
+                <TouchableOpacity style={styles.noTimerBtn} onPress={handleClose}>
+                  <Text style={styles.noTimerText}>{t.cancel}</Text>
+                </TouchableOpacity>
+
+                <View style={{ height: 32 }} />
+              </ScrollView>
+            </KeyboardAvoidingView>
+          )}
         </Animated.View>
       </View>
     </Modal>
@@ -256,5 +382,22 @@ function makeStyles(C: AppColors) {
     noTimerText: { ...Typography.body, color: C.muted, fontWeight: '600' },
     noTimerTextDim: { color: C.faint },
 
+    durationStepTitle: { fontSize: 19, fontWeight: '800', color: C.inkDark, marginTop: Spacing.md, marginBottom: 2 },
+    presetChipsRow: { flexDirection: 'row', gap: 10, marginTop: Spacing.md, marginBottom: Spacing.md, flexWrap: 'wrap' },
+    presetChip: {
+      flex: 1, minWidth: 60, backgroundColor: C.primary,
+      borderRadius: Radii.md, paddingVertical: 16,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    presetChipCustom: { backgroundColor: C.surface2, borderWidth: 1.5, borderColor: C.line2 },
+    presetChipText: { color: C.white, fontSize: 16, fontWeight: '800' },
+    presetChipCustomText: { color: C.inkDark },
+    durationRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10, marginBottom: Spacing.md, marginTop: Spacing.md },
+    durationInput: { flex: 1, fontSize: 22, fontWeight: '700', textAlign: 'center' },
+    unitToggle: { flexDirection: 'column', borderRadius: Radii.md, overflow: 'hidden', borderWidth: 1.5, borderColor: C.line2 },
+    unitBtn: { flex: 1, paddingHorizontal: 14, justifyContent: 'center', alignItems: 'center', backgroundColor: C.surface2 },
+    unitBtnActive: { backgroundColor: C.primary },
+    unitBtnText: { fontSize: 13, fontWeight: '700', color: C.muted },
+    unitBtnTextActive: { color: C.white },
   });
 }
