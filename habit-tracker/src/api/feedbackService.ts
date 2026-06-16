@@ -10,7 +10,7 @@ import {
 const LAST_SUBMIT_KEY = 'habit_feedback_last_submit';
 
 // Keep in sync with app.json "version" (no expo-application dep needed).
-const APP_VERSION = '1.0.13';
+const APP_VERSION = '1.0.14';
 
 export type FeedbackResult = 'OK' | 'INVALID' | 'RATE_LIMITED' | 'UNAVAILABLE' | 'FAILED';
 
