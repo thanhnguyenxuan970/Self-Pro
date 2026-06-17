@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Animated,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -92,29 +92,36 @@ type DurationModalLabels = {
   unitHour: string;
   logBtn: string;
   cancel: string;
+  validDuration: string;
 };
 
 type DurationModalProps = {
   task: Task | null;
-  duration: string;
-  durationUnit: 'min' | 'hr';
-  customDuration: boolean;
   logPending: boolean;
-  onPreset: (mins: number) => void;
-  onShowCustom: () => void;
-  onLog: () => void;
+  onLog: (mins: number) => void;
   onClose: () => void;
-  onChangeDuration: (v: string) => void;
-  onChangeUnit: (u: 'min' | 'hr') => void;
   colors: AppColors;
   styles: ReturnType<typeof makeStyles>;
   labels: DurationModalLabels;
 };
 
-function DurationModal({ task, duration, durationUnit, customDuration, logPending, onPreset, onShowCustom, onLog, onClose, onChangeDuration, onChangeUnit, colors, styles, labels }: DurationModalProps) {
+function DurationModal({ task, logPending, onLog, onClose, colors, styles, labels }: DurationModalProps) {
+  const [duration, setDuration] = useState('');
+  const [durationUnit, setDurationUnit] = useState<'min' | 'hr'>('min');
+  const [customDuration, setCustomDuration] = useState(false);
+
+  useEffect(() => {
+    if (task) { setDuration(''); setDurationUnit('min'); setCustomDuration(false); }
+  }, [task?.id]);
+
+  function handleCustomLog() {
+    const mins = parseLogDuration(duration, durationUnit, labels.validDuration);
+    if (mins !== null) onLog(mins);
+  }
+
   return (
     <Modal visible={!!task} transparent animationType="slide">
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <View style={styles.modalBg}>
         <View style={styles.modalBox}>
           <Text style={styles.modalTitle}>{task?.name}</Text>
@@ -122,11 +129,11 @@ function DurationModal({ task, duration, durationUnit, customDuration, logPendin
           {!customDuration ? (
             <View style={styles.presetChipsRow}>
               {([{ label: '30m', mins: 30 }, { label: '45m', mins: 45 }, { label: '1h', mins: 60 }] as const).map(p => (
-                <TouchableOpacity key={p.label} style={styles.presetChip} onPress={() => onPreset(p.mins)} disabled={logPending} activeOpacity={0.75}>
+                <TouchableOpacity key={p.label} style={styles.presetChip} onPress={() => onLog(p.mins)} disabled={logPending} activeOpacity={0.75}>
                   <Text style={styles.presetChipText}>{p.label}</Text>
                 </TouchableOpacity>
               ))}
-              <TouchableOpacity style={[styles.presetChip, styles.presetChipCustom]} onPress={onShowCustom} activeOpacity={0.75}>
+              <TouchableOpacity style={[styles.presetChip, styles.presetChipCustom]} onPress={() => setCustomDuration(true)} activeOpacity={0.75}>
                 <Text style={[styles.presetChipText, styles.presetChipCustomText]}>{labels.durationCustom}</Text>
               </TouchableOpacity>
             </View>
@@ -137,7 +144,7 @@ function DurationModal({ task, duration, durationUnit, customDuration, logPendin
                   style={[styles.input, styles.durationInput]}
                   keyboardType="number-pad"
                   value={duration}
-                  onChangeText={onChangeDuration}
+                  onChangeText={setDuration}
                   placeholder="0"
                   placeholderTextColor={colors.faint}
                   autoFocus
@@ -145,19 +152,19 @@ function DurationModal({ task, duration, durationUnit, customDuration, logPendin
                 <View style={styles.unitToggle}>
                   <TouchableOpacity
                     style={[styles.unitBtn, durationUnit === 'min' && styles.unitBtnActive]}
-                    onPress={() => onChangeUnit('min')}
+                    onPress={() => setDurationUnit('min')}
                   >
                     <Text style={[styles.unitBtnText, durationUnit === 'min' && styles.unitBtnTextActive]}>{labels.unitMin}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.unitBtn, durationUnit === 'hr' && styles.unitBtnActive]}
-                    onPress={() => onChangeUnit('hr')}
+                    onPress={() => setDurationUnit('hr')}
                   >
                     <Text style={[styles.unitBtnText, durationUnit === 'hr' && styles.unitBtnTextActive]}>{labels.unitHour}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
-              <TouchableOpacity style={styles.btn} onPress={() => onLog()} disabled={logPending}>
+              <TouchableOpacity style={styles.btn} onPress={handleCustomLog} disabled={logPending}>
                 <Text style={styles.btnText}>{labels.logBtn}</Text>
               </TouchableOpacity>
             </>
@@ -188,9 +195,6 @@ export function TodayScreen() {
   const archiveTask = useArchiveTask(userId);
 
   const [modalTask, setModalTask] = useState<Task | null>(null);
-  const [duration, setDuration] = useState('');
-  const [durationUnit, setDurationUnit] = useState<'min' | 'hr'>('min');
-  const [customDuration, setCustomDuration] = useState(false);
   const [justLoggedIds, setJustLoggedIds] = useState<Set<number>>(new Set());
   const pendingLogTaskIds = useRef(new Set<number>());
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set());
@@ -256,7 +260,6 @@ export function TodayScreen() {
 
   async function handleLog(task: Task) {
     if (task.is_time_based) {
-      setCustomDuration(false);
       setModalTask(task);
       return;
     }
@@ -280,10 +283,8 @@ export function TodayScreen() {
     finally { pendingLogTaskIds.current.delete(task.id); }
   }
 
-  async function handleLogTime(fixedMins?: number) {
+  async function handleLogTime(mins: number) {
     if (!modalTask) return;
-    const mins = typeof fixedMins === 'number' ? fixedMins : parseLogDuration(duration, durationUnit, t.validDuration);
-    if (mins === null) return;
     try {
       const result = await logTask.mutateAsync({
         taskTypeId: modalTask.id, kind: modalTask.kind as 'GOOD' | 'BAD',
@@ -297,7 +298,6 @@ export function TodayScreen() {
 
   async function handleSuggestionLog(task: { id: number; name: string; kind: string; is_time_based: number; base_points: number; star_penalty: number; icon: string | null }) {
     if (task.is_time_based) {
-      setCustomDuration(false);
       setModalTask({ ...task, category_id: null, sort_order: 0 });
       return;
     }
@@ -332,7 +332,7 @@ export function TodayScreen() {
   }
 
   function closeModal() {
-    setModalTask(null); setDuration(''); setDurationUnit('min'); setCustomDuration(false);
+    setModalTask(null);
   }
 
   if (isLoading) return <ActivityIndicator style={{ flex: 1 }} color={colors.primary} />;
@@ -465,16 +465,9 @@ export function TodayScreen() {
 
       <DurationModal
         task={modalTask}
-        duration={duration}
-        durationUnit={durationUnit}
-        customDuration={customDuration}
         logPending={logTask.isPending}
-        onPreset={handleLogTime}
-        onShowCustom={() => setCustomDuration(true)}
         onLog={handleLogTime}
         onClose={closeModal}
-        onChangeDuration={setDuration}
-        onChangeUnit={setDurationUnit}
         colors={colors}
         styles={styles}
         labels={{
@@ -484,6 +477,7 @@ export function TodayScreen() {
           unitHour: t.unitHour,
           logBtn: t.logBtn,
           cancel: t.cancel,
+          validDuration: t.validDuration,
         }}
       />
     </SafeAreaView>

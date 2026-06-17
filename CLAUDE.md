@@ -171,49 +171,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker — Calendar Screen + Fund Removal COMPLETE (2026-06-04)
-
-### What Was Built / Changed
-- **`src/queries/useCalendar.ts`** (new): `useCalendarData(userId, yearMonth)` — queries `activity_log` + `daily_summary` for a month, computes per-day stars, marks `is_best_day` (= max stars day) and `is_milestone` (streak_count in [3,7,14,30,100]).
-- **`src/screens/CalendarScreen.tsx`** (new): Month grid calendar. Prev/next navigation. Day cells: green (milestone streak) > gold (best day) > soft green (active) > plain. Today ring border. Month summary stats (total stars, active days, best day). Legend. Locale-aware month label via `useLanguage`.
-- **`src/navigation/RootNavigator.tsx`**: Tab order changed Home → Calendar → [FAB] → Analytics → Rank. `FundScreen` import replaced with `CalendarScreen`. `IconGift` replaced with `IconCalendar` (SVG). Unused `Rect` import removed.
-- **`src/screens/ProfileScreen.tsx`**: Replaced `useTreatPool` + vault stat with `useAllTimeStats` → shows total all-time stars.
-- **`src/config/i18n.ts`**: Added `tabCalendar`, `calendarTitle`, `calendarBestDay`, `calendarMilestone`, `calendarActive`, `calendarTotalStars`, `calendarActiveDays`, `calendarBest`, `statTotalStars` in both vi + en.
-
-### Deleted
-- `src/screens/FundScreen.tsx`
-- `src/queries/useFund.ts`
-- `src/queries/useTreats.ts`
-- `src/game/treatLogic.ts`
-- `__tests__/treatLogic.test.ts`
-
-### Key Decisions
-- `is_best_day` uses max within current month view only (not all-time), so it updates as user navigates months.
-- Milestone streaks: [3, 7, 14, 30, 100] — milestone takes visual precedence over best-day (green > gold) since streak milestones are rarer.
-- `cells` array memoized on `yearMonth` to avoid rebuild on every render.
-- Locale derived from `useLanguage()` hook (not from `t` object comparison which was always true).
-- `statTotalStars` added; `statVault` kept in i18n (unused but harmless; removing requires en/vi parity update).
-- 90/90 tests pass (8 treatLogic tests removed with the module).
-
----
-
-## Habit Tracker — UI & Logic Fixes COMPLETE (2026-06-05)
-
-### What Was Fixed
-- **`src/screens/CalendarScreen.tsx`**: Wrapped `ScrollView` in `SafeAreaView edges={['top']}` from `react-native-safe-area-context`. `safeArea` style takes `backgroundColor`; `container` is pure `flex: 1`. Fixes header overlapping notch/status bar.
-- **`src/screens/RankScreen.tsx`**: Removed `LinearGradient` philosophy card (dark `#1B1F1D`/`#3F4642` section at bottom of rank screen). Removed associated `philo`/`philoQ`/`philoA` styles and `expo-linear-gradient` import.
-- **`src/screens/RankScreen.tsx`**: `sortedTiers` now returns only `[currentTier]` instead of all 7 tiers sorted desc. Leaderboard restricted to user's current rank only. Removed stagger slide-in animation (`ladderAnims` ref + `hasAnimated` effect) — pointless for 1 item and caused invisible render (`translateX: -30` native animation didn't fire reliably post-hot-reload). Kept glow loop + scale pop on current tier.
-
-### Key Decisions
-- `SafeAreaView` from `react-native-safe-area-context` (not RN core) — consistent with RankScreen pattern; `edges={['top']}` only to allow bottom tab bar to manage its own insets.
-- Stagger animation removed (not just fixed) — with single tier display, slide-in stagger adds zero UX value. Root cause was native driver `translateX: -30` initial value causing invisible row until animation fired; removing the animation eliminates the class of bug.
-- `!tier` null-guard added in map — defensive against `getCurrentTier` returning undefined when `tiers` DB is empty.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
-
----
-
 ## Habit Tracker — Toggle-Undo + New Activities COMPLETE (2026-06-05)
 
 ### What Was Fixed / Built
@@ -500,3 +457,20 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | APK verified on Pixel_6 emulator — sign-in succeeds, no `DEVELOPER_ERROR`
+
+---
+
+## Habit Tracker — DurationModal Keyboard Fix + Perf COMPLETE (2026-06-17)
+
+### What Was Fixed
+- **`src/screens/TodayScreen.tsx`** — `DurationModal`: Changed `KeyboardAvoidingView` `behavior` from `Platform.OS === 'ios' ? 'padding' : 'height'` to `"padding"` on both platforms. On Android, `behavior="height"` inside a `Modal` doesn't receive keyboard events (Modal renders in a separate window); `"padding"` uses `Keyboard` event listeners directly and works correctly.
+- **`src/screens/TodayScreen.tsx`** — `DurationModal`: Moved `duration`, `durationUnit`, `customDuration` state from `TodayScreen` (heavy parent) into `DurationModal` itself. Added `useEffect([task?.id])` to reset state on each new task open. Eliminated `onChangeDuration`, `onChangeUnit`, `onShowCustom`, `onPreset` props. `handleCustomLog` is now internal. Typing in the custom input no longer re-renders TodayScreen.
+- **`src/screens/TodayScreen.tsx`** — `handleLogTime`: Simplified to `(mins: number)` (no optional param, no parent-state read). `closeModal` simplified to `setModalTask(null)`. Removed `Platform` import (now unused).
+
+### Key Decisions
+- `behavior="padding"` works in Modal on Android because KAV subscribes to `Keyboard` events (not window resize signals). `behavior="height"` fails because Modal's window doesn't propagate window-resize events to RN.
+- State isolation in `DurationModal` is the correct fix for lag — TodayScreen has 10+ queries, 5+ animations, and a full task list; every parent-state update re-rendered all of it on each keystroke.
+- `useEffect` dep `[task?.id]`: when same task closes (id→undefined) and reopens (undefined→id), effect fires twice; `if (task)` guard ensures reset only on reopen. ✓
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 100/100 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL
