@@ -249,6 +249,7 @@ const vi = {
   // Feedback
   sectionFeedback: 'PHẢN HỒI',
   reportBugLabel: 'Báo lỗi / Phản hồi',
+  replayTutorial: 'Xem lại hướng dẫn',
   feedbackTitle: 'Gửi phản hồi',
   feedbackTypeBug: 'Báo lỗi',
   feedbackTypeSuggestion: 'Góp ý',
@@ -549,6 +550,7 @@ const en: typeof vi = {
   // Feedback
   sectionFeedback: 'FEEDBACK',
   reportBugLabel: 'Report Bug / Feedback',
+  replayTutorial: 'Replay Tutorial',
   feedbackTitle: 'Send feedback',
   feedbackTypeBug: 'Bug',
   feedbackTypeSuggestion: 'Suggestion',

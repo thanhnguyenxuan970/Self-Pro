@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, TouchableOpacity, StyleSheet, StatusBar, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -17,6 +17,7 @@ import { AppColors, Shadows } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { AddActivitySheet } from '../screens/AddActivitySheet';
 import { GoogleUser } from '../hooks/useAuth';
+import { useTutorial } from '../hooks/useTutorial';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -63,9 +64,11 @@ function IconPlus() {
 }
 
 function FABButton({ onPress, colors }: { onPress: () => void; colors: AppColors }) {
+  const { targetRef } = useTutorial();
+  const fabRef = useMemo(() => targetRef('fab'), [targetRef]);
   return (
     <TouchableOpacity style={fabStyles.container} onPress={onPress} activeOpacity={0.85}>
-      <View style={[fabStyles.button, { backgroundColor: colors.primary }]}>
+      <View ref={fabRef} style={[fabStyles.button, { backgroundColor: colors.primary }]}>
         <IconPlus />
       </View>
     </TouchableOpacity>

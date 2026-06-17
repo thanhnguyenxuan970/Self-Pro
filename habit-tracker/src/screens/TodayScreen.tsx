@@ -25,6 +25,7 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { cueStreakMilestone } from '../audio/uiSounds';
 import { useSelectionMode } from '../hooks/useSelectionMode';
 import { DAILY_BONUS_THRESHOLD } from '../config/constants';
+import { useTutorial } from '../hooks/useTutorial';
 
 const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑' };
 
@@ -210,6 +211,11 @@ export function TodayScreen() {
   const { data: suggestions = [] } = useConsecutiveSuggestions(userId);
   const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(tasks ?? []);
 
+  const { targetRef, startIfFirstRun } = useTutorial();
+  const taskTutorialRef = useMemo(() => targetRef('task'), [targetRef]);
+  const streakTutorialRef = useMemo(() => targetRef('streak'), [targetRef]);
+  useEffect(() => { startIfFirstRun(); }, [startIfFirstRun]);
+
   const weeklyStars = weekly?.weekly_stars ?? 0;
   const dailyPoints = daily?.total_points ?? 0;
   const streak = daily?.streak_count ?? 0;
@@ -374,7 +380,7 @@ export function TodayScreen() {
             </Animated.View>
           </View>
           {streak > 0 && (
-            <Animated.View style={{ alignSelf: 'center', transform: [{ scale: streakPulseAnim }] }}>
+            <Animated.View ref={streakTutorialRef} style={{ alignSelf: 'center', transform: [{ scale: streakPulseAnim }] }}>
               <Text style={styles.heroStreak}>{t.streakChip(streak)}</Text>
             </Animated.View>
           )}
@@ -422,7 +428,7 @@ export function TodayScreen() {
             </View>
           )}
         </View>
-        <View style={styles.taskCard}>
+        <View ref={taskTutorialRef} style={styles.taskCard}>
           {displayTasks.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyEmoji}>🎯</Text>

@@ -14,6 +14,7 @@ import {
 } from '../queries/useSettings';
 import { scheduleAllHabitReminders } from '../utils/notifications';
 import { FeedbackSheet } from './FeedbackSheet';
+import { useTutorial } from '../hooks/useTutorial';
 
 type Props = {
   onDeleteAccount: (userId: number) => Promise<void>;
@@ -66,6 +67,7 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
   const [deleting, setDeleting] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
+  const { restart: restartTutorial } = useTutorial();
 
   const { data: savedNotifTime } = useNotificationTime(userId);
   const setNotifTimeMutation = useSetNotificationTime(userId);
@@ -242,12 +244,21 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
         <Text style={styles.sectionLabel}>{t.sectionFeedback}</Text>
         <View style={styles.card}>
           <TouchableOpacity
-            style={[styles.row, styles.rowLast]}
+            style={styles.row}
             onPress={() => setFeedbackVisible(true)}
             activeOpacity={0.7}
           >
             <Text style={styles.rowIc}>📬</Text>
             <Text style={styles.rowLabel}>{t.reportBugLabel}</Text>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.row, styles.rowLast]}
+            onPress={restartTutorial}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.rowIc}>🎓</Text>
+            <Text style={styles.rowLabel}>{t.replayTutorial}</Text>
             <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
         </View>

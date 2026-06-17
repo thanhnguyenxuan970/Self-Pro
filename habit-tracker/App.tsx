@@ -14,6 +14,7 @@ import { SettingsProvider } from './src/contexts/SettingsContext';
 import { useTheme } from './src/hooks/useSettings';
 import { LevelUpCelebrationModal } from './src/components/LevelUpCelebrationModal';
 import { PENDING_LEVELUP_KEY } from './src/queries/useToday';
+import { TutorialProvider } from './src/hooks/useTutorial';
 
 function AppInner() {
   const [dbReady, setDbReady] = useState(false);
@@ -132,7 +133,7 @@ function AppInner() {
   return (
     <UserIdContext.Provider value={userId}>
     <GoogleUserContext.Provider value={googleUser}>
-      <>
+      <TutorialProvider>
         <RootNavigator
           isOnboarded={isOnboarded}
           googleUser={googleUser}
@@ -151,7 +152,7 @@ function AppInner() {
             onDismiss={() => setCelebrationData(null)}
           />
         )}
-      </>
+      </TutorialProvider>
     </GoogleUserContext.Provider>
     </UserIdContext.Provider>
   );
