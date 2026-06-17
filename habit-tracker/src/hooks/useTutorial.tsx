@@ -2,8 +2,9 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Coachmark, TargetRect } from '../components/Coachmark';
+import { useAuthUser } from './useAuth';
 
-const DONE_KEY = 'habit_tutorial_done';
+const doneKey = (userId: number) => `habit_tutorial_done_${userId}`;
 
 interface Step { key: string; title: string; body: string; }
 
@@ -33,6 +34,7 @@ const Ctx = createContext<TutorialCtx>({
 export const useTutorial = () => useContext(Ctx);
 
 export function TutorialProvider({ children }: { children: React.ReactNode }) {
+  const userId = useAuthUser();
   const nodes = useRef<Map<string, View>>(new Map());
   const [visible, setVisible] = useState(false);
   const [index, setIndex] = useState(0);
@@ -66,8 +68,8 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
   const finish = useCallback(() => {
     setVisible(false);
-    AsyncStorage.setItem(DONE_KEY, 'true').catch(() => {});
-  }, []);
+    AsyncStorage.setItem(doneKey(userId), 'true').catch(() => {});
+  }, [userId]);
 
   const next = useCallback(() => {
     setIndex((i) => {
@@ -80,12 +82,12 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   }, [finish]);
 
   const startIfFirstRun = useCallback(async () => {
-    const done = await AsyncStorage.getItem(DONE_KEY);
+    const done = await AsyncStorage.getItem(doneKey(userId));
     if (!done) {
       setIndex(0);
       setVisible(true);
     }
-  }, []);
+  }, [userId]);
 
   const restart = useCallback(() => {
     setIndex(0);
