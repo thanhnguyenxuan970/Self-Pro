@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Coachmark, TargetRect } from '../components/Coachmark';
 import { useAuthUser } from './useAuth';
 
@@ -35,6 +36,7 @@ export const useTutorial = () => useContext(Ctx);
 
 export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const userId = useAuthUser();
+  const { bottom: bottomInset } = useSafeAreaInsets();
   const nodes = useRef<Map<string, View>>(new Map());
   const [visible, setVisible] = useState(false);
   const [index, setIndex] = useState(0);
@@ -108,6 +110,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
         total={STEPS.length}
         title={STEPS[index]?.title ?? ''}
         body={STEPS[index]?.body ?? ''}
+        bottomInset={bottomInset}
         onNext={next}
         onBack={back}
         onSkip={finish}

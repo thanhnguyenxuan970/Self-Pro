@@ -3,6 +3,7 @@ import { ActivityIndicator, View, Text, TouchableOpacity, StyleSheet } from 'rea
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { queryClient } from './src/queries/queryClient';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { getDb } from './src/db/client';
@@ -167,10 +168,12 @@ const appStyles = StyleSheet.create({
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
-        <AppInner />
-      </SettingsProvider>
-    </QueryClientProvider>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <SettingsProvider>
+          <AppInner />
+        </SettingsProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }

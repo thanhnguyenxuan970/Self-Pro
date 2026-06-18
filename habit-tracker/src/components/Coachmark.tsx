@@ -1,7 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useSettings';
 
 export interface TargetRect { x: number; y: number; width: number; height: number; }
@@ -13,6 +12,7 @@ interface Props {
   total: number;
   title: string;
   body: string;
+  bottomInset: number;
   onNext: () => void;
   onBack: () => void;
   onSkip: () => void;
@@ -23,10 +23,9 @@ const GAP = 14;
 const TIP_W = 244;
 const TAB_BAR_H = 62;
 
-export function Coachmark({ visible, rect, index, total, title, body, onNext, onBack, onSkip }: Props) {
+export function Coachmark({ visible, rect, index, total, title, body, bottomInset, onNext, onBack, onSkip }: Props) {
   const { colors: C } = useTheme();
   const { width: W, height: H } = useWindowDimensions();
-  const { bottom: bottomInset } = useSafeAreaInsets();
   if (!visible) return null;
 
   const isLast = index >= total - 1;
