@@ -53,7 +53,7 @@ function resolveCellIcon(data: CalendarDay | undefined, isMilestone: boolean, is
   if (isMilestone && isBest) return <AnimatedBurningStarIcon />;
   if (isMilestone) return <AnimatedFireIcon />;
   if (isBest) return <AnimatedStarIcon />;
-  return <Text style={{ fontSize: 8, fontWeight: '600', marginTop: 1, color: muteColor }}>{parseFloat(data.stars.toFixed(1))}★</Text>;
+  return <Text style={{ fontSize: 9, fontWeight: '600', marginTop: 1, color: muteColor }}>{parseFloat(data.stars.toFixed(1))}★</Text>;
 }
 
 export function CalendarScreen() {
@@ -150,14 +150,12 @@ export function CalendarScreen() {
           return (
             <View key={idx} style={[styles.cell, { backgroundColor: cellBg }]}>
               <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
-              {cellIcon && (
-                <View style={styles.cellIconOverlay}>{cellIcon}</View>
-              )}
-              {day === today && !isBest && !isMilestone && (
-                <View style={styles.cellIconOverlay}>
+              <View style={styles.cellBottom}>
+                {cellIcon}
+                {day === today && !isBest && !isMilestone && (
                   <View style={[styles.todayDot, { backgroundColor: colors.primary }]} />
-                </View>
-              )}
+                )}
+              </View>
             </View>
           );
         })}
@@ -166,11 +164,11 @@ export function CalendarScreen() {
       {/* Legend */}
       <View style={styles.legend}>
         <View style={styles.legendItem}>
-          <AnimatedFireIcon />
+          <AnimatedFireIcon size={20} />
           <Text style={styles.legendLabel}>{t.calendarMilestone}</Text>
         </View>
         <View style={styles.legendItem}>
-          <AnimatedStarIcon />
+          <AnimatedStarIcon size={20} />
           <Text style={styles.legendLabel}>{t.calendarBestDay}</Text>
         </View>
         <View style={styles.legendItem}>
@@ -219,11 +217,13 @@ function makeStyles(colors: AppColors) {
     dowRow: {
       flexDirection: 'row',
       marginBottom: 4,
+      marginHorizontal: -Spacing.lg,
+      paddingHorizontal: 4,
     },
     dowLabel: {
       flex: 1,
       textAlign: 'center',
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: '700',
       color: colors.muted,
       paddingVertical: 4,
@@ -231,20 +231,24 @@ function makeStyles(colors: AppColors) {
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
+      marginHorizontal: -Spacing.lg,
+      paddingHorizontal: 4,
     },
     cell: {
       width: '14.285%',
       aspectRatio: 1,
-      justifyContent: 'center',
+      justifyContent: 'space-between',
+      paddingTop: 6,
+      paddingBottom: 5,
       alignItems: 'center',
       borderRadius: Radii.sm,
       marginVertical: 2,
     },
-    dayNum: { fontSize: 13, fontWeight: '700' },
+    dayNum: { fontSize: 15, fontWeight: '700' },
     dayStars: { fontSize: 8, fontWeight: '600', marginTop: 1 },
     dayIcon: { fontSize: 9, marginTop: 1 },
-    cellIconOverlay: { position: 'absolute', bottom: 2, left: 0, right: 0, alignItems: 'center' },
-    todayDot: { width: 4, height: 4, borderRadius: 2 },
+    cellBottom: { alignItems: 'center', height: 16 },
+    todayDot: { width: 5, height: 5, borderRadius: 2.5 },
     legend: {
       flexDirection: 'row',
       justifyContent: 'center',
@@ -253,9 +257,9 @@ function makeStyles(colors: AppColors) {
       marginBottom: 8,
     },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    legendDot: { width: 10, height: 10, borderRadius: 5 },
-    legendIcon: { fontSize: 12 },
-    legendLabel: { fontSize: 11, color: colors.muted },
+    legendDot: { width: 13, height: 13, borderRadius: 6.5 },
+    legendIcon: { fontSize: 14 },
+    legendLabel: { fontSize: 13, color: colors.muted },
     summary: {
       flexDirection: 'row',
       backgroundColor: colors.surface2,
