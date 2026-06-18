@@ -127,7 +127,7 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
   }
 
   return (
-    <Modal visible={!!task} transparent animationType="slide">
+    <Modal visible={!!task} transparent animationType="fade">
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <View style={styles.modalBg}>
         <View style={styles.modalBox}>
@@ -595,10 +595,10 @@ function makeStyles(C: AppColors) {
     emptyTitle: { fontSize: 14, fontWeight: '700', color: C.ink2 },
     emptyDesc: { fontSize: 12, color: C.muted, marginTop: 4 },
 
-    modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+    modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', paddingHorizontal: Spacing.lg },
     modalBox: {
       backgroundColor: C.surface, padding: Spacing.xl,
-      borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl,
+      borderRadius: Radii.xl,
     },
     modalTitle: { fontSize: 19, fontWeight: '800', color: C.inkDark, marginBottom: 4 },
     modalSub: { fontSize: 13, color: C.muted, marginBottom: Spacing.md },

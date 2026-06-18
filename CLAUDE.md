@@ -455,3 +455,23 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 16)
 - **Runtime verified on emulator**: "Dọn dẹp" → "Cleaning" live on language switch ✅; "90" typed + "Hr" toggled instantly, no parent re-render ✅
+
+---
+
+## Habit Tracker — DurationModal Center + Exercise Cleanup + RankInfoSheet COMPLETE (2026-06-18)
+
+### What Was Fixed / Built
+- **`src/screens/TodayScreen.tsx`** — `DurationModal`: Changed `animationType="slide"` → `"fade"`. Changed `modalBg` from `justifyContent: 'flex-end'` → `'center'` + `paddingHorizontal: Spacing.lg`. Changed `modalBox` from `borderTopLeftRadius/borderTopRightRadius: Radii.xxl` → `borderRadius: Radii.xl`. Modal is now a centered dialog (not bottom-sheet); `KeyboardAvoidingView behavior="padding"` shifts it up when keyboard opens.
+- **`src/db/migrations.ts`** — v5: Removed `taskCount === 0` check block and `Exercise` INSERT (hardcoded `user_id=1`). v5 now goes directly to multi-insert block for Cleaning/Work/Study/Family/Relationship/Sports.
+- **`src/screens/RankScreen.tsx`**: Added `import { RankInfoSheet }`. Added `infoVisible` state. Changed title from plain `<Text>` to `<View style={styles.titleRow}>` containing title + `<TouchableOpacity>` ℹ️ button. Added `<RankInfoSheet visible={infoVisible} tiers={tiers} currentTierId={currentTier?.id ?? null} onClose={() => setInfoVisible(false)} />` before `</SafeAreaView>`. Added `titleRow`, `infoBtn`, `infoBtnText` styles to `makeStyles`.
+- **`android/app/build.gradle`**: `versionCode 18 → 19`, `versionName "1.0.17" → "1.0.18"`. `app.json` synced.
+
+### Key Decisions
+- Centered modal fix: root cause was `justifyContent: 'flex-end'` making DurationModal behave like a bottom-sheet — keyboard appeared from below and covered the input. `justifyContent: 'center'` + `behavior="padding"` shifts the centered box upward on keyboard open.
+- `animationType="fade"` replaces `"slide"`: slide from bottom is bottom-sheet UX; fade is dialog UX consistent with centered layout.
+- Exercise removal from v5 migration only prevents future seeding. Existing test-device users keep Exercise in their task list (correct — no destructive data changes).
+- `RankInfoSheet` was pre-built; wiring only required import + state + JSX. `tiers` from `useRankData` is a superset of `RankTier` interface — no adapter needed.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 19)
+- **Runtime verified on emulator**: DurationModal centered on screen ✅; RankInfoSheet opens from ℹ️ button with all 7 tiers ✅

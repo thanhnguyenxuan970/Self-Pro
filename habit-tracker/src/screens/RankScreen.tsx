@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Animated, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useRankData } from '../queries/useRank';
@@ -11,6 +11,7 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
 import { RANKS } from '../config/ranks.config';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
+import { RankInfoSheet } from '../components/RankInfoSheet';
 
 function rankConfig(tierOrder: number) {
   return RANKS[Math.min(Math.max(tierOrder - 1, 0), RANKS.length - 1)];
@@ -191,6 +192,7 @@ export function RankScreen() {
   );
 
   const { glowAnim, scaleAnim } = useRankGlowAnimation(data, sortedTiers.length, reduceMotion);
+  const [infoVisible, setInfoVisible] = useState(false);
 
   if (isLoading || !data) {
     return <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View>;
@@ -210,7 +212,12 @@ export function RankScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>{t.rankTitle}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>{t.rankTitle}</Text>
+          <TouchableOpacity onPress={() => setInfoVisible(true)} hitSlop={10} style={styles.infoBtn}>
+            <Text style={styles.infoBtnText}>?</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.rankhero}>
           <View style={[styles.rankheroGlow, { backgroundColor: cfg.color }]} />
@@ -315,6 +322,12 @@ export function RankScreen() {
           </>
         )}
       </ScrollView>
+      <RankInfoSheet
+        visible={infoVisible}
+        tiers={tiers}
+        currentTierId={currentTier?.id ?? null}
+        onClose={() => setInfoVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -324,7 +337,10 @@ function makeStyles(C: AppColors) {
     safeArea: { flex: 1, backgroundColor: C.bgBase },
     content: { paddingBottom: 40 },
     loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bgBase },
-    title: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5, color: C.inkDark, marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
+    titleRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
+    title: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5, color: C.inkDark, flex: 1 },
+    infoBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.inkLight, alignItems: 'center', justifyContent: 'center' },
+    infoBtnText: { fontSize: 15, fontWeight: '700', color: C.bgBase },
 
     rankhero: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,
