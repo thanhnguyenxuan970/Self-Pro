@@ -398,6 +398,28 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
+## Habit Tracker — Tutorial, Calendar Icons, Redmi Layout COMPLETE (2026-06-18)
+
+### What Was Fixed
+- **`src/components/Coachmark.tsx`**: Removed `useSafeAreaInsets` (unusable inside `Modal` — separate window root). Added `bottomInset: number` prop. Position clamped: `tipBottom = Math.max(H - rect.y + GAP, TAB_BAR_H + bottomInset + 8)` — prevents tooltip overlapping bottom nav. Added back navigation: when `index > 0`, shows `← Quay lại` instead of `Bỏ qua`.
+- **`src/hooks/useTutorial.tsx`**: Added `useSafeAreaInsets` (valid here — TutorialProvider is in normal tree). Added `back()` callback (`setIndex(i => Math.max(0, i-1))`). Passes `bottomInset` and `onBack` to `Coachmark`.
+- **`App.tsx`**: Added `SafeAreaProvider` at root level so all hooks (including `useSafeAreaInsets` in `TutorialProvider`) have context.
+- **`src/screens/TodayScreen.tsx`**: Added `useSafeAreaInsets`, uses `bottomInset` in `ScrollView` `contentContainerStyle={{ paddingBottom: 28 + bottomInset }}` — fixes last task being clipped behind gesture nav on Redmi Note 13 Pro.
+- **`src/components/CalendarIcons.tsx`** (new): `AnimatedFireIcon`, `AnimatedStarIcon`, `AnimatedBurningStarIcon` — each uses `Animated.loop` pulse scale (1→1.35) with `useNativeDriver: true`. Used in CalendarScreen cells and legend.
+- **`src/screens/CalendarScreen.tsx`**: `resolveCellColors` no longer returns colored backgrounds for `isMilestone`/`isBest` (orange #F97316 / yellow #FBBF24 removed). `resolveCellIcon`: milestone+best → `AnimatedBurningStarIcon`; milestone → `AnimatedFireIcon`; best → `AnimatedStarIcon`. Legend updated to use animated icons.
+- **`android/app/build.gradle`**: `versionCode 16 → 17`, `versionName "1.0.15" → "1.0.16"`. `app.json` synced to `"1.0.16"`.
+
+### Key Decisions
+- `useSafeAreaInsets` must not be called inside a `Modal` — `Modal` creates a new React root outside `SafeAreaProvider`. Fix: call at `TutorialProvider` level, pass as prop.
+- `SafeAreaProvider` at app root is correct Expo/RN pattern. Previous code relied on `NavigationContainer` providing it implicitly, but that only covers descendants inside `NavigationContainer`, not `TutorialProvider` which sits above it.
+- Calendar bg removal: colored backgrounds (orange streak, yellow best-day) confused users with the current-date highlight (also colored). Icons alone carry the semantic signal.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 17)
+- **Runtime verified on emulator**: CalendarScreen shows ⭐ on best-day cell with no background; no render errors ✅
+
+---
+
 ## Habit Tracker — DurationModal Keyboard Fix + Perf COMPLETE (2026-06-17)
 
 ### What Was Fixed
