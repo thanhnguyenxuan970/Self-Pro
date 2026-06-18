@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useSettings';
 
 export interface TargetRect { x: number; y: number; width: number; height: number; }
@@ -13,24 +14,28 @@ interface Props {
   title: string;
   body: string;
   onNext: () => void;
+  onBack: () => void;
   onSkip: () => void;
 }
 
 const PAD = 8;
 const GAP = 14;
 const TIP_W = 244;
+const TAB_BAR_H = 62;
 
-export function Coachmark({ visible, rect, index, total, title, body, onNext, onSkip }: Props) {
+export function Coachmark({ visible, rect, index, total, title, body, onNext, onBack, onSkip }: Props) {
   const { colors: C } = useTheme();
   const { width: W, height: H } = useWindowDimensions();
+  const { bottom: bottomInset } = useSafeAreaInsets();
   if (!visible) return null;
 
   const isLast = index >= total - 1;
+  const minBottom = TAB_BAR_H + bottomInset + 8;
 
   let tipTop: number | undefined;
   let tipBottom: number | undefined;
   if (rect) {
-    if (rect.y > H / 2) tipBottom = H - rect.y + GAP;
+    if (rect.y > H / 2) tipBottom = Math.max(H - rect.y + GAP, minBottom);
     else tipTop = rect.y + rect.height + GAP;
   } else {
     tipTop = H / 2 - 90;
@@ -77,9 +82,15 @@ export function Coachmark({ visible, rect, index, total, title, body, onNext, on
             ))}
           </View>
           <View style={styles.actions}>
-            <Pressable onPress={onSkip} hitSlop={8}>
-              <Text style={[styles.skip, { color: C.faint }]}>Bỏ qua</Text>
-            </Pressable>
+            {index > 0 ? (
+              <Pressable onPress={onBack} hitSlop={8}>
+                <Text style={[styles.skip, { color: C.faint }]}>← Quay lại</Text>
+              </Pressable>
+            ) : (
+              <Pressable onPress={onSkip} hitSlop={8}>
+                <Text style={[styles.skip, { color: C.faint }]}>Bỏ qua</Text>
+              </Pressable>
+            )}
             <Pressable onPress={onNext} style={[styles.next, { backgroundColor: C.primary }]}>
               <Text style={styles.nextText}>{isLast ? 'Xong' : 'Tiếp →'}</Text>
             </Pressable>

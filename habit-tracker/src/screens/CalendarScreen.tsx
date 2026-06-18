@@ -12,6 +12,7 @@ import { useCalendarData, CalendarDay } from '../queries/useCalendar';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
 import { AppColors, Radii, Spacing } from '../config/theme';
+import { AnimatedFireIcon, AnimatedStarIcon, AnimatedBurningStarIcon } from '../components/CalendarIcons';
 
 const DOW_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -42,16 +43,16 @@ function resolveCellColors(
   isMilestone: boolean, isBest: boolean, hasActivity: boolean,
   isDark: boolean, colors: AppColors,
 ): { cellBg: string; numColor: string } {
-  if (isMilestone) return { cellBg: '#F97316', numColor: '#fff' };
-  if (isBest) return { cellBg: '#FBBF24', numColor: '#fff' };
+  if (isMilestone || isBest) return { cellBg: 'transparent', numColor: colors.inkDark };
   if (hasActivity) return { cellBg: isDark ? colors.surface2 : colors.primarySoft, numColor: colors.primary };
   return { cellBg: 'transparent', numColor: colors.inkDark };
 }
 
 function resolveCellIcon(data: CalendarDay | undefined, isMilestone: boolean, isBest: boolean, muteColor: string) {
   if (!data) return null;
-  if (isMilestone) return <Text style={{ fontSize: 9, marginTop: 1 }}>🔥</Text>;
-  if (isBest) return <Text style={{ fontSize: 9, marginTop: 1 }}>⭐</Text>;
+  if (isMilestone && isBest) return <AnimatedBurningStarIcon />;
+  if (isMilestone) return <AnimatedFireIcon />;
+  if (isBest) return <AnimatedStarIcon />;
   return <Text style={{ fontSize: 8, fontWeight: '600', marginTop: 1, color: muteColor }}>{parseFloat(data.stars.toFixed(1))}★</Text>;
 }
 
@@ -160,11 +161,11 @@ export function CalendarScreen() {
       {/* Legend */}
       <View style={styles.legend}>
         <View style={styles.legendItem}>
-          <Text style={styles.legendIcon}>🔥</Text>
+          <AnimatedFireIcon />
           <Text style={styles.legendLabel}>{t.calendarMilestone}</Text>
         </View>
         <View style={styles.legendItem}>
-          <Text style={styles.legendIcon}>⭐</Text>
+          <AnimatedStarIcon />
           <Text style={styles.legendLabel}>{t.calendarBestDay}</Text>
         </View>
         <View style={styles.legendItem}>

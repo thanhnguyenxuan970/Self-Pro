@@ -81,6 +81,10 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     });
   }, [finish]);
 
+  const back = useCallback(() => {
+    setIndex((i) => Math.max(0, i - 1));
+  }, []);
+
   const startIfFirstRun = useCallback(async () => {
     const done = await AsyncStorage.getItem(doneKey(userId));
     if (!done) {
@@ -105,6 +109,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
         title={STEPS[index]?.title ?? ''}
         body={STEPS[index]?.body ?? ''}
         onNext={next}
+        onBack={back}
         onSkip={finish}
       />
     </Ctx.Provider>

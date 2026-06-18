@@ -4,7 +4,7 @@ import {
   StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Animated,
   KeyboardAvoidingView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -190,6 +190,7 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
 export function TodayScreen() {
   const navigation = useNavigation();
   const { userId, googleUser, colors, t, styles } = useScreenCommons(makeStyles);
+  const { bottom: bottomInset } = useSafeAreaInsets();
 
   const { data: tasks, isLoading } = useTodayTasks(userId);
   const { data: daily } = useDailySummary(userId);
@@ -367,7 +368,7 @@ export function TodayScreen() {
           <Text style={styles.gearIcon}>⚙️</Text>
         </TouchableOpacity>
       </View>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
         <LinearGradient
           colors={isDebt ? ['#5C1D1E', '#B0383C'] : ['#1A5039', '#2E9C6A']}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
