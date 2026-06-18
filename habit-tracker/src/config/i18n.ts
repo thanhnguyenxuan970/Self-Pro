@@ -276,7 +276,7 @@ const vi = {
   durationCustom: '1h+',
 
   // Leaderboard
-  leaderboardSection: 'BẢNG XẾP HẠNG',
+  leaderboardSection: 'Hạng hiện tại',
   leaderboardYou: 'Bạn',
   leaderboardEmpty: 'Chưa có người chơi nào cùng rank tuần này',
   leaderboardNoSync: 'Kết nối mạng để xem bảng xếp hạng',
@@ -579,7 +579,7 @@ const en: typeof vi = {
   durationCustom: '1h+',
 
   // Leaderboard
-  leaderboardSection: 'LEADERBOARD',
+  leaderboardSection: 'Current Rank',
   leaderboardYou: 'You',
   leaderboardEmpty: 'No players at your rank this week yet',
   leaderboardNoSync: 'Connect to the internet to view the leaderboard',

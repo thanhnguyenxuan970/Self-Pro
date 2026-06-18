@@ -12,13 +12,10 @@ type LeaderboardEntry = {
 
 type TierDef = { tier_order: number; stars_required: number };
 
-/** Mask email for display: "thanhnguyenxuan970@gmail.com" → "tha***@gmail.com" */
-function maskEmail(email: string): string {
+function emailPrefix(email: string): string {
   const at = email.indexOf('@');
   if (at < 0) return email;
-  const local = email.slice(0, at);
-  const domain = email.slice(at);
-  return `${local.slice(0, Math.min(3, local.length))}***${domain}`;
+  return email.slice(0, at);
 }
 
 function aggregateStarsByEmail(rows: { user_email: string; stars_delta: number | null }[]): Map<string, number> {
@@ -46,7 +43,7 @@ function buildLeaderboardEntries(
   const entries: Omit<LeaderboardEntry, 'rank'>[] = [];
   for (const [email, stars] of starsByEmail) {
     if (stars >= tierMin && stars < tierMax) {
-      entries.push({ userEmail: email, displayName: maskEmail(email), weeklyStars: stars, isCurrentUser: email === currentUserEmail });
+      entries.push({ userEmail: email, displayName: emailPrefix(email), weeklyStars: stars, isCurrentUser: email === currentUserEmail });
     }
   }
   return entries;

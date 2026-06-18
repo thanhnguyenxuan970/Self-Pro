@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Animated, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
@@ -40,83 +40,6 @@ function fmtCountdown(ms: number): string {
   return d > 0 ? `${d}d ${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`;
 }
 
-type RankDataType = NonNullable<ReturnType<typeof useRankData>['data']>;
-
-function useRankGlowAnimation(
-  data: RankDataType | undefined,
-  sortedTiersLength: number,
-  reduceMotion: boolean,
-): { glowAnim: Animated.Value; scaleAnim: Animated.Value } {
-  const glowAnim = useRef(new Animated.Value(0.15)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const glowLoopRef = useRef<Animated.CompositeAnimation | null>(null);
-
-  useEffect(() => {
-    if (!data || sortedTiersLength === 0) return;
-    const currentTierLocal = getCurrentTier(data.currentStars, data.tiers);
-    if (!currentTierLocal) return;
-
-    Animated.sequence([
-      Animated.spring(scaleAnim, { toValue: 1.04, tension: 200, friction: 8, useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }),
-    ]).start();
-
-    if (!reduceMotion) {
-      glowLoopRef.current = Animated.loop(
-        Animated.sequence([
-          Animated.timing(glowAnim, { toValue: 0.9, duration: 900, useNativeDriver: true }),
-          Animated.timing(glowAnim, { toValue: 0.15, duration: 900, useNativeDriver: true }),
-        ])
-      );
-      glowLoopRef.current.start();
-    }
-    return () => glowLoopRef.current?.stop();
-  }, [data, sortedTiersLength, reduceMotion]);
-
-  return { glowAnim, scaleAnim };
-}
-
-type TierItem = RankDataType['tiers'][number];
-
-type RankLadderRowProps = {
-  tier: TierItem;
-  isCurrent: boolean;
-  isLast: boolean;
-  range: string;
-  scaleAnim: Animated.Value;
-  glowAnim: Animated.Value;
-  reduceMotion: boolean;
-  styles: ReturnType<typeof makeStyles>;
-};
-
-function RankLadderRow({ tier, isCurrent, isLast, range, scaleAnim, glowAnim, reduceMotion, styles }: RankLadderRowProps) {
-  const rc = rankConfig(tier.tier_order);
-  return (
-    <Animated.View
-      style={[
-        styles.rk,
-        isCurrent && { ...styles.rkCur, backgroundColor: rc.color + '22' },
-        isLast && styles.rkLast,
-        isCurrent ? { transform: [{ scale: scaleAnim }] } : undefined,
-      ]}
-    >
-      {isCurrent && (
-        <Animated.View
-          style={[StyleSheet.absoluteFill, { borderRadius: Radii.md, borderWidth: 1.5, borderColor: rc.color, opacity: glowAnim }]}
-          pointerEvents="none"
-        />
-      )}
-      <View style={styles.rkMascot}>
-        <RankMascot tier={tier.tier_order - 1} size={36} loop={isCurrent} reduceMotion={reduceMotion} />
-      </View>
-      <View style={styles.rkInfo}>
-        <Text style={[styles.rkA, isCurrent && { color: rc.color }]}>{tier.rank_name}</Text>
-        <Text style={styles.rkB}>{rc.descriptor}</Text>
-      </View>
-      <Text style={[styles.rkThr, isCurrent && { color: rc.color }]}>{range}</Text>
-    </Animated.View>
-  );
-}
 
 type LBEntry = NonNullable<ReturnType<typeof useLeaderboard>['data']>[number];
 
@@ -178,12 +101,6 @@ export function RankScreen() {
     return () => { rankMascotBridge.ref = null; };
   }, []);
 
-  const sortedTiers = useMemo(() => {
-    if (!data) return [];
-    const cur = getCurrentTier(data.currentStars, data.tiers);
-    return cur ? [cur] : [];
-  }, [data]);
-
   const currentTierOrder = data ? (getCurrentTier(data.currentStars, data.tiers)?.tier_order ?? 0) : 0;
   const { data: leaderboard = [], isLoading: lbLoading } = useLeaderboard(
     googleUser?.email ?? null,
@@ -191,7 +108,6 @@ export function RankScreen() {
     data?.tiers ?? [],
   );
 
-  const { glowAnim, scaleAnim } = useRankGlowAnimation(data, sortedTiers.length, reduceMotion);
   const [infoVisible, setInfoVisible] = useState(false);
 
   if (isLoading || !data) {
@@ -250,31 +166,6 @@ export function RankScreen() {
         <View style={styles.resetChip}>
           <Text style={styles.resetChipLabel}>{t.resetCountdownLabel}</Text>
           <Text style={styles.resetChipCountdown}>{fmtCountdown(countdownMs)}</Text>
-        </View>
-
-        <Text style={styles.sectionLabel}>{t.rankLadder}</Text>
-        <View style={styles.card}>
-          {sortedTiers.map((tier, idx, arr) => {
-            if (!tier) return null;
-            const isCurrent = tier.id === currentTier?.id;
-            const isLast = idx === arr.length - 1;
-            const range = idx > 0
-              ? `${tier.stars_required}–${(arr[idx - 1]?.stars_required ?? 999) - 1} ★`
-              : `${tier.stars_required}+ ★`;
-            return (
-              <RankLadderRow
-                key={tier.id}
-                tier={tier}
-                isCurrent={isCurrent}
-                isLast={isLast}
-                range={range}
-                scaleAnim={scaleAnim}
-                glowAnim={glowAnim}
-                reduceMotion={reduceMotion}
-                styles={styles}
-              />
-            );
-          })}
         </View>
 
         {currentTierOrder > 0 && (

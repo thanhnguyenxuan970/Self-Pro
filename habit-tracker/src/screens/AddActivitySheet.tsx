@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity,
   Alert, StyleSheet, ActivityIndicator, Animated, ScrollView,
-  KeyboardAvoidingView, Keyboard,
+  KeyboardAvoidingView, Keyboard, Platform,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useCreateTask } from '../queries/useTasks';
@@ -71,12 +71,11 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onClose, t, c
   const displayName = resolveTaskDisplayName(pendingTaskName, t);
 
   return (
-    <KeyboardAvoidingView behavior="padding">
-      <ScrollView
-        style={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
+    <ScrollView
+      style={styles.scroll}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
         <Text style={styles.durationStepTitle}>{displayName}</Text>
         <Text style={[styles.durationLabel, { marginTop: 4 }]}>{t.addActivityHowLong}</Text>
 
@@ -144,7 +143,6 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onClose, t, c
 
         <View style={{ height: 32 }} />
       </ScrollView>
-    </KeyboardAvoidingView>
   );
 }
 
@@ -273,6 +271,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
+      <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}>
       <View style={styles.backdrop}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)', opacity: backdropOpacity }]}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleClose} activeOpacity={1} />
@@ -368,12 +367,14 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
           )}
         </Animated.View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
+    kav: { flex: 1 },
     backdrop: { flex: 1, justifyContent: 'flex-end' },
     sheet: {
       backgroundColor: C.surface,
