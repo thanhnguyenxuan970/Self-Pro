@@ -474,3 +474,19 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 21)
 - **Runtime verified on emulator**: 60 Hr → "Max 24 hours (1440 min) per session" ✅
+
+---
+
+## Habit Tracker — UI/UX Polish (Rank Ladder, Email Display, Keyboard Fix) COMPLETE (2026-06-18)
+
+### What Was Fixed
+- **`src/screens/RankScreen.tsx`**: Removed entire rank ladder/progression section (`useRankGlowAnimation`, `RankLadderRow`, `sortedTiers`, glow/scale anims). Kept leaderboard, mascot, countdown, weekly history.
+- **`src/queries/useLeaderboard.ts`**: `maskEmail()` → `emailPrefix()` — shows full prefix before `@` (e.g. "thanhnguyenxuan970"), not masked "tha***".
+- **`src/config/i18n.ts`**: `leaderboardSection` vi `'Hạng hiện tại'` / en `'Current Rank'` (was "Rankings"). `sectionLabel` `textTransform:'uppercase'` auto-uppercases display.
+- **`src/screens/AddActivitySheet.tsx`**: Added `<KeyboardAvoidingView behavior="padding">` at Modal root wrapping backdrop. Removed dead styles `durationChipsWrap` + `chipSpinner`. Fixed `mins > 1440` to alert `t.maxDuration` (not `t.validDuration`).
+- **`android/app/build.gradle`**: `versionCode 21 → 23`, `versionName "1.0.20" → "1.0.22"`. `app.json` synced.
+
+### Key Decisions
+- KAV `behavior="padding"` at Modal root (not inside sheet) — Modal in separate window; `"height"` mode doesn't receive window-resize events on Android.
+- Rank ladder removed outright (not hidden) — user confirmed dead feature.
+- `emailPrefix` returns raw prefix, no masking — user confirmed full name preferred.

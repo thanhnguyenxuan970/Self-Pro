@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity,
   Alert, StyleSheet, ActivityIndicator, Animated, ScrollView,
-  KeyboardAvoidingView, Keyboard, Platform,
+  KeyboardAvoidingView, Keyboard,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useCreateTask } from '../queries/useTasks';
@@ -64,7 +64,7 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onClose, t, c
     const parsed = parseInt(duration, 10);
     if (isNaN(parsed) || parsed <= 0) { Alert.alert(t.validDuration); return; }
     const mins = durationUnit === 'hr' ? parsed * 60 : parsed;
-    if (mins > 1440) { Alert.alert(t.validDuration); return; }
+    if (mins > 1440) { Alert.alert(t.maxDuration); return; }
     onLogDuration(mins);
   }
 
@@ -271,7 +271,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
-      <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}>
+      <KeyboardAvoidingView style={styles.kav} behavior="padding">
       <View style={styles.backdrop}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)', opacity: backdropOpacity }]}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleClose} activeOpacity={1} />
@@ -423,7 +423,6 @@ function makeStyles(C: AppColors) {
       marginTop: Spacing.xl, marginBottom: Spacing.sm,
     },
     durationLabelDim: { color: C.muted },
-    durationChipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: Spacing.md },
     durationChip: {
       backgroundColor: C.primary, borderRadius: Radii.md,
       paddingVertical: 13, paddingHorizontal: 20,
@@ -431,7 +430,6 @@ function makeStyles(C: AppColors) {
     },
     durationChipDim: { backgroundColor: C.line2 },
     durationChipText: { color: C.white, fontSize: 15, fontWeight: '700' },
-    chipSpinner: { marginVertical: Spacing.lg },
     noTimerBtn: { alignItems: 'center', paddingVertical: 12 },
     noTimerText: { ...Typography.body, color: C.muted, fontWeight: '600' },
     noTimerTextDim: { color: C.faint },

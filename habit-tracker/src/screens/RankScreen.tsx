@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Animated, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useRankData } from '../queries/useRank';
@@ -275,11 +275,6 @@ function makeStyles(C: AppColors) {
     rk: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       paddingVertical: 10, borderBottomWidth: 1, borderColor: C.line,
-    },
-    rkCur: {
-      backgroundColor: C.primarySoft,
-      marginHorizontal: -8, paddingHorizontal: 14,
-      borderRadius: Radii.md, borderBottomWidth: 0, marginVertical: 2,
     },
     rkLast: { borderBottomWidth: 0 },
     rkMascot: { width: 36, height: 36, flexShrink: 0 },
