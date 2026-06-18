@@ -144,16 +144,16 @@ function Flame({ size, palette }: { size: number; palette: Palette }) {
   );
 }
 
-export function FireIcon({ size = 15 }: { size?: number }) {
+function FireIcon({ size = 15 }: { size?: number }) {
   return <Flame size={size} palette={ORANGE} />;
 }
-export function PeakFireIcon({ size = 15 }: { size?: number }) {
+function PeakFireIcon({ size = 15 }: { size?: number }) {
   return <Flame size={size} palette={BLUE} />;
 }
 
 const STAR_PTS = '0,-30 7.4,-10.2 28.6,-9.3 12,3.9 17.7,24.4 0,12.6 -17.7,24.4 -12,3.9 -28.6,-9.3 -7.4,-10.2';
 
-export function BestStarIcon({ size = 15 }: { size?: number }) {
+function BestStarIcon({ size = 15 }: { size?: number }) {
   const id = useRef(nextId()).current;
   const tw = useRef(new Animated.Value(0)).current;
   const spk = useRef(new Animated.Value(0)).current;

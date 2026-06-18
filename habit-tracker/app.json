@@ -2,7 +2,7 @@
   "expo": {
     "name": "Habit ring",
     "slug": "habit-tracker",
-    "version": "1.0.19",
+    "version": "1.0.20",
     "scheme": "habittracker",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

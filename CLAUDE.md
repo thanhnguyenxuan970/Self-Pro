@@ -172,46 +172,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker — Toggle-Undo + New Activities COMPLETE (2026-06-05)
-
-### What Was Fixed / Built
-- **`src/queries/useToday.ts`**: Added `useUnlogTask` mutation. Finds all `activity_log` rows for today with `source='TASK'` for the given `task_type_id`, deletes them, reverses `daily_summary` and `weekly_summary`, and reverses `treat_stars`. Also reverses the daily bonus row (deletes `source='DAILY_BONUS'` + un-sets `bonus_star_awarded`) when removing the task drops remaining points below `DAILY_BONUS_THRESHOLD`.
-- **`src/screens/TodayScreen.tsx`**: `handleLog` now checks `loggedIds?.has(task.id)` first — if already logged, calls `unlogTask.mutateAsync` (undo path) instead of logging again. `logPending` prop now includes `unlogTask.isPending` to block double-taps during unlog.
-- **`src/db/migrations.ts`**: Idempotent seed for 4 new activities — Study 📚 (timed), Family 👨‍👩‍👧, Relationship 💑, Sports ⚽ (timed) — inserted for all existing users.
-
-### Key Decisions
-- Toggle check before `is_time_based` guard — clicking a done time-based task also undoes, consistent with non-timed behavior.
-- `weekly_stars = MAX(0, weekly_stars - ?)` floor added — unlog on edge cases (fresh user, negative weekly_stars from prior BAD tasks) stays non-negative.
-- `logPending || unlogTask.isPending` combined — prevents race where tap during in-flight unlog triggers immediate re-log.
-- Study and Sports set `is_time_based = 1` (log duration); Family and Relationship `is_time_based = 0` (check-in habits).
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
-
----
-
-## Habit Tracker — FAB 2-Step Flow COMPLETE (2026-06-06)
-
-### What Was Built
-- **`src/screens/AddActivitySheet.tsx`** (rewritten): FAB now opens a 2-step wizard.
-  - **Step 1**: Name input + suggestion chips (from `TEMPLATE_CATEGORIES`, name-only, no emoji). → button (active when name non-empty). Tapping suggestion pre-fills name + advances to Step 2. Suggestions stay highlighted after selection.
-  - **Step 2**: "← Quay lại" back button, activity name header, "Bao lâu?" duration chips (15min 30min 45min 1h 2h), "Không hẹn giờ" no-timer button. Selecting any option creates task template + logs it immediately (CREATE + LOG in one flow).
-- **`src/queries/useTasks.ts`**: `useCreateTask.mutationFn` now returns task ID (SELECT after INSERT OR IGNORE) — needed to chain log call.
-- **`src/config/i18n.ts`**: Added `back`, `searchActivities`, `logNow`, `addActivityHowLong`, `addActivityNoTimer` in vi + en.
-- **`src/screens/LogActivitySheet.tsx`** (also reworked, but currently unused — `AddActivitySheet` is the FAB target): Same 2-step pattern applied; kept for potential future use.
-
-### Key Decisions
-- Combined CREATE + LOG in one flow — user taps FAB → picks activity → picks duration → done. No need to visit TodayScreen and tap separately.
-- `useCreateTask` returns task ID via `SELECT id … WHERE user_id=? AND name=?` after `INSERT OR IGNORE` — safe even if task already exists (idempotent).
-- Duration chips (15/30/45min, 1h, 2h) all set `isTimeBased: true`; "No timer" sets `isTimeBased: false` — replaces the removed hourly-tracking toggle.
-- Removed from AddActivitySheet: emoji icon field, GOOD/BAD kind toggle, `isTimeBased` switch, inline save button.
-- `LogActivitySheet` is an orphaned component (not in navigation); left with 2-step refactor applied.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
-
----
-
 ## Habit Tracker — Duration Unit Selector + No Auto-Log on Create COMPLETE (2026-06-06)
 
 ### What Was Changed
@@ -496,3 +456,21 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 20)
 - **Runtime verified on emulator**: Calendar cells larger ✅; fire/star icons in cell bottom (no date overlap) ✅; RankInfoSheet opens with 7 tiers ✅
+
+---
+
+## Habit Tracker — DurationModal Max Duration Alert Fix COMPLETE (2026-06-18)
+
+### What Was Fixed
+- **`src/config/i18n.ts`**: Added `maxDuration` key — `'Tối đa 24 giờ (1440 phút) mỗi lần'` (vi) / `'Max 24 hours (1440 min) per session'` (en).
+- **`src/screens/TodayScreen.tsx`**: `parseLogDuration` now takes separate `maxDurationMsg` param for the `mins > 1440` branch. Previously both `<= 0` and `> 1440` cases used same "Enter valid duration (greater than 0)" message — misleading when e.g. 60 Hr (3600 min > 1440) entered. Added `maxDuration: string` to `DurationModalLabels`. `handleCustomLog` passes 4th arg. Labels object includes `maxDuration: t.maxDuration`.
+- **`src/components/CalendarIcons.tsx`**: Removed redundant `export` from `FireIcon`/`PeakFireIcon`/`BestStarIcon` — already exported via `export { ... as Animated* }` block.
+- **`android/app/build.gradle`**: `versionCode 20 → 21`, `versionName "1.0.19" → "1.0.20"`. `app.json` synced.
+
+### Key Decisions
+- Two validation branches need distinct messages: `parsed <= 0` → "enter valid duration", `mins > 1440` → "max 24h". Single shared message caused confusing UX — "greater than 0" shown for 60 Hr (valid number, but exceeds daily limit).
+- Bundle reload required to surface fix: emulator was running stale JS cache; opened RN dev menu → Reload to apply.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 21)
+- **Runtime verified on emulator**: 60 Hr → "Max 24 hours (1440 min) per session" ✅
