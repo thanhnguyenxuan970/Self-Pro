@@ -604,3 +604,17 @@ export type Strings = typeof vi;
 export function getTranslations(lang: AppLanguage): Strings {
   return lang === 'en' ? en : vi;
 }
+
+// Reverse lookup: any stored template name (in any language) → its nameKey.
+// Used by display components to translate stored names dynamically on language change.
+export const TEMPLATE_NAME_TO_KEY = (() => {
+  const map = new Map<string, string>();
+  const keys = (Object.keys(vi) as (keyof typeof vi)[]).filter(k => k.startsWith('tmpl'));
+  for (const key of keys) {
+    const viVal = vi[key];
+    const enVal = en[key];
+    if (typeof viVal === 'string') map.set(viVal, key);
+    if (typeof enVal === 'string') map.set(enVal, key);
+  }
+  return map;
+})();

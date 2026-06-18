@@ -25,6 +25,7 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { cueStreakMilestone } from '../audio/uiSounds';
 import { useSelectionMode } from '../hooks/useSelectionMode';
 import { DAILY_BONUS_THRESHOLD } from '../config/constants';
+import { TEMPLATE_NAME_TO_KEY, Strings } from '../config/i18n';
 import { useTutorial } from '../hooks/useTutorial';
 
 const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑' };
@@ -77,6 +78,11 @@ function useProgressBarAnimation(dailyPoints: number): { barWidthAnim: Animated.
   return { barWidthAnim, barGlowOpacity };
 }
 
+function resolveTaskDisplayName(name: string, t: Strings): string {
+  const key = TEMPLATE_NAME_TO_KEY.get(name);
+  return key ? ((t as unknown as Record<string, string>)[key] ?? name) : name;
+}
+
 function parseLogDuration(duration: string, durationUnit: 'min' | 'hr', validDurationMsg: string): number | null {
   const parsed = parseInt(duration, 10);
   if (isNaN(parsed) || parsed <= 0) { Alert.alert(validDurationMsg); return null; }
@@ -86,6 +92,7 @@ function parseLogDuration(duration: string, durationUnit: 'min' | 'hr', validDur
 }
 
 type DurationModalLabels = {
+  taskDisplayName: string;
   addActivityHowLong: string;
   durationCustom: string;
   unitMin: string;
@@ -124,7 +131,7 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <View style={styles.modalBg}>
         <View style={styles.modalBox}>
-          <Text style={styles.modalTitle}>{task?.name}</Text>
+          <Text style={styles.modalTitle}>{labels.taskDisplayName}</Text>
           <Text style={styles.modalSub}>{labels.addActivityHowLong}</Text>
           {!customDuration ? (
             <View style={styles.presetChipsRow}>
@@ -403,7 +410,7 @@ export function TodayScreen() {
           .map(s => (
             <View key={s.id} style={styles.suggestionRow}>
               <TouchableOpacity style={styles.suggestionChip} onPress={() => handleSuggestionLog(s)} disabled={logTask.isPending} activeOpacity={0.75}>
-                <Text style={styles.suggestionChipText}>🔄 {t.suggestionPrompt(s.name)}</Text>
+                <Text style={styles.suggestionChipText}>🔄 {t.suggestionPrompt(resolveTaskDisplayName(s.name, t))}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.suggestionDismiss} onPress={() => dismissSuggestion(s.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Text style={styles.suggestionDismissText}>✕</Text>
@@ -471,6 +478,7 @@ export function TodayScreen() {
         colors={colors}
         styles={styles}
         labels={{
+          taskDisplayName: modalTask ? resolveTaskDisplayName(modalTask.name, t) : '',
           addActivityHowLong: t.addActivityHowLong,
           durationCustom: t.durationCustom,
           unitMin: t.unitMin,

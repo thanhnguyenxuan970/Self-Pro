@@ -267,68 +267,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker — Analytics Chart Fix COMPLETE (2026-06-07)
-
-### What Was Fixed
-- **`src/screens/ProgressScreen.tsx`**: Added `useWindowDimensions` + `chartWidth = windowWidth - 70`. Passed as `width={chartWidth}` to `VictoryChart` — fixes chart overflowing card + Victory's broken domain calculation when width was undefined.
-- **`src/screens/ProgressScreen.tsx`**: `totalSum === 0` added to empty-state guard — when all buckets are zero (no activity today), shows "Chưa có hoạt động nào" instead of VictoryChart with degenerate Y-domain producing garbage axis labels.
-- **`src/screens/ProgressScreen.tsx`**: `visibleTicks` memoized — daily decimates to every 3rd hour, monthly every 5th day. Prevents X-axis label crowding.
-
-### Key Decisions
-- `useWindowDimensions` (not `Dimensions.get`) — hook re-runs on rotation.
-- `totalSum === 0` empty-state guard preferred over `minDomain`/`domain` — avoids fighting Victory's stacking domain logic; zero-bar chart has no UX value anyway.
-- `tickFormat(tv)` still uses `tv - 1` index — correct because `visibleTicks` is a subset of the same 1-based values; Victory passes the original tick value, not the subset index.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
-
----
-
-## Habit Tracker — Analytics X-Axis Tick Fix COMPLETE (2026-06-07)
-
-### What Was Fixed
-- **`src/screens/ProgressScreen.tsx`**: `visibleTicks` useMemo rewritten to eliminate two X-axis UI glitches:
-  - **D range**: Removed `|| i === tickValues.length - 1` — previously appended "23h" as last label on past days, breaking the clean every-3h pattern (21h → 23h = 2h gap vs expected 3h).
-  - **M range**: Replaced fixed step-5 with dynamic step (step=3 when ≤10 days, step=5 otherwise). Last tick only appended when gap to previous sparse tick is `> step / 2` — prevents "06"/"07" crowding when early in the month.
-
-### Key Decisions
-- D range: drop always-append-last. `i % 3 === 0` is sufficient — hour 21 is the natural last clean tick for a 24h chart; forcing "23h" creates an irregular 2h gap.
-- M range: dynamic step because a 7-day chart needs denser labels (step-3 → "01","04","07") than a 30-day chart (step-5 → "01","06",...). Gap threshold `> step/2` prevents adjacent label cramming while allowing meaningful last ticks.
-- Unreachable dead-code guard (`!sparse.length`) removed — `i%step===0` always matches index 0 when `tickValues` is non-empty.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
-
----
-
-## Habit Tracker — Product Fixes & Refinements COMPLETE (2026-06-07)
-
-### What Was Fixed
-
-- **`src/screens/ProgressScreen.tsx`**: Year range period nav hidden. When `range === 'Y'`, prev/next arrows and period label are not rendered — always locked to current year (offset resets to 0 on range switch, which already existed). Eliminates confusion from navigating into years with no data.
-- **`src/screens/AddActivitySheet.tsx`**: Removed `existingNames` filter from suggestion chips. All template activities always shown regardless of whether already added — prevents suggestions disappearing after first use. Also removed unused `useTodayTasks` import. `suggestions` useMemo simplified to `TEMPLATE_CATEGORIES.flatMap(c => c.tasks)`.
-- **`src/screens/SignInScreen.tsx`**: Removed `__DEV__` dev login block entirely (button + styles). Google authentication is now the only auth path. Updated alert message that referenced dev login.
-- **`src/screens/SettingsScreen.tsx`**: Feedback button changed from `mailto:` to Google Forms URL (`https://forms.gle/REPLACE_WITH_YOUR_FORM_ID`).
-
-### Feedback System Decision
-**Replaced email with Google Forms.** Rationale: no email client required on user device; responses auto-aggregate to Google Sheets; Apps Script / Zapier / Make can automate tagging and routing; free; reporters need no account. Alternative considered: GitHub Issues (better for devs, requires GitHub account for reporters — not suitable for end users).
-
-### Key Decisions
-- Year lock: hiding nav (not disabling) is cleaner UX — no grayed arrows to confuse. Offset already resets on range change.
-- Suggestions always-show: `INSERT OR IGNORE` on task creation handles duplicates at DB level; showing existing templates gives user quick re-access to already-created habits.
-- Dev login removal: production binary should enforce real auth. If you need dev testing, use a real Google account on an emulator.
-
-### [NEEDS USER] Before shipping feedback button
-1. Create a Google Form at forms.google.com with fields: Type (Bug/Suggestion/Other), Description, Contact (optional).
-2. Get the short URL: Share → Get link → shorten to `forms.gle/...`.
-3. Replace `'https://forms.gle/REPLACE_WITH_YOUR_FORM_ID'` in `src/screens/SettingsScreen.tsx`.
-4. Optionally: set up a Google Sheets trigger to email/Slack you on new response.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
-
----
-
 ## Habit Tracker — Duration Picker, Time Aggregation, Rank Countdown COMPLETE (2026-06-08)
 
 ### What Was Built / Fixed
@@ -474,3 +412,24 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 100/100 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL
+
+---
+
+## Habit Tracker — DurationModal Perf + Localization Fix COMPLETE (2026-06-18)
+
+### What Was Fixed
+- **`src/config/i18n.ts`**: Added `TEMPLATE_NAME_TO_KEY` — module-level IIFE builds `Map<storedName, nameKey>` covering all `tmpl*` keys in both `vi` and `en`. Both language values map to the same key so any stored name resolves correctly regardless of which language was active at creation time.
+- **`src/components/TaskRow.tsx`**: Added `resolveTaskDisplayName(name, t)` — looks up stored name in `TEMPLATE_NAME_TO_KEY`, translates to current UI language via `t[key]`. Falls back to raw name for custom activities.
+- **`src/screens/TodayScreen.tsx`**: `resolveTaskDisplayName` applied to task name in `DurationModal` labels and suggestion chip prompt. `DurationModal` state already isolated (prior session); `taskDisplayName` field added to `DurationModalLabels` type.
+- **`src/screens/AddActivitySheet.tsx`**: Added `resolveTaskDisplayName`. Added `DurationStep` component owning `duration`/`durationUnit`/`customDuration` state — typing no longer re-renders parent (`AddActivitySheet`). Canonical name storage: template suggestions stored as `selectedSuggestion.name` (always Vietnamese canonical) so reverse-lookup always resolves. Toast text2 uses localized display name (both timed and non-timed paths).
+- **`android/app/build.gradle`**: `versionCode 15 → 16`, `versionName "1.0.14" → "1.0.15"`.
+- **`__tests__/localization.test.ts`** (new): 9 tests — vi↔en round-trip, Gym loanword invariance, custom activity pass-through, all template tasks.
+
+### Key Decisions
+- Canonical name = Vietnamese: template activities stored as `selectedSuggestion.name` (Vi canonical). `TEMPLATE_NAME_TO_KEY` maps both "Chạy bộ" and "Running" → `tmplRunning`, so lookup works regardless of creation language.
+- `resolveTaskDisplayName` kept local in each file (TaskRow, TodayScreen, AddActivitySheet) rather than exported from i18n.ts — avoids import cycle risk; pattern already established by prior session hooks.
+- `DurationStep` state isolation: parent has 10+ queries + animations; every parent-state keystroke update re-rendered all of it. Moving state into child limits re-render scope to ~100-line component.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 16)
+- **Runtime verified on emulator**: "Dọn dẹp" → "Cleaning" live on language switch ✅; "90" typed + "Hr" toggled instantly, no parent re-render ✅

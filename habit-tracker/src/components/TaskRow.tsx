@@ -2,12 +2,18 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { AppColors } from '../config/theme';
 import { useTranslations } from '../hooks/useSettings';
+import { TEMPLATE_NAME_TO_KEY, Strings } from '../config/i18n';
 
 export type Task = {
   id: number; name: string; kind: string; is_time_based: number;
   base_points: number; star_penalty: number; icon: string | null;
   category_id: number | null; sort_order: number;
 };
+
+function resolveTaskDisplayName(name: string, t: Strings): string {
+  const key = TEMPLATE_NAME_TO_KEY.get(name);
+  return key ? ((t as unknown as Record<string, string>)[key] ?? name) : name;
+}
 
 function fmtDuration(mins: number): string {
   if (mins < 60) return `${mins}m`;
@@ -118,7 +124,7 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
           <Text style={styles.checkMark}>{resolveCheckMark(selectionMode, isSelected, done, isBad)}</Text>
         </View>
         <View style={styles.tBody}>
-          <Text style={[styles.tName, done && styles.tNameDone]}>{item.name}</Text>
+          <Text style={[styles.tName, done && styles.tNameDone]}>{resolveTaskDisplayName(item.name, t)}</Text>
           <TaskMetaRow item={item} done={done} isBad={isBad} totalDurationMin={totalDurationMin}
             timedMeta={t.timedMeta} badHabitMeta={t.badHabitMeta} ptsLabel={t.ptsLabel} styles={styles} />
         </View>

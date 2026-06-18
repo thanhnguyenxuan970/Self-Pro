@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity,
   Alert, StyleSheet, ActivityIndicator, Animated, ScrollView,
-  KeyboardAvoidingView, Platform, Keyboard,
+  KeyboardAvoidingView, Keyboard,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useCreateTask } from '../queries/useTasks';
@@ -12,6 +12,12 @@ import { useAuthUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
+import { TEMPLATE_NAME_TO_KEY, Strings } from '../config/i18n';
+
+function resolveTaskDisplayName(name: string, t: Strings): string {
+  const key = TEMPLATE_NAME_TO_KEY.get(name);
+  return key ? ((t as unknown as Record<string, string>)[key] ?? name) : name;
+}
 
 interface Props { visible: boolean; onClose: () => void; }
 
@@ -39,6 +45,109 @@ function SuggestionChip({ s, isSelected, onPress, t, styles }: SuggestionChipPro
   );
 }
 
+type DurationStepProps = {
+  pendingTaskName: string;
+  isPending: boolean;
+  onLogDuration: (mins: number) => void;
+  onClose: () => void;
+  t: Strings;
+  colors: AppColors;
+  styles: ReturnType<typeof makeStyles>;
+};
+
+function DurationStep({ pendingTaskName, isPending, onLogDuration, onClose, t, colors, styles }: DurationStepProps) {
+  const [duration, setDuration] = useState('');
+  const [durationUnit, setDurationUnit] = useState<'min' | 'hr'>('min');
+  const [customDuration, setCustomDuration] = useState(false);
+
+  function handleCustomLog() {
+    const parsed = parseInt(duration, 10);
+    if (isNaN(parsed) || parsed <= 0) { Alert.alert(t.validDuration); return; }
+    const mins = durationUnit === 'hr' ? parsed * 60 : parsed;
+    if (mins > 1440) { Alert.alert(t.validDuration); return; }
+    onLogDuration(mins);
+  }
+
+  const displayName = resolveTaskDisplayName(pendingTaskName, t);
+
+  return (
+    <KeyboardAvoidingView behavior="padding">
+      <ScrollView
+        style={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.durationStepTitle}>{displayName}</Text>
+        <Text style={[styles.durationLabel, { marginTop: 4 }]}>{t.addActivityHowLong}</Text>
+
+        {!customDuration ? (
+          <View style={styles.presetChipsRow}>
+            {([{ label: '30m', mins: 30 }, { label: '45m', mins: 45 }, { label: '1h', mins: 60 }] as const).map(p => (
+              <TouchableOpacity
+                key={p.label}
+                style={styles.presetChip}
+                onPress={() => onLogDuration(p.mins)}
+                disabled={isPending}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.presetChipText}>{p.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={[styles.presetChip, styles.presetChipCustom]}
+              onPress={() => setCustomDuration(true)}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.presetChipText, styles.presetChipCustomText]}>{t.durationCustom}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <View style={styles.durationRow}>
+              <TextInput
+                style={[styles.input, styles.durationInput]}
+                keyboardType="number-pad"
+                value={duration}
+                onChangeText={setDuration}
+                placeholder="0"
+                placeholderTextColor={colors.faint}
+                autoFocus
+              />
+              <View style={styles.unitToggle}>
+                <TouchableOpacity
+                  style={[styles.unitBtn, durationUnit === 'min' && styles.unitBtnActive]}
+                  onPress={() => setDurationUnit('min')}
+                >
+                  <Text style={[styles.unitBtnText, durationUnit === 'min' && styles.unitBtnTextActive]}>{t.unitMin}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.unitBtn, durationUnit === 'hr' && styles.unitBtnActive]}
+                  onPress={() => setDurationUnit('hr')}
+                >
+                  <Text style={[styles.unitBtnText, durationUnit === 'hr' && styles.unitBtnTextActive]}>{t.unitHour}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.durationChip} onPress={handleCustomLog} disabled={isPending}>
+              {isPending ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.durationChipText}>{t.logBtn}</Text>
+              )}
+            </TouchableOpacity>
+          </>
+        )}
+
+        <TouchableOpacity style={styles.noTimerBtn} onPress={onClose}>
+          <Text style={styles.noTimerText}>{t.cancel}</Text>
+        </TouchableOpacity>
+
+        <View style={{ height: 32 }} />
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
 // fallow-ignore-next-line complexity
 export function AddActivitySheet({ visible, onClose }: Props) {
   const userId = useAuthUser();
@@ -56,9 +165,6 @@ export function AddActivitySheet({ visible, onClose }: Props) {
   type PendingTask = { id: number; name: string; basePoints: number; starPenalty: number };
   const [step, setStep] = useState<'create' | 'duration'>('create');
   const [pendingTask, setPendingTask] = useState<PendingTask | null>(null);
-  const [duration, setDuration] = useState('');
-  const [durationUnit, setDurationUnit] = useState<'min' | 'hr'>('min');
-  const [customDuration, setCustomDuration] = useState(false);
 
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(300)).current;
@@ -84,9 +190,6 @@ export function AddActivitySheet({ visible, onClose }: Props) {
       setSelectedSuggestion(null);
       setStep('create');
       setPendingTask(null);
-      setDuration('');
-      setDurationUnit('min');
-      setCustomDuration(false);
       submittingRef.current = false;
       onClose();
       backdropOpacity.setValue(0);
@@ -106,13 +209,23 @@ export function AddActivitySheet({ visible, onClose }: Props) {
     const trimmed = name.trim();
     if (!trimmed) { submittingRef.current = false; return; }
 
+    // Store canonical (Vietnamese) name for template suggestions so the reverse-lookup
+    // in TaskRow can translate it to any language. Only use canonical when the user
+    // hasn't edited the name away from the suggestion label.
+    const currentLabel = selectedSuggestion
+      ? ((t as Record<string, unknown>)[selectedSuggestion.nameKey] as string ?? selectedSuggestion.name)
+      : null;
+    const storeName = (selectedSuggestion && trimmed === currentLabel)
+      ? selectedSuggestion.name
+      : trimmed;
+
     const taskBasePoints = isTimeBased
       ? (selectedSuggestion?.basePoints ?? 1)
       : (selectedSuggestion?.basePoints ?? 5);
 
     try {
       const taskId = await createTask.mutateAsync({
-        name: trimmed,
+        name: storeName,
         kind: 'GOOD',
         isTimeBased,
         basePoints: taskBasePoints,
@@ -121,13 +234,12 @@ export function AddActivitySheet({ visible, onClose }: Props) {
       });
 
       if (isTimeBased) {
-        // Advance to duration picker — keep sheet open; dismiss keyboard from name input
         Keyboard.dismiss();
-        setPendingTask({ id: taskId, name: trimmed, basePoints: taskBasePoints, starPenalty: 0 });
+        setPendingTask({ id: taskId, name: storeName, basePoints: taskBasePoints, starPenalty: 0 });
         setStep('duration');
         submittingRef.current = false;
       } else {
-        Toast.show({ type: 'success', text1: t.taskAdded, text2: trimmed, visibilityTime: 2000 });
+        Toast.show({ type: 'success', text1: t.taskAdded, text2: resolveTaskDisplayName(storeName, t), visibilityTime: 2000 });
         handleClose();
       }
     } catch {
@@ -136,15 +248,8 @@ export function AddActivitySheet({ visible, onClose }: Props) {
     }
   }
 
-  async function handleLogDuration(fixedMins?: number) {
+  async function handleLogDuration(mins: number) {
     if (!pendingTask) return;
-    let mins = fixedMins;
-    if (mins === undefined) {
-      const parsed = parseInt(duration, 10);
-      if (isNaN(parsed) || parsed <= 0) { Alert.alert(t.validDuration); return; }
-      mins = durationUnit === 'hr' ? parsed * 60 : parsed;
-      if (mins > 1440) { Alert.alert(t.validDuration); return; }
-    }
     try {
       await logTask.mutateAsync({
         taskTypeId: pendingTask.id,
@@ -154,7 +259,7 @@ export function AddActivitySheet({ visible, onClose }: Props) {
         starPenalty: pendingTask.starPenalty,
         durationMin: mins,
       });
-      Toast.show({ type: 'success', text1: t.taskAdded, text2: pendingTask.name, visibilityTime: 2000 });
+      Toast.show({ type: 'success', text1: t.taskAdded, text2: resolveTaskDisplayName(pendingTask.name, t), visibilityTime: 2000 });
       handleClose();
     } catch {
       Alert.alert(t.error, t.cantLog);
@@ -245,80 +350,15 @@ export function AddActivitySheet({ visible, onClose }: Props) {
               </ScrollView>
             </>
           ) : (
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-              <ScrollView
-                style={styles.scroll}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-              >
-                <Text style={styles.durationStepTitle}>{pendingTask?.name}</Text>
-                <Text style={[styles.durationLabel, { marginTop: 4 }]}>{t.addActivityHowLong}</Text>
-
-                {!customDuration ? (
-                  <View style={styles.presetChipsRow}>
-                    {([{ label: '30m', mins: 30 }, { label: '45m', mins: 45 }, { label: '1h', mins: 60 }] as const).map(p => (
-                      <TouchableOpacity
-                        key={p.label}
-                        style={styles.presetChip}
-                        onPress={() => handleLogDuration(p.mins)}
-                        disabled={isPending}
-                        activeOpacity={0.75}
-                      >
-                        <Text style={styles.presetChipText}>{p.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                    <TouchableOpacity
-                      style={[styles.presetChip, styles.presetChipCustom]}
-                      onPress={() => setCustomDuration(true)}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={[styles.presetChipText, styles.presetChipCustomText]}>{t.durationCustom}</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <>
-                    <View style={styles.durationRow}>
-                      <TextInput
-                        style={[styles.input, styles.durationInput]}
-                        keyboardType="number-pad"
-                        value={duration}
-                        onChangeText={setDuration}
-                        placeholder="0"
-                        placeholderTextColor={colors.faint}
-                        autoFocus
-                      />
-                      <View style={styles.unitToggle}>
-                        <TouchableOpacity
-                          style={[styles.unitBtn, durationUnit === 'min' && styles.unitBtnActive]}
-                          onPress={() => setDurationUnit('min')}
-                        >
-                          <Text style={[styles.unitBtnText, durationUnit === 'min' && styles.unitBtnTextActive]}>{t.unitMin}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.unitBtn, durationUnit === 'hr' && styles.unitBtnActive]}
-                          onPress={() => setDurationUnit('hr')}
-                        >
-                          <Text style={[styles.unitBtnText, durationUnit === 'hr' && styles.unitBtnTextActive]}>{t.unitHour}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                    <TouchableOpacity style={styles.durationChip} onPress={() => handleLogDuration()} disabled={isPending}>
-                      {isPending ? (
-                        <ActivityIndicator color={colors.white} />
-                      ) : (
-                        <Text style={styles.durationChipText}>{t.logBtn}</Text>
-                      )}
-                    </TouchableOpacity>
-                  </>
-                )}
-
-                <TouchableOpacity style={styles.noTimerBtn} onPress={handleClose}>
-                  <Text style={styles.noTimerText}>{t.cancel}</Text>
-                </TouchableOpacity>
-
-                <View style={{ height: 32 }} />
-              </ScrollView>
-            </KeyboardAvoidingView>
+            <DurationStep
+              pendingTaskName={pendingTask?.name ?? ''}
+              isPending={isPending}
+              onLogDuration={handleLogDuration}
+              onClose={handleClose}
+              t={t}
+              colors={colors}
+              styles={styles}
+            />
           )}
         </Animated.View>
       </View>
