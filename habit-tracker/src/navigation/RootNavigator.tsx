@@ -16,6 +16,7 @@ import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { AppColors, Shadows } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { AddActivitySheet } from '../screens/AddActivitySheet';
+import { SuggestActivitySheet } from '../components/SuggestActivitySheet';
 import { GoogleUser } from '../hooks/useAuth';
 import { useTutorial } from '../hooks/useTutorial';
 
@@ -153,6 +154,7 @@ function AppStack({
   onResetProgress: (userId: number) => Promise<void>;
 }) {
   const [fabVisible, setFabVisible] = useState(false);
+  const [suggestVisible, setSuggestVisible] = useState(false);
   const { colors } = useTheme();
   const t = useTranslations();
 
@@ -183,7 +185,12 @@ function AppStack({
           {() => <SettingsScreen onDeleteAccount={onDeleteAccount} onResetProgress={onResetProgress} />}
         </Stack.Screen>
       </Stack.Navigator>
-      <AddActivitySheet visible={fabVisible} onClose={() => setFabVisible(false)} />
+      <AddActivitySheet
+        visible={fabVisible}
+        onClose={() => setFabVisible(false)}
+        onSuggest={() => { setFabVisible(false); setSuggestVisible(true); }}
+      />
+      <SuggestActivitySheet visible={suggestVisible} onClose={() => setSuggestVisible(false)} />
     </>
   );
 }

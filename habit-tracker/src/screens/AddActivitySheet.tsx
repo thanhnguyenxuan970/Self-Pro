@@ -19,7 +19,7 @@ function resolveTaskDisplayName(name: string, t: Strings): string {
   return key ? ((t as unknown as Record<string, string>)[key] ?? name) : name;
 }
 
-interface Props { visible: boolean; onClose: () => void; }
+interface Props { visible: boolean; onClose: () => void; onSuggest?: () => void; }
 
 type SuggestionChipProps = {
   s: TemplateTask;
@@ -149,7 +149,7 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onClose, t, c
 }
 
 // fallow-ignore-next-line complexity
-export function AddActivitySheet({ visible, onClose }: Props) {
+export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
   const userId = useAuthUser();
   const { colors } = useTheme();
   const t = useTranslations();
@@ -319,6 +319,12 @@ export function AddActivitySheet({ visible, onClose }: Props) {
                   </>
                 )}
 
+                {onSuggest && (
+                  <TouchableOpacity style={styles.suggestBtn} onPress={onSuggest} activeOpacity={0.7}>
+                    <Text style={styles.suggestBtnText}>{'💡 ' + t.suggestActivity}</Text>
+                  </TouchableOpacity>
+                )}
+
                 <Text style={[styles.durationLabel, !hasName && styles.durationLabelDim]}>
                   {t.addActivityHowLong}
                 </Text>
@@ -406,6 +412,11 @@ function makeStyles(C: AppColors) {
     chipSelected: { borderColor: C.primary, backgroundColor: C.primarySoft },
     chipName: { fontSize: 13, fontWeight: '600', color: C.inkDark },
     chipNameSelected: { color: C.primary },
+    suggestBtn: {
+      marginTop: Spacing.md, paddingVertical: 10, alignItems: 'center',
+      borderWidth: 1.5, borderColor: C.line2, borderRadius: Radii.md,
+    },
+    suggestBtnText: { fontSize: 13, fontWeight: '600', color: C.muted },
     durationLabel: {
       ...Typography.bodyStrong, color: C.inkDark,
       marginTop: Spacing.xl, marginBottom: Spacing.sm,

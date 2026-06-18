@@ -146,12 +146,17 @@ export function CalendarScreen() {
           const isBest = data?.is_best_day ?? false;
           const isMilestone = data?.is_milestone ?? false;
           const { cellBg, numColor } = resolveCellColors(isMilestone, isBest, !!data, isDark, colors);
+          const cellIcon = resolveCellIcon(data, isMilestone, isBest, colors.muted);
           return (
             <View key={idx} style={[styles.cell, { backgroundColor: cellBg }]}>
               <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
-              {resolveCellIcon(data, isMilestone, isBest, colors.muted)}
+              {cellIcon && (
+                <View style={styles.cellIconOverlay}>{cellIcon}</View>
+              )}
               {day === today && !isBest && !isMilestone && (
-                <View style={[styles.todayDot, { backgroundColor: colors.primary }]} />
+                <View style={styles.cellIconOverlay}>
+                  <View style={[styles.todayDot, { backgroundColor: colors.primary }]} />
+                </View>
               )}
             </View>
           );
@@ -238,7 +243,8 @@ function makeStyles(colors: AppColors) {
     dayNum: { fontSize: 13, fontWeight: '700' },
     dayStars: { fontSize: 8, fontWeight: '600', marginTop: 1 },
     dayIcon: { fontSize: 9, marginTop: 1 },
-    todayDot: { width: 4, height: 4, borderRadius: 2, marginTop: 2 },
+    cellIconOverlay: { position: 'absolute', bottom: 2, left: 0, right: 0, alignItems: 'center' },
+    todayDot: { width: 4, height: 4, borderRadius: 2 },
     legend: {
       flexDirection: 'row',
       justifyContent: 'center',
