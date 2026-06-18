@@ -141,6 +141,7 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 | `DEVELOPER_ERROR code 10` from `GoogleSignin.signIn()` | `android/app/google-services.json` has empty `oauth_client: []` — Android OAuth client not registered | Add Android OAuth client entry (`client_type: 1`, `package_name`, `certificate_hash` SHA-1 no colons lowercase) to `google-services.json`; rebuild |
 | Google account picker shows but `400: invalid_request` | Google blocks ALL custom URI scheme redirects from browser OAuth flows | Use `@react-native-google-signin` (native Play Services auth, no browser redirect); `expo-auth-session` cannot work with Google |
 | `E ReactNativeJS: fetch failed: java.net.UnknownHostException: Unable to resolve host "*.supabase.co"` | `persistSession: true` causes `GoTrueClient._recoverAndRefresh()` on startup → stored session found → `_callRefreshToken()` → DNS fail → GoTrueClient calls `console.error` internally | Set `persistSession: false` + `autoRefreshToken: false` in `createClient` auth config |
+| `Check failed: fixed_size_above_fp ... == result` (V8 crash in Metro worker) | Node 24 TurboFan JIT regression; crashes when Metro bundles with multiple worker threads (`jest-worker` / `threadChild.js`) | Set `EXPO_METRO_MAX_WORKERS=1` before running `./gradlew bundleRelease` or `expo export` |
 
 ---
 
@@ -475,3 +476,23 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 19)
 - **Runtime verified on emulator**: DurationModal centered on screen ✅; RankInfoSheet opens from ℹ️ button with all 7 tiers ✅
+
+---
+
+## Habit Tracker — Calendar Cells + SVG Icons + inkLight Fix COMPLETE (2026-06-18)
+
+### What Was Fixed / Built
+- **`src/components/CalendarIcons.tsx`** (rewritten): `FireIcon` = orange SVG flame (animated tongues + embers + breathing core); `BestStarIcon` = gold SVG star (gentle twinkle + sparkle); `PeakFireIcon` = blue flame. All use `react-native-svg + Animated` with `useNativeDriver: true`. Aliases `AnimatedFireIcon`, `AnimatedStarIcon`, `AnimatedBurningStarIcon` preserved.
+- **`src/screens/CalendarScreen.tsx`**: Grid expanded via `marginHorizontal: -Spacing.lg` (negates 20px content padding). Cell `justifyContent: 'space-between'` — day number top, icon in `cellBottom` view bottom (eliminates absolute overlay overlap). Legend icons `size=20`, `legendLabel` fontSize 11→13, `legendDot` 10→13px.
+- **`src/screens/RankScreen.tsx`**: Fixed `backgroundColor: C.inkLight` (non-existent color) → `borderColor: C.faint` + `color: C.muted` for info button.
+- **`src/components/RankInfoSheet.tsx`** (new): Bottom sheet modal — 3 scoring bullet points + full 7-tier rank ladder with current-tier highlight. Opened from "?" button in RankScreen title row.
+- **`android/app/build.gradle`**: `versionCode 19 → 20`, `versionName "1.0.18" → "1.0.19"`. `app.json` synced.
+
+### Key Decisions
+- SVG flame/star replaces emoji: emoji render size is font-size dependent and inconsistent across Android OEMs; SVG gives pixel-exact sizing and native-driver animation.
+- `EXPO_METRO_MAX_WORKERS=1` required for `bundleRelease` on Node 24 (V8 TurboFan crashes in multi-threaded Metro workers). Set in shell env before Gradle.
+- Cell icon absolute overlay removed: `position: absolute` icons overlapped the day number on high-density displays; flex `space-between` guarantees separation.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 20)
+- **Runtime verified on emulator**: Calendar cells larger ✅; fire/star icons in cell bottom (no date overlap) ✅; RankInfoSheet opens with 7 tiers ✅

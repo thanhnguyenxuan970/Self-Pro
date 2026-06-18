@@ -83,11 +83,11 @@ function resolveTaskDisplayName(name: string, t: Strings): string {
   return key ? ((t as unknown as Record<string, string>)[key] ?? name) : name;
 }
 
-function parseLogDuration(duration: string, durationUnit: 'min' | 'hr', validDurationMsg: string): number | null {
+function parseLogDuration(duration: string, durationUnit: 'min' | 'hr', validDurationMsg: string, maxDurationMsg: string): number | null {
   const parsed = parseInt(duration, 10);
   if (isNaN(parsed) || parsed <= 0) { Alert.alert(validDurationMsg); return null; }
   const mins = durationUnit === 'hr' ? parsed * 60 : parsed;
-  if (mins > 1440) { Alert.alert(validDurationMsg); return null; }
+  if (mins > 1440) { Alert.alert(maxDurationMsg); return null; }
   return mins;
 }
 
@@ -100,6 +100,7 @@ type DurationModalLabels = {
   logBtn: string;
   cancel: string;
   validDuration: string;
+  maxDuration: string;
 };
 
 type DurationModalProps = {
@@ -122,7 +123,7 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
   }, [task?.id]);
 
   function handleCustomLog() {
-    const mins = parseLogDuration(duration, durationUnit, labels.validDuration);
+    const mins = parseLogDuration(duration, durationUnit, labels.validDuration, labels.maxDuration);
     if (mins !== null) onLog(mins);
   }
 
@@ -487,6 +488,7 @@ export function TodayScreen() {
           logBtn: t.logBtn,
           cancel: t.cancel,
           validDuration: t.validDuration,
+          maxDuration: t.maxDuration,
         }}
       />
     </SafeAreaView>

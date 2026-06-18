@@ -339,8 +339,8 @@ function makeStyles(C: AppColors) {
     loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bgBase },
     titleRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
     title: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5, color: C.inkDark, flex: 1 },
-    infoBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.inkLight, alignItems: 'center', justifyContent: 'center' },
-    infoBtnText: { fontSize: 15, fontWeight: '700', color: C.bgBase },
+    infoBtn: { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: C.faint, alignItems: 'center', justifyContent: 'center' },
+    infoBtnText: { fontSize: 15, fontWeight: '700', color: C.muted },
 
     rankhero: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,

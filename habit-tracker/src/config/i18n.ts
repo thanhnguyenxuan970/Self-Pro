@@ -225,6 +225,7 @@ const vi = {
   unitMin: 'Phút',
   unitHour: 'Giờ',
   validDuration: 'Nhập thời gian hợp lệ (lớn hơn 0)',
+  maxDuration: 'Tối đa 24 giờ (1440 phút) mỗi lần',
 
   // SignInScreen errors
   signInMissingInfo: 'Tài khoản Google thiếu thông tin (email/tên).',
@@ -527,6 +528,7 @@ const en: typeof vi = {
   unitMin: 'Min',
   unitHour: 'Hr',
   validDuration: 'Enter valid duration (greater than 0)',
+  maxDuration: 'Max 24 hours (1440 min) per session',
 
   // SignInScreen errors
   signInMissingInfo: 'Google account missing info (email/name).',
