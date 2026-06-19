@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { InteractionManager, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Coachmark, TargetRect } from '../components/Coachmark';
@@ -64,8 +64,8 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!visible) return;
-    const id = setTimeout(() => measure(index), 80);
-    return () => clearTimeout(id);
+    const task = InteractionManager.runAfterInteractions(() => measure(index));
+    return () => task.cancel();
   }, [visible, index, measure]);
 
   const finish = useCallback(() => {

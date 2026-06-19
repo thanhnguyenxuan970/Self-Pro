@@ -44,7 +44,7 @@ function resolveCellColors(
   isDark: boolean, colors: AppColors,
 ): { cellBg: string; numColor: string } {
   if (isMilestone || isBest) return { cellBg: 'transparent', numColor: colors.inkDark };
-  if (hasActivity) return { cellBg: isDark ? colors.surface2 : colors.primarySoft, numColor: colors.primary };
+  if (hasActivity) return { cellBg: colors.primarySoft, numColor: colors.primary };
   return { cellBg: 'transparent', numColor: colors.inkDark };
 }
 
@@ -172,7 +172,7 @@ export function CalendarScreen() {
           <Text style={styles.legendLabel}>{t.calendarBestDay}</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: isDark ? colors.surface2 : colors.primarySoft }]} />
+          <View style={[styles.legendDot, { backgroundColor: colors.primarySoft }]} />
           <Text style={styles.legendLabel}>{t.calendarActive}</Text>
         </View>
       </View>

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Modal, View, Text, Pressable, StyleSheet, useWindowDimensions, PanResponder, Dimensions } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, PanResponder, Dimensions } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import { useTheme } from '../hooks/useSettings';
 
@@ -18,9 +18,10 @@ interface Props {
   onSkip: () => void;
 }
 
-const PAD = 8;
-const GAP = 14;
-const TIP_W = 244;
+const PAD = 10;
+const GAP = 16;
+const TIP_W = 280;
+const TIP_H = 160;
 const TAB_BAR_H = 62;
 
 export function Coachmark({ visible, rect, index, total, title, body, bottomInset, onNext, onBack, onSkip }: Props) {
@@ -38,7 +39,7 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
       onPanResponderRelease: (evt, g) => {
         const w = Dimensions.get('window').width;
         if (Math.abs(g.dx) >= 50) {
-          if (g.dx > 0) onNextRef.current();
+          if (g.dx < 0) onNextRef.current();
           else onBackRef.current();
         } else if (Math.abs(g.dy) < 30 && Math.abs(g.dx) < 20) {
           if (evt.nativeEvent.pageX < w / 2) onBackRef.current();
@@ -56,8 +57,18 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
   let tipTop: number | undefined;
   let tipBottom: number | undefined;
   if (rect) {
-    if (rect.y > H / 2) tipBottom = Math.max(H - rect.y + GAP, minBottom);
-    else tipTop = rect.y + rect.height + GAP;
+    const spaceBelow = H - (rect.y + rect.height) - minBottom - GAP;
+    const spaceAbove = rect.y - GAP;
+    if (spaceBelow >= TIP_H) {
+      // Enough room below → place tip below, clamped so it doesn't hit tab bar
+      tipTop = Math.min(rect.y + rect.height + GAP, H - minBottom - TIP_H);
+    } else if (spaceAbove >= TIP_H) {
+      // Not enough below → place tip above
+      tipBottom = Math.max(H - rect.y + GAP, minBottom);
+    } else {
+      // Element spans most of screen → float tip near top
+      tipTop = Math.max(GAP * 2, rect.y - TIP_H - GAP);
+    }
   } else {
     tipTop = H / 2 - 90;
   }
@@ -104,17 +115,17 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
           </View>
           <View style={styles.actions}>
             {index > 0 ? (
-              <Pressable onPress={onBack} hitSlop={8}>
+              <TouchableOpacity onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
                 <Text style={[styles.skip, { color: C.faint }]}>← Quay lại</Text>
-              </Pressable>
+              </TouchableOpacity>
             ) : (
-              <Pressable onPress={onSkip} hitSlop={8}>
+              <TouchableOpacity onPress={onSkip} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
                 <Text style={[styles.skip, { color: C.faint }]}>Bỏ qua</Text>
-              </Pressable>
+              </TouchableOpacity>
             )}
-            <Pressable onPress={onNext} style={[styles.next, { backgroundColor: C.primary }]}>
+            <TouchableOpacity onPress={onNext} style={[styles.next, { backgroundColor: C.primary }]} activeOpacity={0.8}>
               <Text style={styles.nextText}>{isLast ? 'Xong' : 'Tiếp →'}</Text>
-            </Pressable>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
