@@ -5,7 +5,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Radii, Spacing, Shadows, Typography, AppColors } from '../config/theme';
-import { useDarkMode, useLanguage, useAudioEnabled, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
+import { useDarkMode, useLanguage, useAudioEnabled, useAccent, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
+import { AccentPicker } from '../components/AccentPicker';
 import { useAuthUser } from '../hooks/useAuth';
 import {
   useNotificationTime, useSetNotificationTime,
@@ -60,6 +61,7 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
   const [isDark, setIsDark] = useDarkMode();
   const [lang, setLanguage] = useLanguage();
   const [audioEnabled, setAudioEnabled] = useAudioEnabled();
+  const [accent, setAccent] = useAccent();
   const { colors } = useTheme();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -159,7 +161,7 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
         {/* Appearance */}
         <Text style={styles.sectionLabel}>{t.sectionAppearance}</Text>
         <View style={styles.card}>
-          <View style={[styles.row, styles.rowLast]}>
+          <View style={styles.row}>
             <Text style={styles.rowIc}>🌙</Text>
             <Text style={styles.rowLabel}>{t.darkModeLabel}</Text>
             <Switch
@@ -168,6 +170,13 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
               thumbColor={isDark ? colors.primary : colors.faint}
               trackColor={{ false: colors.line2, true: colors.primarySoft }}
             />
+          </View>
+          <View style={[styles.row, styles.rowLast]}>
+            <Text style={styles.rowIc}>🎨</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t.accentColorLabel}</Text>
+              <AccentPicker accent={accent} onSelect={setAccent} colors={colors} />
+            </View>
           </View>
         </View>
 

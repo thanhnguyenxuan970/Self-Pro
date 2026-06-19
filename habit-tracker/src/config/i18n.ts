@@ -52,6 +52,7 @@ const vi = {
   // SettingsScreen
   sectionAppearance: 'GIAO DIỆN',
   darkModeLabel: 'Chế độ tối',
+  accentColorLabel: 'Màu chủ đạo',
   sectionSound: 'ÂM THANH',
   soundEnabledLabel: 'Âm thanh & hiệu ứng',
   sectionLanguage: 'NGÔN NGỮ',
@@ -355,6 +356,7 @@ const en: typeof vi = {
   // SettingsScreen
   sectionAppearance: 'APPEARANCE',
   darkModeLabel: 'Dark mode',
+  accentColorLabel: 'Accent color',
   sectionSound: 'SOUND',
   soundEnabledLabel: 'Sound & effects',
   sectionLanguage: 'LANGUAGE',

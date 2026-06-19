@@ -1,4 +1,5 @@
 // src/theme.ts
+import { AccentKey, ACCENTS, DEFAULT_ACCENT } from './accents';
 
 const Colors = {
   primary: '#25B36E',
@@ -19,6 +20,7 @@ const Colors = {
   dangerSoft: '#FBE2E3',
   line: '#E5E8E6',
   line2: '#D5D9D6',
+  onAccent: '#FFFFFF',
   white: '#FFFFFF',
 };
 
@@ -41,13 +43,17 @@ const DarkColors = {
   dangerSoft: '#3D1A1B',
   line: '#2B3028',
   line2: '#3A403C',
+  onAccent: '#FFFFFF',
   white: '#FFFFFF',
 };
 
 export type AppColors = typeof Colors;
 
-export function getColors(isDark: boolean): AppColors {
-  return isDark ? DarkColors : Colors;
+export function getColors(isDark: boolean, accent: AccentKey = DEFAULT_ACCENT): AppColors {
+  const base = isDark ? DarkColors : Colors;
+  const palette = ACCENTS[accent];
+  const p = isDark ? palette.dark : palette.light;
+  return { ...base, ...p, onAccent: palette.onAccent };
 }
 
 export const Radii = {
