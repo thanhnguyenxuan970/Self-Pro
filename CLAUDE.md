@@ -490,3 +490,23 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 - KAV `behavior="padding"` at Modal root (not inside sheet) — Modal in separate window; `"height"` mode doesn't receive window-resize events on Android.
 - Rank ladder removed outright (not hidden) — user confirmed dead feature.
 - `emailPrefix` returns raw prefix, no masking — user confirmed full name preferred.
+
+---
+
+## Habit Tracker — Theme Modal + Tutorial Race Fix + Coachmark Swipe COMPLETE (2026-06-19)
+
+### What Was Fixed / Built
+- **`src/components/LevelUpCelebrationModal.tsx`**: Added `useTheme` import. Card `backgroundColor: C.surface` (was hardcoded `'#141A17'`). `tierName` color `C.inkDark` (was `'#FFFFFF'`). `subtitle` color `C.muted` (was `'#8FA896'`). Backdrop `rgba(0,0,0,0.82)` intentionally kept hardcoded — celebration always dark overlay regardless of theme.
+- **`src/screens/TodayScreen.tsx`**: Added `levelUpChecked` state. Merged AsyncStorage effect — all 3 code paths (data found, no data, catch) call `setLevelUpChecked(true)`. Tutorial `useEffect` gated: `if (levelUpChecked && pendingLevelUp === null) startIfFirstRun()`. Tutorial starts after AsyncStorage resolves with no pending level-up, OR after user dismisses level-up modal.
+- **`src/components/Coachmark.tsx`**: Added `PanResponder`, `Dimensions`, `useEffect`, `useRef`. Stable callback refs (`onNextRef`/`onBackRef`) updated by `useEffect` to avoid stale closure in PanResponder callback. PanResponder in `useRef` (not recreated on render). Swipe right (dx ≥ 50) → next; swipe left → back. Tap right half → next; tap left half → back. Overlay `<View {...pan.panHandlers}>` replaces `<Pressable onPress={onNext}>` — tip Pressables rendered as later siblings so they win touch priority via Z-order.
+- **`android/app/build.gradle`**: `versionCode 23 → 24`, `versionName "1.0.22" → "1.0.23"`. `app.json` synced.
+
+### Key Decisions
+- `PanResponder` created in `useRef().current` — stable reference, not recreated on each render.
+- Stale closure fix: `onNextRef`/`onBackRef` refs hold current prop values; PanResponder callback reads refs, not stale closure.
+- Tip card rendered after overlay View → sibling Z-order gives tip Pressables touch priority without needing `pointerEvents` hacks.
+- Race condition (tutorial + level-up simultaneous): `levelUpChecked` gate ensures tutorial only starts after AsyncStorage promise resolves. After user dismisses level-up, `setPendingLevelUp(null)` triggers effect re-fire → tutorial starts. No setTimeout or polling needed.
+- `Dimensions.get('window').width` in PanResponder release (vs `useWindowDimensions`) — correct for gesture snapshot at release time; `useWindowDimensions` in hook closure would be stale.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 24)
