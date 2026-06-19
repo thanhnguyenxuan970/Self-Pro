@@ -1,5 +1,5 @@
-import React from 'react';
-import { Modal, View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Modal, View, Text, Pressable, StyleSheet, useWindowDimensions, PanResponder, Dimensions } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import { useTheme } from '../hooks/useSettings';
 
@@ -26,6 +26,28 @@ const TAB_BAR_H = 62;
 export function Coachmark({ visible, rect, index, total, title, body, bottomInset, onNext, onBack, onSkip }: Props) {
   const { colors: C } = useTheme();
   const { width: W, height: H } = useWindowDimensions();
+
+  const onNextRef = useRef(onNext);
+  const onBackRef = useRef(onBack);
+  useEffect(() => { onNextRef.current = onNext; }, [onNext]);
+  useEffect(() => { onBackRef.current = onBack; }, [onBack]);
+
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderRelease: (evt, g) => {
+        const w = Dimensions.get('window').width;
+        if (Math.abs(g.dx) >= 50) {
+          if (g.dx > 0) onNextRef.current();
+          else onBackRef.current();
+        } else if (Math.abs(g.dy) < 30 && Math.abs(g.dx) < 20) {
+          if (evt.nativeEvent.pageX < w / 2) onBackRef.current();
+          else onNextRef.current();
+        }
+      },
+    })
+  ).current;
+
   if (!visible) return null;
 
   const isLast = index >= total - 1;
@@ -48,7 +70,7 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onSkip} statusBarTranslucent>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onNext}>
+      <View style={StyleSheet.absoluteFill} {...pan.panHandlers}>
         <Svg width={W} height={H}>
           <Defs>
             <Mask id="cut">
@@ -61,7 +83,7 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
             <Rect x={hx} y={hy} width={hw} height={hh} rx={14} fill="none" stroke={C.primary} strokeWidth={2.5} />
           ) : null}
         </Svg>
-      </Pressable>
+      </View>
 
       <View
         style={[

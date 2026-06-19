@@ -208,17 +208,22 @@ export function TodayScreen() {
   const pendingLogTaskIds = useRef(new Set<number>());
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set());
   const [pendingLevelUp, setPendingLevelUp] = useState<{ tierOrder: number; tierName: string } | null>(null);
+  const [levelUpChecked, setLevelUpChecked] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(PENDING_LEVELUP_KEY).then(raw => {
-      if (!raw) return;
-      try {
-        const parsed = JSON.parse(raw);
-        if (typeof parsed?.tierOrder === 'number' && typeof parsed?.tierName === 'string') {
-          setPendingLevelUp({ tierOrder: parsed.tierOrder, tierName: parsed.tierName });
-        }
-      } catch { }
-    }).catch(() => {});
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (typeof parsed?.tierOrder === 'number' && typeof parsed?.tierName === 'string') {
+            setPendingLevelUp({ tierOrder: parsed.tierOrder, tierName: parsed.tierName });
+            setLevelUpChecked(true);
+            return;
+          }
+        } catch {}
+      }
+      setLevelUpChecked(true);
+    }).catch(() => { setLevelUpChecked(true); });
   }, []);
 
   const { data: suggestions = [] } = useConsecutiveSuggestions(userId);
@@ -227,7 +232,9 @@ export function TodayScreen() {
   const { targetRef, startIfFirstRun } = useTutorial();
   const taskTutorialRef = useMemo(() => targetRef('task'), [targetRef]);
   const streakTutorialRef = useMemo(() => targetRef('streak'), [targetRef]);
-  useEffect(() => { startIfFirstRun(); }, [startIfFirstRun]);
+  useEffect(() => {
+    if (levelUpChecked && pendingLevelUp === null) startIfFirstRun();
+  }, [levelUpChecked, pendingLevelUp, startIfFirstRun]);
 
   const weeklyStars = weekly?.weekly_stars ?? 0;
   const dailyPoints = daily?.total_points ?? 0;

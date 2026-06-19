@@ -6,7 +6,7 @@ import {
 import { RankMascot } from './RankMascot';
 import { RANKS } from '../config/ranks.config';
 import { Radii, Spacing } from '../config/theme';
-import { useTranslations } from '../hooks/useSettings';
+import { useTheme, useTranslations } from '../hooks/useSettings';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -35,6 +35,7 @@ interface Props {
 
 export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismiss }: Props) {
   const t = useTranslations();
+  const { colors: C } = useTheme();
   const cfg = RANKS[Math.min(Math.max(tierOrder - 1, 0), RANKS.length - 1)];
 
   const particlesRef = useRef<Particle[] | null>(null);
@@ -128,7 +129,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
         <TouchableOpacity
           activeOpacity={1}
           onPress={() => {}}
-          style={[styles.card, { borderColor: cfg.color + '99' }]}
+          style={[styles.card, { borderColor: cfg.color + '99', backgroundColor: C.surface }]}
         >
           <Text style={styles.fireworksEmoji}>🎉</Text>
           <Text style={[styles.levelUpTitle, { color: cfg.color }]}>{t.levelUpTitle}</Text>
@@ -137,10 +138,10 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
             <RankMascot tier={tierOrder - 1} size={88} loop reduceMotion={false} />
           </View>
 
-          <Text style={styles.tierName}>{tierName}</Text>
+          <Text style={[styles.tierName, { color: C.inkDark }]}>{tierName}</Text>
           <Text style={[styles.descriptor, { color: cfg.color + 'CC' }]}>{cfg.descriptor}</Text>
 
-          <Text style={styles.subtitle}>{t.levelUpSubtitle(tierName)}</Text>
+          <Text style={[styles.subtitle, { color: C.muted }]}>{t.levelUpSubtitle(tierName)}</Text>
 
           <TouchableOpacity
             style={[styles.dismissBtn, { backgroundColor: cfg.color }]}
@@ -163,7 +164,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   card: {
-    backgroundColor: '#141A17',
     borderRadius: Radii.xl,
     padding: Spacing.xl,
     alignItems: 'center',
@@ -183,7 +183,6 @@ const styles = StyleSheet.create({
   tierName: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#FFFFFF',
     marginTop: Spacing.sm,
     letterSpacing: -0.5,
   },
@@ -195,7 +194,6 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    color: '#8FA896',
     marginTop: Spacing.md,
     textAlign: 'center',
     lineHeight: 21,
