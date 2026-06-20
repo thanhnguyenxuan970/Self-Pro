@@ -91,7 +91,7 @@ function makeStyles(C: AppColors) {
     ptEmoji: { fontSize: 18 },
     ptTitle: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
     ptSub: { fontSize: 11.5, color: C.muted, marginTop: 1 },
-    sec: { fontSize: 11, fontFamily: FontFamily.bold, letterSpacing: 0.5, color: C.ink2, textTransform: 'uppercase', marginTop: 10, marginBottom: 8 },
+    sec: { fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2, marginTop: 10, marginBottom: 8 },
     lrow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.sm, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 7 },
     lrowCur: { borderWidth: 2, borderColor: C.primary, backgroundColor: C.primarySoft },
     lnum: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.surface3, alignItems: 'center', justifyContent: 'center' },

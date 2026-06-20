@@ -537,3 +537,26 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 31) | visual-verify PASS: hero gradient tracks accent (indigo), section labels legible
+
+---
+
+## Habit Tracker — Typography + Component Vocabulary Polish COMPLETE (2026-06-20)
+
+### What Was Fixed
+- **`src/config/theme.ts`**: `sectionLabel` token: `fontSize 11 → 12`, `fontFamily bold → semiBold`, removed `textTransform: 'uppercase'` and `letterSpacing: 0.8`. Labels now sentence-case at 12sp semiBold.
+- **`src/screens/TodayScreen.tsx`**: `sectionLabel` style: same strip (uppercase/letterSpacing), `11bold → 12semiBold`.
+- **`src/screens/AddActivitySheet.tsx`**: `suggestionsLabel`: same strip.
+- **`src/screens/ProgressScreen.tsx`**: `sectionLabel`: same strip + color `C.primary → C.ink2` (labels should not use brand color).
+- **`src/screens/RankScreen.tsx`**: `resetChipLabel` + `sectionLabel`: same strip.
+- **`src/components/RankInfoSheet.tsx`**: `Pressable → TouchableOpacity` (import + 2 JSX sites).
+- **`src/components/SubActivitySheet.tsx`**: `Pressable → TouchableOpacity` (import + 5 JSX sites).
+- **`src/components/SuggestActivitySheet.tsx`**: `Pressable → TouchableOpacity` (import + 2 JSX sites).
+- **`android/app/build.gradle`**: `versionCode 31 → 32`, `versionName "1.0.30" → "1.0.31"`. `app.json` synced.
+
+### Key Decisions
+- `textTransform: 'uppercase'` + `letterSpacing` removed from all sectionLabel sites — eyebrow pattern clichéd, fails accessibility at 11pt. 12sp semiBold sentence-case passes contrast without the kicker.
+- `C.primary` on ProgressScreen sectionLabel was wrong — section labels use `C.ink2`; brand color reserved for interactive elements.
+- `TouchableOpacity` is established convention (14+ files). `Pressable` in 3 new component files was inconsistency, not deliberate. Standardized.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 32)

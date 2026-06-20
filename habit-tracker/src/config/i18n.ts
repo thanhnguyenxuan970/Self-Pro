@@ -50,13 +50,13 @@ const vi = {
   bonusSource: '🎯 Bonus ngày',
 
   // SettingsScreen
-  sectionAppearance: 'GIAO DIỆN',
+  sectionAppearance: 'Giao diện',
   darkModeLabel: 'Chế độ tối',
   accentColorLabel: 'Màu chủ đạo',
-  sectionSound: 'ÂM THANH',
+  sectionSound: 'Âm thanh',
   soundEnabledLabel: 'Âm thanh & hiệu ứng',
-  sectionLanguage: 'NGÔN NGỮ',
-  sectionNotifications: 'THÔNG BÁO',
+  sectionLanguage: 'Ngôn ngữ',
+  sectionNotifications: 'Thông báo',
   reminderLabel: 'Giờ nhắc 1',
   reminderLabel2: 'Giờ nhắc 2 (tuỳ chọn)',
   reminderLabel3: 'Giờ nhắc 3 (tuỳ chọn)',

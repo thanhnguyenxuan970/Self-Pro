@@ -178,6 +178,6 @@ function makePhStyles(C: AppColors) {
     lifeCell: { flex: 1, alignItems: 'center', paddingVertical: 14, paddingHorizontal: 6 },
     lifeDivider: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: C.line },
     lifeV: { fontSize: 17, fontFamily: FontFamily.extraBold, color: C.inkDark },
-    lifeL: { fontSize: 10, color: C.ink2, fontFamily: FontFamily.bold, marginTop: 3, textTransform: 'uppercase', letterSpacing: 0.4 },
+    lifeL: { fontSize: 12, color: C.ink2, fontFamily: FontFamily.semiBold, marginTop: 3 },
   });
 }

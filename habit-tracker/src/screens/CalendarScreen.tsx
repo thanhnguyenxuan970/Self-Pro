@@ -270,6 +270,6 @@ function makeStyles(colors: AppColors) {
     summaryCell: { flex: 1, alignItems: 'center' },
     summarySep: { width: 1, backgroundColor: colors.line },
     summaryV: { fontSize: 18, fontFamily: FontFamily.extraBold, color: colors.primary },
-    summaryL: { fontSize: 11, color: colors.muted, marginTop: 2 },
+    summaryL: { fontSize: 11, color: colors.ink2, marginTop: 2 },
   });
 }

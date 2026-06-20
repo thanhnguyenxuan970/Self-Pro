@@ -12,6 +12,7 @@ import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
 import { RANKS } from '../config/ranks.config';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { RankInfoSheet } from '../components/RankInfoSheet';
+import { SkeletonRow } from '../components/SkeletonRow';
 
 function rankConfig(tierOrder: number) {
   return RANKS[Math.min(Math.max(tierOrder - 1, 0), RANKS.length - 1)];
@@ -111,7 +112,11 @@ export function RankScreen() {
   const [infoVisible, setInfoVisible] = useState(false);
 
   if (isLoading || !data) {
-    return <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View>;
+    return (
+      <View style={[styles.loading, { justifyContent: 'flex-start', paddingTop: Spacing.xl }]}>
+        {[0, 1, 2, 3, 4].map((i) => <SkeletonRow key={i} colors={colors} />)}
+      </View>
+    );
   }
 
   const { currentStars, tiers, history } = data;

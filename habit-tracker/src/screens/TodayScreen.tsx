@@ -19,6 +19,7 @@ import { useRankData } from '../queries/useRank';
 import { getCurrentTier } from '../game/tierLookup';
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { Task, TaskRow } from '../components/TaskRow';
+import { SkeletonRow } from '../components/SkeletonRow';
 import { LevelUpCelebrationModal } from '../components/LevelUpCelebrationModal';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
@@ -420,7 +421,13 @@ export function TodayScreen() {
     setModalTask(null);
   }
 
-  if (isLoading) return <View style={{ flex: 1, backgroundColor: colors.bgBase, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={colors.primary} /></View>;
+  if (isLoading) return (
+    <View style={{ flex: 1, backgroundColor: colors.bgBase, paddingTop: Spacing.xl }}>
+      <SkeletonRow colors={colors} />
+      <SkeletonRow colors={colors} />
+      <SkeletonRow colors={colors} />
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

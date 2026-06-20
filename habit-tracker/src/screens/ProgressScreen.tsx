@@ -340,7 +340,7 @@ function makeStyles(C: AppColors) {
     },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     cardTitle: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.inkDark },
-    chartSum: { fontSize: 11, color: C.muted },
+    chartSum: { fontSize: 11, color: C.ink2 },
     chartWrap: { marginTop: 4 },
     emptyChart: { height: 148, justifyContent: 'center', alignItems: 'center' },
     emptyText: { color: C.muted, fontSize: 14 },
@@ -357,7 +357,7 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.md, padding: 12, borderWidth: 1, borderColor: C.line, ...Shadows.light,
     },
     statV: { fontSize: 20, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.primary },
-    statL: { fontSize: 11, color: C.muted, fontFamily: FontFamily.bold, marginTop: 2 },
+    statL: { fontSize: 11, color: C.ink2, fontFamily: FontFamily.bold, marginTop: 2 },
 
     logHeader: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -385,7 +385,7 @@ function makeStyles(C: AppColors) {
     logRowSelected: { backgroundColor: C.primarySoft },
     logBody: { flex: 1, minWidth: 0 },
     logName: { fontSize: 13.5, fontFamily: FontFamily.semiBold, color: C.inkDark },
-    logDate: { fontSize: 11, color: C.muted, marginTop: 2 },
+    logDate: { fontSize: 11, color: C.ink2, marginTop: 2 },
     logStars: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primary, flexShrink: 0 },
     logStarsBad: { color: C.danger },
     logEmptyWrap: {
