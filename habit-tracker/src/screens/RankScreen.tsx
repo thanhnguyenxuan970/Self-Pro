@@ -12,6 +12,7 @@ import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
 import { RANKS } from '../config/ranks.config';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { RankInfoSheet } from '../components/RankInfoSheet';
+import { RankEmptyState } from '../components/RankEmptyState';
 import { SkeletonRow } from '../components/SkeletonRow';
 
 function rankConfig(tierOrder: number) {
@@ -140,33 +141,29 @@ export function RankScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.rankhero}>
-          <View style={[styles.rankheroGlow, { backgroundColor: cfg.color }]} />
-          {currentStars >= 5 ? (
-            <>
-              <RankMascot ref={mascotRef} tier={(currentTier?.tier_order ?? 1) - 1} size={100} loop reduceMotion={reduceMotion} />
-              <Text style={styles.rankNm}>{currentTier?.rank_name}</Text>
-              <Text style={styles.rankEn}>{cfg.descriptor}</Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.rankEm}>❓</Text>
-              <Text style={styles.rankNm}>{t.noRankTitle}</Text>
-              <Text style={styles.rankEn}>{t.noRankDesc}</Text>
-            </>
-          )}
-          <View style={styles.rankWk}>
-            <Text style={styles.rankWkTxt}>{t.weekStars(currentStars)}</Text>
+        {currentStars >= 5 ? (
+          <View style={styles.rankhero}>
+            <View style={[styles.rankheroGlow, { backgroundColor: cfg.color }]} importantForAccessibility="no" />
+            <RankMascot ref={mascotRef} tier={(currentTier?.tier_order ?? 1) - 1} size={100} loop reduceMotion={reduceMotion} />
+            <Text style={styles.rankNm}>{currentTier?.rank_name}</Text>
+            <Text style={styles.rankEn}>{cfg.descriptor}</Text>
+            <View style={styles.rankWk}>
+              <Text style={styles.rankWkTxt}>{t.weekStars(currentStars)}</Text>
+            </View>
+            <View style={styles.bar}>
+              <View style={[styles.barFill, { width: `${Math.round(progressPct * 100)}%` as `${number}%` }]} />
+            </View>
+            {starsToNext > 0 ? (
+              <Text style={styles.nextCap}>{t.nextRank(starsToNext, nextTier?.rank_name ?? '')}</Text>
+            ) : (
+              <Text style={styles.nextCap}>{t.maxRank}</Text>
+            )}
           </View>
-          <View style={styles.bar}>
-            <View style={[styles.barFill, { width: `${Math.round(progressPct * 100)}%` as `${number}%` }]} />
+        ) : (
+          <View style={styles.rankEmptyWrap}>
+            <RankEmptyState currentStars={currentStars} nextRankName={nextTier?.rank_name ?? 'Delulu'} />
           </View>
-          {starsToNext > 0 ? (
-            <Text style={styles.nextCap}>{t.nextRank(starsToNext, nextTier?.rank_name ?? '')}</Text>
-          ) : (
-            <Text style={styles.nextCap}>{t.maxRank}</Text>
-          )}
-        </View>
+        )}
 
         <View style={styles.resetChip}>
           <Text style={styles.resetChipLabel}>{t.resetCountdownLabel}</Text>
@@ -238,6 +235,7 @@ function makeStyles(C: AppColors) {
     infoBtn: { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: C.faint, alignItems: 'center', justifyContent: 'center' },
     infoBtnText: { fontSize: 15, fontFamily: FontFamily.bold, color: C.muted },
 
+    rankEmptyWrap: { marginHorizontal: Spacing.lg },
     rankhero: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,
       borderRadius: Radii.xl, padding: 22, alignItems: 'center',
@@ -285,7 +283,7 @@ function makeStyles(C: AppColors) {
     rkEm: { fontSize: 20, width: 36, textAlign: 'center', flexShrink: 0 },
     rkInfo: { flex: 1 },
     rkA: { fontSize: 14, fontFamily: FontFamily.extraBold, color: C.inkDark },
-    rkB: { fontSize: 11.5, color: C.muted, marginTop: 2 },
+    rkB: { fontSize: 11.5, color: C.ink2, marginTop: 2 },
     rkThr: { fontSize: 11.5, fontFamily: FontFamily.extraBold, color: C.muted },
 
     lbRow: {

@@ -11,6 +11,7 @@ import {
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { TEMPLATE_NAME_TO_KEY, Strings } from '../config/i18n';
 import { useSelectionMode } from '../hooks/useSelectionMode';
 import { AddActivitySheet } from './AddActivitySheet';
 
@@ -19,11 +20,16 @@ type Range = 'W' | 'M' | 'Y';
 type ProgStyles = ReturnType<typeof makeStyles>;
 type ProgTranslations = ReturnType<typeof useTranslations>;
 
+function resolveTaskDisplayName(name: string, t: Strings): string {
+  const key = TEMPLATE_NAME_TO_KEY.get(name);
+  return key ? t[key as keyof Strings] as string : name;
+}
+
 // fallow-ignore-next-line complexity
-function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, enterSelection, bonusDay, timeLocale, styles }: {
+function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, enterSelection, bonusDay, timeLocale, t, styles }: {
   item: ActivityLogEntry; isLast: boolean; selectionMode: boolean; selected: boolean;
   toggleSelect: (id: number) => void; enterSelection: (id: number) => void;
-  bonusDay: string; timeLocale: string; styles: ProgStyles;
+  bonusDay: string; timeLocale: string; t: ProgTranslations; styles: ProgStyles;
 }) {
   const timeStr = new Date(item.logged_at).toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' });
   return (
@@ -41,7 +47,7 @@ function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, e
       )}
       <View style={styles.logBody}>
         <Text style={styles.logName} numberOfLines={1}>
-          {item.task_name ?? (item.source === 'BONUS' ? bonusDay : item.source)}
+          {item.task_name != null ? resolveTaskDisplayName(item.task_name, t) : (item.source === 'BONUS' ? bonusDay : item.source)}
         </Text>
         <Text style={styles.logDate}>{item.local_date} · {timeStr}</Text>
       </View>
@@ -114,6 +120,7 @@ function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, ca
               enterSelection={enterSelection}
               bonusDay={t.bonusDay}
               timeLocale={t.timeLocale}
+              t={t}
               styles={styles}
             />
           ))}
@@ -318,7 +325,7 @@ export function ProgressScreen() {
                 const pct = Math.round((item.count / topActivities[0].count) * 100);
                 return (
                   <View key={idx} style={[styles.topRow, idx === topActivities.length - 1 && styles.topRowLast]}>
-                    <Text style={styles.topName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.topName} numberOfLines={1}>{resolveTaskDisplayName(item.name, t)}</Text>
                     <View style={styles.topBarTrack}>
                       <View style={[styles.topBarFill, { width: `${pct}%` }]} />
                     </View>

@@ -42,8 +42,9 @@ function buildLeaderboardEntries(
 ): Omit<LeaderboardEntry, 'rank'>[] {
   const entries: Omit<LeaderboardEntry, 'rank'>[] = [];
   for (const [email, stars] of starsByEmail) {
-    if (stars >= tierMin && stars < tierMax) {
-      entries.push({ userEmail: email, displayName: emailPrefix(email), weeklyStars: stars, isCurrentUser: email === currentUserEmail });
+    const cappedStars = Math.min(stars, 5);
+    if (cappedStars >= tierMin && cappedStars < tierMax) {
+      entries.push({ userEmail: email, displayName: emailPrefix(email), weeklyStars: cappedStars, isCurrentUser: email === currentUserEmail });
     }
   }
   return entries;
