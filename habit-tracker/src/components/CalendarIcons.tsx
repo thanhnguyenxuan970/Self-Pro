@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, View, StyleSheet } from 'react-native';
+import { Animated, StyleSheet } from 'react-native';
 import Svg, { Path, Defs, RadialGradient, Stop, Ellipse, Polygon } from 'react-native-svg';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 
@@ -116,6 +116,3 @@ export function AnimatedBurningStarIcon({ size = 15 }: { size?: number }) {
   const reduceMotion = useReduceMotion();
   return <Flame size={size} palette={BLUE} reduceMotion={reduceMotion} />;
 }
-
-// Unused View import kept to avoid removing it from Animated.View usage above
-const _view = View;

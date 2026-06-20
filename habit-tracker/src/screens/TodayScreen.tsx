@@ -237,9 +237,10 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
   );
 }
 
-function FabArrow({ color }: { color: string }) {
+function FabArrow({ color, reduceMotion }: { color: string; reduceMotion: boolean }) {
   const bounce = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    if (reduceMotion) return;
     const anim = Animated.loop(
       Animated.sequence([
         Animated.timing(bounce, { toValue: 10, duration: 550, useNativeDriver: true }),
@@ -248,7 +249,7 @@ function FabArrow({ color }: { color: string }) {
     );
     anim.start();
     return () => anim.stop();
-  }, [bounce]);
+  }, [bounce, reduceMotion]);
   return (
     <Animated.Text style={{ fontSize: 22, color, marginTop: 18, transform: [{ translateY: bounce }] }}>
       ↓
@@ -529,8 +530,10 @@ export function TodayScreen() {
             <View style={styles.empty}>
               <Text style={styles.emptyEmoji}>🎯</Text>
               <Text style={styles.emptyTitle}>{t.emptyTitle}</Text>
-              <Text style={styles.emptyDesc}>{t.emptyDesc}</Text>
-              <FabArrow color={colors.primary} />
+              <View style={styles.emptyCtaPill}>
+                <Text style={styles.emptyCtaText}>{t.emptyDesc}</Text>
+              </View>
+              <FabArrow color={colors.primary} reduceMotion={reduceMotion} />
             </View>
           ) : (
             displayTasks.map((item, idx) => {
@@ -684,7 +687,8 @@ function makeStyles(C: AppColors) {
     empty: { padding: 36, paddingHorizontal: 12, alignItems: 'center' },
     emptyEmoji: { fontSize: 42, marginBottom: 8, opacity: 0.6 },
     emptyTitle: { fontSize: 14, fontFamily: FontFamily.bold, color: C.ink2 },
-    emptyDesc: { fontSize: 12, color: C.muted, marginTop: 4 },
+    emptyCtaPill: { marginTop: 12, backgroundColor: C.primarySoft, borderRadius: Radii.pill, paddingHorizontal: 16, paddingVertical: 8 },
+    emptyCtaText: { fontSize: 13, color: C.primary, fontFamily: FontFamily.semiBold },
 
     modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', paddingHorizontal: Spacing.lg },
     modalBox: {
