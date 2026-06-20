@@ -473,3 +473,23 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 31, UP-TO-DATE)
+
+---
+
+## Habit Tracker — Impeccable Audit Fixes (a11y + font tokens) COMPLETE (2026-06-20)
+
+### Audit Score: 19/20 (Excellent)
+
+### What Was Fixed
+- **`src/components/Coachmark.tsx`**: Added `accessibilityRole="button"` + `accessibilityLabel` to all 3 tutorial navigation buttons (back, skip, next/done). Added `fontFamily: FontFamily.regular` to `body` style and `fontFamily: FontFamily.medium` to `skip` style — both were falling back to Roboto instead of Poppins.
+- **`src/components/RankInfoSheet.tsx`**: `youtagText` `fontSize: 9.5 → 11` — 9.5sp unreadable on low-density Android displays; below platform minimum recommendation.
+- **`src/components/LevelUpCelebrationModal.tsx`**: Added `accessibilityRole="button"` + `accessibilityLabel={t.levelUpDismiss}` to dismiss button (WCAG 4.1.2 Name, Role, Value).
+- **`android/app/build.gradle`**: `versionCode 32 → 33`, `versionName "1.0.31" → "1.0.32"`. `app.json` synced.
+
+### Key Decisions
+- Coachmark body/skip styles used no `fontFamily` — RN requires explicit `fontFamily` on every Text element when using custom fonts; no inheritance from parent unlike CSS.
+- `youtagText` raised to 11sp (not 12sp) — the tag is a decorative chip ("You"), not body text. 11sp is readable and consistent with `lnumText` (also 11sp) in the same sheet.
+- `accessibilityLabel` on tutorial Next/Done button set to the same string as button text (`t.tutNext` / `t.tutDone`) — screen reader announces "Tiếp →" as label, which is already descriptive.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 33)
