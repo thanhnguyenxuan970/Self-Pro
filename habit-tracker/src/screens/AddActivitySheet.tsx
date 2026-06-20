@@ -10,9 +10,10 @@ import { useLogTask } from '../queries/useToday';
 import { cueModalOpen, cueModalClose } from '../audio/uiSounds';
 import { useAuthUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
-import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
 import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 import { TEMPLATE_NAME_TO_KEY, Strings } from '../config/i18n';
+import { supabase } from '../api/supabase';
 
 function resolveTaskDisplayName(name: string, t: Strings): string {
   const key = TEMPLATE_NAME_TO_KEY.get(name);
@@ -151,6 +152,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
   const userId = useAuthUser();
   const { colors } = useTheme();
   const t = useTranslations();
+  const [lang] = useLanguage();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const createTask = useCreateTask(userId);
@@ -158,7 +160,21 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
 
   const [name, setName] = useState('');
   const [selectedSuggestion, setSelectedSuggestion] = useState<TemplateTask | null>(null);
+  const [translating, setTranslating] = useState(false);
   const submittingRef = useRef(false);
+
+  async function translateActivityName(rawName: string): Promise<string> {
+    if (!supabase) return rawName;
+    try {
+      const { data, error } = await supabase.functions.invoke('translate-name', {
+        body: { name: rawName, targetLanguage: lang },
+      });
+      if (error || !data?.translated) return rawName;
+      return (data.translated as string).trim() || rawName;
+    } catch {
+      return rawName;
+    }
+  }
 
   type PendingTask = { id: number; name: string; basePoints: number; starPenalty: number };
   const [step, setStep] = useState<'create' | 'duration'>('create');
@@ -213,9 +229,15 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
     const currentLabel = selectedSuggestion
       ? ((t as Record<string, unknown>)[selectedSuggestion.nameKey] as string ?? selectedSuggestion.name)
       : null;
-    const storeName = (selectedSuggestion && trimmed === currentLabel)
+    let storeName = (selectedSuggestion && trimmed === currentLabel)
       ? selectedSuggestion.name
       : trimmed;
+
+    if (!selectedSuggestion) {
+      setTranslating(true);
+      storeName = await translateActivityName(trimmed);
+      setTranslating(false);
+    }
 
     const taskBasePoints = isTimeBased
       ? (selectedSuggestion?.basePoints ?? 1)
@@ -267,7 +289,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
   const suggestions = useMemo(() => TEMPLATE_CATEGORIES.flatMap(c => c.tasks), []);
 
   const hasName = name.trim().length > 0;
-  const isPending = createTask.isPending || logTask.isPending;
+  const isPending = createTask.isPending || logTask.isPending || translating;
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
@@ -335,7 +357,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
                   disabled={!hasName || isPending}
                   activeOpacity={0.8}
                 >
-                  {createTask.isPending ? (
+                  {createTask.isPending || translating ? (
                     <ActivityIndicator color={colors.white} />
                   ) : (
                     <Text style={styles.durationChipText}>{t.addActivityTimedBtn}</Text>

@@ -120,10 +120,10 @@ type Props = {
   isSelected: boolean; selectionMode: boolean; justLogged: boolean;
   totalDurationMin?: number; logPending: boolean;
   colors: AppColors;
-  onPress: () => void; onLongPress: () => void;
+  onPress: () => void; onLongPress: () => void; onEdit?: () => void;
 };
 
-export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, onPress, onLongPress, logPending, colors }: Props) {
+export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, onPress, onLongPress, onEdit, logPending, colors }: Props) {
   const t = useTranslations();
   const styles = useMemo(() => makeTaskRowStyles(colors), [colors]);
   const { fadeAnim, scaleAnim, slideAnim, checkScaleAnim } = useTaskRowAnimation(justLogged, done);
@@ -148,9 +148,21 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
           <TaskMetaRow item={item} done={done} isBad={isBad} totalDurationMin={totalDurationMin}
             timedMeta={t.timedMeta} badHabitMeta={t.badHabitMeta} ptsLabel={t.ptsLabel} styles={styles} />
         </View>
-        <Text style={[styles.tPts, resolvePtsStyle(styles, done, isBad)]}>
-          {isBad ? `−${item.star_penalty} ★` : '+1 ★'}
-        </Text>
+        <View style={styles.rightCol}>
+          {!selectionMode && onEdit ? (
+            <TouchableOpacity
+              onPress={onEdit}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel={t.editActivity}
+              accessibilityRole="button"
+            >
+              <Text style={styles.editIcon}>✏️</Text>
+            </TouchableOpacity>
+          ) : null}
+          <Text style={[styles.tPts, resolvePtsStyle(styles, done, isBad)]}>
+            {isBad ? `−${item.star_penalty} ★` : '+1 ★'}
+          </Text>
+        </View>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -181,6 +193,8 @@ function makeTaskRowStyles(C: AppColors) {
     tMetaText: { fontSize: 11.5, color: C.muted },
     tMetaDuration: { color: C.primary, fontFamily: FontFamily.bold },
     dot: { width: 3, height: 3, backgroundColor: C.faint, borderRadius: 2 },
+    rightCol: { alignItems: 'flex-end', gap: 2, flexShrink: 0 },
+    editIcon: { fontSize: 11 },
     tPts: { fontSize: 13, fontFamily: FontFamily.extraBold, flexShrink: 0 },
     tPtsPos: { color: C.primary },
     tPtsNeg: { color: C.danger },

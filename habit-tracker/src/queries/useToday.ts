@@ -330,8 +330,8 @@ export function useLogTask(userId: number) {
         );
 
         await db.runAsync(
-          `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars, peak_stars)
-           VALUES (?, ?, ?, ?, ?)
+          `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars, peak_stars, current_tier_id)
+           VALUES (?, ?, ?, ?, ?, (SELECT id FROM tiers WHERE tier_order = 1 LIMIT 1))
            ON CONFLICT(user_id, week_start) DO UPDATE SET
              total_points = total_points + ?,
              weekly_stars = weekly_stars + ?,

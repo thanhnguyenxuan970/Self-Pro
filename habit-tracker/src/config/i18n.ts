@@ -343,6 +343,16 @@ const vi = {
   tmplRelationship: 'Quan hệ',
   tmplSports: 'Thể thao',
   rankMaxed: 'Tối đa',
+
+  // EditActivityModal
+  editActivityTitle: 'Chỉnh sửa hoạt động',
+  editNameLabel: 'Tên hoạt động',
+  editDurationLabel: 'Thời gian (phút)',
+  editSave: 'Lưu',
+  editActivity: 'Chỉnh sửa',
+
+  // Auto-translate
+  translating: 'Đang dịch…',
 };
 
 const en: typeof vi = {
@@ -691,6 +701,16 @@ const en: typeof vi = {
   tmplRelationship: 'Relationship',
   tmplSports: 'Sports',
   rankMaxed: 'MAX',
+
+  // EditActivityModal
+  editActivityTitle: 'Edit activity',
+  editNameLabel: 'Activity name',
+  editDurationLabel: 'Duration (min)',
+  editSave: 'Save',
+  editActivity: 'Edit',
+
+  // Auto-translate
+  translating: 'Translating…',
 };
 
 export type Strings = typeof vi;

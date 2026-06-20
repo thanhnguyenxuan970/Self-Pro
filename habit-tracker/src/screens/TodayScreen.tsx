@@ -14,13 +14,14 @@ import {
   useLogTask, useUnlogTask, useTodayLoggedTaskIds, useConsecutiveSuggestions,
   useTodayTaskTotalDurations, PENDING_LEVELUP_KEY,
 } from '../queries/useToday';
-import { useArchiveTask } from '../queries/useTasks';
+import { useArchiveTask, useUpdateTaskName } from '../queries/useTasks';
 import { useRankData } from '../queries/useRank';
 import { getCurrentTier } from '../game/tierLookup';
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { Task, TaskRow } from '../components/TaskRow';
 import { SkeletonRow } from '../components/SkeletonRow';
 import { LevelUpCelebrationModal } from '../components/LevelUpCelebrationModal';
+import { EditActivityModal } from '../components/EditActivityModal';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { cueStreakMilestone } from '../audio/uiSounds';
@@ -272,8 +273,10 @@ export function TodayScreen() {
   const logTask = useLogTask(userId);
   const unlogTask = useUnlogTask(userId);
   const archiveTask = useArchiveTask(userId);
+  const updateTaskName = useUpdateTaskName(userId);
 
   const [modalTask, setModalTask] = useState<Task | null>(null);
+  const [editTask, setEditTask] = useState<Task | null>(null);
   const [justLoggedIds, setJustLoggedIds] = useState<Set<number>>(new Set());
   const pendingLogTaskIds = useRef(new Set<number>());
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set());
@@ -347,6 +350,13 @@ export function TodayScreen() {
 
   async function handleLog(task: Task) {
     if (task.is_time_based) {
+      const totalMin = totalDurations?.get(task.id) ?? 0;
+      if (totalMin >= 60) {
+        try {
+          await unlogTask.mutateAsync({ taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD' });
+        } catch { Alert.alert(t.error, t.cantLog); }
+        return;
+      }
       setModalTask(task);
       return;
     }
@@ -422,6 +432,27 @@ export function TodayScreen() {
     setModalTask(null);
   }
 
+  async function handleEditSave(taskId: number, name: string, newDurationMin: number | null) {
+    const task = editTask;
+    setEditTask(null);
+    try {
+      await updateTaskName.mutateAsync({ taskId, name });
+      if (newDurationMin !== null && task?.is_time_based) {
+        const currentMin = totalDurations?.get(taskId) ?? 0;
+        if (newDurationMin !== currentMin) {
+          await unlogTask.mutateAsync({ taskTypeId: taskId, kind: task.kind as 'GOOD' | 'BAD' });
+          if (newDurationMin > 0) {
+            await logTask.mutateAsync({
+              taskTypeId: taskId, kind: task.kind as 'GOOD' | 'BAD',
+              isTimeBased: true, basePoints: task.base_points,
+              starPenalty: task.star_penalty, durationMin: newDurationMin,
+            });
+          }
+        }
+      }
+    } catch { Alert.alert(t.error, t.cantLog); }
+  }
+
   if (isLoading) return (
     <View style={{ flex: 1, backgroundColor: colors.bgBase, paddingTop: Spacing.xl }}>
       <SkeletonRow colors={colors} />
@@ -432,6 +463,13 @@ export function TodayScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <EditActivityModal
+        visible={editTask !== null}
+        task={editTask}
+        totalDurationMin={editTask ? totalDurations?.get(editTask.id) : undefined}
+        onSave={handleEditSave}
+        onClose={() => setEditTask(null)}
+      />
       <LevelUpCelebrationModal
         visible={pendingLevelUp !== null}
         tierOrder={pendingLevelUp?.tierOrder ?? 1}
@@ -552,6 +590,7 @@ export function TodayScreen() {
                   totalDurationMin={totalDurations?.get(item.id)}
                   onPress={() => selectionMode ? toggleSelect(item.id) : handleLog(item)}
                   onLongPress={() => enterSelection(item.id)}
+                  onEdit={() => setEditTask(item)}
                   logPending={logTask.isPending || unlogTask.isPending}
                   colors={colors}
                 />

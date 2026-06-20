@@ -229,3 +229,20 @@ export function useArchiveTask(userId: number) {
     },
   });
 }
+
+export function useUpdateTaskName(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ taskId, name }: { taskId: number; name: string }) => {
+      const db = await getDb();
+      await db.runAsync(
+        `UPDATE task_types SET name = ? WHERE id = ? AND user_id = ?`,
+        [name, taskId, userId]
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['today'] });
+      qc.invalidateQueries({ queryKey: ['week'] });
+    },
+  });
+}

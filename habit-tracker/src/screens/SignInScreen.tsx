@@ -3,7 +3,10 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } fr
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { GoogleUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
+import { ACCENTS } from '../config/accents';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+
+const GREEN = ACCENTS.green.light;
 
 type Props = {
   onSignIn: () => void;
@@ -69,14 +72,11 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
             />
           </Svg>
         </View>
-        <Text style={styles.title}>
-          {'habit '}
-          <Text style={{ color: colors.primary }}>ring</Text>
-        </Text>
+        <Text style={styles.title}>Habi</Text>
         <Text style={styles.subtitle}>daily completion, the loop</Text>
 
         {loading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: Spacing.xl }} />
+          <ActivityIndicator size="large" color={GREEN.primary} style={{ marginTop: Spacing.xl }} />
         ) : (
           <TouchableOpacity
             style={styles.googleButton}
