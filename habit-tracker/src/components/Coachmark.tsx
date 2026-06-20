@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, PanResponder, Dimensions } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, PanResponder, Dimensions, LayoutChangeEvent } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import { FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 
 export interface TargetRect { x: number; y: number; width: number; height: number; }
 
@@ -28,7 +29,13 @@ const TAB_BAR_H = 62;
 export function Coachmark({ visible, rect, index, total, title, body, bottomInset, onNext, onBack, onSkip }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
+  const reduceMotion = useReduceMotion();
   const { width: W, height: H } = useWindowDimensions();
+  const [measuredTipH, setMeasuredTipH] = useState(TIP_H);
+  const handleTipLayout = (e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height;
+    if (h > 0) setMeasuredTipH(h);
+  };
 
   const onNextRef = useRef(onNext);
   const onBackRef = useRef(onBack);
@@ -61,18 +68,15 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
   if (rect) {
     const spaceBelow = H - (rect.y + rect.height) - minBottom - GAP;
     const spaceAbove = rect.y - GAP;
-    if (spaceBelow >= TIP_H) {
-      // Enough room below → place tip below, clamped so it doesn't hit tab bar
-      tipTop = Math.min(rect.y + rect.height + GAP, H - minBottom - TIP_H);
-    } else if (spaceAbove >= TIP_H) {
-      // Not enough below → place tip above
+    if (spaceBelow >= measuredTipH) {
+      tipTop = Math.min(rect.y + rect.height + GAP, H - minBottom - measuredTipH);
+    } else if (spaceAbove >= measuredTipH) {
       tipBottom = Math.max(H - rect.y + GAP, minBottom);
     } else {
-      // Element spans most of screen → float tip near top
-      tipTop = Math.max(GAP * 2, rect.y - TIP_H - GAP);
+      tipTop = Math.max(GAP * 2, rect.y - measuredTipH - GAP);
     }
   } else {
-    tipTop = H / 2 - 90;
+    tipTop = H / 2 - measuredTipH / 2;
   }
   const tipLeft = Math.max(16, Math.min(W - TIP_W - 16, (W - TIP_W) / 2));
 
@@ -82,7 +86,7 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
   const hh = rect ? rect.height + PAD * 2 : 0;
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onSkip} statusBarTranslucent>
+    <Modal visible transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onSkip} statusBarTranslucent>
       <View style={StyleSheet.absoluteFill} {...pan.panHandlers}>
         <Svg width={W} height={H}>
           <Defs>
@@ -91,7 +95,7 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
               {rect ? <Rect x={hx} y={hy} width={hw} height={hh} rx={14} fill="#000000" /> : null}
             </Mask>
           </Defs>
-          <Rect x={0} y={0} width={W} height={H} fill="rgba(8,16,11,0.76)" mask="url(#cut)" />
+          <Rect x={0} y={0} width={W} height={H} fill="rgba(0,0,0,0.76)" mask="url(#cut)" />
           {rect ? (
             <Rect x={hx} y={hy} width={hw} height={hh} rx={14} fill="none" stroke={C.primary} strokeWidth={2.5} />
           ) : null}
@@ -99,15 +103,21 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
       </View>
 
       <View
+        onLayout={handleTipLayout}
+        accessibilityLiveRegion="polite"
         style={[
           styles.tip,
           { backgroundColor: C.surface, width: TIP_W, left: tipLeft, top: tipTop, bottom: tipBottom },
         ]}
       >
         <Text style={[styles.title, { color: C.inkDark }]}>{title}</Text>
-        <Text style={[styles.body, { color: C.muted }]}>{body}</Text>
+        <Text style={[styles.body, { color: C.ink2 }]}>{body}</Text>
         <View style={styles.ft}>
-          <View style={styles.dots}>
+          <View
+            style={styles.dots}
+            accessible
+            accessibilityLabel={`${index + 1} / ${total}`}
+          >
             {Array.from({ length: total }).map((_, i) => (
               <View
                 key={i}
@@ -117,15 +127,15 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
           </View>
           <View style={styles.actions}>
             {index > 0 ? (
-              <TouchableOpacity onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.back}>
-                <Text style={[styles.skip, { color: C.faint }]}>{t.back}</Text>
+              <TouchableOpacity onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.back.replace(/^[←→]\s*/, '')}>
+                <Text style={[styles.skip, { color: C.ink2 }]}>{t.back}</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity onPress={onSkip} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.tutSkip}>
-                <Text style={[styles.skip, { color: C.faint }]}>{t.tutSkip}</Text>
+                <Text style={[styles.skip, { color: C.ink2 }]}>{t.tutSkip}</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={onNext} style={[styles.next, { backgroundColor: C.primary }]} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={isLast ? t.tutDone : t.tutNext}>
+            <TouchableOpacity onPress={onNext} style={[styles.next, { backgroundColor: C.primary }]} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={isLast ? t.tutDone : t.tutNext.replace(/\s*[←→]$/, '')}>
               <Text style={[styles.nextText, { color: C.white }]}>{isLast ? t.tutDone : t.tutNext}</Text>
             </TouchableOpacity>
           </View>

@@ -517,3 +517,31 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 - **`src/screens/ProgressScreen.tsx`** L309: `'MAX'` → `t.rankMaxed`. Shown in "Đến hạng kế" stat cell when user is at max rank.
 - **`src/config/i18n.ts`**: Added `rankMaxed` → vi: 'Tối đa', en: 'MAX'.
 - After fix: `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL
+
+---
+
+## Habit Tracker — Tutorial A11y Audit Fixes COMPLETE (2026-06-21)
+
+### Audit Score: 16/20 → all findings fixed
+
+### What Was Fixed
+- **`src/components/Coachmark.tsx`**: Full audit pass — 6 findings resolved:
+  - Body text `C.muted → C.ink2`: light-mode contrast 4.16:1 → 8.53:1 (WCAG AA pass)
+  - Skip/back text `C.faint → C.ink2`: light-mode 2.22:1 → 8.53:1, dark-mode 2.80:1 → 8.25:1 (both pass)
+  - Arrow glyphs stripped from `accessibilityLabel` via `.replace(/^[←→]\s*/, '')` / `.replace(/\s*[←→]$/, '')` — screen readers no longer announce "left-pointing arrow Quay lại"
+  - SVG overlay `rgba(8,16,11,0.76)` → `rgba(0,0,0,0.76)` — neutral scrim (consistent with RankInfoSheet fix from prior session)
+  - `animationType="fade"` → `animationType={reduceMotion ? 'none' : 'fade'}` — respects system reduceMotion (consistent with all other animations in app)
+  - `TIP_H = 160` hardcoded in position calc → `measuredTipH` state via `onLayout` — correct positioning at large font scales
+  - `accessibilityLiveRegion="polite"` on tip View — step changes announced to screen reader
+  - Progress dots container `accessible + accessibilityLabel="\${index+1} / \${total}"` — step position readable by screen reader
+  - Imported `useReduceMotion`, `useState`, `LayoutChangeEvent`
+- **`android/app/build.gradle`**: `versionCode 36 → 37`, `versionName "1.0.35" → "1.0.36"`. `app.json` synced.
+
+### Key Decisions
+- `C.ink2` chosen over `C.muted` for body AND skip/back text — `C.muted` at 13sp still fails 4.5:1 in light mode (4.16:1). `C.ink2` clears with 8.5:1 headroom while remaining visually secondary to `C.inkDark` title.
+- `measuredTipH` initialized to `TIP_H=160` (estimate), updated via `onLayout` — tip positions correctly on re-render; brief flicker only occurs when actual height diverges (large font scale), acceptable tradeoff.
+- Arrow glyph stripping done inline on `accessibilityLabel` prop (not in i18n) — visual button text keeps arrows as intended affordance; only a11y label is sanitized.
+- `rgba(0,0,0,0.76)` overlay: tinted dark-green was inherited from early dark-mode palette work, not intentional coachmark design. Neutral black is correct for a blocking overlay in both themes.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 37)
