@@ -1,8 +1,6 @@
 import React from 'react';
 import Svg, { G, Path, Text, TSpan } from 'react-native-svg';
 import { useTheme } from '../hooks/useSettings';
-import { useSettingsContext } from '../contexts/SettingsContext';
-import { getColors } from '../config/theme';
 
 type Props = {
   width?: number;
@@ -10,8 +8,7 @@ type Props = {
 };
 
 export function Wordmark({ width = 200, height = 62 }: Props) {
-  const { colors, isDark } = useTheme();
-  const inkColor = isDark ? '#E8EDE9' : '#16201B';
+  const { colors } = useTheme();
 
   return (
     <Svg width={width} height={height} viewBox="0 0 640 200">
@@ -35,11 +32,11 @@ export function Wordmark({ width = 200, height = 62 }: Props) {
       <Text
         x="150"
         y="124"
-        fontFamily="Poppins Medium, Poppins, sans-serif"
+        fontFamily="Poppins_500Medium"
         fontSize="74"
         letterSpacing="-1"
       >
-        <TSpan fill={inkColor}>{'habit '}</TSpan>
+        <TSpan fill={colors.inkDark}>{'habit '}</TSpan>
         <TSpan fill={colors.primary}>ring</TSpan>
       </Text>
     </Svg>

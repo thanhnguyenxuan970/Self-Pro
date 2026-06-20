@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { RankMascot } from './RankMascot';
 import { RANKS } from '../config/ranks.config';
-import { Radii, Spacing } from '../config/theme';
+import { Radii, Spacing, FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 
 const { width: W, height: H } = Dimensions.get('window');
@@ -148,7 +148,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
             onPress={onDismiss}
             activeOpacity={0.85}
           >
-            <Text style={styles.dismissBtnText}>{t.levelUpDismiss}</Text>
+            <Text style={[styles.dismissBtnText, { color: C.onAccent }]}>{t.levelUpDismiss}</Text>
           </TouchableOpacity>
         </TouchableOpacity>
       </TouchableOpacity>
@@ -175,14 +175,14 @@ const styles = StyleSheet.create({
   fireworksEmoji: { fontSize: 48, marginBottom: 2 },
   levelUpTitle: {
     fontSize: 28,
-    fontWeight: '900',
+    fontFamily: FontFamily.extraBold,
     letterSpacing: 1.5,
     marginBottom: Spacing.md,
   },
   mascotWrap: { marginVertical: Spacing.sm },
   tierName: {
     fontSize: 24,
-    fontWeight: '800',
+    fontFamily: FontFamily.extraBold,
     marginTop: Spacing.sm,
     letterSpacing: -0.5,
   },
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontStyle: 'italic',
     marginTop: 4,
-    fontWeight: '600',
+    fontFamily: FontFamily.semiBold,
   },
   subtitle: {
     fontSize: 14,
@@ -206,9 +206,8 @@ const styles = StyleSheet.create({
     borderRadius: Radii.pill,
   },
   dismissBtnText: {
-    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '800',
+    fontFamily: FontFamily.extraBold,
     letterSpacing: 0.3,
   },
 });

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { Radii, Spacing, AppColors } from '../config/theme';
+import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useTheme } from '../hooks/useSettings';
 import { supabase } from '../api/supabase';
 import { getStoredGoogleUserEmail } from '../hooks/useAuth';
@@ -92,12 +92,12 @@ function makeStyles(C: AppColors) {
     wrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(8,16,11,0.45)' },
     sheet: { backgroundColor: C.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: Spacing.lg, paddingBottom: Spacing.xl },
     grip: { width: 38, height: 4, borderRadius: 2, backgroundColor: C.line2, alignSelf: 'center', marginBottom: 14 },
-    title: { fontSize: 17, fontWeight: '700', color: C.inkDark, marginBottom: 4 },
+    title: { fontSize: 17, fontFamily: FontFamily.bold, color: C.inkDark, marginBottom: 4 },
     label: { fontSize: 12, color: C.muted, marginTop: 12, marginBottom: 6 },
     input: { backgroundColor: C.surface2, borderRadius: Radii.md, paddingHorizontal: 12, paddingVertical: 12, fontSize: 14, color: C.inkDark },
     area: { minHeight: 80, textAlignVertical: 'top' },
     btn: { backgroundColor: C.primary, borderRadius: Radii.md, paddingVertical: 14, alignItems: 'center', marginTop: 18 },
     btnOff: { opacity: 0.45 },
-    btnText: { fontSize: 15, fontWeight: '700', color: C.white },
+    btnText: { fontSize: 15, fontFamily: FontFamily.bold, color: C.white },
   });
 }

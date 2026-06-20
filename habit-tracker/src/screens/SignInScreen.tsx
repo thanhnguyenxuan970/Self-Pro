@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { GoogleUser } from '../hooks/useAuth';
-import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
+import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 
 type Props = {
@@ -131,8 +131,8 @@ function makeStyles(C: AppColors) {
       borderColor: C.line,
       ...Shadows.light,
     },
-    googleIcon: { fontSize: 18, fontWeight: '700', color: '#4285F4', marginRight: 10 },
-    googleButtonText: { color: C.inkDark, fontWeight: '600', fontSize: 16 },
+    googleIcon: { fontSize: 18, fontFamily: FontFamily.bold, color: '#4285F4', marginRight: 10 },
+    googleButtonText: { color: C.inkDark, fontFamily: FontFamily.semiBold, fontSize: 16 },
     hint: {
       ...Typography.caption,
       color: C.faint,

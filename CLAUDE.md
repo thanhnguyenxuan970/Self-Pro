@@ -510,3 +510,24 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 24)
+
+---
+
+## Habit Tracker — Poppins Typography System COMPLETE (2026-06-20)
+
+### What Was Built
+- **`src/config/theme.ts`**: Added `FontFamily` export constants (`regular/medium/semiBold/bold/extraBold` → Poppins 400/500/600/700/800). Replaced old 6-token `Typography` with 10-token scale: `display` (48sp), `xlarge` (42sp), `large` (32sp), `title` (24sp), `subheading` (18sp), `body` (15sp), `bodyStrong` (15sp semiBold), `secondary` (13sp), `caption` (12sp), `sectionLabel` (11sp bold uppercase). All tokens have `fontFamily` + `lineHeight`. No `fontWeight` in any token. Added `dangerPress` to both light/dark color palettes.
+- **`App.tsx`**: Added `useFonts` from `@expo-google-fonts/poppins` — loads Poppins 400/500/600/700/800 as bundled assets. `!fontsLoaded` added to loading gate (`!dbReady || authLoading || !fontsLoaded`). Added `FontFamily` import; replaced `fontWeight: '600'` → `fontFamily: FontFamily.semiBold` in `appStyles.retryTxt`.
+- **`src/components/Wordmark.tsx`**: SVG `fontFamily` changed from CSS fallback `"Poppins Medium, Poppins, sans-serif"` → `"Poppins_500Medium"` (actual loaded font name). Removed dead `useSettingsContext`/`getColors`/`isDark` — replaced hardcoded `inkColor` hex with `colors.inkDark`.
+- **All 18 screen/component files**: Full sweep — every `fontWeight: '600'/'700'/'800'` replaced with `fontFamily: FontFamily.semiBold/bold/extraBold`. Added `FontFamily` import where missing.
+- **`android/app/build.gradle`**: `versionCode 27 → 29`, `versionName "1.0.26" → "1.0.28"`. `app.json` synced.
+
+### Key Decisions
+- `fontWeight` is silently ignored in RN when `fontFamily` is set — sweeping all 18 files (not just Typography token consumers) was required to avoid Roboto fallback.
+- `useFonts` placed as first hook in `AppInner` (stable hook order). Font loads from bundled assets — infallible in prod, resolves immediately.
+- `Wordmark.tsx` fontFamily must match the exact expo-font registered name (`Poppins_500Medium`), not CSS syntax.
+- `title` scale uses `bold` (700), not `extraBold` (800) — `extraBold` reserved for display/xlarge/large per scale design.
+- `fontVariant: ['tabular-nums']` in RankScreen countdown left intact — not a weight prop, unrelated to Poppins.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 29) | visual-verify PASS: Poppins geometric letterforms confirmed on TodayScreen

@@ -13,7 +13,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { SignInScreen } from '../screens/SignInScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
-import { AppColors, Shadows } from '../config/theme';
+import { AppColors, Shadows, FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { AddActivitySheet } from '../screens/AddActivitySheet';
 import { SuggestActivitySheet } from '../components/SuggestActivitySheet';
@@ -106,7 +106,7 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.faint,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '700', marginTop: 4 },
+        tabBarLabelStyle: { fontSize: 10, fontFamily: FontFamily.bold, marginTop: 4 },
       }}
     >
       <Tab.Screen

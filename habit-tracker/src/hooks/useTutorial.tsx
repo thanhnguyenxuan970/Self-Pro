@@ -1,24 +1,14 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { InteractionManager, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Coachmark, TargetRect } from '../components/Coachmark';
 import { useAuthUser } from './useAuth';
+import { useTranslations } from './useSettings';
 
 const doneKey = (userId: number) => `habit_tutorial_done_${userId}`;
 
 interface Step { key: string; title: string; body: string; }
-
-// Each step points at a registered target key. Steps 2 & 3 reuse the same
-// task row with different copy. Keep copy to 1 idea + 1 short line.
-const STEPS: Step[] = [
-  { key: 'fab',       title: 'Thêm hoạt động ✨', body: 'Bấm + để tạo thói quen bạn muốn theo dõi.' },
-  { key: 'task',      title: 'Làm xong? Chạm để +1 ⭐', body: 'Mỗi việc hoàn thành cộng sao cho bạn.' },
-  { key: 'task',      title: '⏳ 30 phút = 1 ⭐', body: 'Thời gian là vàng. Làm càng lâu, sao càng nhiều.' },
-  { key: 'streak',    title: '🔥 Giữ streak', body: 'Đủ điểm mỗi ngày để chuỗi không bị đứt.' },
-  { key: 'analytics', title: '📊 Soi tiến bộ', body: 'Xem biểu đồ & lịch sử của bạn.' },
-  { key: 'rank',      title: '🏆 Leo top', body: 'So tài với cộng đồng, reset mỗi thứ 2.' },
-];
 
 interface TutorialCtx {
   targetRef: (key: string) => (node: View | null) => void;
@@ -37,10 +27,20 @@ export const useTutorial = () => useContext(Ctx);
 export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const userId = useAuthUser();
   const { bottom: bottomInset } = useSafeAreaInsets();
+  const t = useTranslations();
   const nodes = useRef<Map<string, View>>(new Map());
   const [visible, setVisible] = useState(false);
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState<TargetRect | null>(null);
+
+  const steps = useMemo<Step[]>(() => [
+    { key: 'fab',       title: t.tutStep0Title, body: t.tutStep0Body },
+    { key: 'task',      title: t.tutStep1Title, body: t.tutStep1Body },
+    { key: 'task',      title: t.tutStep2Title, body: t.tutStep2Body },
+    { key: 'streak',    title: t.tutStep3Title, body: t.tutStep3Body },
+    { key: 'analytics', title: t.tutStep4Title, body: t.tutStep4Body },
+    { key: 'rank',      title: t.tutStep5Title, body: t.tutStep5Body },
+  ], [t]);
 
   const targetRef = useCallback(
     (key: string) => (node: View | null) => {
@@ -51,7 +51,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   );
 
   const measure = useCallback((i: number) => {
-    const step = STEPS[i];
+    const step = steps[i];
     const node = step ? nodes.current.get(step.key) : undefined;
     if (!node) {
       setRect(null);
@@ -60,7 +60,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     node.measureInWindow((x, y, width, height) => {
       setRect(width || height ? { x, y, width, height } : null);
     });
-  }, []);
+  }, [steps]);
 
   useEffect(() => {
     if (!visible) return;
@@ -75,13 +75,13 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
   const next = useCallback(() => {
     setIndex((i) => {
-      if (i >= STEPS.length - 1) {
+      if (i >= steps.length - 1) {
         finish();
         return i;
       }
       return i + 1;
     });
-  }, [finish]);
+  }, [finish, steps]);
 
   const back = useCallback(() => {
     setIndex((i) => Math.max(0, i - 1));
@@ -107,9 +107,9 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
         visible={visible}
         rect={rect}
         index={index}
-        total={STEPS.length}
-        title={STEPS[index]?.title ?? ''}
-        body={STEPS[index]?.body ?? ''}
+        total={steps.length}
+        title={steps[index]?.title ?? ''}
+        body={steps[index]?.body ?? ''}
         bottomInset={bottomInset}
         onNext={next}
         onBack={back}

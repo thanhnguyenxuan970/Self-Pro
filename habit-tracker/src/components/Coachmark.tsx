@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, PanResponder, Dimensions } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
-import { useTheme } from '../hooks/useSettings';
+import { FontFamily } from '../config/theme';
+import { useTheme, useTranslations } from '../hooks/useSettings';
 
 export interface TargetRect { x: number; y: number; width: number; height: number; }
 
@@ -26,6 +27,7 @@ const TAB_BAR_H = 62;
 
 export function Coachmark({ visible, rect, index, total, title, body, bottomInset, onNext, onBack, onSkip }: Props) {
   const { colors: C } = useTheme();
+  const t = useTranslations();
   const { width: W, height: H } = useWindowDimensions();
 
   const onNextRef = useRef(onNext);
@@ -116,15 +118,15 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
           <View style={styles.actions}>
             {index > 0 ? (
               <TouchableOpacity onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
-                <Text style={[styles.skip, { color: C.faint }]}>← Quay lại</Text>
+                <Text style={[styles.skip, { color: C.faint }]}>{t.back}</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity onPress={onSkip} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
-                <Text style={[styles.skip, { color: C.faint }]}>Bỏ qua</Text>
+                <Text style={[styles.skip, { color: C.faint }]}>{t.tutSkip}</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity onPress={onNext} style={[styles.next, { backgroundColor: C.primary }]} activeOpacity={0.8}>
-              <Text style={styles.nextText}>{isLast ? 'Xong' : 'Tiếp →'}</Text>
+              <Text style={[styles.nextText, { color: C.white }]}>{isLast ? t.tutDone : t.tutNext}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -144,7 +146,7 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 10,
   },
-  title: { fontSize: 17, fontWeight: '700' },
+  title: { fontSize: 17, fontFamily: FontFamily.bold },
   body: { fontSize: 13, marginTop: 6, lineHeight: 18 },
   ft: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
   dots: { flexDirection: 'row', gap: 5, alignItems: 'center' },
@@ -152,5 +154,5 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   skip: { fontSize: 13 },
   next: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999 },
-  nextText: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
+  nextText: { fontSize: 13, fontFamily: FontFamily.bold },
 });

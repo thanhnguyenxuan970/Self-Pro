@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
-import { Radii, Spacing, AppColors } from '../config/theme';
+import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 
 export type PlanId = 'monthly' | 'yearly' | 'lifetime';
@@ -77,9 +77,9 @@ export default function PaywallScreen({ onClose, onRestore, onSubscribe }: Paywa
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.topBar}>
-          <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="Đóng" accessibilityRole="button">
+          <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityLabel="Đóng" accessibilityRole="button" activeOpacity={0.7}>
             <Text style={styles.close}>✕</Text>
-          </Pressable>
+          </TouchableOpacity>
           <View style={styles.proBadge}>
             <RingMark color={C.primary} size={15} />
             <Text style={styles.proText}>PRO</Text>
@@ -106,10 +106,11 @@ export default function PaywallScreen({ onClose, onRestore, onSubscribe }: Paywa
         {PLANS.map((p) => {
           const sel = p.id === selected;
           return (
-            <Pressable
+            <TouchableOpacity
               key={p.id}
               onPress={() => setSelected(p.id)}
               style={[styles.price, sel && styles.priceSel]}
+              activeOpacity={0.8}
             >
               {p.badge ? (
                 <View style={styles.pop}>
@@ -131,16 +132,17 @@ export default function PaywallScreen({ onClose, onRestore, onSubscribe }: Paywa
                 <Text style={styles.priceVal}>{p.price}</Text>
                 <Text style={styles.per}>{p.per}</Text>
               </View>
-            </Pressable>
+            </TouchableOpacity>
           );
         })}
 
-        <Pressable
-          style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+        <TouchableOpacity
+          style={styles.cta}
           onPress={() => onSubscribe?.(selected)}
+          activeOpacity={0.88}
         >
           <Text style={styles.ctaText}>{current.cta}</Text>
-        </Pressable>
+        </TouchableOpacity>
 
         <Text style={styles.fine}>
           Thanh toán qua {store} · huỷ bất cứ lúc nào ·{' '}
@@ -159,17 +161,17 @@ function makeStyles(C: AppColors) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       paddingTop: Spacing.sm, paddingBottom: Spacing.xs,
     },
-    close: { fontSize: 18, color: C.faint, fontWeight: '600' },
+    close: { fontSize: 18, color: C.faint, fontFamily: FontFamily.semiBold },
     proBadge: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    proText: { fontSize: 12, fontWeight: '700', color: C.primaryPress, letterSpacing: 0.5 },
-    h1: { fontSize: 25, fontWeight: '800', letterSpacing: -0.5, color: C.inkDark, textAlign: 'center', marginTop: Spacing.xs },
+    proText: { fontSize: 12, fontFamily: FontFamily.bold, color: C.primaryPress, letterSpacing: 0.5 },
+    h1: { fontSize: 25, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, textAlign: 'center', marginTop: Spacing.xs },
     sub: { fontSize: 13, color: C.muted, textAlign: 'center', marginTop: 2, marginBottom: Spacing.md },
     tiles: { flexDirection: 'row', gap: 11, marginBottom: Spacing.md },
     tile: {
       flex: 1, backgroundColor: C.primarySoft, borderRadius: Radii.lg,
       paddingVertical: 14, paddingHorizontal: 12, alignItems: 'center',
     },
-    tileTitle: { fontSize: 15, fontWeight: '700', color: C.inkDark, marginTop: 8 },
+    tileTitle: { fontSize: 15, fontFamily: FontFamily.bold, color: C.inkDark, marginTop: 8 },
     tileDesc: { fontSize: 11.5, color: C.ink2, marginTop: 1, textAlign: 'center' },
     price: {
       borderWidth: 1.5, borderColor: C.line2, backgroundColor: C.surface,
@@ -180,24 +182,23 @@ function makeStyles(C: AppColors) {
     priceSel: { borderWidth: 2, borderColor: C.primary, backgroundColor: C.primarySoft },
     priceLeft: { flexShrink: 1 },
     lblRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    lbl: { fontSize: 14, fontWeight: '700', color: C.inkDark },
+    lbl: { fontSize: 14, fontFamily: FontFamily.bold, color: C.inkDark },
     meta: { fontSize: 11, color: C.muted, marginTop: 1 },
     priceRight: { alignItems: 'flex-end' },
-    priceVal: { fontSize: 16, fontWeight: '700', color: C.inkDark },
+    priceVal: { fontSize: 16, fontFamily: FontFamily.bold, color: C.inkDark },
     per: { fontSize: 10.5, color: C.muted },
     pop: {
       position: 'absolute', top: -9, left: 15, backgroundColor: C.primary,
       borderRadius: Radii.pill, paddingHorizontal: 9, paddingVertical: 2,
     },
-    popText: { fontSize: 10, fontWeight: '700', color: C.white, letterSpacing: 0.3 },
+    popText: { fontSize: 10, fontFamily: FontFamily.bold, color: C.white, letterSpacing: 0.3 },
     save: { backgroundColor: C.starSoft, borderRadius: Radii.pill, paddingHorizontal: 7, paddingVertical: 1 },
-    saveText: { fontSize: 10, fontWeight: '700', color: C.starGold },
+    saveText: { fontSize: 10, fontFamily: FontFamily.bold, color: C.starGold },
     cta: {
       backgroundColor: C.primary, borderRadius: Radii.md, paddingVertical: 16,
       alignItems: 'center', marginTop: Spacing.md,
     },
-    ctaPressed: { transform: [{ scale: 0.99 }], backgroundColor: C.primaryHover },
-    ctaText: { fontSize: 16, fontWeight: '700', color: C.white },
+    ctaText: { fontSize: 16, fontFamily: FontFamily.bold, color: C.white },
     fine: { fontSize: 11, color: C.faint, textAlign: 'center', marginTop: 10 },
     link: { color: C.muted, textDecorationLine: 'underline' },
   });

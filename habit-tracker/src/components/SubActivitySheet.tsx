@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
-import { Radii, Spacing, AppColors } from '../config/theme';
+import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useTheme } from '../hooks/useSettings';
 
 export interface SubOption { key: string; label: string; }
@@ -115,19 +115,19 @@ function makeStyles(C: AppColors) {
     wrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(8,16,11,0.45)' },
     sheet: { backgroundColor: C.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: Spacing.lg, paddingBottom: Spacing.xl },
     grip: { width: 38, height: 4, borderRadius: 2, backgroundColor: C.line2, alignSelf: 'center', marginBottom: 14 },
-    title: { fontSize: 16, fontWeight: '700', color: C.inkDark },
+    title: { fontSize: 16, fontFamily: FontFamily.bold, color: C.inkDark },
     subtitle: { fontSize: 12, color: C.muted, marginTop: 2, marginBottom: 14 },
     label: { fontSize: 12, color: C.muted, marginBottom: 8 },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
     chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radii.pill, backgroundColor: C.primarySoft },
     chipOn: { backgroundColor: C.primary },
-    chipText: { fontSize: 13, fontWeight: '500', color: C.inkDark },
+    chipText: { fontSize: 13, fontFamily: FontFamily.medium, color: C.inkDark },
     chipTextOn: { color: C.white },
     acts: { flexDirection: 'row', gap: 10, marginTop: 2 },
     btn: { flex: 1, paddingVertical: 13, borderRadius: Radii.md, alignItems: 'center' },
     skip: { backgroundColor: C.surface2 },
-    skipText: { fontSize: 14, fontWeight: '600', color: C.muted },
+    skipText: { fontSize: 14, fontFamily: FontFamily.semiBold, color: C.muted },
     save: { backgroundColor: C.primary },
-    saveText: { fontSize: 14, fontWeight: '600', color: C.white },
+    saveText: { fontSize: 14, fontFamily: FontFamily.semiBold, color: C.white },
   });
 }

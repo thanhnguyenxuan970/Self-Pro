@@ -17,7 +17,7 @@ import {
 import { useArchiveTask } from '../queries/useTasks';
 import { useRankData } from '../queries/useRank';
 import { getCurrentTier } from '../game/tierLookup';
-import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
+import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { Task, TaskRow } from '../components/TaskRow';
 import { LevelUpCelebrationModal } from '../components/LevelUpCelebrationModal';
 import { useScreenCommons } from '../hooks/useScreenCommons';
@@ -78,16 +78,50 @@ function useProgressBarAnimation(dailyPoints: number): { barWidthAnim: Animated.
   return { barWidthAnim, barGlowOpacity };
 }
 
+function useHeroNumberPop(value: number, reduceMotion: boolean): Animated.Value {
+  const anim = useRef(new Animated.Value(1)).current;
+  const prevRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (prevRef.current === null) { prevRef.current = value; return; }
+    if (value > prevRef.current && !reduceMotion) {
+      anim.setValue(1.22);
+      Animated.spring(anim, { toValue: 1, tension: 180, friction: 7, useNativeDriver: true }).start();
+    }
+    prevRef.current = value;
+  }, [value, reduceMotion]);
+  return anim;
+}
+
+function SuggestionEntranceWrapper({ index, reduceMotion, children }: { index: number; reduceMotion: boolean; children: React.ReactNode }) {
+  const fadeAnim = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  const slideAnim = useRef(new Animated.Value(reduceMotion ? 0 : -12)).current;
+  useEffect(() => {
+    if (reduceMotion) return;
+    Animated.sequence([
+      Animated.delay(index * 60),
+      Animated.parallel([
+        Animated.spring(fadeAnim, { toValue: 1, tension: 180, friction: 14, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, tension: 180, friction: 14, useNativeDriver: true }),
+      ]),
+    ]).start();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateX: slideAnim }] }}>
+      {children}
+    </Animated.View>
+  );
+}
+
 function resolveTaskDisplayName(name: string, t: Strings): string {
   const key = TEMPLATE_NAME_TO_KEY.get(name);
   return key ? ((t as unknown as Record<string, string>)[key] ?? name) : name;
 }
 
-function parseLogDuration(duration: string, durationUnit: 'min' | 'hr', validDurationMsg: string, maxDurationMsg: string): number | null {
+function parseLogDuration(duration: string, durationUnit: 'min' | 'hr', errorTitle: string, validDurationMsg: string, maxDurationMsg: string): number | null {
   const parsed = parseInt(duration, 10);
-  if (isNaN(parsed) || parsed <= 0) { Alert.alert(validDurationMsg); return null; }
+  if (isNaN(parsed) || parsed <= 0) { Alert.alert(errorTitle, validDurationMsg); return null; }
   const mins = durationUnit === 'hr' ? parsed * 60 : parsed;
-  if (mins > 1440) { Alert.alert(maxDurationMsg); return null; }
+  if (mins > 1440) { Alert.alert(errorTitle, maxDurationMsg); return null; }
   return mins;
 }
 
@@ -99,6 +133,7 @@ type DurationModalLabels = {
   unitHour: string;
   logBtn: string;
   cancel: string;
+  error: string;
   validDuration: string;
   maxDuration: string;
 };
@@ -111,19 +146,33 @@ type DurationModalProps = {
   colors: AppColors;
   styles: ReturnType<typeof makeStyles>;
   labels: DurationModalLabels;
+  reduceMotion: boolean;
 };
 
-function DurationModal({ task, logPending, onLog, onClose, colors, styles, labels }: DurationModalProps) {
+function DurationModal({ task, logPending, onLog, onClose, colors, styles, labels, reduceMotion }: DurationModalProps) {
   const [duration, setDuration] = useState('');
   const [durationUnit, setDurationUnit] = useState<'min' | 'hr'>('min');
   const [customDuration, setCustomDuration] = useState(false);
+  const boxScaleAnim = useRef(new Animated.Value(0.92)).current;
+  const boxFadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (task) { setDuration(''); setDurationUnit('min'); setCustomDuration(false); }
   }, [task?.id]);
 
+  useEffect(() => {
+    if (!task) return;
+    if (reduceMotion) { boxScaleAnim.setValue(1); boxFadeAnim.setValue(1); return; }
+    boxScaleAnim.setValue(0.92);
+    boxFadeAnim.setValue(0);
+    Animated.parallel([
+      Animated.spring(boxScaleAnim, { toValue: 1, tension: 200, friction: 14, useNativeDriver: true }),
+      Animated.spring(boxFadeAnim, { toValue: 1, tension: 200, friction: 14, useNativeDriver: true }),
+    ]).start();
+  }, [task?.id, reduceMotion]);
+
   function handleCustomLog() {
-    const mins = parseLogDuration(duration, durationUnit, labels.validDuration, labels.maxDuration);
+    const mins = parseLogDuration(duration, durationUnit, labels.error, labels.validDuration, labels.maxDuration);
     if (mins !== null) onLog(mins);
   }
 
@@ -131,7 +180,7 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
     <Modal visible={!!task} transparent animationType="fade">
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <View style={styles.modalBg}>
-        <View style={styles.modalBox}>
+        <Animated.View style={[styles.modalBox, { opacity: boxFadeAnim, transform: [{ scale: boxScaleAnim }] }]}>
           <Text style={styles.modalTitle}>{labels.taskDisplayName}</Text>
           <Text style={styles.modalSub}>{labels.addActivityHowLong}</Text>
           {!customDuration ? (
@@ -180,7 +229,7 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
           <TouchableOpacity onPress={onClose}>
             <Text style={styles.cancel}>{labels.cancel}</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -249,6 +298,7 @@ export function TodayScreen() {
   const rankBounceAnim = useRankBounceAnimation(rankName, reduceMotion);
   const streakPulseAnim = useStreakPulseAnimation(hasStreak, reduceMotion);
   const { barWidthAnim, barGlowOpacity } = useProgressBarAnimation(dailyPoints);
+  const starsPopAnim = useHeroNumberPop(weeklyStars, reduceMotion);
 
   const avatarInitial = (googleUser?.name?.charAt(0) ?? 'B').toUpperCase();
   const today = new Date();
@@ -351,7 +401,7 @@ export function TodayScreen() {
     setModalTask(null);
   }
 
-  if (isLoading) return <ActivityIndicator style={{ flex: 1 }} color={colors.primary} />;
+  if (isLoading) return <View style={{ flex: 1, backgroundColor: colors.bgBase, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={colors.primary} /></View>;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -378,14 +428,16 @@ export function TodayScreen() {
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
         <LinearGradient
-          colors={isDebt ? ['#5C1D1E', '#B0383C'] : ['#1A5039', '#2E9C6A']}
+          colors={isDebt ? [colors.dangerPress, colors.danger] : [colors.primaryPress, colors.primary]}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
           style={styles.hero}
         >
           <Text style={styles.heroLabel}>{t.heroLabel}</Text>
           <View style={styles.heroBal}>
             <Text style={styles.heroStar}>★</Text>
-            <Text style={styles.heroBalNum}>{weeklyStars}</Text>
+            <Animated.View style={{ transform: [{ scale: starsPopAnim }] }}>
+              <Text style={styles.heroBalNum}>{weeklyStars}</Text>
+            </Animated.View>
           </View>
           <View style={styles.heroFoot}>
             <Text style={[styles.heroDelta, isDebt ? styles.heroDeltaDown : styles.heroDeltaUp]}>
@@ -409,22 +461,24 @@ export function TodayScreen() {
           </View>
           <View style={styles.bar}>
             <Animated.View style={[styles.barFill, { width: barWidthAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) }]} />
-            <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', opacity: barGlowOpacity, borderRadius: Radii.pill }]} />
+            <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.white, opacity: barGlowOpacity, borderRadius: Radii.pill }]} />
           </View>
           <Text style={styles.progCap}>{t.streakBonus(DAILY_BONUS_THRESHOLD)}</Text>
         </View>
 
         {!selectionMode && suggestions
           .filter(s => !dismissedSuggestions.has(s.id) && !(loggedIds?.has(s.id)))
-          .map(s => (
-            <View key={s.id} style={styles.suggestionRow}>
-              <TouchableOpacity style={styles.suggestionChip} onPress={() => handleSuggestionLog(s)} disabled={logTask.isPending} activeOpacity={0.75}>
-                <Text style={styles.suggestionChipText}>🔄 {t.suggestionPrompt(resolveTaskDisplayName(s.name, t))}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.suggestionDismiss} onPress={() => dismissSuggestion(s.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={styles.suggestionDismissText}>✕</Text>
-              </TouchableOpacity>
-            </View>
+          .map((s, index) => (
+            <SuggestionEntranceWrapper key={s.id} index={index} reduceMotion={reduceMotion}>
+              <View style={styles.suggestionRow}>
+                <TouchableOpacity style={styles.suggestionChip} onPress={() => handleSuggestionLog(s)} disabled={logTask.isPending} activeOpacity={0.75}>
+                  <Text style={styles.suggestionChipText} numberOfLines={1}>🔄 {t.suggestionPrompt(resolveTaskDisplayName(s.name, t))}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.suggestionDismiss} onPress={() => dismissSuggestion(s.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={styles.suggestionDismissText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            </SuggestionEntranceWrapper>
           ))
         }
 
@@ -486,6 +540,7 @@ export function TodayScreen() {
         onClose={closeModal}
         colors={colors}
         styles={styles}
+        reduceMotion={reduceMotion}
         labels={{
           taskDisplayName: modalTask ? resolveTaskDisplayName(modalTask.name, t) : '',
           addActivityHowLong: t.addActivityHowLong,
@@ -494,6 +549,7 @@ export function TodayScreen() {
           unitHour: t.unitHour,
           logBtn: t.logBtn,
           cancel: t.cancel,
+          error: t.error,
           validDuration: t.validDuration,
           maxDuration: t.maxDuration,
         }}
@@ -515,9 +571,9 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.primarySoft, borderWidth: 1, borderColor: C.line,
       justifyContent: 'center', alignItems: 'center',
     },
-    avatarText: { fontWeight: '800', color: C.primaryPress, fontSize: 16 },
+    avatarText: { fontFamily: FontFamily.extraBold, color: C.primaryPress, fontSize: 16 },
     greet: { flex: 1 },
-    hi: { fontSize: 15, fontWeight: '800', letterSpacing: -0.2, color: C.inkDark },
+    hi: { fontSize: 15, fontFamily: FontFamily.extraBold, letterSpacing: -0.2, color: C.inkDark },
     date: { fontSize: 12, color: C.muted, marginTop: 1 },
     gearBtn: { padding: 6 },
     gearIcon: { fontSize: 22 },
@@ -527,12 +583,12 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.xl, padding: 20, overflow: 'hidden',
       ...Shadows.hero,
     },
-    heroLabel: { fontSize: 12, opacity: 0.85, fontWeight: '600', letterSpacing: 0.3, color: '#fff' },
+    heroLabel: { fontSize: 12, opacity: 0.85, fontFamily: FontFamily.semiBold, letterSpacing: 0.3, color: C.white },
     heroBal: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
     heroStar: { fontSize: 32, color: C.starGold },
-    heroBalNum: { fontSize: 40, fontWeight: '800', letterSpacing: -1.2, color: '#fff', lineHeight: 44 },
+    heroBalNum: { fontSize: 40, fontFamily: FontFamily.extraBold, letterSpacing: -1.2, color: C.white, lineHeight: 44 },
     heroFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
-    heroDelta: { fontSize: 12, paddingHorizontal: 11, paddingVertical: 5, borderRadius: Radii.pill, fontWeight: '700', overflow: 'hidden' },
+    heroDelta: { fontSize: 12, paddingHorizontal: 11, paddingVertical: 5, borderRadius: Radii.pill, fontFamily: FontFamily.bold, overflow: 'hidden' },
     heroDeltaUp: { backgroundColor: 'rgba(255,255,255,0.16)', color: '#B5F0CE' },
     heroDeltaDown: { backgroundColor: 'rgba(255,255,255,0.16)', color: '#FFB9BB' },
     rankChip: {
@@ -540,9 +596,9 @@ function makeStyles(C: AppColors) {
       backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 12, paddingVertical: 6,
       borderRadius: Radii.pill,
     },
-    rankChipText: { fontSize: 12.5, fontWeight: '800', color: '#fff' },
+    rankChipText: { fontSize: 12.5, fontFamily: FontFamily.extraBold, color: C.white },
     heroStreak: {
-      color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '600',
+      color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: FontFamily.semiBold,
       marginTop: 8, alignSelf: 'center', letterSpacing: 0.3,
     },
 
@@ -552,9 +608,9 @@ function makeStyles(C: AppColors) {
       padding: 15, borderWidth: 1, borderColor: C.line, ...Shadows.light,
     },
     progTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    progLabel: { fontSize: 13, fontWeight: '700', color: C.inkDark },
-    progPts: { fontSize: 13, fontWeight: '700', color: C.inkDark },
-    progPtsBold: { fontSize: 16, fontWeight: '800', color: C.primary },
+    progLabel: { fontSize: 13, fontFamily: FontFamily.bold, color: C.inkDark },
+    progPts: { fontSize: 13, fontFamily: FontFamily.bold, color: C.inkDark },
+    progPtsBold: { fontSize: 16, fontFamily: FontFamily.extraBold, color: C.primary },
     bar: {
       height: 10, backgroundColor: C.surface2, borderRadius: Radii.pill,
       marginTop: 10, overflow: 'hidden',
@@ -563,7 +619,7 @@ function makeStyles(C: AppColors) {
     progCap: { fontSize: 11.5, color: C.muted, marginTop: 8 },
 
     sectionLabel: {
-      fontSize: 11, fontWeight: '700', color: C.muted,
+      fontSize: 11, fontFamily: FontFamily.bold, color: C.ink2,
       textTransform: 'uppercase', letterSpacing: 0.7,
       marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
     },
@@ -576,9 +632,9 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.surface2, borderRadius: Radii.sm,
       borderWidth: 1, borderColor: C.line2,
     },
-    selBtnTxt: { fontSize: 12, fontWeight: '700', color: C.inkDark },
+    selBtnTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.inkDark },
     selDeleteBtn: { borderColor: C.danger, backgroundColor: C.dangerSoft },
-    selDeleteTxt: { fontSize: 12, fontWeight: '700', color: C.danger },
+    selDeleteTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.danger },
 
     taskCard: {
       marginHorizontal: Spacing.lg,
@@ -595,13 +651,13 @@ function makeStyles(C: AppColors) {
       paddingVertical: 8, paddingHorizontal: 14,
       borderWidth: 1, borderColor: C.primary + '55', ...Shadows.light,
     },
-    suggestionChipText: { color: C.primary, fontSize: 13, fontWeight: '600' },
+    suggestionChipText: { color: C.primary, fontSize: 13, fontFamily: FontFamily.semiBold },
     suggestionDismiss: { marginLeft: 8, padding: 4 },
-    suggestionDismissText: { color: C.faint, fontSize: 14, fontWeight: '700' },
+    suggestionDismissText: { color: C.faint, fontSize: 14, fontFamily: FontFamily.bold },
 
     empty: { padding: 36, paddingHorizontal: 12, alignItems: 'center' },
     emptyEmoji: { fontSize: 42, marginBottom: 8, opacity: 0.6 },
-    emptyTitle: { fontSize: 14, fontWeight: '700', color: C.ink2 },
+    emptyTitle: { fontSize: 14, fontFamily: FontFamily.bold, color: C.ink2 },
     emptyDesc: { fontSize: 12, color: C.muted, marginTop: 4 },
 
     modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', paddingHorizontal: Spacing.lg },
@@ -609,7 +665,7 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.surface, padding: Spacing.xl,
       borderRadius: Radii.xl,
     },
-    modalTitle: { fontSize: 19, fontWeight: '800', color: C.inkDark, marginBottom: 4 },
+    modalTitle: { fontSize: 19, fontFamily: FontFamily.extraBold, color: C.inkDark, marginBottom: 4 },
     modalSub: { fontSize: 13, color: C.muted, marginBottom: Spacing.md },
     presetChipsRow: { flexDirection: 'row', gap: 10, marginBottom: Spacing.md, flexWrap: 'wrap' },
     presetChip: {
@@ -618,7 +674,7 @@ function makeStyles(C: AppColors) {
       alignItems: 'center', justifyContent: 'center',
     },
     presetChipCustom: { backgroundColor: C.surface2, borderWidth: 1.5, borderColor: C.line2 },
-    presetChipText: { color: C.white, fontSize: 16, fontWeight: '800' },
+    presetChipText: { color: C.white, fontSize: 16, fontFamily: FontFamily.extraBold },
     presetChipCustomText: { color: C.inkDark },
     durationRow: {
       flexDirection: 'row', alignItems: 'stretch', gap: 10, marginBottom: Spacing.md,
@@ -628,7 +684,7 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.md, fontSize: 14,
       borderWidth: 1.5, borderColor: C.line2,
     },
-    durationInput: { flex: 1, fontSize: 22, fontWeight: '700', textAlign: 'center' },
+    durationInput: { flex: 1, fontSize: 22, fontFamily: FontFamily.bold, textAlign: 'center' },
     unitToggle: {
       flexDirection: 'column', borderRadius: Radii.md, overflow: 'hidden',
       borderWidth: 1.5, borderColor: C.line2,
@@ -638,10 +694,10 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.surface2,
     },
     unitBtnActive: { backgroundColor: C.primary },
-    unitBtnText: { fontSize: 13, fontWeight: '700', color: C.muted },
+    unitBtnText: { fontSize: 13, fontFamily: FontFamily.bold, color: C.muted },
     unitBtnTextActive: { color: C.white },
     btn: { backgroundColor: C.primary, padding: 15, borderRadius: Radii.md, alignItems: 'center', marginBottom: 8 },
-    btnText: { color: C.white, fontSize: 15, fontWeight: '700' },
+    btnText: { color: C.white, fontSize: 15, fontFamily: FontFamily.bold },
     cancel: { textAlign: 'center', color: C.muted, padding: 8 },
   });
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { Radii, Spacing, AppColors } from '../config/theme';
+import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useTheme } from '../hooks/useSettings';
 
 export interface RankTier {
@@ -84,23 +84,23 @@ function makeStyles(C: AppColors) {
     sheet: { backgroundColor: C.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: Spacing.lg, paddingBottom: Spacing.md, maxHeight: '86%' },
     grip: { width: 38, height: 4, borderRadius: 2, backgroundColor: C.line2, alignSelf: 'center', marginBottom: 12 },
     head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-    title: { fontSize: 18, fontWeight: '700', color: C.inkDark },
-    close: { fontSize: 17, color: C.faint, fontWeight: '700' },
+    title: { fontSize: 18, fontFamily: FontFamily.bold, color: C.inkDark },
+    close: { fontSize: 17, color: C.faint, fontFamily: FontFamily.bold },
     flex1: { flex: 1 },
     pt: { flexDirection: 'row', gap: 11, alignItems: 'flex-start', backgroundColor: C.surface2, borderRadius: Radii.md, padding: 12, marginBottom: 8 },
     ptEmoji: { fontSize: 18 },
-    ptTitle: { fontSize: 13, fontWeight: '600', color: C.inkDark },
+    ptTitle: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
     ptSub: { fontSize: 11.5, color: C.muted, marginTop: 1 },
-    sec: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, color: C.faint, textTransform: 'uppercase', marginTop: 10, marginBottom: 8 },
+    sec: { fontSize: 11, fontFamily: FontFamily.bold, letterSpacing: 0.5, color: C.faint, textTransform: 'uppercase', marginTop: 10, marginBottom: 8 },
     lrow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.sm, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 7 },
     lrowCur: { borderWidth: 2, borderColor: C.primary, backgroundColor: C.primarySoft },
     lnum: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.surface3, alignItems: 'center', justifyContent: 'center' },
     lnumCur: { backgroundColor: C.primary },
-    lnumText: { fontSize: 11, fontWeight: '700', color: C.muted },
+    lnumText: { fontSize: 11, fontFamily: FontFamily.bold, color: C.muted },
     lnumTextCur: { color: C.white },
-    lname: { flex: 1, fontSize: 13, fontWeight: '600', color: C.inkDark },
-    lstar: { fontSize: 12.5, fontWeight: '600', color: C.muted },
+    lname: { flex: 1, fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
+    lstar: { fontSize: 12.5, fontFamily: FontFamily.semiBold, color: C.muted },
     youtag: { backgroundColor: C.primary, borderRadius: Radii.pill, paddingHorizontal: 6, paddingVertical: 1, marginRight: 6 },
-    youtagText: { fontSize: 9.5, fontWeight: '700', color: C.white },
+    youtagText: { fontSize: 9.5, fontFamily: FontFamily.bold, color: C.white },
   });
 }

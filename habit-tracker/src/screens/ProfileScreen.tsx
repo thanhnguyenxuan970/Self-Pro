@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useWeeklySummary, useDailySummary } from '../queries/useToday';
 import { useRecentActivityLogs, useAllTimeStats, ActivityLogEntry } from '../queries/useProgress';
-import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
+import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 
@@ -66,8 +66,8 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
             <Text style={ph.avatarInitial}>{(googleUser.name.charAt(0) || '?').toUpperCase()}</Text>
           </View>
         )}
-        <Text style={ph.name}>{googleUser.name}</Text>
-        <Text style={ph.sub}>{googleUser.email}</Text>
+        <Text style={ph.name} numberOfLines={1}>{googleUser.name}</Text>
+        <Text style={ph.sub} numberOfLines={1}>{googleUser.email}</Text>
       </View>
 
       {/* Life stats row */}
@@ -125,7 +125,7 @@ function makeStyles(C: AppColors) {
       justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm,
       marginTop: 4,
     },
-    sectionTitle: { fontSize: 14, fontWeight: '600', color: C.inkDark },
+    sectionTitle: { fontSize: 14, fontFamily: FontFamily.semiBold, color: C.inkDark },
     taskCard: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,
       borderRadius: Radii.md, borderWidth: 1, borderColor: C.line,
@@ -138,9 +138,9 @@ function makeStyles(C: AppColors) {
     rowLast: { borderBottomWidth: 0 },
     icon: { fontSize: 20, marginRight: 12, flexShrink: 0 },
     rowBody: { flex: 1, minWidth: 0 },
-    taskName: { fontSize: 14, color: C.inkDark, fontWeight: '600' },
+    taskName: { fontSize: 14, color: C.inkDark, fontFamily: FontFamily.semiBold },
     taskMeta: { fontSize: 11.5, color: C.muted, marginTop: 2 },
-    stars: { fontSize: 13, fontWeight: '800', color: C.primary, flexShrink: 0 },
+    stars: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primary, flexShrink: 0 },
     starsNeg: { color: C.danger },
     empty: { textAlign: 'center', color: C.muted, marginTop: 24, marginBottom: 24, fontSize: 14, paddingHorizontal: 12 },
     logoutBtn: {
@@ -149,7 +149,7 @@ function makeStyles(C: AppColors) {
       borderWidth: 1.5, borderColor: C.danger,
       alignItems: 'center',
     },
-    logoutBtnText: { color: C.danger, fontSize: 15, fontWeight: '700' },
+    logoutBtnText: { color: C.danger, fontSize: 15, fontFamily: FontFamily.bold },
   });
 }
 
@@ -167,8 +167,8 @@ function makePhStyles(C: AppColors) {
       shadowColor: '#2E9C6A', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 10, elevation: 4,
     },
     avatarFallback: { alignItems: 'center', justifyContent: 'center' },
-    avatarInitial: { fontSize: 32, fontWeight: '800', color: C.primaryPress },
-    name: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, color: C.inkDark, marginTop: 10 },
+    avatarInitial: { fontSize: 32, fontFamily: FontFamily.extraBold, color: C.primaryPress },
+    name: { fontSize: 20, fontFamily: FontFamily.extraBold, letterSpacing: -0.3, color: C.inkDark, marginTop: 10 },
     sub: { fontSize: 12.5, color: C.muted, marginTop: 3 },
     lifeRow: {
       flexDirection: 'row', marginHorizontal: Spacing.lg, marginTop: 14,
@@ -177,7 +177,7 @@ function makePhStyles(C: AppColors) {
     },
     lifeCell: { flex: 1, alignItems: 'center', paddingVertical: 14, paddingHorizontal: 6 },
     lifeDivider: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: C.line },
-    lifeV: { fontSize: 17, fontWeight: '800', color: C.inkDark },
-    lifeL: { fontSize: 10, color: C.muted, fontWeight: '700', marginTop: 3, textTransform: 'uppercase', letterSpacing: 0.4 },
+    lifeV: { fontSize: 17, fontFamily: FontFamily.extraBold, color: C.inkDark },
+    lifeL: { fontSize: 10, color: C.muted, fontFamily: FontFamily.bold, marginTop: 3, textTransform: 'uppercase', letterSpacing: 0.4 },
   });
 }

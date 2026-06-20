@@ -9,7 +9,7 @@ import { useCreateTask } from '../queries/useTasks';
 import { useLogTask } from '../queries/useToday';
 import { cueModalOpen, cueModalClose } from '../audio/uiSounds';
 import { useAuthUser } from '../hooks/useAuth';
-import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
+import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 import { TEMPLATE_NAME_TO_KEY, Strings } from '../config/i18n';
@@ -62,9 +62,9 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onClose, t, c
 
   function handleCustomLog() {
     const parsed = parseInt(duration, 10);
-    if (isNaN(parsed) || parsed <= 0) { Alert.alert(t.validDuration); return; }
+    if (isNaN(parsed) || parsed <= 0) { Alert.alert(t.error, t.validDuration); return; }
     const mins = durationUnit === 'hr' ? parsed * 60 : parsed;
-    if (mins > 1440) { Alert.alert(t.maxDuration); return; }
+    if (mins > 1440) { Alert.alert(t.error, t.maxDuration); return; }
     onLogDuration(mins);
   }
 
@@ -295,6 +295,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
                   placeholder={t.addActivityNamePlaceholder}
                   placeholderTextColor={colors.faint}
                   returnKeyType="done"
+                  maxLength={50}
                 />
 
                 {suggestions.length > 0 && (
@@ -400,7 +401,7 @@ function makeStyles(C: AppColors) {
       marginTop: Spacing.md,
     },
     suggestionsLabel: {
-      fontSize: 11, fontWeight: '700', color: C.muted,
+      fontSize: 11, fontFamily: FontFamily.bold, color: C.ink2,
       textTransform: 'uppercase', letterSpacing: 0.7,
       marginTop: Spacing.xl, marginBottom: 10,
     },
@@ -411,13 +412,13 @@ function makeStyles(C: AppColors) {
       borderWidth: 1, borderColor: C.line2,
     },
     chipSelected: { borderColor: C.primary, backgroundColor: C.primarySoft },
-    chipName: { fontSize: 13, fontWeight: '600', color: C.inkDark },
+    chipName: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
     chipNameSelected: { color: C.primary },
     suggestBtn: {
       marginTop: Spacing.md, paddingVertical: 10, alignItems: 'center',
       borderWidth: 1.5, borderColor: C.line2, borderRadius: Radii.md,
     },
-    suggestBtnText: { fontSize: 13, fontWeight: '600', color: C.muted },
+    suggestBtnText: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.muted },
     durationLabel: {
       ...Typography.bodyStrong, color: C.inkDark,
       marginTop: Spacing.xl, marginBottom: Spacing.sm,
@@ -429,12 +430,12 @@ function makeStyles(C: AppColors) {
       alignItems: 'center', justifyContent: 'center',
     },
     durationChipDim: { backgroundColor: C.line2 },
-    durationChipText: { color: C.white, fontSize: 15, fontWeight: '700' },
+    durationChipText: { color: C.white, fontSize: 15, fontFamily: FontFamily.bold },
     noTimerBtn: { alignItems: 'center', paddingVertical: 12 },
-    noTimerText: { ...Typography.body, color: C.muted, fontWeight: '600' },
+    noTimerText: { ...Typography.bodyStrong, color: C.muted },
     noTimerTextDim: { color: C.faint },
 
-    durationStepTitle: { fontSize: 19, fontWeight: '800', color: C.inkDark, marginTop: Spacing.md, marginBottom: 2 },
+    durationStepTitle: { fontSize: 19, fontFamily: FontFamily.extraBold, color: C.inkDark, marginTop: Spacing.md, marginBottom: 2 },
     presetChipsRow: { flexDirection: 'row', gap: 10, marginTop: Spacing.md, marginBottom: Spacing.md, flexWrap: 'wrap' },
     presetChip: {
       flex: 1, minWidth: 60, backgroundColor: C.primary,
@@ -442,14 +443,14 @@ function makeStyles(C: AppColors) {
       alignItems: 'center', justifyContent: 'center',
     },
     presetChipCustom: { backgroundColor: C.surface2, borderWidth: 1.5, borderColor: C.line2 },
-    presetChipText: { color: C.white, fontSize: 16, fontWeight: '800' },
+    presetChipText: { color: C.white, fontSize: 16, fontFamily: FontFamily.extraBold },
     presetChipCustomText: { color: C.inkDark },
     durationRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10, marginBottom: Spacing.md, marginTop: Spacing.md },
-    durationInput: { flex: 1, fontSize: 22, fontWeight: '700', textAlign: 'center' },
+    durationInput: { flex: 1, fontSize: 22, fontFamily: FontFamily.bold, textAlign: 'center' },
     unitToggle: { flexDirection: 'column', borderRadius: Radii.md, overflow: 'hidden', borderWidth: 1.5, borderColor: C.line2 },
     unitBtn: { flex: 1, paddingHorizontal: 14, justifyContent: 'center', alignItems: 'center', backgroundColor: C.surface2 },
     unitBtnActive: { backgroundColor: C.primary },
-    unitBtnText: { fontSize: 13, fontWeight: '700', color: C.muted },
+    unitBtnText: { fontSize: 13, fontFamily: FontFamily.bold, color: C.muted },
     unitBtnTextActive: { color: C.white },
   });
 }

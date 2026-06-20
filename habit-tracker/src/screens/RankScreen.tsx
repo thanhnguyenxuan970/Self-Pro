@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
+import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useRankData } from '../queries/useRank';
 import { useLeaderboard } from '../queries/useLeaderboard';
 import { getCurrentTier } from '../game/tierLookup';
@@ -229,9 +229,9 @@ function makeStyles(C: AppColors) {
     content: { paddingBottom: 40 },
     loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bgBase },
     titleRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
-    title: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5, color: C.inkDark, flex: 1 },
+    title: { fontSize: 24, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, flex: 1 },
     infoBtn: { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: C.faint, alignItems: 'center', justifyContent: 'center' },
-    infoBtnText: { fontSize: 15, fontWeight: '700', color: C.muted },
+    infoBtnText: { fontSize: 15, fontFamily: FontFamily.bold, color: C.muted },
 
     rankhero: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,
@@ -243,27 +243,27 @@ function makeStyles(C: AppColors) {
       opacity: 0.4,
     },
     rankEm: { fontSize: 54, marginBottom: 2 },
-    rankNm: { fontSize: 25, fontWeight: '800', letterSpacing: -0.5, color: C.inkDark, marginTop: 8 },
+    rankNm: { fontSize: 25, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, marginTop: 8 },
     rankEn: { fontSize: 12.5, color: C.muted, marginTop: 2, fontStyle: 'italic' },
     rankWk: {
       marginTop: 12, backgroundColor: C.starSoft,
       paddingHorizontal: 14, paddingVertical: 6, borderRadius: Radii.pill,
     },
-    rankWkTxt: { fontSize: 13, fontWeight: '800', color: C.starGold },
+    rankWkTxt: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.starGold },
     bar: { width: '100%', height: 8, backgroundColor: C.surface2, borderRadius: Radii.pill, marginTop: 14, overflow: 'hidden' },
     barFill: { height: '100%', backgroundColor: C.primary, borderRadius: Radii.pill },
-    nextCap: { fontSize: 12, color: C.muted, marginTop: 13, fontWeight: '600', textAlign: 'center' },
+    nextCap: { fontSize: 12, color: C.muted, marginTop: 13, fontFamily: FontFamily.semiBold, textAlign: 'center' },
 
     resetChip: {
       marginHorizontal: Spacing.lg, marginTop: 12,
       alignItems: 'center', justifyContent: 'center',
       backgroundColor: C.surface2, borderRadius: Radii.md, paddingVertical: 12, paddingHorizontal: 16,
     },
-    resetChipLabel: { fontSize: 11, fontWeight: '700', color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
-    resetChipCountdown: { fontSize: 22, fontWeight: '800', color: C.inkDark, letterSpacing: 1, marginTop: 4, fontVariant: ['tabular-nums'] },
+    resetChipLabel: { fontSize: 11, fontFamily: FontFamily.bold, color: C.ink2, textTransform: 'uppercase', letterSpacing: 0.5 },
+    resetChipCountdown: { fontSize: 22, fontFamily: FontFamily.extraBold, color: C.inkDark, letterSpacing: 1, marginTop: 4, fontVariant: ['tabular-nums'] },
 
     sectionLabel: {
-      fontSize: 11, fontWeight: '700', color: C.muted,
+      fontSize: 11, fontFamily: FontFamily.bold, color: C.ink2,
       textTransform: 'uppercase', letterSpacing: 0.7,
       marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
     },
@@ -280,9 +280,9 @@ function makeStyles(C: AppColors) {
     rkMascot: { width: 36, height: 36, flexShrink: 0 },
     rkEm: { fontSize: 20, width: 36, textAlign: 'center', flexShrink: 0 },
     rkInfo: { flex: 1 },
-    rkA: { fontSize: 14, fontWeight: '800', color: C.inkDark },
+    rkA: { fontSize: 14, fontFamily: FontFamily.extraBold, color: C.inkDark },
     rkB: { fontSize: 11.5, color: C.muted, marginTop: 2 },
-    rkThr: { fontSize: 11.5, fontWeight: '800', color: C.muted },
+    rkThr: { fontSize: 11.5, fontFamily: FontFamily.extraBold, color: C.muted },
 
     lbRow: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -290,11 +290,11 @@ function makeStyles(C: AppColors) {
     },
     lbRowLast: { borderBottomWidth: 0 },
     lbRowMe: { backgroundColor: C.primarySoft, marginHorizontal: -8, paddingHorizontal: 14, borderRadius: Radii.sm, borderBottomWidth: 0, marginVertical: 2 },
-    lbRank: { width: 32, fontSize: 13, fontWeight: '800', color: C.muted, textAlign: 'center' },
+    lbRank: { width: 32, fontSize: 13, fontFamily: FontFamily.extraBold, color: C.muted, textAlign: 'center' },
     lbRankTop: { color: C.starGold },
     lbInfo: { flex: 1, minWidth: 0 },
-    lbName: { fontSize: 13, fontWeight: '600', color: C.inkDark },
-    lbStars: { fontSize: 13, fontWeight: '800', color: C.primary },
+    lbName: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
+    lbStars: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primary },
     lbEmpty: { paddingVertical: 20, alignItems: 'center' },
     lbEmptyTxt: { fontSize: 13, color: C.muted },
   });

@@ -7,7 +7,7 @@ import {
   useRecentActivityLogs, useDeleteActivityLogs, useWeeklyConsistency, useTopActivities,
   ActivityLogEntry,
 } from '../queries/useProgress';
-import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
+import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useSelectionMode } from '../hooks/useSelectionMode';
@@ -230,7 +230,7 @@ export function ProgressScreen() {
                 <VictoryAxis
                   tickValues={visibleTicks}
                   tickFormat={tickFormat}
-                  style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.muted, fontSize: 9.5, fontWeight: '600' } }}
+                  style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.muted, fontSize: 9.5, fontFamily: FontFamily.semiBold } }}
                 />
                 <VictoryAxis dependentAxis style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.muted, fontSize: 9.5 } }} />
                 <VictoryStack colorScale={[colors.primary, colors.danger]}>
@@ -309,7 +309,7 @@ function makeStyles(C: AppColors) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.bgBase },
     container: { flex: 1 },
-    title: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5, color: C.inkDark, marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
+    title: { fontSize: 24, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
 
     segbar: {
       flexDirection: 'row', marginHorizontal: Spacing.lg, marginBottom: 14,
@@ -322,7 +322,7 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.surface,
       shadowColor: '#14231A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 2, elevation: 1,
     },
-    segTxt: { fontSize: 12, fontWeight: '700', color: C.muted },
+    segTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.muted },
     segTxtActive: { color: C.inkDark },
 
     card: {
@@ -330,14 +330,14 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.lg, padding: 15, borderWidth: 1, borderColor: C.line, ...Shadows.light,
     },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    cardTitle: { fontSize: 13, fontWeight: '800', color: C.inkDark },
+    cardTitle: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.inkDark },
     chartSum: { fontSize: 11, color: C.muted },
     chartWrap: { marginTop: 4 },
     emptyChart: { height: 148, justifyContent: 'center', alignItems: 'center' },
     emptyText: { color: C.muted, fontSize: 14 },
 
     sectionLabel: {
-      fontSize: 11, fontWeight: '700', color: C.primary,
+      fontSize: 11, fontFamily: FontFamily.bold, color: C.primary,
       textTransform: 'uppercase', letterSpacing: 0.7,
       marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
     },
@@ -348,8 +348,8 @@ function makeStyles(C: AppColors) {
       width: '47%', backgroundColor: C.surface,
       borderRadius: Radii.md, padding: 12, borderWidth: 1, borderColor: C.line, ...Shadows.light,
     },
-    statV: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5, color: C.primary },
-    statL: { fontSize: 11, color: C.muted, fontWeight: '700', marginTop: 2 },
+    statV: { fontSize: 20, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.primary },
+    statL: { fontSize: 11, color: C.muted, fontFamily: FontFamily.bold, marginTop: 2 },
 
     logHeader: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -361,9 +361,9 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.surface2, borderRadius: Radii.sm,
       borderWidth: 1, borderColor: C.line2,
     },
-    logActionTxt: { fontSize: 12, fontWeight: '700', color: C.inkDark },
+    logActionTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.inkDark },
     logDeleteBtn: { borderColor: C.danger, backgroundColor: C.dangerSoft },
-    logDeleteTxt: { fontSize: 12, fontWeight: '700', color: C.danger },
+    logDeleteTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.danger },
     logCard: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,
       borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line,
@@ -376,9 +376,9 @@ function makeStyles(C: AppColors) {
     logRowLast: { borderBottomWidth: 0 },
     logRowSelected: { backgroundColor: C.primarySoft },
     logBody: { flex: 1, minWidth: 0 },
-    logName: { fontSize: 13.5, fontWeight: '600', color: C.inkDark },
+    logName: { fontSize: 13.5, fontFamily: FontFamily.semiBold, color: C.inkDark },
     logDate: { fontSize: 11, color: C.muted, marginTop: 2 },
-    logStars: { fontSize: 13, fontWeight: '800', color: C.primary, flexShrink: 0 },
+    logStars: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primary, flexShrink: 0 },
     logStarsBad: { color: C.danger },
     logEmpty: {
       textAlign: 'center', color: C.muted, fontSize: 13,
@@ -403,7 +403,7 @@ function makeStyles(C: AppColors) {
       gap: 10,
     },
     topRowLast: { borderBottomWidth: 0 },
-    topName: { width: 90, fontSize: 13, fontWeight: '600', color: C.inkDark },
+    topName: { width: 90, fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
     topBarTrack: {
       flex: 1,
       height: 6,
@@ -416,13 +416,13 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.primary,
       borderRadius: 3,
     },
-    topCount: { width: 42, fontSize: 12, fontWeight: '700', color: C.muted, textAlign: 'right' },
+    topCount: { width: 42, fontSize: 12, fontFamily: FontFamily.bold, color: C.muted, textAlign: 'right' },
     checkbox: {
       width: 22, height: 22, borderRadius: 11,
       borderWidth: 2, borderColor: C.line2,
       justifyContent: 'center', alignItems: 'center', flexShrink: 0,
     },
     checkboxSelected: { borderColor: C.primary, backgroundColor: C.primary },
-    checkmark: { fontSize: 13, fontWeight: '800', color: C.white },
+    checkmark: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.white },
   });
 }

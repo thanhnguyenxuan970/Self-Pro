@@ -11,7 +11,7 @@ import Svg, { Path } from 'react-native-svg';
 import { useCalendarData, CalendarDay } from '../queries/useCalendar';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
-import { AppColors, Radii, Spacing } from '../config/theme';
+import { AppColors, Radii, Spacing, FontFamily } from '../config/theme';
 import { AnimatedFireIcon, AnimatedStarIcon, AnimatedBurningStarIcon } from '../components/CalendarIcons';
 
 const DOW_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -53,7 +53,7 @@ function resolveCellIcon(data: CalendarDay | undefined, isMilestone: boolean, is
   if (isMilestone && isBest) return <AnimatedBurningStarIcon />;
   if (isMilestone) return <AnimatedFireIcon />;
   if (isBest) return <AnimatedStarIcon />;
-  return <Text style={{ fontSize: 9, fontWeight: '600', marginTop: 1, color: muteColor }}>{parseFloat(data.stars.toFixed(1))}★</Text>;
+  return <Text style={{ fontSize: 9, fontFamily: FontFamily.semiBold, marginTop: 1, color: muteColor }}>{parseFloat(data.stars.toFixed(1))}★</Text>;
 }
 
 export function CalendarScreen() {
@@ -205,15 +205,15 @@ function makeStyles(colors: AppColors) {
     container: { flex: 1 },
     content: { paddingHorizontal: Spacing.lg, paddingBottom: 40, paddingTop: 16 },
     header: { marginBottom: 16, marginTop: 8 },
-    title: { fontSize: 22, fontWeight: '800', color: colors.inkDark },
+    title: { fontSize: 22, fontFamily: FontFamily.extraBold, color: colors.inkDark },
     monthNav: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       marginBottom: 16,
     },
-    navBtn: { padding: 8 },
-    monthLabel: { fontSize: 16, fontWeight: '700', color: colors.inkDark },
+    navBtn: { padding: 12 },
+    monthLabel: { fontSize: 16, fontFamily: FontFamily.bold, color: colors.inkDark },
     dowRow: {
       flexDirection: 'row',
       marginBottom: 4,
@@ -224,8 +224,8 @@ function makeStyles(colors: AppColors) {
       flex: 1,
       textAlign: 'center',
       fontSize: 12,
-      fontWeight: '700',
-      color: colors.muted,
+      fontFamily: FontFamily.bold,
+      color: colors.ink2,
       paddingVertical: 4,
     },
     grid: {
@@ -244,8 +244,8 @@ function makeStyles(colors: AppColors) {
       borderRadius: Radii.sm,
       marginVertical: 2,
     },
-    dayNum: { fontSize: 15, fontWeight: '700' },
-    dayStars: { fontSize: 8, fontWeight: '600', marginTop: 1 },
+    dayNum: { fontSize: 15, fontFamily: FontFamily.bold },
+    dayStars: { fontSize: 8, fontFamily: FontFamily.semiBold, marginTop: 1 },
     dayIcon: { fontSize: 9, marginTop: 1 },
     cellBottom: { alignItems: 'center', height: 16 },
     todayDot: { width: 5, height: 5, borderRadius: 2.5 },
@@ -269,7 +269,7 @@ function makeStyles(colors: AppColors) {
     },
     summaryCell: { flex: 1, alignItems: 'center' },
     summarySep: { width: 1, backgroundColor: colors.line },
-    summaryV: { fontSize: 18, fontWeight: '800', color: colors.primary },
+    summaryV: { fontSize: 18, fontFamily: FontFamily.extraBold, color: colors.primary },
     summaryL: { fontSize: 11, color: colors.muted, marginTop: 2 },
   });
 }

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import Toast from 'react-native-toast-message';
-import { Typography, Radii, Spacing, AppColors } from '../config/theme';
+import { Typography, Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useGoogleUser } from '../hooks/useAuth';
 import { submitFeedback } from '../api/feedbackService';
@@ -188,7 +188,7 @@ function makeStyles(C: AppColors) {
       alignItems: 'center',
     },
     typeChipActive: { borderColor: C.primary, backgroundColor: C.primarySoft },
-    typeChipText: { fontSize: 13, fontWeight: '600', color: C.muted },
+    typeChipText: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.muted },
     typeChipTextActive: { color: C.primary },
     input: {
       backgroundColor: C.surface2, color: C.inkDark, padding: 13,
@@ -203,7 +203,7 @@ function makeStyles(C: AppColors) {
       paddingVertical: 8, paddingHorizontal: 14,
       borderWidth: 1.5, borderColor: C.line2,
     },
-    imagePickText: { fontSize: 13, fontWeight: '600', color: C.inkDark },
+    imagePickText: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
     imagePreviewer: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     imageThumb: {
       width: 72, height: 72, borderRadius: Radii.md,
@@ -214,13 +214,13 @@ function makeStyles(C: AppColors) {
       width: 24, height: 24, alignItems: 'center', justifyContent: 'center',
       borderWidth: 1, borderColor: C.line2,
     },
-    imageRemoveText: { fontSize: 12, fontWeight: '700', color: C.muted },
+    imageRemoveText: { fontSize: 12, fontFamily: FontFamily.bold, color: C.muted },
     sendBtn: {
       backgroundColor: C.primary, padding: 15, borderRadius: Radii.md,
       alignItems: 'center', marginBottom: 8,
     },
     sendBtnDisabled: { backgroundColor: C.line2 },
-    sendBtnText: { color: C.white, fontSize: 15, fontWeight: '700' },
+    sendBtnText: { color: C.white, fontSize: 15, fontFamily: FontFamily.bold },
     cancel: { textAlign: 'center', color: C.muted, padding: 8 },
   });
 }

@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import { Radii, Spacing, Shadows, Typography, AppColors } from '../config/theme';
+import { Radii, Spacing, Shadows, Typography, AppColors, FontFamily } from '../config/theme';
 import { useDarkMode, useLanguage, useAudioEnabled, useAccent, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
 import { AccentPicker } from '../components/AccentPicker';
 import { useAuthUser } from '../hooks/useAuth';
@@ -298,7 +298,7 @@ function makeStyles(C: AppColors) {
     safe: { flex: 1, backgroundColor: C.bgBase },
     sectionLabel: {
       ...Typography.sectionLabel,
-      color: C.muted,
+      color: C.ink2,
       marginHorizontal: Spacing.lg,
       marginTop: 24,
       marginBottom: 8,
@@ -322,8 +322,8 @@ function makeStyles(C: AppColors) {
     },
     rowLast: { borderBottomWidth: 0 },
     rowIc: { fontSize: 20, width: 28, textAlign: 'center' },
-    rowLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: C.inkDark },
-    check: { fontSize: 16, fontWeight: '800', color: C.primary },
+    rowLabel: { flex: 1, fontSize: 15, fontFamily: FontFamily.semiBold, color: C.inkDark },
+    check: { fontSize: 16, fontFamily: FontFamily.extraBold, color: C.primary },
     chevron: { fontSize: 18, color: C.faint },
     hint: {
       marginHorizontal: Spacing.lg,
@@ -334,18 +334,18 @@ function makeStyles(C: AppColors) {
     },
     reminderTime: {
       fontSize: 17,
-      fontWeight: '700',
+      fontFamily: FontFamily.bold,
       color: C.primary,
     },
     reminderClear: {
       fontSize: 16,
       color: C.faint,
-      fontWeight: '700',
+      fontFamily: FontFamily.bold,
       paddingHorizontal: 4,
     },
     addReminderText: {
       color: C.primary,
-      fontWeight: '700',
+      fontFamily: FontFamily.bold,
     },
   });
 }

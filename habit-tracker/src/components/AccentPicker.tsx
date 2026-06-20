@@ -19,6 +19,7 @@ export function AccentPicker({ accent, onSelect, colors }: Props) {
             key={key}
             activeOpacity={0.75}
             onPress={() => onSelect(key)}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             style={[
               styles.swatch,
               { backgroundColor: ACCENTS[key].swatch },
@@ -34,7 +35,7 @@ export function AccentPicker({ accent, onSelect, colors }: Props) {
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 14,
     paddingVertical: 14,
     paddingHorizontal: 2,
   },

@@ -1,4 +1,12 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
+import {
+  useFonts,
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+  Poppins_800ExtraBold,
+} from '@expo-google-fonts/poppins';
 import { ActivityIndicator, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -13,11 +21,19 @@ import { useAuth, resolveUserRow, UserIdContext, GoogleUserContext } from './src
 import { syncToSupabase } from './src/api/syncService';
 import { SettingsProvider } from './src/contexts/SettingsContext';
 import { useTheme } from './src/hooks/useSettings';
+import { FontFamily } from './src/config/theme';
 import { LevelUpCelebrationModal } from './src/components/LevelUpCelebrationModal';
 import { PENDING_LEVELUP_KEY } from './src/queries/useToday';
 import { TutorialProvider } from './src/hooks/useTutorial';
 
 function AppInner() {
+  const [fontsLoaded] = useFonts({
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+    Poppins_800ExtraBold,
+  });
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -123,7 +139,7 @@ function AppInner() {
     );
   }
 
-  if (!dbReady || authLoading) {
+  if (!dbReady || authLoading || !fontsLoaded) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bgBase, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -163,7 +179,7 @@ const appStyles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   errorMsg: { fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
   retryBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 8 },
-  retryTxt: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  retryTxt: { color: '#fff', fontSize: 15, fontFamily: FontFamily.semiBold },
 });
 
 export default function App() {
