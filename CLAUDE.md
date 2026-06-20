@@ -513,6 +513,27 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
+## Habit Tracker — UI Hardening (impeccable harden) COMPLETE (2026-06-20)
+
+### What Was Fixed
+- **`src/components/TaskRow.tsx`**: Added `numberOfLines={1}` to task name `<Text>` — long custom names no longer overflow the flex row. Also: `checkScaleAnim` added to `useTaskRowAnimation` — check circle pops in on done state change (spring 0.1→1); `FontFamily` tokens replace hardcoded `fontWeight` strings throughout.
+- **`src/screens/AddActivitySheet.tsx`**: `maxLength={50}` on name `TextInput` — caps user input at source. `Alert.alert(t.error, t.validDuration)` / `Alert.alert(t.error, t.maxDuration)` — 2-arg pattern (title + message) consistent with rest of app. `FontFamily` tokens replace hardcoded `fontWeight`.
+- **`src/screens/ProfileScreen.tsx`**: `numberOfLines={1}` on `googleUser.name` and `googleUser.email` — long Google names/emails no longer overflow centered profile header. `FontFamily` tokens replace hardcoded `fontWeight`.
+- **`src/screens/TodayScreen.tsx`**: Loading state wrapped in `<View style={{ flex: 1, backgroundColor: colors.bgBase, justifyContent: 'center', alignItems: 'center' }}>` — no white flash on initial data load. `numberOfLines={1}` on suggestion chip text — long task names don't break chip layout. `parseLogDuration` updated to accept `errorTitle` param + use 2-arg `Alert.alert(errorTitle, msg)` — fixed 1-arg inconsistency. `error` field added to `DurationModalLabels` type and passed via JSX labels. `reduceMotion={reduceMotion}` wired to `DurationModal` (linter-introduced TSC fix). `useHeroNumberPop` + `SuggestionEntranceWrapper` added by linter (staggered entrance + pop animation).
+- **`android/app/build.gradle`**: `versionCode 25 → 27`, `versionName "1.0.24" → "1.0.26"`. `app.json` synced to `"1.0.26"`.
+
+### Key Decisions
+- `numberOfLines={1}` on name + email in ProfileScreen clips at screen width — correct because the `ph.head` container is `alignItems: 'center'`; text width is constrained by `paddingHorizontal`.
+- `maxLength={50}` chosen as generous but bounded limit — 50 chars covers all real activity names; prevents DB storage of absurdly long strings.
+- 2-arg `Alert.alert(title, msg)` pattern enforced in `parseLogDuration` by adding `errorTitle` param rather than hardcoding `t.error` inside the utility — keeps the function pure (no direct `t` access), caller supplies all strings.
+- `fontWeight` → `FontFamily` token migration done by linter; preserves exact visual weight via custom font files.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 27)
+- **Runtime verified on emulator**: Loading state dark bg ✅; task names single-line ✅; ProfileScreen name/email truncated ✅
+
+---
+
 ## Habit Tracker — Poppins Typography System COMPLETE (2026-06-20)
 
 ### What Was Built
