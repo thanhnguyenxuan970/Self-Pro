@@ -145,50 +145,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker — Tutorial, Calendar Icons, Redmi Layout COMPLETE (2026-06-18)
-
-### What Was Fixed
-- **`src/components/Coachmark.tsx`**: Removed `useSafeAreaInsets` (unusable inside `Modal` — separate window root). Added `bottomInset: number` prop. Position clamped: `tipBottom = Math.max(H - rect.y + GAP, TAB_BAR_H + bottomInset + 8)` — prevents tooltip overlapping bottom nav. Added back navigation: when `index > 0`, shows `← Quay lại` instead of `Bỏ qua`.
-- **`src/hooks/useTutorial.tsx`**: Added `useSafeAreaInsets` (valid here — TutorialProvider is in normal tree). Added `back()` callback (`setIndex(i => Math.max(0, i-1))`). Passes `bottomInset` and `onBack` to `Coachmark`.
-- **`App.tsx`**: Added `SafeAreaProvider` at root level so all hooks (including `useSafeAreaInsets` in `TutorialProvider`) have context.
-- **`src/screens/TodayScreen.tsx`**: Added `useSafeAreaInsets`, uses `bottomInset` in `ScrollView` `contentContainerStyle={{ paddingBottom: 28 + bottomInset }}` — fixes last task being clipped behind gesture nav on Redmi Note 13 Pro.
-- **`src/components/CalendarIcons.tsx`** (new): `AnimatedFireIcon`, `AnimatedStarIcon`, `AnimatedBurningStarIcon` — each uses `Animated.loop` pulse scale (1→1.35) with `useNativeDriver: true`. Used in CalendarScreen cells and legend.
-- **`src/screens/CalendarScreen.tsx`**: `resolveCellColors` no longer returns colored backgrounds for `isMilestone`/`isBest` (orange #F97316 / yellow #FBBF24 removed). `resolveCellIcon`: milestone+best → `AnimatedBurningStarIcon`; milestone → `AnimatedFireIcon`; best → `AnimatedStarIcon`. Legend updated to use animated icons.
-- **`android/app/build.gradle`**: `versionCode 16 → 17`, `versionName "1.0.15" → "1.0.16"`. `app.json` synced to `"1.0.16"`.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 17)
-
----
-
-## Habit Tracker — DurationModal Perf + Localization Fix COMPLETE (2026-06-18)
-
-### What Was Fixed
-- **`src/config/i18n.ts`**: Added `TEMPLATE_NAME_TO_KEY` — module-level IIFE builds `Map<storedName, nameKey>` covering all `tmpl*` keys in both `vi` and `en`. Both language values map to the same key so any stored name resolves correctly regardless of which language was active at creation time.
-- **`src/components/TaskRow.tsx`**: Added `resolveTaskDisplayName(name, t)` — looks up stored name in `TEMPLATE_NAME_TO_KEY`, translates to current UI language via `t[key]`. Falls back to raw name for custom activities.
-- **`src/screens/TodayScreen.tsx`**: `resolveTaskDisplayName` applied to task name in `DurationModal` labels and suggestion chip prompt. `DurationModal` state already isolated (prior session); `taskDisplayName` field added to `DurationModalLabels` type.
-- **`src/screens/AddActivitySheet.tsx`**: Added `resolveTaskDisplayName`. Added `DurationStep` component owning `duration`/`durationUnit`/`customDuration` state — typing no longer re-renders parent (`AddActivitySheet`). Canonical name storage: template suggestions stored as `selectedSuggestion.name` (always Vietnamese canonical) so reverse-lookup always resolves. Toast text2 uses localized display name (both timed and non-timed paths).
-- **`android/app/build.gradle`**: `versionCode 15 → 16`, `versionName "1.0.14" → "1.0.15"`.
-- **`__tests__/localization.test.ts`** (new): 9 tests — vi↔en round-trip, Gym loanword invariance, custom activity pass-through, all template tasks.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 16)
-
----
-
-## Habit Tracker — DurationModal Center + Exercise Cleanup + RankInfoSheet COMPLETE (2026-06-18)
-
-### What Was Fixed / Built
-- **`src/screens/TodayScreen.tsx`** — `DurationModal`: Changed `animationType="slide"` → `"fade"`. Changed `modalBg` from `justifyContent: 'flex-end'` → `'center'` + `paddingHorizontal: Spacing.lg`. Changed `modalBox` from `borderTopLeftRadius/borderTopRightRadius: Radii.xxl` → `borderRadius: Radii.xl`. Modal is now a centered dialog (not bottom-sheet); `KeyboardAvoidingView behavior="padding"` shifts it up when keyboard opens.
-- **`src/db/migrations.ts`** — v5: Removed `taskCount === 0` check block and `Exercise` INSERT (hardcoded `user_id=1`). v5 now goes directly to multi-insert block for Cleaning/Work/Study/Family/Relationship/Sports.
-- **`src/screens/RankScreen.tsx`**: Added `import { RankInfoSheet }`. Added `infoVisible` state. Changed title from plain `<Text>` to `<View style={styles.titleRow}>` containing title + `<TouchableOpacity>` ℹ️ button. Added `<RankInfoSheet visible={infoVisible} tiers={tiers} currentTierId={currentTier?.id ?? null} onClose={() => setInfoVisible(false)} />` before `</SafeAreaView>`. Added `titleRow`, `infoBtn`, `infoBtnText` styles to `makeStyles`.
-- **`android/app/build.gradle`**: `versionCode 18 → 19`, `versionName "1.0.17" → "1.0.18"`. `app.json` synced.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 19)
-
----
-
 ## Habit Tracker — Calendar Cells + SVG Icons + inkLight Fix COMPLETE (2026-06-18)
 
 ### What Was Fixed / Built
@@ -387,34 +343,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker — Impeccable Polish (Contrast + Token + Vocabulary) COMPLETE (2026-06-20)
-
-### What Was Fixed
-- **`src/config/theme.ts`**: Added `dangerPress` token — `Colors: '#A82830'`, `DarkColors: '#C03538'`. Mirrors `primaryPress` pattern; used as gradient start for debt hero card.
-- **`src/components/Wordmark.tsx`**: Removed dead `useSettingsContext`/`getColors`/`isDark` + manual `inkColor` hex. Replaced with `colors.inkDark`.
-- **`src/components/Coachmark.tsx`**: Removed `color: '#ffffff'` from static `nextText` style. Applied `{ color: C.white }` inline at JSX call site.
-- **`src/components/LevelUpCelebrationModal.tsx`**: Removed `color: '#FFFFFF'` from static `dismissBtnText`. Applied `{ color: C.onAccent }` inline.
-- **`src/components/TaskRow.tsx`**: `color: '#fff'` → `color: C.white` in `makeTaskRowStyles`.
-- **`src/screens/TodayScreen.tsx`**: Gradient `['#5C1D1E','#B0383C']`/`['#1A5039','#2E9C6A']` → `[colors.dangerPress, colors.danger]`/`[colors.primaryPress, colors.primary]`. Bar glow `'#fff'` → `colors.white`. `heroLabel`/`heroBalNum`/`rankChipText` `'#fff'` → `C.white`. `sectionLabel` `C.muted` → `C.ink2`.
-- **`src/screens/AddActivitySheet.tsx`**: `suggestionsLabel` `C.muted` → `C.ink2` (11px uppercase — was ~3.8:1, now ~6.5:1).
-- **`src/screens/CalendarScreen.tsx`**: `dowLabel` `colors.muted` → `colors.ink2`.
-- **`src/screens/SettingsScreen.tsx`**: `sectionLabel` `C.muted` → `C.ink2`.
-- **`src/screens/RankScreen.tsx`**: `resetChipLabel` + `sectionLabel` `C.muted` → `C.ink2`.
-- **`src/screens/PaywallScreen.tsx`**: All 3 `Pressable` → `TouchableOpacity`. Removed dead `ctaPressed` style. Added `activeOpacity` on each.
-- **`android/app/build.gradle`**: `versionCode 30 → 31`, `versionName "1.0.29" → "1.0.30"`. `app.json` synced.
-
-### Key Decisions
-- Static `StyleSheet.create({})` can't reference runtime theme tokens — fix: remove hardcoded color from static style, apply `{ color: C.token }` inline at JSX call site where `C` is in scope.
-- `C.white` (#FFFFFF) for text on gradient/primary bg; `C.onAccent` (from accent palette) for dismiss button on tier-color background — they differ when accent overrides `onAccent`.
-- `dangerPress` darker than `danger` in both modes — dark→light gradient direction preserved.
-- SVG mask `fill="#ffffff"/"#000000"`, `PARTICLE_COLORS`, `rgba(0,0,0,0.82)` backdrop intentionally hardcoded (mask semantics / celebration confetti / dark overlay).
-- PaywallScreen: standardized on `TouchableOpacity` (convert the outlier, not 15+ established screens). `ctaPressed` removed — was Pressable-only `style` function callback.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 31) | visual-verify PASS: hero gradient tracks accent (indigo), section labels legible
-
----
-
 ## Habit Tracker — Typography + Component Vocabulary Polish COMPLETE (2026-06-20)
 
 ### What Was Fixed
@@ -545,3 +473,26 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 37)
+
+---
+
+## Habit Tracker — RankInfoSheet Contrast Audit Fixes COMPLETE (2026-06-21)
+
+### Audit Score: 15/20 → non-PaywallScreen P2 findings fixed
+
+### What Was Fixed
+- **`src/components/RankInfoSheet.tsx`**: 4 fixes from `/impeccable audit all` P2 findings:
+  - `ptSub` added `fontFamily: FontFamily.regular` — no fontFamily = Roboto fallback despite Poppins being loaded.
+  - `lnumText` `C.muted → C.ink2` — 11sp on `C.surface3` (#ECEEEC) was ~4.08:1, below WCAG AA 4.5:1.
+  - `lstar` `C.muted → C.ink2` — 12.5sp muted ~4.38:1 fails 4.5:1 threshold.
+  - `close` `C.faint → C.muted` — 17sp bold at 2.34:1 failed even WCAG 3:1 large-text minimum; C.muted gives ~4.38:1.
+- **`android/app/build.gradle`**: `versionCode 38 → 39`, `versionName "1.0.37" → "1.0.38"`. `app.json` synced.
+
+### Key Decisions
+- `C.muted` (not `C.ink2`) for `close` button — keeps ✕ visually secondary to title while clearing contrast threshold; `C.ink2` would over-emphasise a dismiss affordance.
+- RankInfoSheet is a native Modal — Playwright/Expo web visual-verify skipped; contrast changes verified via calculation and TSC clean build.
+- PaywallScreen audit findings (P1s) intentionally deferred — separate `/impeccable harden PaywallScreen` task.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 39)
+- **PRODUCT.md created** — required by `/impeccable` skill; unblocks all future audit/craft/polish commands.
