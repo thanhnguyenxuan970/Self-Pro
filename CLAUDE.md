@@ -509,3 +509,31 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL
+
+---
+
+## Habit Tracker — Impeccable Polish (Contrast + Token + Vocabulary) COMPLETE (2026-06-20)
+
+### What Was Fixed
+- **`src/config/theme.ts`**: Added `dangerPress` token — `Colors: '#A82830'`, `DarkColors: '#C03538'`. Mirrors `primaryPress` pattern; used as gradient start for debt hero card.
+- **`src/components/Wordmark.tsx`**: Removed dead `useSettingsContext`/`getColors`/`isDark` + manual `inkColor` hex. Replaced with `colors.inkDark`.
+- **`src/components/Coachmark.tsx`**: Removed `color: '#ffffff'` from static `nextText` style. Applied `{ color: C.white }` inline at JSX call site.
+- **`src/components/LevelUpCelebrationModal.tsx`**: Removed `color: '#FFFFFF'` from static `dismissBtnText`. Applied `{ color: C.onAccent }` inline.
+- **`src/components/TaskRow.tsx`**: `color: '#fff'` → `color: C.white` in `makeTaskRowStyles`.
+- **`src/screens/TodayScreen.tsx`**: Gradient `['#5C1D1E','#B0383C']`/`['#1A5039','#2E9C6A']` → `[colors.dangerPress, colors.danger]`/`[colors.primaryPress, colors.primary]`. Bar glow `'#fff'` → `colors.white`. `heroLabel`/`heroBalNum`/`rankChipText` `'#fff'` → `C.white`. `sectionLabel` `C.muted` → `C.ink2`.
+- **`src/screens/AddActivitySheet.tsx`**: `suggestionsLabel` `C.muted` → `C.ink2` (11px uppercase — was ~3.8:1, now ~6.5:1).
+- **`src/screens/CalendarScreen.tsx`**: `dowLabel` `colors.muted` → `colors.ink2`.
+- **`src/screens/SettingsScreen.tsx`**: `sectionLabel` `C.muted` → `C.ink2`.
+- **`src/screens/RankScreen.tsx`**: `resetChipLabel` + `sectionLabel` `C.muted` → `C.ink2`.
+- **`src/screens/PaywallScreen.tsx`**: All 3 `Pressable` → `TouchableOpacity`. Removed dead `ctaPressed` style. Added `activeOpacity` on each.
+- **`android/app/build.gradle`**: `versionCode 30 → 31`, `versionName "1.0.29" → "1.0.30"`. `app.json` synced.
+
+### Key Decisions
+- Static `StyleSheet.create({})` can't reference runtime theme tokens — fix: remove hardcoded color from static style, apply `{ color: C.token }` inline at JSX call site where `C` is in scope.
+- `C.white` (#FFFFFF) for text on gradient/primary bg; `C.onAccent` (from accent palette) for dismiss button on tier-color background — they differ when accent overrides `onAccent`.
+- `dangerPress` darker than `danger` in both modes — dark→light gradient direction preserved.
+- SVG mask `fill="#ffffff"/"#000000"`, `PARTICLE_COLORS`, `rgba(0,0,0,0.82)` backdrop intentionally hardcoded (mask semantics / celebration confetti / dark overlay).
+- PaywallScreen: standardized on `TouchableOpacity` (convert the outlier, not 15+ established screens). `ctaPressed` removed — was Pressable-only `style` function callback.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 31) | visual-verify PASS: hero gradient tracks accent (indigo), section labels legible
