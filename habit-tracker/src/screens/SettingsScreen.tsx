@@ -5,8 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Radii, Spacing, Shadows, Typography, AppColors, FontFamily } from '../config/theme';
-import { useDarkMode, useLanguage, useAudioEnabled, useAccent, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
-import { AccentPicker } from '../components/AccentPicker';
+import { useDarkMode, useLanguage, useAudioEnabled, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
 import { useAuthUser } from '../hooks/useAuth';
 import {
   useNotificationTime, useSetNotificationTime,
@@ -18,7 +17,6 @@ import { FeedbackSheet } from './FeedbackSheet';
 
 type Props = {
   onDeleteAccount: (userId: number) => Promise<void>;
-  onResetProgress: (userId: number) => Promise<void>;
 };
 
 function openTimePicker(currentVal: string | null, onSet: (time: string) => void) {
@@ -56,17 +54,15 @@ function LanguageOption({ lang, l, isLast, onPress, styles }: { lang: string; l:
   );
 }
 
-export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
+export function SettingsScreen({ onDeleteAccount }: Props) {
   const userId = useAuthUser();
   const [isDark, setIsDark] = useDarkMode();
   const [lang, setLanguage] = useLanguage();
   const [audioEnabled, setAudioEnabled] = useAudioEnabled();
-  const [accent, setAccent] = useAccent();
   const { colors } = useTheme();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [deleting, setDeleting] = useState(false);
-  const [resetting, setResetting] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
 
   const { data: savedNotifTime } = useNotificationTime(userId);
@@ -105,31 +101,6 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
     openTimePicker(null, (time) => handleSetReminder(nextIdx, time));
   }
 
-  function handleResetProgress() {
-    Alert.alert(
-      t.resetProgressTitle,
-      t.resetProgressMsg,
-      [
-        { text: t.cancel, style: 'cancel' },
-        {
-          text: t.resetProgressBtn,
-          style: 'destructive',
-          onPress: async () => {
-            setResetting(true);
-            try {
-              await onResetProgress(userId);
-              Alert.alert('', t.resetProgressSuccess);
-            } catch {
-              Alert.alert(t.error, t.resetProgressError);
-            } finally {
-              setResetting(false);
-            }
-          },
-        },
-      ],
-    );
-  }
-
   function handleDeleteAccount() {
     Alert.alert(
       t.deleteAccountTitle,
@@ -161,7 +132,7 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
         {/* Appearance */}
         <Text style={styles.sectionLabel}>{t.sectionAppearance}</Text>
         <View style={styles.card}>
-          <View style={styles.row}>
+          <View style={[styles.row, styles.rowLast]}>
             <Text style={styles.rowIc}>🌙</Text>
             <Text style={styles.rowLabel}>{t.darkModeLabel}</Text>
             <Switch
@@ -170,13 +141,6 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
               thumbColor={isDark ? colors.primary : colors.faint}
               trackColor={{ false: colors.line2, true: colors.primarySoft }}
             />
-          </View>
-          <View style={[styles.row, styles.rowLast]}>
-            <Text style={styles.rowIc}>🎨</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>{t.accentColorLabel}</Text>
-              <AccentPicker accent={accent} onSelect={setAccent} colors={colors} />
-            </View>
           </View>
         </View>
 
@@ -264,16 +228,6 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
         {/* Danger zone */}
         <Text style={styles.sectionLabel}>{t.sectionAccount}</Text>
         <View style={styles.card}>
-          <TouchableOpacity
-            style={[styles.row, { opacity: resetting ? 0.5 : 1 }]}
-            onPress={handleResetProgress}
-            disabled={resetting}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.rowIc}>🔄</Text>
-            <Text style={[styles.rowLabel, { color: colors.danger }]}>{t.resetProgressLabel}</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.row, styles.rowLast, { opacity: deleting ? 0.5 : 1 }]}
             onPress={handleDeleteAccount}

@@ -147,12 +147,10 @@ function AppStack({
   googleUser,
   onSignOut,
   onDeleteAccount,
-  onResetProgress,
 }: {
   googleUser: GoogleUser;
   onSignOut: () => Promise<void>;
   onDeleteAccount: (userId: number) => Promise<void>;
-  onResetProgress: (userId: number) => Promise<void>;
 }) {
   const [fabVisible, setFabVisible] = useState(false);
   const [suggestVisible, setSuggestVisible] = useState(false);
@@ -183,7 +181,7 @@ function AppStack({
           name="Settings"
           options={{ ...modalHeaderOptions, title: t.screenSettings }}
         >
-          {() => <SettingsScreen onDeleteAccount={onDeleteAccount} onResetProgress={onResetProgress} />}
+          {() => <SettingsScreen onDeleteAccount={onDeleteAccount} />}
         </Stack.Screen>
       </Stack.Navigator>
       <AddActivitySheet
@@ -203,7 +201,6 @@ export function RootNavigator({
   onSignInWithGoogle,
   onSignOut,
   onDeleteAccount,
-  onResetProgress,
 }: {
   isOnboarded: boolean;
   googleUser: GoogleUser | null;
@@ -211,7 +208,6 @@ export function RootNavigator({
   onSignInWithGoogle: (user: GoogleUser, idToken?: string) => Promise<boolean>;
   onSignOut: () => Promise<void>;
   onDeleteAccount: (userId: number) => Promise<void>;
-  onResetProgress: (userId: number) => Promise<void>;
 }) {
   const { isDark } = useTheme();
   return (
@@ -222,7 +218,7 @@ export function RootNavigator({
         translucent
       />
       {googleUser !== null && isOnboarded ? (
-        <AppStack googleUser={googleUser} onSignOut={onSignOut} onDeleteAccount={onDeleteAccount} onResetProgress={onResetProgress} />
+        <AppStack googleUser={googleUser} onSignOut={onSignOut} onDeleteAccount={onDeleteAccount} />
       ) : (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="SignIn">

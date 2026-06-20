@@ -1,4 +1,4 @@
-export type AccentKey = 'green' | 'indigo' | 'amber' | 'rose' | 'sky' | 'violet';
+export type AccentKey = 'green' | 'indigo' | 'rose' | 'sky' | 'violet';
 
 export type AccentPalette = {
   swatch: string;
@@ -19,12 +19,6 @@ export const ACCENTS: Record<AccentKey, AccentPalette> = {
     onAccent: '#FFFFFF',
     light: { primary: '#6366F1', primaryHover: '#4F46E5', primaryPress: '#3730A3', primarySoft: '#E0E7FF' },
     dark:  { primary: '#818CF8', primaryHover: '#6366F1', primaryPress: '#A5B4FC', primarySoft: '#1E1B4B' },
-  },
-  amber: {
-    swatch: '#F59E0B',
-    onAccent: '#1B1F1D',
-    light: { primary: '#D97706', primaryHover: '#B45309', primaryPress: '#92400E', primarySoft: '#FEF3C7' },
-    dark:  { primary: '#F59E0B', primaryHover: '#D97706', primaryPress: '#FCD34D', primarySoft: '#3D2E0F' },
   },
   rose: {
     swatch: '#F43F5E',

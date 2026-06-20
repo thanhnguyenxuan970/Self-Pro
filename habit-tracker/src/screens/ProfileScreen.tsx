@@ -4,52 +4,28 @@ import {
   ScrollView, Image,
 } from 'react-native';
 import { useWeeklySummary, useDailySummary } from '../queries/useToday';
-import { useRecentActivityLogs, useAllTimeStats, ActivityLogEntry } from '../queries/useProgress';
+import { useAllTimeStats } from '../queries/useProgress';
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useAuthUser } from '../hooks/useAuth';
-import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useTheme, useTranslations, useAccent } from '../hooks/useSettings';
+import { AccentPicker } from '../components/AccentPicker';
 
 type Props = {
   googleUser: { email: string; name: string; picture: string };
   onSignOut: () => Promise<void>;
 };
 
-function formatLogDate(entry: ActivityLogEntry): string {
-  const d = new Date(entry.logged_at);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-type LogRowStyles = ReturnType<typeof makeStyles>;
-
-function ProfileLogRow({ item, isLast, bonusSource, styles }: { item: ActivityLogEntry; isLast: boolean; bonusSource: string; styles: LogRowStyles }) {
-  return (
-    <View style={[styles.row, isLast && styles.rowLast]}>
-      <Text style={styles.icon}>{item.stars_delta >= 0 ? '✅' : '❌'}</Text>
-      <View style={styles.rowBody}>
-        <Text style={styles.taskName} numberOfLines={1}>
-          {item.task_name ?? (item.source === 'BONUS' ? bonusSource : item.source)}
-        </Text>
-        <Text style={styles.taskMeta}>{formatLogDate(item)}</Text>
-      </View>
-      <Text style={[styles.stars, item.stars_delta < 0 && styles.starsNeg]}>
-        {item.stars_delta >= 0 ? '+' : ''}{item.stars_delta.toFixed(1)} ★
-      </Text>
-    </View>
-  );
-}
-
 export function ProfileScreen({ googleUser, onSignOut }: Props) {
   const userId = useAuthUser();
   const { colors } = useTheme();
   const t = useTranslations();
+  const [accent, setAccent] = useAccent();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const ph = useMemo(() => makePhStyles(colors), [colors]);
 
   const { data: weekly } = useWeeklySummary(userId);
   const { data: daily } = useDailySummary(userId);
   const { data: allTime } = useAllTimeStats(userId);
-  const { data: actLogs = [] } = useRecentActivityLogs(userId, 100);
 
   const weeklyStars = weekly ? weekly.weekly_stars : 0;
   const streak = daily ? daily.streak_count : 0;
@@ -86,28 +62,11 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
         </View>
       </View>
 
-      {/* History section */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{t.historyTitle}</Text>
+      {/* Accent color picker */}
+      <View style={styles.accentCard}>
+        <Text style={styles.accentLabel}>{t.accentColorLabel}</Text>
+        <AccentPicker accent={accent} onSelect={setAccent} colors={colors} />
       </View>
-
-      {actLogs.length === 0 ? (
-        <View style={styles.taskCard}>
-          <Text style={styles.empty}>{t.noActivity}</Text>
-        </View>
-      ) : (
-        <View style={styles.taskCard}>
-          {actLogs.map((item, idx) => (
-            <ProfileLogRow
-              key={item.id}
-              item={item}
-              isLast={idx === actLogs.length - 1}
-              bonusSource={t.bonusSource}
-              styles={styles}
-            />
-          ))}
-        </View>
-      )}
 
       {/* Logout */}
       <TouchableOpacity style={styles.logoutBtn} onPress={onSignOut} activeOpacity={0.8}>
@@ -120,29 +79,14 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: C.bgBase },
-    sectionHeader: {
-      flexDirection: 'row', alignItems: 'center',
-      justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm,
-      marginTop: 4,
+    accentCard: {
+      marginHorizontal: Spacing.lg, marginTop: 14,
+      backgroundColor: C.surface, borderRadius: Radii.md,
+      borderWidth: 1, borderColor: C.line,
+      paddingHorizontal: 15, paddingTop: 14, paddingBottom: 4,
+      ...Shadows.light,
     },
-    sectionTitle: { fontSize: 14, fontFamily: FontFamily.semiBold, color: C.inkDark },
-    taskCard: {
-      marginHorizontal: Spacing.lg, backgroundColor: C.surface,
-      borderRadius: Radii.md, borderWidth: 1, borderColor: C.line,
-      paddingHorizontal: 15, ...Shadows.light,
-    },
-    row: {
-      flexDirection: 'row', alignItems: 'center',
-      paddingVertical: 12, borderBottomWidth: 1, borderColor: C.line,
-    },
-    rowLast: { borderBottomWidth: 0 },
-    icon: { fontSize: 20, marginRight: 12, flexShrink: 0 },
-    rowBody: { flex: 1, minWidth: 0 },
-    taskName: { fontSize: 14, color: C.inkDark, fontFamily: FontFamily.semiBold },
-    taskMeta: { fontSize: 11.5, color: C.muted, marginTop: 2 },
-    stars: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primary, flexShrink: 0 },
-    starsNeg: { color: C.danger },
-    empty: { textAlign: 'center', color: C.muted, marginTop: 24, marginBottom: 24, fontSize: 14, paddingHorizontal: 12 },
+    accentLabel: { fontSize: 14, fontFamily: FontFamily.semiBold, color: C.inkDark },
     logoutBtn: {
       marginHorizontal: Spacing.lg, marginTop: 32, marginBottom: 12,
       paddingVertical: 15, borderRadius: Radii.md,

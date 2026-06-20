@@ -55,7 +55,6 @@ function AppInner() {
     signInWithGoogle,
     signOut,
     deleteAccount,
-    resetProgress,
   } = useAuth();
 
   // Wait for auth to finish loading (AsyncStorage is async) so googleUser is
@@ -158,7 +157,6 @@ function AppInner() {
           onSignInWithGoogle={signInWithGoogle}
           onSignOut={signOut}
           onDeleteAccount={deleteAccount}
-          onResetProgress={resetProgress}
         />
         <Toast />
         {celebrationData && (

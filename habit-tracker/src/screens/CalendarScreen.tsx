@@ -148,13 +148,14 @@ export function CalendarScreen() {
           const { cellBg, numColor } = resolveCellColors(isMilestone, isBest, !!data, isDark, colors);
           const cellIcon = resolveCellIcon(data, isMilestone, isBest, colors.muted);
           return (
-            <View key={idx} style={[styles.cell, { backgroundColor: cellBg }]}>
+            <View key={idx} style={[
+              styles.cell,
+              { backgroundColor: cellBg },
+              day === today && { borderWidth: 1.5, borderColor: colors.primary },
+            ]}>
               <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
               <View style={styles.cellBottom}>
                 {cellIcon}
-                {day === today && !isBest && !isMilestone && (
-                  <View style={[styles.todayDot, { backgroundColor: colors.primary }]} />
-                )}
               </View>
             </View>
           );
@@ -170,10 +171,6 @@ export function CalendarScreen() {
         <View style={styles.legendItem}>
           <AnimatedStarIcon size={20} />
           <Text style={styles.legendLabel}>{t.calendarBestDay}</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: colors.primarySoft }]} />
-          <Text style={styles.legendLabel}>{t.calendarActive}</Text>
         </View>
       </View>
 
@@ -248,7 +245,6 @@ function makeStyles(colors: AppColors) {
     dayStars: { fontSize: 8, fontFamily: FontFamily.semiBold, marginTop: 1 },
     dayIcon: { fontSize: 9, marginTop: 1 },
     cellBottom: { alignItems: 'center', height: 16 },
-    todayDot: { width: 5, height: 5, borderRadius: 2.5 },
     legend: {
       flexDirection: 'row',
       justifyContent: 'center',
@@ -257,7 +253,6 @@ function makeStyles(colors: AppColors) {
       marginBottom: 8,
     },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    legendDot: { width: 13, height: 13, borderRadius: 6.5 },
     legendIcon: { fontSize: 14 },
     legendLabel: { fontSize: 13, color: colors.muted },
     summary: {

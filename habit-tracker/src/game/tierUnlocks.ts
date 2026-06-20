@@ -24,19 +24,22 @@ export interface TierUnlockInput {
 }
 
 export function computeTierUnlocks(input: TierUnlockInput): NewUnlock[] {
-  return input.tiers
-    .filter(
-      t =>
-        !input.alreadyUnlockedTierIds.includes(t.id) &&
-        input.oldStars < t.stars_required &&
-        input.newStars >= t.stars_required
-    )
-    .map(t => ({
-      user_id: input.userId,
-      tier_id: t.id,
-      week_start: input.weekStart,
-      stars_at_unlock: input.newStars,
-      reward_amount: t.reward_amount,
-      reward_currency: t.reward_currency,
-    }));
+  // Cap: at most 1 rank advance per week
+  if (input.alreadyUnlockedTierIds.length > 0) return [];
+
+  const qualifying = input.tiers
+    .filter(t => input.oldStars < t.stars_required && input.newStars >= t.stars_required)
+    .sort((a, b) => a.stars_required - b.stars_required);
+
+  const first = qualifying[0];
+  if (!first) return [];
+
+  return [{
+    user_id: input.userId,
+    tier_id: first.id,
+    week_start: input.weekStart,
+    stars_at_unlock: input.newStars,
+    reward_amount: first.reward_amount,
+    reward_currency: first.reward_currency,
+  }];
 }

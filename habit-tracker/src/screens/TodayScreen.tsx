@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
-import { LinearGradient } from 'expo-linear-gradient';
+
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -454,10 +454,8 @@ export function TodayScreen() {
         </TouchableOpacity>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
-        <LinearGradient
-          colors={isDebt ? [colors.dangerPress, colors.danger] : [colors.primaryPress, colors.primary]}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={styles.hero}
+        <View
+          style={[styles.hero, { backgroundColor: isDebt ? colors.danger : colors.primary }]}
         >
           <Text style={styles.heroLabel}>{t.heroLabel}</Text>
           <View style={styles.heroBal}>
@@ -479,7 +477,7 @@ export function TodayScreen() {
               <Text style={styles.heroStreak}>{t.streakChip(streak)}</Text>
             </Animated.View>
           )}
-        </LinearGradient>
+        </View>
 
         <View style={styles.progCard}>
           <View style={styles.progTop}>

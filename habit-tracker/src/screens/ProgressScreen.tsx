@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert, useWindowDimensions, Platform } from 'react-native';
+import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { VictoryChart, VictoryBar, VictoryStack, VictoryAxis } from 'victory-native';
 import {
@@ -51,12 +52,14 @@ function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, e
   );
 }
 
-function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, cancelSelection, enterSelection, toggleSelect, handleDeleteSelected, deleteLogs, onAddActivity, t, styles }: {
+function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, cancelSelection, enterSelection, toggleSelect, handleDeleteSelected, deleteLogs, onAddActivity, filterDate, onFilterPress, onFilterClear, t, styles }: {
   actLogs: ActivityLogEntry[]; selectionMode: boolean; selectedIds: Set<number>;
   selectAll: () => void; cancelSelection: () => void;
   enterSelection: (id: number) => void; toggleSelect: (id: number) => void;
   handleDeleteSelected: () => void; deleteLogs: { isPending: boolean };
-  onAddActivity: () => void; t: ProgTranslations; styles: ProgStyles;
+  onAddActivity: () => void; filterDate: string | null;
+  onFilterPress: () => void; onFilterClear: () => void;
+  t: ProgTranslations; styles: ProgStyles;
 }) {
   return (
     <>
@@ -79,6 +82,17 @@ function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, ca
             </TouchableOpacity>
           </View>
         ) : null}
+      </View>
+      {/* Date filter chip */}
+      <View style={styles.filterRow}>
+        <TouchableOpacity style={styles.filterChip} onPress={onFilterPress} activeOpacity={0.7}>
+          <Text style={styles.filterChipText}>{filterDate ?? t.filterLast7Days}</Text>
+        </TouchableOpacity>
+        {filterDate !== null && (
+          <TouchableOpacity onPress={onFilterClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
+            <Text style={styles.filterClearText}>✕</Text>
+          </TouchableOpacity>
+        )}
       </View>
       {actLogs.length === 0 ? (
         <View style={styles.logEmptyWrap}>
@@ -124,11 +138,34 @@ export function ProgressScreen() {
   const { data: tierInfo } = useStarsToNextTier(userId);
   const { data: activeDays = 0 } = useWeeklyConsistency(userId);
   const { data: topActivities = [] } = useTopActivities(userId);
-  const { data: actLogs = [] } = useRecentActivityLogs(userId);
+  const [filterDate, setFilterDate] = useState<string | null>(null);
+  const { data: actLogs = [] } = useRecentActivityLogs(
+    userId, 50,
+    filterDate ?? undefined,
+    filterDate ?? undefined,
+  );
   const deleteLogs = useDeleteActivityLogs(userId);
 
   const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(actLogs);
   const [addSheetVisible, setAddSheetVisible] = useState(false);
+
+  function handleDateFilter() {
+    if (Platform.OS !== 'android') return;
+    const initial = filterDate ? new Date(filterDate + 'T00:00:00') : new Date();
+    DateTimePickerAndroid.open({
+      mode: 'date',
+      value: initial,
+      maximumDate: new Date(),
+      onChange: (event, selected) => {
+        if (event.type === 'set' && selected) {
+          const y = selected.getFullYear();
+          const m = String(selected.getMonth() + 1).padStart(2, '0');
+          const d = String(selected.getDate()).padStart(2, '0');
+          setFilterDate(`${y}-${m}-${d}`);
+        }
+      },
+    });
+  }
 
   const RANGES = useMemo(() => [
     { key: 'W' as Range, label: t.rangeWeek },
@@ -305,6 +342,9 @@ export function ProgressScreen() {
           handleDeleteSelected={handleDeleteSelected}
           deleteLogs={deleteLogs}
           onAddActivity={() => setAddSheetVisible(true)}
+          filterDate={filterDate}
+          onFilterPress={handleDateFilter}
+          onFilterClear={() => setFilterDate(null)}
           t={t}
           styles={styles}
         />
@@ -361,8 +401,20 @@ function makeStyles(C: AppColors) {
 
     logHeader: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
+      marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 6,
     },
+    filterRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      marginHorizontal: Spacing.lg, marginBottom: 9,
+    },
+    filterChip: {
+      flexDirection: 'row', alignItems: 'center',
+      backgroundColor: C.surface2, borderRadius: Radii.pill,
+      paddingHorizontal: 12, paddingVertical: 5,
+      borderWidth: 1, borderColor: C.line2,
+    },
+    filterChipText: { fontSize: 12, fontFamily: FontFamily.semiBold, color: C.inkDark },
+    filterClearText: { fontSize: 14, color: C.muted, fontFamily: FontFamily.bold, paddingHorizontal: 4 },
     logActions: { flexDirection: 'row', gap: 8 },
     logActionBtn: {
       paddingHorizontal: 10, paddingVertical: 5,

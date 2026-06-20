@@ -29,21 +29,20 @@ test('crosses tier 1 threshold exactly → one unlock', () => {
   expect(result[0].week_start).toBe('2026-05-25');
 });
 
-test('skips two tiers in one jump → two unlocks in order', () => {
+test('skips two tiers in one jump → only lowest tier unlocked (1 per week cap)', () => {
   const result = computeTierUnlocks({ ...base, oldStars: 8, newStars: 26 });
-  expect(result).toHaveLength(2);
-  expect(result.map(u => u.tier_id)).toEqual([1, 2]);
+  expect(result).toHaveLength(1);
+  expect(result[0].tier_id).toBe(1);
 });
 
-test('already unlocked tier is excluded', () => {
+test('already ranked up this week → no further unlocks', () => {
   const result = computeTierUnlocks({
     ...base,
     oldStars: 8,
     newStars: 26,
     alreadyUnlockedTierIds: [1],
   });
-  expect(result).toHaveLength(1);
-  expect(result[0].tier_id).toBe(2);
+  expect(result).toHaveLength(0);
 });
 
 test('stars go negative (BAD task penalty) → no unlocks', () => {

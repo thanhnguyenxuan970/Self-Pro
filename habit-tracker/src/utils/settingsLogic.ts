@@ -11,7 +11,7 @@ export function parseSettingsLang(raw: string | null): AppLanguage {
 }
 
 export function parseSettingsAccent(raw: string | null): AccentKey {
-  const valid: AccentKey[] = ['green', 'indigo', 'amber', 'rose', 'sky', 'violet'];
+  const valid: AccentKey[] = ['green', 'indigo', 'rose', 'sky', 'violet'];
   if (raw && (valid as string[]).includes(raw)) return raw as AccentKey;
   return DEFAULT_ACCENT;
 }
