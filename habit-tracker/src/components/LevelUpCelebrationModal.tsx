@@ -149,6 +149,8 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
             style={[styles.dismissBtn, { backgroundColor: cfg.color }]}
             onPress={onDismiss}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={t.levelUpDismiss}
           >
             <Text style={[styles.dismissBtnText, { color: C.onAccent }]}>{t.levelUpDismiss}</Text>
           </TouchableOpacity>

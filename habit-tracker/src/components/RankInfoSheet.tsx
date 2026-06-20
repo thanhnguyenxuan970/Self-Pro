@@ -101,6 +101,6 @@ function makeStyles(C: AppColors) {
     lname: { flex: 1, fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
     lstar: { fontSize: 12.5, fontFamily: FontFamily.semiBold, color: C.muted },
     youtag: { backgroundColor: C.primary, borderRadius: Radii.pill, paddingHorizontal: 6, paddingVertical: 1, marginRight: 6 },
-    youtagText: { fontSize: 9.5, fontFamily: FontFamily.bold, color: C.white },
+    youtagText: { fontSize: 11, fontFamily: FontFamily.bold, color: C.white },
   });
 }

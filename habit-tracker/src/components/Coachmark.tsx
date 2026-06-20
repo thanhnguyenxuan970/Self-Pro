@@ -117,15 +117,15 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
           </View>
           <View style={styles.actions}>
             {index > 0 ? (
-              <TouchableOpacity onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
+              <TouchableOpacity onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.back}>
                 <Text style={[styles.skip, { color: C.faint }]}>{t.back}</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity onPress={onSkip} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
+              <TouchableOpacity onPress={onSkip} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.tutSkip}>
                 <Text style={[styles.skip, { color: C.faint }]}>{t.tutSkip}</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={onNext} style={[styles.next, { backgroundColor: C.primary }]} activeOpacity={0.8}>
+            <TouchableOpacity onPress={onNext} style={[styles.next, { backgroundColor: C.primary }]} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={isLast ? t.tutDone : t.tutNext}>
               <Text style={[styles.nextText, { color: C.white }]}>{isLast ? t.tutDone : t.tutNext}</Text>
             </TouchableOpacity>
           </View>
@@ -147,12 +147,12 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   title: { fontSize: 17, fontFamily: FontFamily.bold },
-  body: { fontSize: 13, marginTop: 6, lineHeight: 18 },
+  body: { fontSize: 13, fontFamily: FontFamily.regular, marginTop: 6, lineHeight: 18 },
   ft: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
   dots: { flexDirection: 'row', gap: 5, alignItems: 'center' },
   dot: { height: 6, borderRadius: 3 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  skip: { fontSize: 13 },
+  skip: { fontSize: 13, fontFamily: FontFamily.medium },
   next: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999 },
   nextText: { fontSize: 13, fontFamily: FontFamily.bold },
 });
