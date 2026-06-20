@@ -342,6 +342,7 @@ const vi = {
   tmplFamily: 'Gia đình',
   tmplRelationship: 'Quan hệ',
   tmplSports: 'Thể thao',
+  rankMaxed: 'Tối đa',
 };
 
 const en: typeof vi = {
@@ -689,6 +690,7 @@ const en: typeof vi = {
   tmplFamily: 'Family',
   tmplRelationship: 'Relationship',
   tmplSports: 'Sports',
+  rankMaxed: 'MAX',
 };
 
 export type Strings = typeof vi;

@@ -510,5 +510,10 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 - `tmplGym` intentionally kept as 'Gym'/'Gym' (exception per user requirement).
 - 'Habit Ring' only appeared in Supabase Edge Function email headers — 2 occurrences, no UI impact.
 
-### Test Results
+### Test Results (initial)
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 35)
+
+### Follow-up: 'MAX' hardcoded string fix
+- **`src/screens/ProgressScreen.tsx`** L309: `'MAX'` → `t.rankMaxed`. Shown in "Đến hạng kế" stat cell when user is at max rank.
+- **`src/config/i18n.ts`**: Added `rankMaxed` → vi: 'Tối đa', en: 'MAX'.
+- After fix: `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL

@@ -306,7 +306,7 @@ export function ProgressScreen() {
           </View>
           <View style={styles.stat}>
             <Text style={styles.statV}>
-              {tierInfo?.starsNeeded ? `${Math.ceil(tierInfo.starsNeeded)} ★` : 'MAX'}
+              {tierInfo?.starsNeeded ? `${Math.ceil(tierInfo.starsNeeded)} ★` : t.rankMaxed}
             </Text>
             <Text style={styles.statL}>{t.toNextRank}</Text>
           </View>
