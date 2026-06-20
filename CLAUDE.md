@@ -145,129 +145,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker — Google Play Upload Setup COMPLETE (2026-06-04)
-
-### What Was Done
-- **Package name**: Changed `com.anonymous.habittracker` → `com.habitring.app` in `app.json`, `android/app/build.gradle` (namespace + applicationId), `android/app/src/main/java/com/habitring/app/MainActivity.kt` + `MainApplication.kt` (declaration + moved to new dir).
-- **Removed `SYSTEM_ALERT_WINDOW`** from `AndroidManifest.xml` — Play Store rejects without justification; dev-only artifact.
-- **Production keystore** generated: `android/app/habitring-release.keystore` (alias: `habitring`, validity: 10,000 days, password: `<REDACTED — store in a secret manager, NOT in this repo. This value was previously committed to a public repo and must be treated as COMPROMISED; rotate it and scrub git history>`). **Back this up — losing it = can't update the app on Play Store.**
-- **Release signing** wired in `android/app/build.gradle`: loads `android/keystore.properties`; falls back to debug if file absent (CI-safe).
-- **`android/.gitignore`**: Added `*.keystore` + `keystore.properties`.
-- **`eas.json`** created: development / preview (APK) / production (AAB) profiles.
-
-### Key Decisions
-- `keystore.properties` loaded via `rootProject.file(...)` (android-root relative); `storeFile` is `habitring-release.keystore` (resolves from `android/app/`).
-- Ternary fallback in release buildType — CI builds without `keystore.properties` still compile.
-- `SYSTEM_ALERT_WINDOW` removed outright; no production feature needs it.
-
-### [NEEDS USER] Before uploading to Play Store
-1. **`google-services.json`**: Download from Google Cloud Console -> Firebase -> Android app (`com.habitring.app`). Place at `android/app/google-services.json`.
-2. **Update OAuth Android client**: Package `com.habitring.app`, SHA-1 release: `05:C5:26:C7:E7:8A:16:3C:10:55:19:B7:99:AF:27:18:91:AD:53:C4`.
-3. **Build AAB**: `cd android && ./gradlew bundleRelease` -> `android/app/build/outputs/bundle/release/app-release.aab`.
-4. **Play Console**: Create app, upload AAB, store listing + privacy policy + content rating.
-
-### Release Keystore Fingerprints
-- **SHA-1**: `05:C5:26:C7:E7:8A:16:3C:10:55:19:B7:99:AF:27:18:91:AD:53:C4`
-- **SHA-256**: `39:7A:4C:AB:43:18:51:97:C7:9D:4B:EB:51:78:7D:CB:7C:1D:3A:FB:7B:24:2F:D2:F4:8F:66:BE:E1:2A:5B:E2`
-
----
-
-## Habit Tracker — Duration Unit Selector + No Auto-Log on Create COMPLETE (2026-06-06)
-
-### What Was Changed
-- **`src/screens/AddActivitySheet.tsx`**: FAB Step 2 no longer auto-logs. Replaced numeric duration input + log button with two choice buttons: "⏱ Có hẹn giờ / Timed" and "Không hẹn giờ / No timer". `handleCreate(isTimeBased)` only calls `createTask.mutateAsync` — task appears on TodayScreen unchecked, user logs manually. Removed `useLogTask`, `durationInput` state, and `logTask` usage entirely.
-- **`src/screens/TodayScreen.tsx`**: Duration modal (tap timed task → log) now has Hours/Minutes unit toggle. `durationUnit` state (`'min' | 'hr'`). Two stacked buttons next to numeric input. `handleLogTime` converts: `parsed * 60` when hours selected. Unit resets to `'min'` on success and cancel.
-- **`src/config/i18n.ts`**: Added `addActivityTimedBtn`, `taskAdded`, `unitMin`, `unitHour`, `validDuration` in both vi + en.
-
-### Key Decisions
-- FAB creates only (no log) — user intent at FAB is "I want to track this", not "I did this now". Logging at TodayScreen keeps the intent clear.
-- Step 2 simplified to type selection (Timed / No timer) — duration is irrelevant at creation time since points are computed per actual log duration.
-- `submittingRef` double-submit guard covers both "Timed" and "No timer" paths — no race possible.
-- Unit toggle is vertical (stacked `Min` / `Hr`) alongside the numeric input — fits modal width without wrapping.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
-
----
-
-## Habit Tracker — Timed Suggestion Log Bug Fix COMPLETE (2026-06-07)
-
-### What Was Fixed
-- **`src/screens/TodayScreen.tsx`**: `handleSuggestionLog` now opens duration modal for timed tasks instead of logging directly with `durationMin: undefined`. Added `icon: string | null` to parameter type to match `SuggestedTask`. Spread + `{ category_id: null, sort_order: 0 }` fills `Task` shape for modal.
-
-### Key Decisions
-- Bug: timed suggestion (Study/Sports) logged with `durationMin: undefined` → `Math.max(1, floor(0/TIME_UNIT))` = 1pt/1★ always, ignoring actual duration.
-- Fix routes timed suggestions through existing duration modal (same path as timed task-list items). Non-timed path unchanged; `isTimeBased: false` hardcoded since branch is now guaranteed non-timed.
-- After modal log, suggestion chip disappears via `loggedIds` query invalidation — `setDismissedSuggestions` not needed for timed path.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
-
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `Unable to load script` on emulator | Metro process dead or stale node on port 8081 | `Stop-Process -Id <PID> -Force`; `start cmd /k "npx expo start"`; `adb reverse tcp:8081 tcp:8081`; `adb shell am force-stop com.habitring.app && adb shell am start -n com.habitring.app/.MainActivity` |
-
----
-
-## Habit Tracker — Chart Padding + Duration Chips COMPLETE (2026-06-07)
-
-### What Was Fixed / Built
-
-- **`src/queries/useProgress.ts`**: `useProgressData` now pads chart buckets to fill the full expected range — weekly shows all 7 days (Mon–Sun), daily shows 00h to current hour, monthly shows day 1 to today, yearly shows Jan to current month. Added `fmtDate` helper + `padBuckets` function. Rows from SQL merged into skeleton via Map lookup; missing days default to `{ goodStars: 0, badStars: 0 }`.
-- **`src/screens/AddActivitySheet.tsx`**: Eliminated 2-step flow entirely. Now a single screen: name input → suggestion chips → duration chips (always visible, grayed until name entered). Tapping a suggestion fills the name inline (no step navigation). Duration chips `disabled={!hasName}` give visual feedback. Labels use `t.unitMin.toLowerCase()` for correct case ("15 phút" not "15 Phút"). Removed: `step` state, `handleNext`, `handleBack`, `→` button, all Step 2 header styles.
-
-### Key Decisions
-- Chart padding done in `queryFn` (not component useMemo) — data arrives pre-padded, `tickValues` and `tickFormat` stay consistent with full range.
-- Monthly + daily padding capped at "today" (no future buckets shown) to keep chart honest.
-- Single-step flow: user said "skip the 'Bao lâu?' step (what they called 'Set Reminder') and jump directly to time selection." Eliminating the step means duration chips appear inline — no intermediate navigation screen.
-- Duration chips are visual shortcuts for `isTimeBased` only — actual logged duration is still entered at log time from TodayScreen.
-- `.toLowerCase()` on i18n unit labels — `unitMin: 'Phút'` (titlecase) looks wrong mid-label; lowercase matches natural Vietnamese usage.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
-
----
-
-## Habit Tracker — Duration Picker, Time Aggregation, Rank Countdown COMPLETE (2026-06-08)
-
-### What Was Built / Fixed
-
-- **`src/queries/useToday.ts`**: Added `useTodayTaskTotalDurations(userId)` — queries `SUM(duration_min) GROUP BY task_type_id` for today's logs; returns `Map<task_type_id, totalMin>`. Invalidated by existing `['today']` prefix invalidation in `useLogTask`.
-- **`src/screens/TodayScreen.tsx`**:
-  - Duration modal redesigned — preset chips (30m, 45m, 1h, 1h+) replace text input. Tapping 30m/45m/1h logs immediately; 1h+ reveals custom number input + Min/Hr toggle + Log button.
-  - Timed activities: `handleLog` now always opens duration modal on tap (first log or additional). Non-timed activities: toggle undo behavior unchanged.
-  - Cumulative duration shown in task row meta (green, bold) when a timed activity has been logged ≥1× today. `fmtDuration` formats as "45m" or "1h 30m".
-  - `useTodayTaskTotalDurations` wired; `totalDurationMin` passed to `TaskRow`.
-- **`src/screens/RankScreen.tsx`**: Removed static `resetChip` text. Replaced with live countdown timer (`setInterval 1s`) to next Monday 00:00. `getNextMonday()` always resolves to the upcoming Monday midnight (Mon=7d later, Sun=1d, others=8-day). `fmtCountdown` formats as "Xd HH:MM:SS" or "HH:MM:SS". `fontVariant: ['tabular-nums']` for non-shifting digits.
-- **`src/config/i18n.ts`**: Added `resetCountdownLabel` (vi + en) and `durationCustom` ('1h+') keys.
-
-### Key Decisions
-- Timed activities never undo via re-tap (no toggle) — intent is "add more time today", not "undo". Users wanting to remove logs can use long-press → delete selection mode.
-- Duration preset chips log immediately (no extra confirm) for 30m/45m/1h — reduces friction for common durations. 1h+ requires explicit input since exact duration matters.
-- `getNextMonday()` returns 7 days later when called on Monday — correct because Monday's reset already fired at 00:00; next reset is next Monday.
-- Countdown `fontVariant: ['tabular-nums']` degrades gracefully on older Android (proportional font, no crash).
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
-
----
-
-## Habit Tracker — Google Sign-In Fix COMPLETE (2026-06-08)
-
-### What Was Fixed
-- **`android/app/google-services.json`**: Added Android OAuth client entry — `client_type: 1`, `package_name: com.habitring.app`, `certificate_hash: 1838b7bc9e952498edfe5b71a4f274fe4f197091` (debug SHA-1, no colons, lowercase). Previously `oauth_client: []` → caused DEVELOPER_ERROR code 10.
-- **`src/screens/SignInScreen.tsx`**: Rewrote auth from `expo-auth-session` back to `@react-native-google-signin`. Uses `require('@react-native-google-signin/google-signin')` inside async function body (avoids TurboModule registration race). Removed `configuredRef`, `NativeModules.RNGoogleSignin` check, `isSuccessResponse`/`isErrorWithCode` helpers. Simplified error handling.
-- **`android/app/src/main/AndroidManifest.xml`**: Added `com.habitring.app` scheme intent-filter (needed for Expo development client deep link).
-
-### Key Decisions
-- `expo-auth-session` cannot work with Google: Google blocks ALL custom URI scheme redirects from browser OAuth flows (400 invalid_request). `@react-native-google-signin` uses native Play Services — no browser, no redirect URI.
-- `google-services.json` gitignored (`android/.gitignore`). Must be re-placed manually from Firebase Console when rebuilding. Debug SHA-1: `18:38:B7:BC:9E:95:24:98:ED:FE:5B:71:A4:F2:74:FE:4F:19:70:91`.
-- `GoogleSignin.configure()` called on every sign-in invocation — idempotent, no performance issue.
-- ADB `input tap` doesn't reach React Native Fabric touch handlers. Google Play Services dialogs (`AccountPickerActivity`) need correct device pixel coordinates from `uiautomator dump`.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 90/90 pass
-
 ---
 
 ## Habit Tracker — Code Quality Audit (fallow) COMPLETE (2026-06-09)
@@ -552,3 +429,85 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 29) | visual-verify PASS: Poppins geometric letterforms confirmed on TodayScreen
+
+---
+
+## Habit Tracker — Touch Target P1 Fixes COMPLETE (2026-06-20)
+
+### What Was Fixed
+- **`src/components/AccentPicker.tsx`**: Added `hitSlop={{ top:6, bottom:6, left:6, right:6 }}` to color swatch `TouchableOpacity` (was 32×32, now 44pt). Bumped `gap: 10 → 14` to prevent hitSlop overlap between adjacent swatches (6+6=12 < 14 gap → no collision).
+- **`src/screens/CalendarScreen.tsx`**: `navBtn: { padding: 8 } → { padding: 12 }` — month nav arrow tap area now 20+24=44pt.
+- **`android/app/build.gradle`**: `versionCode 29 → 30`, `versionName "1.0.28" → "1.0.29"`. `app.json` synced.
+
+### Key Decisions
+- `hitSlop` used instead of enlarging swatch to 44px — keeps visual circle 32px, only extends invisible tap zone. Correct approach when visual size must stay compact.
+- `gap` bumped from 10→14 because `hitSlop` 6 each side = 12px combined extension; gap must exceed 12 to avoid adjacent swatches claiming the same tap point.
+- `navBtn padding 8→12`: SVG is 20×20; padding 12 each side → 20+24=44pt touch target.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 30)
+
+---
+
+## Habit Tracker — Impeccable Polish (Contrast + Token + Vocabulary) COMPLETE (2026-06-20)
+
+### What Was Fixed
+- **`src/config/theme.ts`**: Added `dangerPress` token — `Colors: '#A82830'`, `DarkColors: '#C03538'`. Mirrors `primaryPress` pattern; used as gradient start for debt hero card.
+- **`src/components/Wordmark.tsx`**: Removed dead `useSettingsContext`/`getColors`/`isDark` imports + manual `inkColor` hex. Replaced with `colors.inkDark` directly.
+- **`src/components/Coachmark.tsx`**: Removed `color: '#ffffff'` from static `nextText` style. Applied `{ color: C.white }` inline at JSX call site.
+- **`src/components/LevelUpCelebrationModal.tsx`**: Removed `color: '#FFFFFF'` from static `dismissBtnText`. Applied `{ color: C.onAccent }` inline.
+- **`src/components/TaskRow.tsx`**: `color: '#fff'` → `color: C.white` in `makeTaskRowStyles`.
+- **`src/screens/TodayScreen.tsx`**: Gradient `['#5C1D1E','#B0383C']`/`['#1A5039','#2E9C6A']` → `[colors.dangerPress, colors.danger]`/`[colors.primaryPress, colors.primary]`. Bar glow `'#fff'` → `colors.white`. `heroLabel`/`heroBalNum`/`rankChipText` `'#fff'` → `C.white`. `sectionLabel` `C.muted` → `C.ink2` (P1 contrast).
+- **`src/screens/AddActivitySheet.tsx`**: `suggestionsLabel` `C.muted` → `C.ink2` (11px uppercase — was ~3.8:1, now ~6.5:1 vs bgBase).
+- **`src/screens/CalendarScreen.tsx`**: `dowLabel` `colors.muted` → `colors.ink2`.
+- **`src/screens/SettingsScreen.tsx`**: `sectionLabel` `C.muted` → `C.ink2`.
+- **`src/screens/RankScreen.tsx`**: `resetChipLabel` + `sectionLabel` `C.muted` → `C.ink2`.
+- **`src/screens/PaywallScreen.tsx`**: All 3 `Pressable` → `TouchableOpacity`. Removed dead `ctaPressed` style. Added `activeOpacity` on each.
+- **`android/app/build.gradle`**: `versionCode 30 → 31`, `versionName "1.0.29" → "1.0.30"`. `app.json` synced.
+
+### Key Decisions
+- Static `StyleSheet.create({})` can't reference runtime theme tokens — fix: remove hardcoded color from static style, apply `{ color: C.token }` inline at JSX call site where `C` is in scope.
+- `C.white` (always `#FFFFFF`) for text on gradient/primary bg; `C.onAccent` (from accent palette) for dismiss button on tier-color background — they differ when accent overrides `onAccent`.
+- `dangerPress` darker than `danger` in both modes — correct dark→light gradient direction.
+- SVG mask `fill="#ffffff"/"#000000"`, `PARTICLE_COLORS`, `rgba(0,0,0,0.82)` backdrop intentionally left hardcoded (mask semantics / celebration confetti / dark overlay).
+- PaywallScreen: standardized on `TouchableOpacity` (convert the outlier, not 15+ established screens). `ctaPressed` removed — was Pressable-only `style` function callback.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 31) | visual-verify PASS: hero gradient tracks accent (indigo), section labels legible on dark bg
+
+---
+
+## Habit Tracker — Animation Pass (impeccable animate) COMPLETE (2026-06-20)
+
+### What Was Built
+- **`src/components/TaskRow.tsx`**: `useTaskRowAnimation` now accepts `done` param. `checkScaleAnim` pops in (spring 0.1→1, tension 220, friction 6) when `done` transitions false→true. `prevDone` ref skips animation on initial mount. Check `<View>` → `<Animated.View>`. Also: `fontWeight` strings → `FontFamily.*` tokens throughout; `'#fff'` → `C.white`.
+- **`src/screens/TodayScreen.tsx`**: `useHeroNumberPop` — spring overshoot 1.22→1 when `weeklyStars` increases. `SuggestionEntranceWrapper` — staggered fade+translateX entrance (60ms/item, spring 180/14). `DurationModal` — scale 0.92→1 + opacity 0→1 spring on open. All gated on `reduceMotion`. `fontWeight` → `FontFamily.*` throughout.
+- Added `// eslint-disable-line react-hooks/exhaustive-deps` on `SuggestionEntranceWrapper` mount-once effect.
+- **`android/app/build.gradle`**: `versionCode 31`, `versionName "1.0.30"`. `app.json` synced.
+
+### Key Decisions
+- All animations use `useNativeDriver: true` (transform/opacity only — no layout props animated).
+- `prevDone.current === null` guard prevents spurious pop on initial render for already-checked tasks.
+- `SuggestionEntranceWrapper` effect deps `[]` is intentional — entrance fires once at mount, not on re-render.
+- Product register: delight only at right moments. Check circle + hero number are immediate feedback; suggestion chips entrance is purposeful reveal. DurationModal scale-in is dialog entry polish.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL | visual-verify PASS: TodayScreen renders clean, no regressions
+
+## Habit Tracker — Onboarding Hero + Tutorial i18n COMPLETE (2026-06-20)
+
+### What Was Built
+- **`src/screens/OnboardingScreen.tsx`**: Full rewrite as 2-step branded flow. Step 0 (Hero): `RankMascot tier={0}` with breathing pulse loop, "Habi" wordmark in brand green, tagline, 3 benefit cards, language flag switcher top-right. Step 1 (Setup): back button, "Về bạn…" heading, gender picker pills, birth year `(tuỳ chọn)`, submit CTA. Slide+fade transition between steps via `fadeAnim`/`slideAnim` (useRef + Animated.parallel).
+- **`src/hooks/useTutorial.tsx`**: `STEPS` array replaced by `useMemo<Step[]>(() => [...], [t])` inside `TutorialProvider`. Steps pull from `useTranslations()` — tutorial text switches language live when user changes settings.
+- **`src/components/Coachmark.tsx`**: Hardcoded button strings → `t.back`, `t.tutSkip`, `t.tutDone`, `t.tutNext`. `fontWeight: '700'` → `FontFamily.bold` for brand font. `color: '#ffffff'` → `C.white` (theme-aware).
+- **`src/config/i18n.ts`**: 28 new keys in vi + en: `onboardHeroTagline`, `onboardHeroBenefit1/2/3`, `onboardHeroCta`, `onboardSetupTitle/Subtitle`, `onboardBirthYearOptional`, `tutNext/Done/Skip`, `tutStep0-5Title/Body`.
+- **`android/app/build.gradle`**: `versionCode 31`, `versionName "1.0.30"` (bumped by hook). `app.json` synced.
+
+### Key Decisions
+- Language switcher on hero step (not buried in setup form) — user picks language before seeing any content; avoids Vietnamese-first confusion for EN users.
+- `pulseAnim` loop started in `useEffect([], [])` (mount only) — mascot breathes throughout both steps without restarting on step change.
+- `useMemo([t])` for steps — if user changes language mid-tutorial (unlikely but possible), steps regenerate correctly; `index` stays valid since array length is constant 6.
+- OnboardingScreen visual verify: requires sign-out to reach; flagged for manual test on next fresh install.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL
