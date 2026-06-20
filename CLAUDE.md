@@ -156,14 +156,8 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 - **`src/screens/CalendarScreen.tsx`**: `resolveCellColors` no longer returns colored backgrounds for `isMilestone`/`isBest` (orange #F97316 / yellow #FBBF24 removed). `resolveCellIcon`: milestone+best → `AnimatedBurningStarIcon`; milestone → `AnimatedFireIcon`; best → `AnimatedStarIcon`. Legend updated to use animated icons.
 - **`android/app/build.gradle`**: `versionCode 16 → 17`, `versionName "1.0.15" → "1.0.16"`. `app.json` synced to `"1.0.16"`.
 
-### Key Decisions
-- `useSafeAreaInsets` must not be called inside a `Modal` — `Modal` creates a new React root outside `SafeAreaProvider`. Fix: call at `TutorialProvider` level, pass as prop.
-- `SafeAreaProvider` at app root is correct Expo/RN pattern. Previous code relied on `NavigationContainer` providing it implicitly, but that only covers descendants inside `NavigationContainer`, not `TutorialProvider` which sits above it.
-- Calendar bg removal: colored backgrounds (orange streak, yellow best-day) confused users with the current-date highlight (also colored). Icons alone carry the semantic signal.
-
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 17)
-- **Runtime verified on emulator**: CalendarScreen shows ⭐ on best-day cell with no background; no render errors ✅
 
 ---
 
@@ -177,14 +171,8 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 - **`android/app/build.gradle`**: `versionCode 15 → 16`, `versionName "1.0.14" → "1.0.15"`.
 - **`__tests__/localization.test.ts`** (new): 9 tests — vi↔en round-trip, Gym loanword invariance, custom activity pass-through, all template tasks.
 
-### Key Decisions
-- Canonical name = Vietnamese: template activities stored as `selectedSuggestion.name` (Vi canonical). `TEMPLATE_NAME_TO_KEY` maps both "Chạy bộ" and "Running" → `tmplRunning`, so lookup works regardless of creation language.
-- `resolveTaskDisplayName` kept local in each file (TaskRow, TodayScreen, AddActivitySheet) rather than exported from i18n.ts — avoids import cycle risk; pattern already established by prior session hooks.
-- `DurationStep` state isolation: parent has 10+ queries + animations; every parent-state keystroke update re-rendered all of it. Moving state into child limits re-render scope to ~100-line component.
-
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 16)
-- **Runtime verified on emulator**: "Dọn dẹp" → "Cleaning" live on language switch ✅; "90" typed + "Hr" toggled instantly, no parent re-render ✅
 
 ---
 
@@ -196,15 +184,8 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 - **`src/screens/RankScreen.tsx`**: Added `import { RankInfoSheet }`. Added `infoVisible` state. Changed title from plain `<Text>` to `<View style={styles.titleRow}>` containing title + `<TouchableOpacity>` ℹ️ button. Added `<RankInfoSheet visible={infoVisible} tiers={tiers} currentTierId={currentTier?.id ?? null} onClose={() => setInfoVisible(false)} />` before `</SafeAreaView>`. Added `titleRow`, `infoBtn`, `infoBtnText` styles to `makeStyles`.
 - **`android/app/build.gradle`**: `versionCode 18 → 19`, `versionName "1.0.17" → "1.0.18"`. `app.json` synced.
 
-### Key Decisions
-- Centered modal fix: root cause was `justifyContent: 'flex-end'` making DurationModal behave like a bottom-sheet — keyboard appeared from below and covered the input. `justifyContent: 'center'` + `behavior="padding"` shifts the centered box upward on keyboard open.
-- `animationType="fade"` replaces `"slide"`: slide from bottom is bottom-sheet UX; fade is dialog UX consistent with centered layout.
-- Exercise removal from v5 migration only prevents future seeding. Existing test-device users keep Exercise in their task list (correct — no destructive data changes).
-- `RankInfoSheet` was pre-built; wiring only required import + state + JSX. `tiers` from `useRankData` is a superset of `RankTier` interface — no adapter needed.
-
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 19)
-- **Runtime verified on emulator**: DurationModal centered on screen ✅; RankInfoSheet opens from ℹ️ button with all 7 tiers ✅
 
 ---
 
@@ -493,3 +474,22 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 33)
+
+---
+
+## Habit Tracker — Rank A11y + Animation Easing Audit COMPLETE (2026-06-20)
+
+### Audit Score: 14/20 → all findings fixed
+
+### What Was Fixed
+- **`src/components/RankMascot.tsx`**: Outer `Animated.View` gains `accessible + accessibilityRole="image" + accessibilityLabel={rank.name}` — screen readers now announce rank tier name. `playRankUp` easing: `Easing.back(2)` (bounce/overshoot, banned) → `Easing.out(Easing.cubic)` pop + `Easing.out(Easing.quad)` settle.
+- **`src/components/RankInfoSheet.tsx`**: Close button `accessibilityRole="button" + accessibilityLabel="Đóng"` (WCAG 4.1.2). `ptSub` `C.muted → C.ink2` (contrast). Backdrop `rgba(8,16,11,0.45) → rgba(0,0,0,0.5)` (reliable scrim in both themes).
+- **`src/screens/RankScreen.tsx`**: ❓ emoji `accessibilityLabel={t.noRankTitle}` (WCAG 1.1.1). `rankheroGlow importantForAccessibility="no"` (decorative). `rkB` `C.muted → C.ink2` (contrast).
+
+### Key Decisions
+- `Easing.back(2)` creates overshoot past target scale — feels bouncy, violates product register "no bounce" rule. `Easing.out(Easing.cubic)` achieves same energetic pop-in without overshoot.
+- Backdrop from `rgba(8,16,11,0.45)` (tinted dark green) → `rgba(0,0,0,0.5)` — pure black at 50% gives consistent scrim regardless of theme; tinted near-black is arbitrary theming in a component that has no access to theme tokens.
+- `C.muted` at 11.5sp fails 4.5:1 WCAG AA; `C.ink2` (already standard for sub-labels) passes without changing font size.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL

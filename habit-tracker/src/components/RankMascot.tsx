@@ -101,13 +101,14 @@ export const RankMascot = forwardRef<RankMascotHandle, Props>(
         Animated.sequence([
           Animated.timing(pop, {
             toValue: 1.18,
-            duration: 180,
-            easing: Easing.out(Easing.back(2)),
+            duration: 160,
+            easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
           Animated.timing(pop, {
             toValue: 1,
-            duration: 260,
+            duration: 280,
+            easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
         ]).start();
@@ -119,6 +120,9 @@ export const RankMascot = forwardRef<RankMascotHandle, Props>(
     return (
       <Animated.View
         style={{ width: size, height: size, transform: [{ scale: pop }] }}
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel={rank.name}
       >
         <Animated.View
           style={{

@@ -36,7 +36,7 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
           <View style={styles.grip} />
           <View style={styles.head}>
             <Text style={styles.title}>Rank là gì?</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={10}>
+            <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Đóng">
               <Text style={styles.close}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -80,7 +80,7 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
-    wrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(8,16,11,0.45)' },
+    wrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
     sheet: { backgroundColor: C.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: Spacing.lg, paddingBottom: Spacing.md, maxHeight: '86%' },
     grip: { width: 38, height: 4, borderRadius: 2, backgroundColor: C.line2, alignSelf: 'center', marginBottom: 12 },
     head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
@@ -90,7 +90,7 @@ function makeStyles(C: AppColors) {
     pt: { flexDirection: 'row', gap: 11, alignItems: 'flex-start', backgroundColor: C.surface2, borderRadius: Radii.md, padding: 12, marginBottom: 8 },
     ptEmoji: { fontSize: 18 },
     ptTitle: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
-    ptSub: { fontSize: 11.5, color: C.muted, marginTop: 1 },
+    ptSub: { fontSize: 11.5, color: C.ink2, marginTop: 1 },
     sec: { fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2, marginTop: 10, marginBottom: 8 },
     lrow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.sm, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 7 },
     lrowCur: { borderWidth: 2, borderColor: C.primary, backgroundColor: C.primarySoft },
