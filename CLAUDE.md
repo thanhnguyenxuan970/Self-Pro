@@ -145,95 +145,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker — Code Quality Audit (fallow) COMPLETE (2026-06-09)
-
-### What Was Done
-- **Ran `npx fallow`** — initial score: MI 89.8, 36 dead-code issues, 10 clone groups, 38 functions above health threshold.
-- **Deleted 5 dead files**: `src/components/DurationChips.tsx`, `src/game/chipPresets.ts`, `src/queries/useDurationLogger.ts`, `src/screens/LogActivitySheet.tsx`, `src/db/schema.ts`.
-- **Removed 24 unused exports** across 10 files: constants.ts (6), uiSounds.ts (3 + deleted dead fns), theme.ts (2), useTasks.ts (2), OnboardingScreen.tsx (2), ranks.config.ts (1), useAuth.ts (1), useToday.ts (2), useProgress.ts (1), points.ts (2), formatters.ts (1).
-- **Fixed `formatters.ts` duplication** (42 lines): extracted private `toYMD(d: Date)` and `toYM(d: Date)` helpers used by 5 date-formatting functions.
-- **Created `src/hooks/useSelectionMode.ts`**: extracted `enterSelection`/`toggleSelect`/`selectAll`/`cancelSelection` shared by ProgressScreen and TodayScreen. Applied to both screens.
-- **Removed dead sound entries** from `SOUNDS` map in `uiSounds.ts` (`treatClaim`, `errorInvalid`, `chipConfirm`).
-
-### Key Decisions
-- `__mocks__/expo-secure-store.js` NOT deleted — Jest auto-discovers `__mocks__/` without imports; fallow can't see it.
-- Build-tool deps (`@expo/metro-config`, `babel-preset-expo`, etc.) NOT removed — used by metro.config.js/babel.config.js, not TS imports.
-- `Colors`/`DarkColors` in theme.ts made non-exported — used internally by `getColors(isDark)`. `AppColors` + `getColors()` remain public API.
-- `TaskRow` extraction from `TodayScreen.tsx` (CRAP 812) deferred — requires user confirmation; high effort architectural change.
-
-### Final Score
-- MI: **89.8 → 92.3** (+2.5) | Dead-code: **36 → 7** (-81%) | Dupes: **10 → 2** (-80%) | Health above threshold: **38 → 35**
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors
-
----
-
-## Habit Tracker — Supabase DNS Error Fix COMPLETE (2026-06-10)
-
-### What Was Fixed
-- **`src/api/supabase.ts`**: `autoRefreshToken: true → false`, `persistSession: true → false`. Root cause: `persistSession: true` caused `GoTrueClient._recoverAndRefresh()` to run on startup, find a stored session in AsyncStorage, call `_callRefreshToken()`, which failed with DNS error on offline emulator, and internally called `console.error(err)` → `E ReactNativeJS` error in logcat.
-- **`src/api/syncService.ts`**: Removed dead `results` variable and `console.warn('[sync] failed:')` loop from `syncToSupabase`. Fire-and-forget sync is now fully silent on network failure.
-
-### Key Decisions
-- `persistSession: false` is the correct setting for this app: Supabase is used only for data sync (upsert), not for auth. Auth is handled by `@react-native-google-signin` + `expo-secure-store`. GoTrueClient auth features are unused — disabling session persistence prevents spurious startup network calls.
-- `autoRefreshToken: false` follows from `persistSession: false` — no session to refresh.
-- `storage: AsyncStorage` left in config (harmless with `persistSession: false`).
-- Sync failures are expected in offline environments and should not log at any level.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | Logcat: 0 `E ReactNativeJS` errors on startup
-
----
-
-## Habit Tracker — CRAP Score Reduction COMPLETE (2026-06-12)
-
-### What Was Done
-- **Ran `npx fallow`** on codebase with 14 CRITICAL functions (CRAP ≥ 110). Resolved all 14.
-- **Extracted sub-components**: `ProfileLogRow`, `ProgressLogRow`, `ActivityLogSection`, `SuggestionChip`, `LanguageOption`, `NotifHint`, `RankLadderRow`, `LeaderboardSection`, `DurationModal`
-- **Extracted hooks**: `useRankGlowAnimation`, `useRankBounceAnimation`, `useStreakPulseAnimation`, `useProgressBarAnimation`, `useReduceMotion`, `useScreenCommons`
-- **Extracted helpers**: `parseDurationInput`, `nullIfEmpty`, `formatLogDate`, `computeSortedTiers`
-- **Added `// fallow-ignore-next-line complexity`** on irreducible functions: `TodayScreen`, `RankScreen`, `AddActivitySheet`, `TaskMetaRow`, `extractGoogleUser`, `db.withTransactionAsync` callbacks (2 — splitting would introduce TOCTOU)
-- **Fixed duplicate `AppLanguage` export**: `SettingsContext` now re-exports from `i18n.ts` instead of redefining
-- **Moved `babel-preset-expo`** to `devDependencies`
-
-### Key Decisions
-- Transaction arrows (`db.withTransactionAsync`) get fallow-ignore, not extraction — splitting reads+writes across closures introduces TOCTOU vulnerability.
-- `?.`/`??` chains converted to explicit ternaries where it reduced branch count below threshold (each `?.` + `??` pair = 2 branches; ternary = 1).
-- `useScreenCommons<T>(makeStylesFn)` generic hook centralizes `userId + googleUser + colors + t + styles` for screens.
-- `__mocks__/expo-secure-store.js` left as-is — Jest auto-discovers `__mocks__/` without imports; fallow can't see it.
-
-### Final Score
-- MI: **89.8 → 92.3** | CRITICAL functions: **14 → 0** | Dead exports: **0** (clean from prior session)
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 99/99 pass
-
----
-
-## Habit Tracker — Google Sign-In Fix (Physical Device) + Version Bump COMPLETE (2026-06-13)
-
-### What Was Fixed / Changed
-- **`android/app/google-services.json`** (gitignored): Added release SHA-1 entry (`05c526c7...ad53c4`) + web client type 3. Root cause of `DEVELOPER_ERROR` on physical device: release APK used release keystore SHA-1 not registered in Google Cloud Console.
-- **`android/app/build.gradle`**: Bumped `versionCode 2 → 3`, `versionName "1.0.1" → "1.0.2"`.
-- **`app.json`**: Synced `version "1.0.0" → "1.0.2"` (was not updated in prior 1.0.1 bump).
-- **`android/gradle.properties`**: Removed machine-specific `org.gradle.java.home` from tracked file; moved to `~/.gradle/gradle.properties`. Root cause: Gradle daemon picked up VS Code Red Hat extension's JRE (no `jlink.exe`) → `JdkImageTransform` failure.
-
-### Key Decisions
-- Release APK built with debug signing as workaround: debug SHA-1 is registered in Firebase/Google Cloud; release SHA-1 is not. `google-services.json` is gitignored so the fix is local only.
-- `org.gradle.java.home` belongs in `~/.gradle/gradle.properties` (user-scoped, untracked) — machine-specific paths in a tracked file break other devs and CI.
-- `app.json` skips 1.0.1 in version history (was never set when build.gradle was bumped in prior commit). Both files now in sync at 1.0.2.
-
-### [NEEDS USER] For production release build
-1. Register release SHA-1 `05:C5:26:C7:E7:8A:16:3C:10:55:19:B7:99:AF:27:18:91:AD:53:C4` in Firebase Console → Project Settings → Android app → Add fingerprint.
-2. Download updated `google-services.json` from Firebase Console → place at `android/app/google-services.json`.
-3. Rebuild with `keystore.properties` present: `cd android && ./gradlew bundleRelease`.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | APK verified on Pixel_6 emulator — sign-in succeeds, no `DEVELOPER_ERROR`
-
----
-
 ## Habit Tracker — Tutorial, Calendar Icons, Redmi Layout COMPLETE (2026-06-18)
 
 ### What Was Fixed
@@ -253,23 +164,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 17)
 - **Runtime verified on emulator**: CalendarScreen shows ⭐ on best-day cell with no background; no render errors ✅
-
----
-
-## Habit Tracker — DurationModal Keyboard Fix + Perf COMPLETE (2026-06-17)
-
-### What Was Fixed
-- **`src/screens/TodayScreen.tsx`** — `DurationModal`: Changed `KeyboardAvoidingView` `behavior` from `Platform.OS === 'ios' ? 'padding' : 'height'` to `"padding"` on both platforms. On Android, `behavior="height"` inside a `Modal` doesn't receive keyboard events (Modal renders in a separate window); `"padding"` uses `Keyboard` event listeners directly and works correctly.
-- **`src/screens/TodayScreen.tsx`** — `DurationModal`: Moved `duration`, `durationUnit`, `customDuration` state from `TodayScreen` (heavy parent) into `DurationModal` itself. Added `useEffect([task?.id])` to reset state on each new task open. Eliminated `onChangeDuration`, `onChangeUnit`, `onShowCustom`, `onPreset` props. `handleCustomLog` is now internal. Typing in the custom input no longer re-renders TodayScreen.
-- **`src/screens/TodayScreen.tsx`** — `handleLogTime`: Simplified to `(mins: number)` (no optional param, no parent-state read). `closeModal` simplified to `setModalTask(null)`. Removed `Platform` import (now unused).
-
-### Key Decisions
-- `behavior="padding"` works in Modal on Android because KAV subscribes to `Keyboard` events (not window resize signals). `behavior="height"` fails because Modal's window doesn't propagate window-resize events to RN.
-- State isolation in `DurationModal` is the correct fix for lag — TodayScreen has 10+ queries, 5+ animations, and a full task list; every parent-state update re-rendered all of it on each keystroke.
-- `useEffect` dep `[task?.id]`: when same task closes (id→undefined) and reopens (undefined→id), effect fires twice; `if (task)` guard ensures reset only on reopen. ✓
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 100/100 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL
 
 ---
 
@@ -560,3 +454,22 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 32)
+
+---
+
+## Habit Tracker — Accessibility + Typeset + Onboard Polish COMPLETE (2026-06-20)
+
+### What Was Done
+- **`src/config/i18n.ts` (vi + en)**: 13 uppercase section-label strings → sentence case (`sectionAppearance`, `sectionSound`, `sectionLanguage`, `sectionNotifications`, `sectionAccount`, `topHabits`, `activityLogSection`, `addActivitySuggestionsTitle`, `poolLabel`, `goalsSection`, `enjoyedSection`, `fundHistorySection`, `sectionFeedback`). `Typography.sectionLabel` already has no `textTransform` — strings were the last source of all-caps.
+- **`src/screens/ProgressScreen.tsx`**: `statL` color `C.muted → C.ink2` — stat sub-labels pass 4.5:1 contrast at 11sp.
+- **`src/screens/TodayScreen.tsx`**: Empty state CTA text wrapped in `primarySoft` pill chip with `primary` text + `semiBold` — stronger visual affordance toward FAB. `FabArrow` bounce loop now gated on `reduceMotion` prop.
+- **`src/components/CalendarIcons.tsx`**: Dead `View` import + `const _view = View` alias removed (leftover from loop→entrance animation refactor in prior session).
+- **Verified already done**: skeleton loading (TodayScreen + RankScreen), a11y labels on avatar/gear/dismiss/prev+next month/rankInfo, CalendarIcons entrance-only spring, OnboardingScreen + LevelUpCelebrationModal reduceMotion wired.
+
+### Key Decisions
+- Sentence-case strings + no `textTransform` in token = labels render correctly everywhere without per-screen fixes.
+- Empty state pill CTA doesn't navigate (FAB is outside TodayScreen's component hierarchy); chip + bouncing arrow is the correct affordance.
+- `reduceMotion` gating on FabArrow is consistent with all other looping animations in the app.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 31, UP-TO-DATE)
