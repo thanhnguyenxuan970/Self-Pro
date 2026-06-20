@@ -145,8 +145,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
----
-
 ## Habit Tracker — Code Quality Audit (fallow) COMPLETE (2026-06-09)
 
 ### What Was Done
