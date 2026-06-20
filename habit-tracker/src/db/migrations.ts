@@ -273,7 +273,12 @@ async function v7(db: SQLiteDatabase): Promise<void> {
   await db.execAsync(`UPDATE weekly_summary SET weekly_stars = MIN(weekly_stars, 5) WHERE weekly_stars > 5`);
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7];
+// v7 -> v8: remove legacy 'Exercise' task type seeded in early builds
+async function v8(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`DELETE FROM task_types WHERE name = 'Exercise'`);
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

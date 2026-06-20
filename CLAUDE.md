@@ -493,3 +493,22 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL
+
+---
+
+## Habit Tracker — i18n Fix + Exercise Cleanup + Habi Rebrand COMPLETE (2026-06-21)
+
+### What Was Fixed / Built
+- **`src/config/i18n.ts`**: Added 5 missing `tmpl*` keys to both `vi` and `en` — `tmplWork` ('Công việc'/'Work'), `tmplStudy` ('Học tập'/'Study'), `tmplFamily` ('Gia đình'/'Family'), `tmplRelationship` ('Quan hệ'/'Relationship'), `tmplSports` ('Thể thao'/'Sports'). These match the English-canonical names seeded by v5 migration. `TEMPLATE_NAME_TO_KEY` now maps stored English names to Vietnamese display via `resolveTaskDisplayName`.
+- **`src/db/migrations.ts`**: Added v8 migration — `DELETE FROM task_types WHERE name = 'Exercise'`. Removes legacy Exercise entries seeded in pre-v5 builds. Idempotent (no-op if already absent).
+- **`supabase/functions/feedback-email/index.ts`**: `'Habit Ring'` → `'Habi'` in `from` sender name and email `subject` line.
+- **`android/app/build.gradle`**: `versionCode 34 → 35`, `versionName "1.0.33" → "1.0.34"`. `app.json` synced.
+
+### Key Decisions
+- Root cause of English task names on Home/Analytics: v5 migration seeds 'Work'/'Study'/'Family'/'Relationship'/'Sports' in English, but those strings had no `tmpl*` key → `TEMPLATE_NAME_TO_KEY.get()` returned undefined → `resolveTaskDisplayName` fell back to stored name. Fix: add tmpl keys so English stored names resolve to current UI language. No DB migration needed.
+- `tmplStudy` ('Học tập') distinct from existing `tmplStudying` ('Ôn bài') — correctly models "general study" vs "exam review".
+- `tmplGym` intentionally kept as 'Gym'/'Gym' (exception per user requirement).
+- 'Habit Ring' only appeared in Supabase Edge Function email headers — 2 occurrences, no UI impact.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 35)

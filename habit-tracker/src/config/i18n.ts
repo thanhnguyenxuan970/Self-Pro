@@ -337,6 +337,11 @@ const vi = {
   tmplStudying: 'Ôn bài',
   tmplCleaning: 'Dọn dẹp',
   tmplCooking: 'Nấu ăn',
+  tmplWork: 'Công việc',
+  tmplStudy: 'Học tập',
+  tmplFamily: 'Gia đình',
+  tmplRelationship: 'Quan hệ',
+  tmplSports: 'Thể thao',
 };
 
 const en: typeof vi = {
@@ -679,6 +684,11 @@ const en: typeof vi = {
   tmplStudying: 'Studying',
   tmplCleaning: 'Cleaning',
   tmplCooking: 'Cooking',
+  tmplWork: 'Work',
+  tmplStudy: 'Study',
+  tmplFamily: 'Family',
+  tmplRelationship: 'Relationship',
+  tmplSports: 'Sports',
 };
 
 export type Strings = typeof vi;
