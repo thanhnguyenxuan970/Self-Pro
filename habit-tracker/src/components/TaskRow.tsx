@@ -137,6 +137,8 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
         delayLongPress={300}
         disabled={!selectionMode && logPending}
         activeOpacity={0.7}
+        accessibilityLabel={resolveTaskDisplayName(item.name, t)}
+        accessibilityRole="button"
       >
         <Animated.View style={[styles.check, resolveCheckStyle(styles, selectionMode, isSelected, done, isBad), { transform: [{ scale: checkScaleAnim }] }]}>
           <Text style={styles.checkMark}>{resolveCheckMark(selectionMode, isSelected, done, isBad)}</Text>

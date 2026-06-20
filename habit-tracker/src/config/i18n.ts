@@ -87,6 +87,8 @@ const vi = {
   dayAbbr: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
   chartTitle: 'Điểm theo thời gian',
   noActivityYet: 'Chưa có hoạt động nào',
+  progressEmptyMsg: 'Ghi thói quen đầu tiên để xem tiến độ ở đây',
+  progressEmptyCta: 'Ghi hoạt động',
   statsSection: 'Thống kê',
   starsThisWeek: 'Sao hiện tại',
   activities: 'Hoạt động',
@@ -190,6 +192,16 @@ const vi = {
   tabRank: 'Rank',
   screenProfile: 'Hồ sơ',
   screenSettings: 'Cài đặt',
+
+  // Accessibility labels
+  addActivity: 'Thêm hoạt động',
+  prevMonth: 'Tháng trước',
+  nextMonth: 'Tháng sau',
+  openProfile: 'Mở hồ sơ',
+  openSettings: 'Mở cài đặt',
+  dismissSuggestion: 'Bỏ qua gợi ý',
+  rankInfo: 'Thông tin xếp hạng',
+
   timeLocale: 'vi-VN',
 
   // OnboardingScreen
@@ -415,6 +427,8 @@ const en: typeof vi = {
   dayAbbr: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
   chartTitle: 'Points over time',
   noActivityYet: 'No activity yet',
+  progressEmptyMsg: 'Log your first habit to see progress here',
+  progressEmptyCta: 'Log activity',
   statsSection: 'Stats',
   starsThisWeek: 'Current stars',
   activities: 'Activities',
@@ -518,6 +532,16 @@ const en: typeof vi = {
   tabRank: 'Rank',
   screenProfile: 'Profile',
   screenSettings: 'Settings',
+
+  // Accessibility labels
+  addActivity: 'Add activity',
+  prevMonth: 'Previous month',
+  nextMonth: 'Next month',
+  openProfile: 'Open profile',
+  openSettings: 'Open settings',
+  dismissSuggestion: 'Dismiss suggestion',
+  rankInfo: 'Rank information',
+
   timeLocale: 'en-US',
 
   // OnboardingScreen

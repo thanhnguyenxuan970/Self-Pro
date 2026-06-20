@@ -236,6 +236,25 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
   );
 }
 
+function FabArrow({ color }: { color: string }) {
+  const bounce = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bounce, { toValue: 10, duration: 550, useNativeDriver: true }),
+        Animated.timing(bounce, { toValue: 0, duration: 550, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [bounce]);
+  return (
+    <Animated.Text style={{ fontSize: 22, color, marginTop: 18, transform: [{ translateY: bounce }] }}>
+      ↓
+    </Animated.Text>
+  );
+}
+
 // fallow-ignore-next-line complexity
 export function TodayScreen() {
   const navigation = useNavigation();
@@ -415,14 +434,14 @@ export function TodayScreen() {
         }}
       />
       <View style={styles.topbar}>
-        <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile' as never)} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile' as never)} activeOpacity={0.85} accessibilityLabel={t.openProfile} accessibilityRole="button">
           <Text style={styles.avatarText}>{avatarInitial}</Text>
         </TouchableOpacity>
         <View style={styles.greet}>
           <Text style={styles.hi}>{t.greeting(googleUser?.name?.split(' ').pop() ?? '')}</Text>
           <Text style={styles.date}>{dateStr}</Text>
         </View>
-        <TouchableOpacity style={styles.gearBtn} onPress={() => navigation.navigate('Settings' as never)} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.gearBtn} onPress={() => navigation.navigate('Settings' as never)} activeOpacity={0.7} accessibilityLabel={t.openSettings} accessibilityRole="button">
           <Text style={styles.gearIcon}>⚙️</Text>
         </TouchableOpacity>
       </View>
@@ -471,10 +490,10 @@ export function TodayScreen() {
           .map((s, index) => (
             <SuggestionEntranceWrapper key={s.id} index={index} reduceMotion={reduceMotion}>
               <View style={styles.suggestionRow}>
-                <TouchableOpacity style={styles.suggestionChip} onPress={() => handleSuggestionLog(s)} disabled={logTask.isPending} activeOpacity={0.75}>
+                <TouchableOpacity style={styles.suggestionChip} onPress={() => handleSuggestionLog(s)} disabled={logTask.isPending} activeOpacity={0.75} accessibilityRole="button">
                   <Text style={styles.suggestionChipText} numberOfLines={1}>🔄 {t.suggestionPrompt(resolveTaskDisplayName(s.name, t))}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.suggestionDismiss} onPress={() => dismissSuggestion(s.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity style={styles.suggestionDismiss} onPress={() => dismissSuggestion(s.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel={t.dismissSuggestion} accessibilityRole="button">
                   <Text style={styles.suggestionDismissText}>✕</Text>
                 </TouchableOpacity>
               </View>
@@ -504,6 +523,7 @@ export function TodayScreen() {
               <Text style={styles.emptyEmoji}>🎯</Text>
               <Text style={styles.emptyTitle}>{t.emptyTitle}</Text>
               <Text style={styles.emptyDesc}>{t.emptyDesc}</Text>
+              <FabArrow color={colors.primary} />
             </View>
           ) : (
             displayTasks.map((item, idx) => {
@@ -619,8 +639,7 @@ function makeStyles(C: AppColors) {
     progCap: { fontSize: 11.5, color: C.muted, marginTop: 8 },
 
     sectionLabel: {
-      fontSize: 11, fontFamily: FontFamily.bold, color: C.ink2,
-      textTransform: 'uppercase', letterSpacing: 0.7,
+      fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2,
       marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
     },
     taskListHeader: {

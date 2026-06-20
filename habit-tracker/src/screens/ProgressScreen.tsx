@@ -11,6 +11,7 @@ import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme'
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useSelectionMode } from '../hooks/useSelectionMode';
+import { AddActivitySheet } from './AddActivitySheet';
 
 type Range = 'W' | 'M' | 'Y';
 
@@ -50,12 +51,12 @@ function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, e
   );
 }
 
-function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, cancelSelection, enterSelection, toggleSelect, handleDeleteSelected, deleteLogs, t, styles }: {
+function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, cancelSelection, enterSelection, toggleSelect, handleDeleteSelected, deleteLogs, onAddActivity, t, styles }: {
   actLogs: ActivityLogEntry[]; selectionMode: boolean; selectedIds: Set<number>;
   selectAll: () => void; cancelSelection: () => void;
   enterSelection: (id: number) => void; toggleSelect: (id: number) => void;
   handleDeleteSelected: () => void; deleteLogs: { isPending: boolean };
-  t: ProgTranslations; styles: ProgStyles;
+  onAddActivity: () => void; t: ProgTranslations; styles: ProgStyles;
 }) {
   return (
     <>
@@ -80,7 +81,12 @@ function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, ca
         ) : null}
       </View>
       {actLogs.length === 0 ? (
-        <Text style={styles.logEmpty}>{t.noActivityYet}</Text>
+        <View style={styles.logEmptyWrap}>
+          <Text style={styles.logEmpty}>{t.progressEmptyMsg}</Text>
+          <TouchableOpacity style={styles.logEmptyCta} onPress={onAddActivity} activeOpacity={0.8}>
+            <Text style={styles.logEmptyCtaTxt}>{t.progressEmptyCta}</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <View style={styles.logCard}>
           {actLogs.map((item, idx) => (
@@ -122,6 +128,7 @@ export function ProgressScreen() {
   const deleteLogs = useDeleteActivityLogs(userId);
 
   const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(actLogs);
+  const [addSheetVisible, setAddSheetVisible] = useState(false);
 
   const RANGES = useMemo(() => [
     { key: 'W' as Range, label: t.rangeWeek },
@@ -297,10 +304,12 @@ export function ProgressScreen() {
           toggleSelect={toggleSelect}
           handleDeleteSelected={handleDeleteSelected}
           deleteLogs={deleteLogs}
+          onAddActivity={() => setAddSheetVisible(true)}
           t={t}
           styles={styles}
         />
       </ScrollView>
+      <AddActivitySheet visible={addSheetVisible} onClose={() => setAddSheetVisible(false)} />
     </SafeAreaView>
   );
 }
@@ -337,8 +346,7 @@ function makeStyles(C: AppColors) {
     emptyText: { color: C.muted, fontSize: 14 },
 
     sectionLabel: {
-      fontSize: 11, fontFamily: FontFamily.bold, color: C.primary,
-      textTransform: 'uppercase', letterSpacing: 0.7,
+      fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2,
       marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
     },
     statGrid: {
@@ -380,9 +388,19 @@ function makeStyles(C: AppColors) {
     logDate: { fontSize: 11, color: C.muted, marginTop: 2 },
     logStars: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primary, flexShrink: 0 },
     logStarsBad: { color: C.danger },
+    logEmptyWrap: {
+      alignItems: 'center', paddingVertical: 24, marginHorizontal: Spacing.lg,
+    },
     logEmpty: {
       textAlign: 'center', color: C.muted, fontSize: 13,
-      marginHorizontal: Spacing.lg, marginTop: 4,
+      marginBottom: 14,
+    },
+    logEmptyCta: {
+      paddingHorizontal: 20, paddingVertical: 10,
+      backgroundColor: C.primary, borderRadius: Radii.pill,
+    },
+    logEmptyCtaTxt: {
+      fontSize: 13, fontFamily: FontFamily.bold, color: C.white,
     },
     topCard: {
       marginHorizontal: Spacing.lg,

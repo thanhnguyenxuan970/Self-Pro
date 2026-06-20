@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useTheme } from '../hooks/useSettings';
@@ -52,7 +52,7 @@ export function SuggestActivitySheet({ visible, onClose }: Props) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.wrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={styles.sheet}>
           <View style={styles.grip} />
           <Text style={styles.title}>💡 Đề xuất hoạt động</Text>
@@ -78,9 +78,9 @@ export function SuggestActivitySheet({ visible, onClose }: Props) {
             maxLength={300}
           />
 
-          <Pressable style={[styles.btn, !canSend && styles.btnOff]} onPress={submit} disabled={!canSend}>
+          <TouchableOpacity style={[styles.btn, !canSend && styles.btnOff]} onPress={submit} disabled={!canSend}>
             <Text style={styles.btnText}>{submitting ? 'Đang gửi…' : 'Gửi đề xuất'}</Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </Modal>

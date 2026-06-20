@@ -7,6 +7,7 @@ import { RankMascot } from './RankMascot';
 import { RANKS } from '../config/ranks.config';
 import { Radii, Spacing, FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -36,6 +37,7 @@ interface Props {
 export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismiss }: Props) {
   const t = useTranslations();
   const { colors: C } = useTheme();
+  const reduceMotion = useReduceMotion();
   const cfg = RANKS[Math.min(Math.max(tierOrder - 1, 0), RANKS.length - 1)];
 
   const particlesRef = useRef<Particle[] | null>(null);
@@ -135,7 +137,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
           <Text style={[styles.levelUpTitle, { color: cfg.color }]}>{t.levelUpTitle}</Text>
 
           <View style={styles.mascotWrap}>
-            <RankMascot tier={tierOrder - 1} size={88} loop reduceMotion={false} />
+            <RankMascot tier={tierOrder - 1} size={88} loop reduceMotion={reduceMotion} />
           </View>
 
           <Text style={[styles.tierName, { color: C.inkDark }]}>{tierName}</Text>

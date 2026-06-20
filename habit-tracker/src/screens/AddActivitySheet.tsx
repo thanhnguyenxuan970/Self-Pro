@@ -401,8 +401,7 @@ function makeStyles(C: AppColors) {
       marginTop: Spacing.md,
     },
     suggestionsLabel: {
-      fontSize: 11, fontFamily: FontFamily.bold, color: C.ink2,
-      textTransform: 'uppercase', letterSpacing: 0.7,
+      fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2,
       marginTop: Spacing.xl, marginBottom: 10,
     },
     chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

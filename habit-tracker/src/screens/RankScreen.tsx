@@ -130,7 +130,7 @@ export function RankScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>{t.rankTitle}</Text>
-          <TouchableOpacity onPress={() => setInfoVisible(true)} hitSlop={10} style={styles.infoBtn}>
+          <TouchableOpacity onPress={() => setInfoVisible(true)} hitSlop={10} style={styles.infoBtn} accessibilityLabel={t.rankInfo} accessibilityRole="button">
             <Text style={styles.infoBtnText}>?</Text>
           </TouchableOpacity>
         </View>
@@ -259,12 +259,11 @@ function makeStyles(C: AppColors) {
       alignItems: 'center', justifyContent: 'center',
       backgroundColor: C.surface2, borderRadius: Radii.md, paddingVertical: 12, paddingHorizontal: 16,
     },
-    resetChipLabel: { fontSize: 11, fontFamily: FontFamily.bold, color: C.ink2, textTransform: 'uppercase', letterSpacing: 0.5 },
+    resetChipLabel: { fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2 },
     resetChipCountdown: { fontSize: 22, fontFamily: FontFamily.extraBold, color: C.inkDark, letterSpacing: 1, marginTop: 4, fontVariant: ['tabular-nums'] },
 
     sectionLabel: {
-      fontSize: 11, fontFamily: FontFamily.bold, color: C.ink2,
-      textTransform: 'uppercase', letterSpacing: 0.7,
+      fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2,
       marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
     },
     card: {

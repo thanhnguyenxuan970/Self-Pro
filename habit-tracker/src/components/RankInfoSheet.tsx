@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useTheme } from '../hooks/useSettings';
 
@@ -31,14 +31,14 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.wrap}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={styles.sheet}>
           <View style={styles.grip} />
           <View style={styles.head}>
             <Text style={styles.title}>Rank là gì?</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            <TouchableOpacity onPress={onClose} hitSlop={10}>
               <Text style={styles.close}>✕</Text>
-            </Pressable>
+            </TouchableOpacity>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -91,7 +91,7 @@ function makeStyles(C: AppColors) {
     ptEmoji: { fontSize: 18 },
     ptTitle: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
     ptSub: { fontSize: 11.5, color: C.muted, marginTop: 1 },
-    sec: { fontSize: 11, fontFamily: FontFamily.bold, letterSpacing: 0.5, color: C.faint, textTransform: 'uppercase', marginTop: 10, marginBottom: 8 },
+    sec: { fontSize: 11, fontFamily: FontFamily.bold, letterSpacing: 0.5, color: C.ink2, textTransform: 'uppercase', marginTop: 10, marginBottom: 8 },
     lrow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.sm, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 7 },
     lrowCur: { borderWidth: 2, borderColor: C.primary, backgroundColor: C.primarySoft },
     lnum: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.surface3, alignItems: 'center', justifyContent: 'center' },

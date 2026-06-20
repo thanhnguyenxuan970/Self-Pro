@@ -87,11 +87,9 @@ export const Typography = {
   secondary:  { fontFamily: FontFamily.regular,   fontSize: 13,                      lineHeight: 18 },
   caption:    { fontFamily: FontFamily.regular,   fontSize: 12,                      lineHeight: 17 },
   sectionLabel: {
-    fontFamily: FontFamily.bold,
-    fontSize: 11,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.8,
-    lineHeight: 16,
+    fontFamily: FontFamily.semiBold,
+    fontSize: 12,
+    lineHeight: 17,
   },
 };
 

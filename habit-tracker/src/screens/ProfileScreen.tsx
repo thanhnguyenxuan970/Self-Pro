@@ -164,7 +164,7 @@ function makePhStyles(C: AppColors) {
       backgroundColor: C.primarySoft,
       borderWidth: 1, borderColor: C.line,
       marginBottom: 0,
-      shadowColor: '#2E9C6A', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 10, elevation: 4,
+      shadowColor: C.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 10, elevation: 4,
     },
     avatarFallback: { alignItems: 'center', justifyContent: 'center' },
     avatarInitial: { fontSize: 32, fontFamily: FontFamily.extraBold, color: C.primaryPress },
@@ -178,6 +178,6 @@ function makePhStyles(C: AppColors) {
     lifeCell: { flex: 1, alignItems: 'center', paddingVertical: 14, paddingHorizontal: 6 },
     lifeDivider: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: C.line },
     lifeV: { fontSize: 17, fontFamily: FontFamily.extraBold, color: C.inkDark },
-    lifeL: { fontSize: 10, color: C.muted, fontFamily: FontFamily.bold, marginTop: 3, textTransform: 'uppercase', letterSpacing: 0.4 },
+    lifeL: { fontSize: 10, color: C.ink2, fontFamily: FontFamily.bold, marginTop: 3, textTransform: 'uppercase', letterSpacing: 0.4 },
   });
 }

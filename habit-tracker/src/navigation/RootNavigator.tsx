@@ -66,9 +66,10 @@ function IconPlus() {
 
 function FABButton({ onPress, colors }: { onPress: () => void; colors: AppColors }) {
   const { targetRef } = useTutorial();
+  const t = useTranslations();
   const fabRef = useMemo(() => targetRef('fab'), [targetRef]);
   return (
-    <TouchableOpacity style={fabStyles.container} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={fabStyles.container} onPress={onPress} activeOpacity={0.85} accessibilityLabel={t.addActivity} accessibilityRole="button">
       <View ref={fabRef} style={[fabStyles.button, { backgroundColor: colors.primary }]}>
         <IconPlus />
       </View>

@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
 import { RankMascot } from '../components/RankMascot';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 
 const GENDER_KEY = 'habit_gender';
 const BIRTH_YEAR_KEY = 'habit_birth_year';
@@ -30,6 +31,7 @@ export function OnboardingScreen({ onComplete }: Props) {
   const [loading, setLoading] = useState(false);
   const { colors } = useTheme();
   const t = useTranslations();
+  const reduceMotion = useReduceMotion();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -106,7 +108,7 @@ export function OnboardingScreen({ onComplete }: Props) {
 
               {/* Mascot */}
               <Animated.View style={{ transform: [{ scale: pulseAnim }], marginBottom: Spacing.sm }}>
-                <RankMascot tier={0} size={100} loop reduceMotion={false} />
+                <RankMascot tier={0} size={100} loop reduceMotion={reduceMotion} />
               </Animated.View>
 
               {/* Headline */}

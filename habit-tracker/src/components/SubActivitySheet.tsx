@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useTheme } from '../hooks/useSettings';
 
@@ -61,7 +61,7 @@ export function SubActivitySheet({ visible, title, subOptions, showDuration = fa
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.wrap}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={styles.sheet}>
           <View style={styles.grip} />
           <Text style={styles.title}>{title}</Text>
@@ -72,9 +72,9 @@ export function SubActivitySheet({ visible, title, subOptions, showDuration = fa
               {opts.map((o) => {
                 const on = sub === o.key;
                 return (
-                  <Pressable key={o.key} onPress={() => setSub(on ? undefined : o.key)} style={[styles.chip, on && styles.chipOn]}>
+                  <TouchableOpacity key={o.key} onPress={() => setSub(on ? undefined : o.key)} style={[styles.chip, on && styles.chipOn]}>
                     <Text style={[styles.chipText, on && styles.chipTextOn]}>{o.label}</Text>
-                  </Pressable>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -87,9 +87,9 @@ export function SubActivitySheet({ visible, title, subOptions, showDuration = fa
                 {DURATIONS.map((d, i) => {
                   const on = durIdx === i;
                   return (
-                    <Pressable key={d.label} onPress={() => setDurIdx(on ? undefined : i)} style={[styles.chip, on && styles.chipOn]}>
+                    <TouchableOpacity key={d.label} onPress={() => setDurIdx(on ? undefined : i)} style={[styles.chip, on && styles.chipOn]}>
                       <Text style={[styles.chipText, on && styles.chipTextOn]}>{d.label}</Text>
-                    </Pressable>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
@@ -97,12 +97,12 @@ export function SubActivitySheet({ visible, title, subOptions, showDuration = fa
           ) : null}
 
           <View style={styles.acts}>
-            <Pressable style={[styles.btn, styles.skip]} onPress={onClose}>
+            <TouchableOpacity style={[styles.btn, styles.skip]} onPress={onClose}>
               <Text style={styles.skipText}>Bỏ qua</Text>
-            </Pressable>
-            <Pressable style={[styles.btn, styles.save]} onPress={confirm}>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.btn, styles.save]} onPress={confirm}>
               <Text style={styles.saveText}>Lưu</Text>
-            </Pressable>
+            </TouchableOpacity>
           </View>
         </View>
       </View>

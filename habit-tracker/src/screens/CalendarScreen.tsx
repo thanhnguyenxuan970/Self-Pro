@@ -118,13 +118,13 @@ export function CalendarScreen() {
 
       {/* Month Nav */}
       <View style={styles.monthNav}>
-        <TouchableOpacity onPress={prevMonth} style={styles.navBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={prevMonth} style={styles.navBtn} activeOpacity={0.7} accessibilityLabel={t.prevMonth} accessibilityRole="button">
           <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={colors.inkDark} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <Path d="M15 18l-6-6 6-6" />
           </Svg>
         </TouchableOpacity>
         <Text style={styles.monthLabel}>{monthLabel(yearMonth, locale)}</Text>
-        <TouchableOpacity onPress={nextMonth} style={styles.navBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={nextMonth} style={styles.navBtn} activeOpacity={0.7} accessibilityLabel={t.nextMonth} accessibilityRole="button">
           <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={colors.inkDark} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <Path d="M9 18l6-6-6-6" />
           </Svg>
