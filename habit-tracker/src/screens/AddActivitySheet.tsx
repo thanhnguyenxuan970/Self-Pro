@@ -235,8 +235,11 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
 
     if (!selectedSuggestion) {
       setTranslating(true);
-      storeName = await translateActivityName(trimmed);
-      setTranslating(false);
+      try {
+        storeName = await translateActivityName(trimmed);
+      } finally {
+        setTranslating(false);
+      }
     }
 
     const taskBasePoints = isTimeBased

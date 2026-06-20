@@ -145,44 +145,6 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker — Calendar Cells + SVG Icons + inkLight Fix COMPLETE (2026-06-18)
-
-### What Was Fixed / Built
-- **`src/components/CalendarIcons.tsx`** (rewritten): `FireIcon` = orange SVG flame (animated tongues + embers + breathing core); `BestStarIcon` = gold SVG star (gentle twinkle + sparkle); `PeakFireIcon` = blue flame. All use `react-native-svg + Animated` with `useNativeDriver: true`. Aliases `AnimatedFireIcon`, `AnimatedStarIcon`, `AnimatedBurningStarIcon` preserved.
-- **`src/screens/CalendarScreen.tsx`**: Grid expanded via `marginHorizontal: -Spacing.lg` (negates 20px content padding). Cell `justifyContent: 'space-between'` — day number top, icon in `cellBottom` view bottom (eliminates absolute overlay overlap). Legend icons `size=20`, `legendLabel` fontSize 11→13, `legendDot` 10→13px.
-- **`src/screens/RankScreen.tsx`**: Fixed `backgroundColor: C.inkLight` (non-existent color) → `borderColor: C.faint` + `color: C.muted` for info button.
-- **`src/components/RankInfoSheet.tsx`** (new): Bottom sheet modal — 3 scoring bullet points + full 7-tier rank ladder with current-tier highlight. Opened from "?" button in RankScreen title row.
-- **`android/app/build.gradle`**: `versionCode 19 → 20`, `versionName "1.0.18" → "1.0.19"`. `app.json` synced.
-
-### Key Decisions
-- SVG flame/star replaces emoji: emoji render size is font-size dependent and inconsistent across Android OEMs; SVG gives pixel-exact sizing and native-driver animation.
-- `EXPO_METRO_MAX_WORKERS=1` required for `bundleRelease` on Node 24 (V8 TurboFan crashes in multi-threaded Metro workers). Set in shell env before Gradle.
-- Cell icon absolute overlay removed: `position: absolute` icons overlapped the day number on high-density displays; flex `space-between` guarantees separation.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 20)
-- **Runtime verified on emulator**: Calendar cells larger ✅; fire/star icons in cell bottom (no date overlap) ✅; RankInfoSheet opens with 7 tiers ✅
-
----
-
-## Habit Tracker — DurationModal Max Duration Alert Fix COMPLETE (2026-06-18)
-
-### What Was Fixed
-- **`src/config/i18n.ts`**: Added `maxDuration` key — `'Tối đa 24 giờ (1440 phút) mỗi lần'` (vi) / `'Max 24 hours (1440 min) per session'` (en).
-- **`src/screens/TodayScreen.tsx`**: `parseLogDuration` now takes separate `maxDurationMsg` param for the `mins > 1440` branch. Previously both `<= 0` and `> 1440` cases used same "Enter valid duration (greater than 0)" message — misleading when e.g. 60 Hr (3600 min > 1440) entered. Added `maxDuration: string` to `DurationModalLabels`. `handleCustomLog` passes 4th arg. Labels object includes `maxDuration: t.maxDuration`.
-- **`src/components/CalendarIcons.tsx`**: Removed redundant `export` from `FireIcon`/`PeakFireIcon`/`BestStarIcon` — already exported via `export { ... as Animated* }` block.
-- **`android/app/build.gradle`**: `versionCode 20 → 21`, `versionName "1.0.19" → "1.0.20"`. `app.json` synced.
-
-### Key Decisions
-- Two validation branches need distinct messages: `parsed <= 0` → "enter valid duration", `mins > 1440` → "max 24h". Single shared message caused confusing UX — "greater than 0" shown for 60 Hr (valid number, but exceeds daily limit).
-- Bundle reload required to surface fix: emulator was running stale JS cache; opened RN dev menu → Reload to apply.
-
-### Test Results
-- `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 21)
-- **Runtime verified on emulator**: 60 Hr → "Max 24 hours (1440 min) per session" ✅
-
----
-
 ## Habit Tracker — UI/UX Polish (Rank Ladder, Email Display, Keyboard Fix) COMPLETE (2026-06-18)
 
 ### What Was Fixed
@@ -496,3 +458,28 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 39)
 - **PRODUCT.md created** — required by `/impeccable` skill; unblocks all future audit/craft/polish commands.
+
+---
+
+## Habit Tracker — 7-Feature Sprint COMPLETE (2026-06-21)
+
+### What Was Built / Fixed
+- **Rank Season Reset**: `useToday.ts` `weekly_summary` INSERT sets `current_tier_id = (SELECT id FROM tiers WHERE tier_order = 1 LIMIT 1)`. ON CONFLICT excludes `current_tier_id` — preserves earned rank; new weeks start at Delulu.
+- **Double-tap undo (>1h timed)**: `TodayScreen.handleLog` — `is_time_based && totalDurations >= 60` → calls `unlogTask` instead of DurationModal.
+- **Edit button**: `TaskRow` `onEdit?: () => void` + ✏️ (rightCol, fontSize 14). `EditActivityModal` (new) — name + duration inputs, fade modal. `useUpdateTaskName` in `useTasks.ts` invalidates `today`, `week`, `progress`, `calendar`.
+- **Auto-translate custom activities**: `AddActivitySheet` calls `supabase.functions.invoke('translate-name')`. `supabase/functions/translate-name/index.ts` — Deno Edge Function → Claude Haiku (`claude-haiku-4-5-20251001`). `setTranslating` in `try/finally`.
+- **Honey accent**: `accents.ts` `AccentKey` + `honey` palette (swatch `#F59E0B`). Auto-renders in `AccentPicker` via `Object.keys(ACCENTS)`.
+- **Sign-in permanent green**: `const GREEN = ACCENTS.green.light` in `SignInScreen`. Title + ActivityIndicator use `GREEN.primary` regardless of accent setting.
+- **Habi rebrand**: `SignInScreen` title → `'Habi'`.
+
+### Key Decisions
+- ON CONFLICT in `weekly_summary` INSERT deliberately omits `current_tier_id` — existing rows keep earned rank; only fresh-week rows get Delulu default.
+- `translate-name` Edge Function deploy: `supabase functions deploy translate-name --no-verify-jwt`. Requires `ANTHROPIC_API_KEY` secret in Supabase Dashboard.
+- `bundleRelease` must use `.\gradlew.bat` (PowerShell) not `./gradlew` (bash) — bash on Windows picks VS Code JRE (no jlink) despite `org.gradle.java.home` in gradle.properties.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `.\gradlew.bat bundleRelease` → BUILD SUCCESSFUL (versionCode 39)
+
+### Action Required
+- Deploy Edge Function: `supabase functions deploy translate-name --no-verify-jwt`
+- Add `ANTHROPIC_API_KEY` in Supabase Dashboard → Edge Functions → Secrets

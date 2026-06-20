@@ -243,6 +243,8 @@ export function useUpdateTaskName(userId: number) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
+      qc.invalidateQueries({ queryKey: ['progress'] });
+      qc.invalidateQueries({ queryKey: ['calendar'] });
     },
   });
 }

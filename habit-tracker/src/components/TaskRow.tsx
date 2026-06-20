@@ -194,7 +194,7 @@ function makeTaskRowStyles(C: AppColors) {
     tMetaDuration: { color: C.primary, fontFamily: FontFamily.bold },
     dot: { width: 3, height: 3, backgroundColor: C.faint, borderRadius: 2 },
     rightCol: { alignItems: 'flex-end', gap: 2, flexShrink: 0 },
-    editIcon: { fontSize: 11 },
+    editIcon: { fontSize: 14 },
     tPts: { fontSize: 13, fontFamily: FontFamily.extraBold, flexShrink: 0 },
     tPtsPos: { color: C.primary },
     tPtsNeg: { color: C.danger },
