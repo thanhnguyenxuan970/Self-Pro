@@ -69,11 +69,11 @@ export const Radii = {
 };
 
 export const FontFamily = {
-  regular:   'Poppins_400Regular',
-  medium:    'Poppins_500Medium',
-  semiBold:  'Poppins_600SemiBold',
-  bold:      'Poppins_700Bold',
-  extraBold: 'Poppins_800ExtraBold',
+  regular:   'BeVietnamPro_400Regular',
+  medium:    'BeVietnamPro_500Medium',
+  semiBold:  'BeVietnamPro_600SemiBold',
+  bold:      'BeVietnamPro_700Bold',
+  extraBold: 'BeVietnamPro_800ExtraBold',
 };
 
 export const Typography = {

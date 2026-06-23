@@ -32,7 +32,7 @@ export function Wordmark({ width = 200, height = 62 }: Props) {
       <Text
         x="150"
         y="124"
-        fontFamily="Poppins_500Medium"
+        fontFamily="BeVietnamPro_500Medium"
         fontSize="74"
         letterSpacing="-1"
       >

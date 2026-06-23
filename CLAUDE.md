@@ -202,24 +202,22 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ---
 
-## Habit Tracker — Poppins Typography System COMPLETE (2026-06-20)
+## Habit Tracker — Be Vietnam Pro Typography (replaces Poppins) COMPLETE (2026-06-23)
 
 ### What Was Built
-- **`src/config/theme.ts`**: Added `FontFamily` export constants (`regular/medium/semiBold/bold/extraBold` → Poppins 400/500/600/700/800). Replaced old 6-token `Typography` with 10-token scale: `display` (48sp), `xlarge` (42sp), `large` (32sp), `title` (24sp), `subheading` (18sp), `body` (15sp), `bodyStrong` (15sp semiBold), `secondary` (13sp), `caption` (12sp), `sectionLabel` (11sp bold uppercase). All tokens have `fontFamily` + `lineHeight`. No `fontWeight` in any token. Added `dangerPress` to both light/dark color palettes.
-- **`App.tsx`**: Added `useFonts` from `@expo-google-fonts/poppins` — loads Poppins 400/500/600/700/800 as bundled assets. `!fontsLoaded` added to loading gate (`!dbReady || authLoading || !fontsLoaded`). Added `FontFamily` import; replaced `fontWeight: '600'` → `fontFamily: FontFamily.semiBold` in `appStyles.retryTxt`.
-- **`src/components/Wordmark.tsx`**: SVG `fontFamily` changed from CSS fallback `"Poppins Medium, Poppins, sans-serif"` → `"Poppins_500Medium"` (actual loaded font name). Removed dead `useSettingsContext`/`getColors`/`isDark` — replaced hardcoded `inkColor` hex with `colors.inkDark`.
-- **All 18 screen/component files**: Full sweep — every `fontWeight: '600'/'700'/'800'` replaced with `fontFamily: FontFamily.semiBold/bold/extraBold`. Added `FontFamily` import where missing.
-- **`android/app/build.gradle`**: `versionCode 27 → 29`, `versionName "1.0.26" → "1.0.28"`. `app.json` synced.
+- **Root cause**: Poppins has no Vietnamese glyphs in any weight — cmap ends at U+017E (Latin Extended-A); misses ơ (U+01A1), ư (U+01B0), and all precomposed diacritics in U+1E00–U+1EFF. Every Vietnamese char fell back to Roboto → mixed metrics → "random bolding."
+- **`App.tsx`**: Replaced `@expo-google-fonts/poppins` → `@expo-google-fonts/be-vietnam-pro` imports + `useFonts` call. Removed poppins from `package.json` + uninstalled.
+- **`src/config/theme.ts`**: `FontFamily.*` constants → `BeVietnamPro_400Regular / 500Medium / 600SemiBold / 700Bold / 800ExtraBold`. All 18 screens/components auto-pick up via token.
+- **`src/components/Wordmark.tsx`**: SVG hardcoded `fontFamily` → `"BeVietnamPro_500Medium"`.
+- **`android/app/build.gradle`**: `versionCode 39 → 40`, `versionName "1.0.38" → "1.0.39"`. `app.json` synced.
 
 ### Key Decisions
-- `fontWeight` is silently ignored in RN when `fontFamily` is set — sweeping all 18 files (not just Typography token consumers) was required to avoid Roboto fallback.
-- `useFonts` placed as first hook in `AppInner` (stable hook order). Font loads from bundled assets — infallible in prod, resolves immediately.
-- `Wordmark.tsx` fontFamily must match the exact expo-font registered name (`Poppins_500Medium`), not CSS syntax.
-- `title` scale uses `bold` (700), not `extraBold` (800) — `extraBold` reserved for display/xlarge/large per scale design.
-- `fontVariant: ['tabular-nums']` in RankScreen countdown left intact — not a weight prop, unrelated to Poppins.
+- Be Vietnam Pro chosen over Poppins: geometrically identical, explicitly Vietnamese-designed (`vietnamese` subset in metadata), same weight range (100–900), same expo-google-fonts package pattern.
+- Wordmark SVG `fontFamily` must match expo-font registered name exactly (`BeVietnamPro_500Medium`) — not CSS syntax.
+- Visual verify Android-only (glyph coverage is native TTF concern; web/browser uses different fallback chain).
 
 ### Test Results
-- `npx tsc --noEmit` → 0 errors | `./gradlew bundleRelease` → BUILD SUCCESSFUL (versionCode 29) | visual-verify PASS: Poppins geometric letterforms confirmed on TodayScreen
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 109/109 pass | `.\gradlew.bat bundleRelease` → BUILD SUCCESSFUL (versionCode 40)
 
 ---
 
