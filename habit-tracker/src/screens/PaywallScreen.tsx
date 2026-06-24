@@ -111,6 +111,9 @@ export default function PaywallScreen({ onClose, onRestore, onSubscribe }: Paywa
               onPress={() => setSelected(p.id)}
               style={[styles.price, sel && styles.priceSel]}
               activeOpacity={0.8}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: sel }}
+              accessibilityLabel={`${p.label} ${p.price} ${p.per}`}
             >
               {p.badge ? (
                 <View style={styles.pop}>
@@ -144,10 +147,12 @@ export default function PaywallScreen({ onClose, onRestore, onSubscribe }: Paywa
           <Text style={styles.ctaText}>{current.cta}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.fine}>
-          Thanh toán qua {store} · huỷ bất cứ lúc nào ·{' '}
-          <Text style={styles.link} onPress={onRestore}>Khôi phục</Text>
-        </Text>
+        <View style={styles.fineRow}>
+          <Text style={styles.fine}>Thanh toán qua {store} · huỷ bất cứ lúc nào · </Text>
+          <TouchableOpacity onPress={onRestore} accessibilityRole="button" accessibilityLabel="Khôi phục mua hàng" activeOpacity={0.7}>
+            <Text style={[styles.fine, styles.link]}>Khôi phục</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -161,11 +166,11 @@ function makeStyles(C: AppColors) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       paddingTop: Spacing.sm, paddingBottom: Spacing.xs,
     },
-    close: { fontSize: 18, color: C.faint, fontFamily: FontFamily.semiBold },
+    close: { fontSize: 18, color: C.muted, fontFamily: FontFamily.semiBold },
     proBadge: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     proText: { fontSize: 12, fontFamily: FontFamily.bold, color: C.primaryPress, letterSpacing: 0.5 },
     h1: { fontSize: 25, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, textAlign: 'center', marginTop: Spacing.xs },
-    sub: { fontSize: 13, color: C.muted, textAlign: 'center', marginTop: 2, marginBottom: Spacing.md },
+    sub: { fontSize: 13, color: C.ink2, textAlign: 'center', marginTop: 2, marginBottom: Spacing.md },
     tiles: { flexDirection: 'row', gap: 11, marginBottom: Spacing.md },
     tile: {
       flex: 1, backgroundColor: C.primarySoft, borderRadius: Radii.lg,
@@ -186,20 +191,21 @@ function makeStyles(C: AppColors) {
     meta: { fontSize: 11, color: C.muted, marginTop: 1 },
     priceRight: { alignItems: 'flex-end' },
     priceVal: { fontSize: 16, fontFamily: FontFamily.bold, color: C.inkDark },
-    per: { fontSize: 10.5, color: C.muted },
+    per: { fontSize: 11, color: C.muted },
     pop: {
       position: 'absolute', top: -9, left: 15, backgroundColor: C.primary,
       borderRadius: Radii.pill, paddingHorizontal: 9, paddingVertical: 2,
     },
-    popText: { fontSize: 10, fontFamily: FontFamily.bold, color: C.white, letterSpacing: 0.3 },
+    popText: { fontSize: 11, fontFamily: FontFamily.bold, color: C.white, letterSpacing: 0.3 },
     save: { backgroundColor: C.starSoft, borderRadius: Radii.pill, paddingHorizontal: 7, paddingVertical: 1 },
-    saveText: { fontSize: 10, fontFamily: FontFamily.bold, color: C.starGold },
+    saveText: { fontSize: 11, fontFamily: FontFamily.bold, color: C.starGold },
     cta: {
       backgroundColor: C.primary, borderRadius: Radii.md, paddingVertical: 16,
       alignItems: 'center', marginTop: Spacing.md,
     },
     ctaText: { fontSize: 16, fontFamily: FontFamily.bold, color: C.white },
-    fine: { fontSize: 11, color: C.faint, textAlign: 'center', marginTop: 10 },
-    link: { color: C.muted, textDecorationLine: 'underline' },
+    fineRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginTop: 10 },
+    fine: { fontSize: 11, color: C.ink2 },
+    link: { color: C.ink2, textDecorationLine: 'underline' },
   });
 }

@@ -100,6 +100,9 @@ export function OnboardingScreen({ onComplete }: Props) {
                     style={[styles.langBtn, lang === l && { borderColor: colors.primary, backgroundColor: colors.primarySoft }]}
                     onPress={() => setLanguage(l)}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={l === 'vi' ? 'Tiếng Việt' : 'English'}
+                    accessibilityState={{ selected: lang === l }}
                   >
                     <Text style={styles.langFlag}>{l === 'vi' ? '🇻🇳' : '🇺🇸'}</Text>
                   </TouchableOpacity>
@@ -124,18 +127,18 @@ export function OnboardingScreen({ onComplete }: Props) {
                 ))}
               </View>
 
-              <TouchableOpacity style={styles.button} onPress={() => setStep(1)} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.button} onPress={() => setStep(1)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t.onboardHeroCta}>
                 <Text style={styles.buttonText}>{t.onboardHeroCta}</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.setup}>
-              <TouchableOpacity style={styles.backBtn} onPress={() => setStep(0)} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.backBtn} onPress={() => setStep(0)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.back}>
                 <Text style={[styles.backText, { color: colors.muted }]}>{t.back}</Text>
               </TouchableOpacity>
 
               <Text style={styles.setupTitle}>{t.onboardSetupTitle}</Text>
-              <Text style={[styles.setupSubtitle, { color: colors.muted }]}>{t.onboardSetupSubtitle}</Text>
+              <Text style={[styles.setupSubtitle, { color: colors.ink2 }]}>{t.onboardSetupSubtitle}</Text>
 
               {/* Gender */}
               <Text style={styles.fieldLabel}>{t.onboardGenderLabel}</Text>
@@ -146,6 +149,9 @@ export function OnboardingScreen({ onComplete }: Props) {
                     style={[styles.optionBtn, gender === opt.key && styles.optionBtnActive]}
                     onPress={() => setGender(opt.key)}
                     activeOpacity={0.7}
+                    accessibilityRole="radio"
+                    accessibilityLabel={opt.label}
+                    accessibilityState={{ checked: gender === opt.key }}
                   >
                     <Text style={[styles.optionBtnText, gender === opt.key && styles.optionBtnTextActive]}>
                       {opt.label}
@@ -172,6 +178,8 @@ export function OnboardingScreen({ onComplete }: Props) {
                 onPress={handleStart}
                 disabled={loading}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={t.onboardStart}
               >
                 {loading ? (
                   <ActivityIndicator color={colors.white} />
@@ -275,7 +283,7 @@ function makeStyles(C: AppColors) {
     fieldLabel: {
       fontSize: 13,
       fontFamily: FontFamily.semiBold,
-      color: C.muted,
+      color: C.ink2,
       marginBottom: 10,
       marginTop: Spacing.lg,
     },

@@ -89,7 +89,7 @@ export function SuggestActivitySheet({ visible, onClose }: Props) {
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
-    wrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(8,16,11,0.45)' },
+    wrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
     sheet: { backgroundColor: C.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: Spacing.lg, paddingBottom: Spacing.xl },
     grip: { width: 38, height: 4, borderRadius: 2, backgroundColor: C.line2, alignSelf: 'center', marginBottom: 14 },
     title: { fontSize: 17, fontFamily: FontFamily.bold, color: C.inkDark, marginBottom: 4 },

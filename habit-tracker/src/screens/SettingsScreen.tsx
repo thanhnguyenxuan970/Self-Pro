@@ -278,7 +278,7 @@ function makeStyles(C: AppColors) {
     rowIc: { fontSize: 20, width: 28, textAlign: 'center' },
     rowLabel: { flex: 1, fontSize: 15, fontFamily: FontFamily.semiBold, color: C.inkDark },
     check: { fontSize: 16, fontFamily: FontFamily.extraBold, color: C.primary },
-    chevron: { fontSize: 18, color: C.faint },
+    chevron: { fontSize: 18, color: C.muted },
     hint: {
       marginHorizontal: Spacing.lg,
       marginTop: 12,
@@ -293,7 +293,7 @@ function makeStyles(C: AppColors) {
     },
     reminderClear: {
       fontSize: 16,
-      color: C.faint,
+      color: C.muted,
       fontFamily: FontFamily.bold,
       paddingHorizontal: 4,
     },

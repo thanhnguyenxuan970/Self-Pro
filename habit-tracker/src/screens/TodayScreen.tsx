@@ -641,7 +641,7 @@ function makeStyles(C: AppColors) {
     avatarText: { fontFamily: FontFamily.extraBold, color: C.primaryPress, fontSize: 16 },
     greet: { flex: 1 },
     hi: { fontSize: 15, fontFamily: FontFamily.extraBold, letterSpacing: -0.2, color: C.inkDark },
-    date: { fontSize: 12, color: C.muted, marginTop: 1 },
+    date: { fontSize: 12, color: C.ink2, marginTop: 1 },
     gearBtn: { padding: 6 },
     gearIcon: { fontSize: 22 },
 
@@ -656,8 +656,8 @@ function makeStyles(C: AppColors) {
     heroBalNum: { fontSize: 40, fontFamily: FontFamily.extraBold, letterSpacing: -1.2, color: C.white, lineHeight: 44 },
     heroFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
     heroDelta: { fontSize: 12, paddingHorizontal: 11, paddingVertical: 5, borderRadius: Radii.pill, fontFamily: FontFamily.bold, overflow: 'hidden' },
-    heroDeltaUp: { backgroundColor: 'rgba(255,255,255,0.16)', color: '#B5F0CE' },
-    heroDeltaDown: { backgroundColor: 'rgba(255,255,255,0.16)', color: '#FFB9BB' },
+    heroDeltaUp: { backgroundColor: 'rgba(255,255,255,0.16)', color: C.white },
+    heroDeltaDown: { backgroundColor: 'rgba(255,255,255,0.16)', color: C.white },
     rankChip: {
       flexDirection: 'row', alignItems: 'center', gap: 6,
       backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 12, paddingVertical: 6,
@@ -683,7 +683,7 @@ function makeStyles(C: AppColors) {
       marginTop: 10, overflow: 'hidden',
     },
     barFill: { height: '100%', backgroundColor: C.primary, borderRadius: Radii.pill },
-    progCap: { fontSize: 11.5, color: C.muted, marginTop: 8 },
+    progCap: { fontSize: 11.5, color: C.ink2, marginTop: 8 },
 
     sectionLabel: {
       fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2,

@@ -73,17 +73,19 @@ function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, ca
         <Text style={[styles.sectionLabel, { marginHorizontal: 0 }]}>{t.activityLogSection}</Text>
         {selectionMode ? (
           <View style={styles.logActions}>
-            <TouchableOpacity onPress={selectAll} style={styles.logActionBtn}>
+            <TouchableOpacity onPress={selectAll} style={styles.logActionBtn} accessibilityRole="button" accessibilityLabel={t.all}>
               <Text style={styles.logActionTxt}>{t.all}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleDeleteSelected}
               style={[styles.logActionBtn, styles.logDeleteBtn]}
               disabled={selectedIds.size === 0 || deleteLogs.isPending}
+              accessibilityRole="button"
+              accessibilityLabel={t.deleteCount(selectedIds.size)}
             >
               <Text style={styles.logDeleteTxt}>{t.deleteCount(selectedIds.size)}</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={cancelSelection} style={styles.logActionBtn}>
+            <TouchableOpacity onPress={cancelSelection} style={styles.logActionBtn} accessibilityRole="button" accessibilityLabel={t.cancel}>
               <Text style={styles.logActionTxt}>{t.cancel}</Text>
             </TouchableOpacity>
           </View>
@@ -91,11 +93,11 @@ function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, ca
       </View>
       {/* Date filter chip */}
       <View style={styles.filterRow}>
-        <TouchableOpacity style={styles.filterChip} onPress={onFilterPress} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.filterChip} onPress={onFilterPress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={filterDate ?? t.filterLast7Days}>
           <Text style={styles.filterChipText}>{filterDate ?? t.filterLast7Days}</Text>
         </TouchableOpacity>
         {filterDate !== null && (
-          <TouchableOpacity onPress={onFilterClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
+          <TouchableOpacity onPress={onFilterClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.filterClear}>
             <Text style={styles.filterClearText}>✕</Text>
           </TouchableOpacity>
         )}
@@ -103,7 +105,7 @@ function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, ca
       {actLogs.length === 0 ? (
         <View style={styles.logEmptyWrap}>
           <Text style={styles.logEmpty}>{t.progressEmptyMsg}</Text>
-          <TouchableOpacity style={styles.logEmptyCta} onPress={onAddActivity} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.logEmptyCta} onPress={onAddActivity} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t.progressEmptyCta}>
             <Text style={styles.logEmptyCtaTxt}>{t.progressEmptyCta}</Text>
           </TouchableOpacity>
         </View>
@@ -252,6 +254,9 @@ export function ProgressScreen() {
               key={key}
               style={[styles.segBtn, range === key && styles.segBtnActive]}
               onPress={() => setRange(key)}
+              accessibilityRole="tab"
+              accessibilityLabel={label}
+              accessibilityState={{ selected: range === key }}
             >
               <Text style={[styles.segTxt, range === key && styles.segTxtActive]}>{label}</Text>
             </TouchableOpacity>
@@ -281,9 +286,9 @@ export function ProgressScreen() {
                 <VictoryAxis
                   tickValues={visibleTicks}
                   tickFormat={tickFormat}
-                  style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.muted, fontSize: 9.5, fontFamily: FontFamily.semiBold } }}
+                  style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.ink2, fontSize: 11, fontFamily: FontFamily.semiBold } }}
                 />
-                <VictoryAxis dependentAxis style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.muted, fontSize: 9.5 } }} />
+                <VictoryAxis dependentAxis style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.ink2, fontSize: 11 } }} />
                 <VictoryStack colorScale={[colors.primary, colors.danger]}>
                   <VictoryBar data={goodData} />
                   <VictoryBar data={badData} />
@@ -378,7 +383,7 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.surface,
       shadowColor: '#14231A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 2, elevation: 1,
     },
-    segTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.muted },
+    segTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.ink2 },
     segTxtActive: { color: C.inkDark },
 
     card: {

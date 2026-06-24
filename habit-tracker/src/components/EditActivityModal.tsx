@@ -60,6 +60,7 @@ export function EditActivityModal({ visible, task, totalDurationMin, onSave, onC
             returnKeyType={task.is_time_based ? 'next' : 'done'}
             onSubmitEditing={task.is_time_based ? undefined : handleSave}
             placeholderTextColor={colors.muted}
+            accessibilityLabel={t.editNameLabel}
           />
 
           {!!task.is_time_based && (
@@ -74,15 +75,17 @@ export function EditActivityModal({ visible, task, totalDurationMin, onSave, onC
                 returnKeyType="done"
                 onSubmitEditing={handleSave}
                 placeholderTextColor={colors.muted}
+                accessibilityLabel={t.editDurationLabel}
+                accessibilityHint="Nhập số phút"
               />
             </>
           )}
 
           <View style={styles.btnRow}>
-            <TouchableOpacity style={[styles.btn, styles.cancelBtn]} onPress={onClose} activeOpacity={0.75}>
+            <TouchableOpacity style={[styles.btn, styles.cancelBtn]} onPress={onClose} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={t.cancel}>
               <Text style={[styles.btnText, { color: colors.muted }]}>{t.cancel}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.btn, styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave} activeOpacity={0.8}>
+            <TouchableOpacity style={[styles.btn, styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t.editSave}>
               <Text style={[styles.btnText, { color: colors.white }]}>{t.editSave}</Text>
             </TouchableOpacity>
           </View>
