@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Habi — UI Kit</title>
+<!-- Be Vietnam Pro — same font as production app (Google Fonts CDN) -->
+<!-- TODO: swap to @font-face with licensed .ttf files once provided -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:#080D0A;color:#ECEEEC;font-family:'Be Vietnam Pro',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+body{display:flex;flex-direction:column;align-items:center;padding:28px 16px 80px;gap:20px}
+#root{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%}
+/* doc header */
+.doc-head{text-align:center;max-width:440px}
+.doc-head h1{font-size:18px;font-weight:800;letter-spacing:-.3px;color:#ECEEEC}
+.doc-head p{font-size:12.5px;color:#5A6560;margin-top:4px;line-height:1.5}
+.doc-tags{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.doc-tag{font-size:10.5px;background:#161B18;border:1px solid #262C29;color:#5A6560;padding:4px 10px;border-radius:999px;font-weight:600}
+/* demo controls */
+.controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:440px}
+.ctrl-btn{padding:8px 14px;border-radius:8px;border:1px solid #2B3028;background:#161B18;color:#8A9490;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s}
+.ctrl-btn:hover{border-color:#3A403C;color:#C7CCC9}
+.ctrl-btn.on{background:#25B36E;border-color:#25B36E;color:#fff}
+.ctrl-btn.danger{color:#E05A5F;border-color:#3D1A1B}
+select.ctrl-btn{padding-right:6px}
+/* font note */
+.font-note{font-size:11px;color:#3A403C;text-align:center;margin-top:4px}
+/* phone */
+.phone{width:390px;height:844px;background:#161B18;border-radius:46px;border:11px solid #0B0E0C;position:relative;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.5),0 10px 24px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.04);flex-shrink:0;display:flex;flex-direction:column}
+.phone-light{background:#FFFFFF}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<p class="font-note">🔤 Be Vietnam Pro via Google Fonts · @font-face pending licensed .ttf · Charts: CSS bars (Victory.js = RN-only)</p>
+<script type="text/babel">
+// =============================================================
+// Chrome.jsx — Habi App UI Kit
+// Screens: Settings, Profile, LevelUpCelebration
+// Mirrors: src/screens/SettingsScreen.tsx, ProfileScreen.tsx,
+//          src/components/LevelUpCelebrationModal.tsx
+// Ranks: verified against src/config/ranks.config.ts
+// =============================================================
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+// ── RANKS — source of truth: src/config/ranks.config.ts ──────
+// tier: 0..6 (7 tiers total; CLAUDE.md says "8-tier" but code has 0..6)
+const RANKS = [
+  { tier: 0, name: 'Delulu',        stars: 5,   descriptor: 'noodle mode', color: '#A78BFA', edge: '#7C5CE0' },
+  { tier: 1, name: 'Mewing',        stars: 10,  descriptor: 'max send',    color: '#818CF8', edge: '#5B61D6' },
+  { tier: 2, name: 'Rizz',          stars: 20,  descriptor: 'hit the griddy', color: '#60A5FA', edge: '#3B82F6' },
+  { tier: 3, name: 'Gigachad',      stars: 40,  descriptor: 'too swole',   color: '#2DD4BF', edge: '#14B8A6' },
+  { tier: 4, name: 'Aura Farmer',   stars: 80,  descriptor: 'spin to win', color: '#F472B6', edge: '#EC4899' },
+  { tier: 5, name: 'Main Character',stars: 160, descriptor: 'hair flip',   color: '#FB923C', edge: '#EA7317' },
+  { tier: 6, name: 'GOATED',        stars: 320, descriptor: 'infinite W',  color: '#F4C842', edge: '#A87B12' },
+];
+
+// ── ACCENTS — source: src/config/accents.ts ──────────────────
+const ACCENTS = {
+  green:  { swatch: '#25B36E', light: { primary:'#25B36E', primaryHover:'#1E9B5E', primaryPress:'#177A49', primarySoft:'#C6E9D5' }, dark: { primary:'#25B36E', primaryHover:'#1E9B5E', primaryPress:'#5EC69A', primarySoft:'#1A3D2E' } },
+  indigo: { swatch: '#6366F1', light: { primary:'#6366F1', primaryHover:'#4F46E5', primaryPress:'#3730A3', primarySoft:'#E0E7FF' }, dark: { primary:'#818CF8', primaryHover:'#6366F1', primaryPress:'#A5B4FC', primarySoft:'#1E1B4B' } },
+  rose:   { swatch: '#F43F5E', light: { primary:'#E11D48', primaryHover:'#BE123C', primaryPress:'#9F1239', primarySoft:'#FFE4E6' }, dark: { primary:'#FB7185', primaryHover:'#F43F5E', primaryPress:'#FDA4AF', primarySoft:'#4C0519' } },
+  sky:    { swatch: '#0EA5E9', light: { primary:'#0284C7', primaryHover:'#0369A1', primaryPress:'#075985', primarySoft:'#E0F2FE' }, dark: { primary:'#38BDF8', primaryHover:'#0EA5E9', primaryPress:'#7DD3FC', primarySoft:'#0C2A3E' } },
+  violet: { swatch: '#8B5CF6', light: { primary:'#7C3AED', primaryHover:'#6D28D9', primaryPress:'#5B21B6', primarySoft:'#EDE9FE' }, dark: { primary:'#A78BFA', primaryHover:'#8B5CF6', primaryPress:'#C4B5FD', primarySoft:'#2E1065' } },
+  honey:  { swatch: '#F59E0B', light: { primary:'#D97706', primaryHover:'#B45309', primaryPress:'#92400E', primarySoft:'#FEF3C7' }, dark: { primary:'#FCD34D', primaryHover:'#F59E0B', primaryPress:'#FDE68A', primarySoft:'#451A03' } },
+};
+
+// ── THEME TOKENS — source: src/config/theme.ts ───────────────
+const LIGHT = {
+  bgBase:'#F5F6F5', surface:'#FFFFFF', surface2:'#F4F5F4', surface3:'#ECEEEC',
+  inkDark:'#1B1F1D', ink2:'#3F4642', muted:'#6E7672', faint:'#A5ABA7',
+  line:'#E5E8E6', line2:'#D5D9D6',
+  danger:'#E05A5F', dangerPress:'#A82830', dangerSoft:'#FBE2E3',
+  starGold:'#D9952B', starSoft:'#FBEFD3',
+  white:'#FFFFFF', onAccent:'#FFFFFF',
+};
+const DARK = {
+  bgBase:'#0E1311', surface:'#161B18', surface2:'#1D231F', surface3:'#252C28',
+  inkDark:'#ECEEEC', ink2:'#C7CCC9', muted:'#8A9490', faint:'#5A6560',
+  line:'#262C29', line2:'#323933',
+  danger:'#E05A5F', dangerPress:'#C03538', dangerSoft:'#3D1A1B',
+  starGold:'#E0A93B', starSoft:'#3D2E0F',
+  white:'#FFFFFF', onAccent:'#FFFFFF',
+};
+
+function getColors(isDark, accentKey = 'green') {
+  const base = { ...(isDark ? DARK : LIGHT) };
+  const palette = isDark ? ACCENTS[accentKey].dark : ACCENTS[accentKey].light;
+  return { ...base, ...palette };
+}
+
+// ── I18N ─────────────────────────────────────────────────────
+const STRINGS = {
+  vi: {
+    settingsTitle: 'Cài đặt',
+    sectionAppearance: 'Giao diện',
+    darkMode: 'Chế độ tối',
+    sectionSound: 'Âm thanh',
+    soundEnabled: 'Âm thanh & hiệu ứng',
+    sectionLanguage: 'Ngôn ngữ',
+    sectionNotifications: 'Thông báo',
+    addReminder: '+ Thêm nhắc nhở',
+    sectionFeedback: 'Phản hồi',
+    reportBugLabel: 'Báo lỗi / Góp ý',
+    sectionAccount: 'Tài khoản',
+    deleteAccountLabel: 'Xoá tài khoản',
+    deleteAccountNote: 'Xoá tài khoản sẽ xoá toàn bộ dữ liệu và không thể khôi phục.',
+    profileTitle: 'Hồ sơ',
+    statWeekly: 'Sao tuần',
+    statStreak: 'Chuỗi ngày',
+    statTotal: 'Tổng sao',
+    accentLabel: 'Màu chủ đạo',
+    signOut: 'Đăng xuất',
+    levelUpTitle: 'THĂNG HẠNG!',
+    levelUpDismiss: 'Tuyệt vời! 🎉',
+  },
+  en: {
+    settingsTitle: 'Settings',
+    sectionAppearance: 'Appearance',
+    darkMode: 'Dark mode',
+    sectionSound: 'Sound',
+    soundEnabled: 'Sound & effects',
+    sectionLanguage: 'Language',
+    sectionNotifications: 'Notifications',
+    addReminder: '+ Add reminder',
+    sectionFeedback: 'Feedback',
+    reportBugLabel: 'Report a bug / Feedback',
+    sectionAccount: 'Account',
+    deleteAccountLabel: 'Delete account',
+    deleteAccountNote: 'Deleting your account will permanently erase all data.',
+    profileTitle: 'Profile',
+    statWeekly: 'Weekly ★',
+    statStreak: 'Streak',
+    statTotal: 'Total ★',
+    accentLabel: 'Accent color',
+    signOut: 'Sign out',
+    levelUpTitle: 'LEVEL UP!',
+    levelUpDismiss: 'Awesome! 🎉',
+  },
+};
+
+// ── RANK MASCOT — star polygon from ranks.config.ts STAR_POINTS ─
+// STAR_POINTS = '0,-22 5.41,-7.44 20.92,-6.8 8.75,2.84 12.93,17.8 0,9.2 -12.93,17.8 -8.75,2.84 -20.92,-6.8 -5.41,-7.44'
+function RankMascot({ tier, size = 64 }) {
+  const r = RANKS[Math.min(Math.max(tier, 0), RANKS.length - 1)];
+  const scale = size / 56; // viewBox is -28..28 = 56 units
+  return (
+    <svg width={size} height={size} viewBox="-28 -28 56 56" style={{ display:'block' }}>
+      <polygon
+        points="0,-22 5.41,-7.44 20.92,-6.8 8.75,2.84 12.93,17.8 0,9.2 -12.93,17.8 -8.75,2.84 -20.92,-6.8 -5.41,-7.44"
+        fill={r.color} stroke={r.edge} strokeWidth="1.5"
+        style={{ filter:`drop-shadow(0 3px 6px ${r.color}60)` }}
+      />
+      {/* simple face dots */}
+      <circle cx="-5" cy="-7" r="2" fill={r.edge} />
+      <circle cx="5" cy="-7" r="2" fill={r.edge} />
+      <path d="M-4,2 q4,4 8,0" stroke={r.edge} strokeWidth="1.5" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ── PRIMITIVES ────────────────────────────────────────────────
+function Toggle({ on, onChange, C }) {
+  return (
+    <div onClick={() => onChange(!on)} style={{
+      width:50, height:28, borderRadius:14,
+      background: on ? C.primary : C.line2,
+      cursor:'pointer', position:'relative', flexShrink:0,
+      transition:'background .18s',
+    }}>
+      <div style={{
+        position:'absolute', top:3,
+        left: on ? 25 : 3,
+        width:22, height:22, borderRadius:11, background:'#fff',
+        boxShadow:'0 1px 3px rgba(0,0,0,.3)',
+        transition:'left .18s',
+      }}/>
+    </div>
+  );
+}
+
+function SectionLabel({ children, C }) {
+  return (
+    <div style={{
+      fontSize:12, fontWeight:600, color:C.ink2,
+      margin:'24px 18px 8px',
+    }}>{children}</div>
+  );
+}
+
+function Card({ children, C, isDark }) {
+  return (
+    <div style={{
+      margin:'0 18px', background:C.surface,
+      borderRadius:14, border:`1px solid ${C.line}`,
+      padding:'0 15px',
+      boxShadow:`0 1px 2px rgba(14,19,17,${isDark?.5:.06})`,
+    }}>{children}</div>
+  );
+}
+
+function CardRow({ icon, label, right, last, C, onClick, danger }) {
+  return (
+    <div onClick={onClick} style={{
+      display:'flex', alignItems:'center', gap:13,
+      padding:'14px 0',
+      borderBottom: last ? 'none' : `1px solid ${C.line}`,
+      cursor: onClick ? 'pointer' : 'default',
+      transition: onClick ? 'opacity .12s' : 'none',
+    }}>
+      <span style={{ fontSize:20, width:28, textAlign:'center', flexShrink:0 }}>{icon}</span>
+      <span style={{ flex:1, fontSize:15, fontWeight:600, color: danger ? C.danger : C.inkDark }}>
+        {label}
+      </span>
+      {right}
+      {onClick && !right && <span style={{ fontSize:18, color:C.faint }}>›</span>}
+    </div>
+  );
+}
+
+// ── STATUS BAR ───────────────────────────────────────────────
+function StatusBar({ C }) {
+  return (
+    <div style={{
+      height:48, display:'flex', alignItems:'flex-end', justifyContent:'space-between',
+      padding:'0 28px 8px', fontSize:14, fontWeight:700, color:C.inkDark, flexShrink:0,
+    }}>
+      <span>9:41</span>
+      <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+        <svg width="16" height="11" viewBox="0 0 16 11">
+          <path fill={C.inkDark} d="M0 9h2v2H0zM3 7h2v4H3zM6 5h2v6H6zM9 3h2v8H9zM12 1h2v10h-2z"/>
+        </svg>
+        <svg width="14" height="10" viewBox="0 0 14 10" fill={C.inkDark}>
+          <path d="M7 0a9 9 0 0 1 6.4 2.6l-1 1A7.6 7.6 0 0 0 7 1.4 7.6 7.6 0 0 0 1.6 3.6l-1-1A9 9 0 0 1 7 0zm0 3a6 6 0 0 1 4.2 1.7l-1 1A4.6 4.6 0 0 0 7 4.4 4.6 4.6 0 0 0 3.8 5.7l-1-1A6 6 0 0 1 7 3zm0 3a3 3 0 0 1 2.1.9l-1 1A1.6 1.6 0 0 0 7 7.4a1.6 1.6 0 0 0-1.1.5l-1-1A3 3 0 0 1 7 6zm0 3a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+        </svg>
+        <svg width="24" height="11" viewBox="0 0 24 11">
+          <rect x="0" y="0" width="22" height="11" rx="3" stroke={C.inkDark} fill="none" opacity=".5"/>
+          <rect x="2" y="2" width="16" height="7" rx="1.5" fill={C.inkDark}/>
+          <rect x="23" y="3.5" width="1" height="4" fill={C.inkDark} opacity=".5"/>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+// ── TAB BAR ──────────────────────────────────────────────────
+function TabBar({ screen, onNav, C }) {
+  const sw = (id) => screen === id ? 2.3 : 1.9;
+  const tabs = [
+    { id:'home', label:'Trang chủ',
+      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw('home')} strokeLinecap="round" strokeLinejoin="round" width={24} height={24}><path d="M3 11l9-8 9 8M5 10v10h6v-6h2v6h6V10"/></svg> },
+    { id:'calendar', label:'Lịch',
+      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw('calendar')} strokeLinecap="round" strokeLinejoin="round" width={24} height={24}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> },
+    { id:'__fab__', label:'', icon: null },
+    { id:'analytics', label:'Phân tích',
+      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw('analytics')} strokeLinecap="round" strokeLinejoin="round" width={24} height={24}><path d="M3 20h18M6 20v-7M12 20V5M18 20v-10"/></svg> },
+    { id:'rank', label:'Rank',
+      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw('rank')} strokeLinecap="round" strokeLinejoin="round" width={24} height={24}><path d="M7 4h10v5a5 5 0 01-10 0V4zM7 6H4v2a3 3 0 003 3M17 6h3v2a3 3 0 01-3 3M9 20h6M12 14v6"/></svg> },
+  ];
+  return (
+    <div style={{
+      height:86, background:C.surface, borderTop:`1px solid ${C.line}`,
+      display:'flex', alignItems:'flex-start', padding:'9px 6px 0', flexShrink:0,
+      boxShadow:'0 -8px 24px rgba(0,0,0,.04)',
+    }}>
+      {tabs.map(tab => tab.id === '__fab__' ? (
+        <div key="fab" style={{ flex:1, display:'flex', justifyContent:'center' }}>
+          <div style={{
+            width:58, height:58, borderRadius:29, background:C.primary,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            marginTop:-18, cursor:'pointer',
+            boxShadow:`0 10px 24px ${C.primary}60, 0 4px 8px ${C.primary}40`,
+          }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.6} strokeLinecap="round" width={28} height={28}>
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+          </div>
+        </div>
+      ) : (
+        <div key={tab.id} onClick={() => onNav(tab.id)} style={{
+          flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4,
+          cursor:'pointer', color: screen === tab.id ? C.primary : C.faint,
+          fontSize:10, fontWeight:700, padding:'4px 0',
+          transition:'color .15s', userSelect:'none',
+        }}>
+          {tab.icon}
+          <span>{tab.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── SCREEN: SETTINGS ─────────────────────────────────────────
+// Mirrors: src/screens/SettingsScreen.tsx
+function SettingsScreen({ C, t, isDark, setDark, lang, setLang, audioOn, setAudio }) {
+  const [reminders, setReminders] = useState(['07:00', '21:00']);
+
+  return (
+    <div style={{ overflowY:'auto', background:C.bgBase, height:'100%', paddingBottom:32 }}>
+      <div style={{ padding:'12px 18px 4px', fontSize:24, fontWeight:800, letterSpacing:-.5, color:C.inkDark }}>
+        {t.settingsTitle}
+      </div>
+
+      {/* Appearance */}
+      <SectionLabel C={C}>{t.sectionAppearance}</SectionLabel>
+      <Card C={C} isDark={isDark}>
+        <CardRow icon="🌙" label={t.darkMode} C={C}
+          right={<Toggle on={isDark} onChange={setDark} C={C}/>}
+        />
+        <CardRow icon="🌍" label={t.sectionLanguage} last C={C}
+          right={
+            <div style={{ display:'flex', border:`1px solid ${C.line2}`, borderRadius:999, overflow:'hidden', fontSize:11, fontWeight:800 }}>
+              {['vi','en'].map(l => (
+                <span key={l} onClick={() => setLang(l)} style={{
+                  padding:'5px 10px', cursor:'pointer',
+                  background: lang===l ? C.inkDark : 'transparent',
+                  color: lang===l ? C.surface : C.faint,
+                  transition:'all .15s',
+                }}>{l.toUpperCase()}</span>
+              ))}
+            </div>
+          }
+        />
+      </Card>
+
+      {/* Sound */}
+      <SectionLabel C={C}>{t.sectionSound}</SectionLabel>
+      <Card C={C} isDark={isDark}>
+        <CardRow icon="🔊" label={t.soundEnabled} last C={C}
+          right={<Toggle on={audioOn} onChange={setAudio} C={C}/>}
+        />
+      </Card>
+
+      {/* Notifications */}
+      <SectionLabel C={C}>{t.sectionNotifications}</SectionLabel>
+      <Card C={C} isDark={isDark}>
+        {reminders.map((time, idx) => (
+          <CardRow key={idx} icon="⏰" label={time} last={idx === reminders.length-1 && reminders.length >= 3} C={C}
+            right={
+              <span onClick={() => setReminders(r => r.filter((_,i) => i!==idx))}
+                style={{ fontSize:16, color:C.faint, fontWeight:800, cursor:'pointer', padding:'0 4px' }}>
+                ×
+              </span>
+            }
+          />
+        ))}
+        {reminders.length < 3 && (
+          <div onClick={() => setReminders(r => [...r, '20:00'])}
+            style={{
+              padding:'14px 0', color:C.primary, fontSize:15, fontWeight:700, cursor:'pointer',
+              borderTop: reminders.length ? `1px solid ${C.line}` : 'none',
+            }}>
+            {t.addReminder}
+          </div>
+        )}
+      </Card>
+
+      {/* Feedback */}
+      <SectionLabel C={C}>{t.sectionFeedback}</SectionLabel>
+      <Card C={C} isDark={isDark}>
+        <CardRow icon="📬" label={t.reportBugLabel} last C={C} onClick={() => {}}/>
+      </Card>
+
+      {/* Account */}
+      <SectionLabel C={C}>{t.sectionAccount}</SectionLabel>
+      <Card C={C} isDark={isDark}>
+        <CardRow icon="🗑️" label={t.deleteAccountLabel} last C={C} danger onClick={() => {}}/>
+      </Card>
+      <div style={{ margin:'12px 18px 0', fontSize:12, color:C.muted, lineHeight:1.6 }}>
+        {t.deleteAccountNote}
+      </div>
+    </div>
+  );
+}
+
+// ── SCREEN: PROFILE ──────────────────────────────────────────
+// Mirrors: src/screens/ProfileScreen.tsx
+function ProfileScreen({ C, t, isDark, accent, setAccent, onSettings }) {
+  return (
+    <div style={{ overflowY:'auto', background:C.bgBase, height:'100%', paddingBottom:32 }}>
+      {/* Back / settings row */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', padding:'10px 18px 0' }}>
+        <div onClick={onSettings} style={{
+          width:36, height:36, borderRadius:18, background:C.surface,
+          border:`1px solid ${C.line2}`, display:'flex', alignItems:'center', justifyContent:'center',
+          cursor:'pointer',
+        }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke={C.ink2} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" width={20} height={20}>
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+        </div>
+      </div>
+
+      {/* Avatar + name */}
+      <div style={{ textAlign:'center', padding:'8px 18px 6px' }}>
+        <div style={{
+          width:80, height:80, borderRadius:40, margin:'0 auto',
+          background:C.primarySoft, color:C.primaryPress,
+          fontSize:32, fontWeight:800,
+          display:'flex', alignItems:'center', justifyContent:'center',
+          border:`1px solid ${C.line}`,
+          boxShadow:`0 8px 20px ${C.primary}30`,
+        }}>T</div>
+        <div style={{ fontSize:20, fontWeight:800, letterSpacing:-.3, color:C.inkDark, marginTop:10, overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis' }}>
+          thanhnguyenxuan970
+        </div>
+        <div style={{ fontSize:12.5, color:C.muted, marginTop:3, overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis' }}>
+          thanhnguyenxuan970@gmail.com
+        </div>
+      </div>
+
+      {/* Life stats row */}
+      <div style={{
+        display:'flex', margin:'14px 18px 0',
+        background:C.surface, border:`1px solid ${C.line}`,
+        borderRadius:14, overflow:'hidden',
+        boxShadow:`0 1px 2px rgba(14,19,17,${isDark?.5:.06})`,
+      }}>
+        {[
+          { v:'23 ★', l:t.statWeekly },
+          { v:'12 🔥', l:t.statStreak },
+          { v:'287 ★', l:t.statTotal },
+        ].map((s,i) => (
+          <div key={i} style={{
+            flex:1, textAlign:'center', padding:'14px 6px',
+            borderLeft: i>0 ? `1px solid ${C.line}` : 'none',
+          }}>
+            <div style={{ fontSize:17, fontWeight:800, color:C.inkDark }}>{s.v}</div>
+            <div style={{ fontSize:12, color:C.ink2, fontWeight:600, marginTop:3 }}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Accent color picker */}
+      <div style={{
+        margin:'14px 18px 0', background:C.surface,
+        borderRadius:14, border:`1px solid ${C.line}`,
+        padding:'14px 15px',
+        boxShadow:`0 1px 2px rgba(14,19,17,${isDark?.5:.06})`,
+      }}>
+        <div style={{ fontSize:14, fontWeight:600, color:C.inkDark, marginBottom:12 }}>{t.accentLabel}</div>
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+          {Object.entries(ACCENTS).map(([key, val]) => (
+            <div key={key} onClick={() => setAccent(key)} style={{
+              width:32, height:32, borderRadius:16, background:val.swatch,
+              cursor:'pointer', flexShrink:0,
+              boxShadow: accent===key
+                ? `0 0 0 3px ${C.surface}, 0 0 0 5px ${val.swatch}`
+                : '0 2px 4px rgba(0,0,0,.2)',
+              transition:'box-shadow .15s, transform .12s',
+              transform: accent===key ? 'scale(1.1)' : 'scale(1)',
+            }}/>
+          ))}
+        </div>
+      </div>
+
+      {/* Sign out */}
+      <div style={{
+        margin:'28px 18px 0', padding:15, borderRadius:14,
+        border:`1.5px solid ${C.danger}`, textAlign:'center',
+        cursor:'pointer', color:C.danger, fontSize:15, fontWeight:700,
+      }}>{t.signOut}</div>
+    </div>
+  );
+}
+
+// ── MODAL: LEVEL UP CELEBRATION ──────────────────────────────
+// Mirrors: src/components/LevelUpCelebrationModal.tsx
+// Particles: CSS-positioned (static approximation of RN animated burst)
+const PARTICLE_COLORS = ['#A78BFA','#818CF8','#60A5FA','#2DD4BF','#F472B6','#FB923C','#F4C842','#25B36E','#E0A93B'];
+function LevelUpModal({ C, t, tierIndex, visible, onDismiss }) {
+  if (!visible) return null;
+  const rank = RANKS[Math.min(Math.max(tierIndex,0), RANKS.length-1)];
+  // Static particle burst (approximates RN animated version)
+  const particles = useMemo(() => Array.from({ length:24 }, (_,i) => ({
+    angle: (i/24)*Math.PI*2 + (Math.random()-.5)*.3,
+    dist: 55 + Math.random()*85,
+    color: PARTICLE_COLORS[i % PARTICLE_COLORS.length],
+    size: 5 + Math.random()*7,
+    opacity: .5 + Math.random()*.5,
+  })), [tierIndex]);
+
+  return (
+    <div onClick={onDismiss} style={{
+      position:'absolute', inset:0, zIndex:100,
+      background:'rgba(0,0,0,0.82)',
+      display:'flex', alignItems:'center', justifyContent:'center',
+    }}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        background:C.surface, borderRadius:22,
+        padding:28, margin:'0 20px',
+        maxWidth:320, width:'100%', textAlign:'center',
+        border:`1.5px solid ${rank.color}60`,
+        position:'relative', overflow:'hidden',
+      }}>
+        {/* Particle burst */}
+        <div style={{ position:'absolute', inset:0, pointerEvents:'none', overflow:'hidden' }}>
+          {particles.map((p,i) => (
+            <div key={i} style={{
+              position:'absolute',
+              left: `calc(50% + ${Math.cos(p.angle)*p.dist*.6}px)`,
+              top:  `calc(35% + ${Math.sin(p.angle)*p.dist*.6}px)`,
+              width:p.size, height:p.size, borderRadius:p.size/2,
+              background:p.color, opacity:p.opacity,
+            }}/>
+          ))}
+        </div>
+
+        {/* Card content */}
+        <div style={{ fontSize:48, marginBottom:4 }}>🎉</div>
+        <div style={{ fontSize:26, fontWeight:800, color:rank.color, letterSpacing:1.5, marginBottom:16 }}>
+          {t.levelUpTitle}
+        </div>
+
+        {/* Mascot — RankMascot tier = tierIndex, size 88 */}
+        <div style={{ margin:'4px auto 12px', display:'inline-block' }}>
+          <RankMascot tier={tierIndex} size={88}/>
+        </div>
+
+        <div style={{ fontSize:22, fontWeight:800, color:C.inkDark, letterSpacing:-.5, marginTop:4 }}>
+          {rank.name}
+        </div>
+        <div style={{ fontSize:13, fontStyle:'italic', color:rank.color+'CC', marginTop:4, fontWeight:600 }}>
+          {rank.descriptor}
+        </div>
+        <div style={{ fontSize:14, color:C.muted, marginTop:14, lineHeight:1.55, padding:'0 4px' }}>
+          {t.lang==='vi' ? `Bạn vừa đạt hạng ${rank.name}!` : `You just reached ${rank.name}!`}
+        </div>
+
+        {/* Dismiss button */}
+        <div onClick={onDismiss} style={{
+          marginTop:22, padding:'14px 40px', borderRadius:999,
+          background:rank.color, color:'#fff', cursor:'pointer',
+          fontSize:16, fontWeight:800, letterSpacing:.3,
+          display:'inline-block',
+          boxShadow:`0 6px 18px ${rank.color}50`,
+        }}>{t.levelUpDismiss}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── PLACEHOLDER SCREEN ────────────────────────────────────────
+function PlaceholderScreen({ title, C, isDark }) {
+  return (
+    <div style={{ padding:18, background:C.bgBase, height:'100%' }}>
+      <div style={{ fontSize:22, fontWeight:800, color:C.inkDark, marginBottom:14 }}>{title}</div>
+      <div style={{
+        background:C.surface, borderRadius:14,
+        border:`1px solid ${C.line}`, padding:20,
+        textAlign:'center', color:C.muted, fontSize:13, lineHeight:1.6,
+      }}>
+        Full screen in<br/>
+        <strong style={{ color:C.ink2 }}>Docs/Habit-Tracker-Wireframe-Prototype.html</strong>
+      </div>
+    </div>
+  );
+}
+
+// ── APP ROOT ─────────────────────────────────────────────────
+function App() {
+  const [isDark,   setDark]   = useState(true);
+  const [lang,     setLang]   = useState('vi');
+  const [accent,   setAccent] = useState('green');
+  const [screen,   setScreen] = useState('settings');
+  const [audioOn,  setAudio]  = useState(true);
+  const [lvlUp,    setLvlUp]  = useState(false);
+  const [lvlTier,  setLvlTier]= useState(3);
+
+  const C = useMemo(() => getColors(isDark, accent), [isDark, accent]);
+  const t = useMemo(() => ({ ...(lang==='vi' ? STRINGS.vi : STRINGS.en), lang }), [lang]);
+
+  function renderScreen() {
+    switch (screen) {
+      case 'settings': return <SettingsScreen C={C} t={t} isDark={isDark} setDark={setDark} lang={lang} setLang={setLang} audioOn={audioOn} setAudio={setAudio}/>;
+      case 'profile':  return <ProfileScreen  C={C} t={t} isDark={isDark} accent={accent} setAccent={setAccent} onSettings={() => setScreen('settings')}/>;
+      default:         return <PlaceholderScreen title={screen} C={C} isDark={isDark}/>;
+    }
+  }
+
+  return (
+    <>
+      {/* ── Doc header ── */}
+      <div className="doc-head">
+        <h1>Habi — UI Kit</h1>
+        <p>Settings · Profile · Level-Up Celebration · Light + Dark · 6 accents</p>
+        <div className="doc-tags">
+          <span className="doc-tag">Hi-Fi v1.0</span>
+          <span className="doc-tag">390×844</span>
+          <span className="doc-tag">Light · Dark</span>
+          <span className="doc-tag">VI / EN</span>
+          <span className="doc-tag">7 ranks</span>
+        </div>
+      </div>
+
+      {/* ── Demo controls ── */}
+      <div className="controls">
+        <button className={`ctrl-btn${isDark?' on':''}`} onClick={() => setDark(d=>!d)}>
+          {isDark ? '☀️ Light' : '🌙 Dark'}
+        </button>
+        <button className={`ctrl-btn${lang==='vi'?' on':''}`} onClick={() => setLang(l => l==='vi'?'en':'vi')}>
+          {lang==='vi' ? 'VI' : 'EN'}
+        </button>
+        <button className={`ctrl-btn${screen==='settings'?' on':''}`} onClick={() => setScreen('settings')}>
+          ⚙️ Settings
+        </button>
+        <button className={`ctrl-btn${screen==='profile'?' on':''}`} onClick={() => setScreen('profile')}>
+          👤 Profile
+        </button>
+        <button className="ctrl-btn" onClick={() => setLvlUp(true)}>
+          🎉 Level Up
+        </button>
+        <select className="ctrl-btn" value={lvlTier} onChange={e => setLvlTier(Number(e.target.value))}>
+          {RANKS.map(r => <option key={r.tier} value={r.tier}>T{r.tier}: {r.name} ({r.stars}★)</option>)}
+        </select>
+      </div>
+
+      {/* ── Phone frame ── */}
+      <div className={`phone${isDark?'':' phone-light'}`}>
+        {/* Notch */}
+        <div style={{
+          position:'absolute', top:0, left:'50%', transform:'translateX(-50%)',
+          width:140, height:28, background:'#0B0E0C',
+          borderRadius:'0 0 18px 18px', zIndex:60,
+        }}/>
+
+        <StatusBar C={C}/>
+
+        {/* Viewport */}
+        <div style={{ flex:1, overflow:'hidden', position:'relative', background:C.bgBase }}>
+          {renderScreen()}
+          <LevelUpModal C={C} t={t} tierIndex={lvlTier} visible={lvlUp} onDismiss={() => setLvlUp(false)}/>
+        </div>
+
+        <TabBar screen={screen} onNav={setScreen} C={C}/>
+      </div>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
