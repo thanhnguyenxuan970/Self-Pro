@@ -1,7 +1,7 @@
-// Supabase Edge Function: translate activity name via Claude Haiku.
+// Supabase Edge Function: translate activity name via MyMemory (free, no API key).
 //
-// Secrets required (Dashboard → Edge Functions → Secrets):
-//   ANTHROPIC_API_KEY — from console.anthropic.com
+// No secrets required.
+// Free tier: 1000 words/day (no key) — enough for habit tracker activity names.
 //
 // Deploy: supabase functions deploy translate-name --no-verify-jwt
 //
@@ -16,13 +16,6 @@ const CORS_HEADERS = {
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS });
-  }
-
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'missing api key' }), {
-      status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-    });
   }
 
   let name: string;
@@ -43,22 +36,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
-  const langLabel = targetLanguage === 'en' ? 'English' : 'Vietnamese';
-  const prompt = `Translate this habit/activity name to ${langLabel}. Reply with ONLY the translated name, nothing else, no quotes, no punctuation added: ${name}`;
+  // langpair: source|target — 'en|vi' or 'vi|en'
+  // Auto-detect source by using 'autodetect' as source lang
+  const langpair = `autodetect|${targetLanguage}`;
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(name)}&langpair=${langpair}`;
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 64,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
+  const res = await fetch(url);
 
   if (!res.ok) {
     return new Response(JSON.stringify({ translated: name }), {
@@ -67,7 +50,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const data = await res.json();
-  const translated = (data?.content?.[0]?.text ?? name).trim();
+  // responseStatus 200 = success; fallback to original on any error
+  const translated = (data?.responseStatus === 200
+    ? (data?.responseData?.translatedText ?? name)
+    : name
+  ).trim();
 
   return new Response(JSON.stringify({ translated }), {
     headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },

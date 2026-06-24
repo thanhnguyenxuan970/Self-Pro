@@ -38,3 +38,6 @@ yarn-error.*
 
 # generated native folders
 /ios
+
+# Supabase CLI
+supabase/.temp/
