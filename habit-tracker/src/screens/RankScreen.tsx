@@ -4,8 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useRankData } from '../queries/useRank';
 import { useLeaderboard } from '../queries/useLeaderboard';
-import { getCurrentTier } from '../game/tierLookup';
-import { getStarsToNextTier } from '../game/tierProgress';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
@@ -103,7 +101,9 @@ export function RankScreen() {
     return () => { rankMascotBridge.ref = null; };
   }, []);
 
-  const currentTierOrder = data ? (getCurrentTier(data.currentStars, data.tiers)?.tier_order ?? 0) : 0;
+  const currentTierOrder = data
+    ? (data.currentTierId ? (data.tiers.find(t => t.id === data.currentTierId)?.tier_order ?? 0) : 0)
+    : 0;
   const { data: leaderboard = [], isLoading: lbLoading } = useLeaderboard(
     googleUser?.email ?? null,
     currentTierOrder,
@@ -120,12 +120,13 @@ export function RankScreen() {
     );
   }
 
-  const { currentStars, tiers, history } = data;
-  const currentTier = getCurrentTier(currentStars, tiers);
-  const starsToNext = getStarsToNextTier(currentStars, tiers);
-  const nextTier = tiers.find((tr) => tr.stars_required > currentStars);
+  const { currentStars, currentTierId, tiers, history } = data;
+  // Rank is authoritative from current_tier_id (carry-over + cap system), not derived from star count
+  const currentTier = currentTierId ? tiers.find(t => t.id === currentTierId) : undefined;
+  const nextTier = currentTier ? tiers.find(t => t.tier_order === currentTier.tier_order + 1) : tiers.find(t => t.stars_required > currentStars);
   const prevTierStars = currentTier?.stars_required ?? 0;
   const nextTierStars = nextTier?.stars_required ?? prevTierStars;
+  const starsToNext = nextTier ? Math.max(0, nextTierStars - currentStars) : 0;
   const progressPct = nextTier
     ? Math.min(1, Math.max(0, (currentStars - prevTierStars) / Math.max(1, nextTierStars - prevTierStars)))
     : 1;

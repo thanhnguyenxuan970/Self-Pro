@@ -16,7 +16,6 @@ import {
 } from '../queries/useToday';
 import { useArchiveTask, useUpdateTaskName } from '../queries/useTasks';
 import { useRankData } from '../queries/useRank';
-import { getCurrentTier } from '../game/tierLookup';
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { Task, TaskRow } from '../components/TaskRow';
 import { SkeletonRow } from '../components/SkeletonRow';
@@ -313,7 +312,9 @@ export function TodayScreen() {
   const dailyPoints = daily?.total_points ?? 0;
   const streak = daily?.streak_count ?? 0;
   const isDebt = weeklyStars < 0;
-  const currentTier = rankData && rankData.tiers.length > 0 ? getCurrentTier(weeklyStars, rankData.tiers) : null;
+  const currentTier = rankData?.currentTierId
+    ? rankData.tiers.find(t => t.id === rankData.currentTierId) ?? null
+    : null;
   const rankName = currentTier?.rank_name ?? '—';
   const rankEmoji = currentTier ? (RANK_EMOJI[currentTier.tier_order] ?? '⭐') : '⭐';
 

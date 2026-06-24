@@ -58,10 +58,64 @@ async function insertLogRows(
   }
 }
 
+/**
+ * Computes the tier_id to carry into a new week.
+ * - If last week had 0 stars: demote 1 tier.
+ *   Floor: users with ≥10 lifetime stars can't drop below the 10-star tier.
+ * - Otherwise: carry over last week's earned tier unchanged.
+ */
+async function getCarryOverTierId(
+  db: SQLiteDatabase,
+  userId: number,
+  tiers: FullTierRow[],
+  currentWeekStart: string,
+): Promise<number> {
+  const sorted = [...tiers].sort((a, b) => a.tier_order - b.tier_order);
+  const lowestTier = sorted[0];
+  // Mewing (stars_required = 10) is the demotion floor for established users
+  const floorTier = sorted.find(t => t.stars_required >= 10) ?? lowestTier;
+
+  const lastWeek = await db.getFirstAsync<{ weekly_stars: number; current_tier_id: number | null }>(
+    `SELECT weekly_stars, current_tier_id FROM weekly_summary
+     WHERE user_id = ? AND week_start < ?
+     ORDER BY week_start DESC LIMIT 1`,
+    [userId, currentWeekStart],
+  );
+
+  if (!lastWeek || lastWeek.current_tier_id === null) return lowestTier.id;
+
+  const lastTier = sorted.find(t => t.id === lastWeek.current_tier_id);
+  if (!lastTier) return lowestTier.id;
+
+  // No inactivity — carry over
+  if (lastWeek.weekly_stars !== 0) return lastWeek.current_tier_id;
+
+  // Inactivity penalty: demote 1 tier
+  const demotedOrder = lastTier.tier_order - 1;
+  if (demotedOrder < 1) return lowestTier.id;
+
+  const demotedTier = sorted.find(t => t.tier_order === demotedOrder);
+  if (!demotedTier) return lowestTier.id;
+
+  // Demotion floor: ≥10 lifetime stars → can't drop below floorTier
+  const userRow = await db.getFirstAsync<{ treat_stars_lifetime: number }>(
+    `SELECT treat_stars_lifetime FROM users WHERE id = ?`,
+    [userId],
+  );
+  const lifetimeStars = userRow?.treat_stars_lifetime ?? 0;
+  if (lifetimeStars >= 10 && demotedTier.tier_order < floorTier.tier_order) {
+    return floorTier.id;
+  }
+
+  return demotedTier.id;
+}
+
 async function handleTierUnlocks(
   db: SQLiteDatabase,
   tiers: FullTierRow[],
   newUnlocks: ReturnType<typeof computeTierUnlocks>,
+  userId: number,
+  weekStart: string,
 ): Promise<{ didRankUp: boolean; newTier: { tier_order: number; rank_name: string } | null }> {
   if (newUnlocks.length === 0) return { didRankUp: false, newTier: null };
   const firstUnlock = newUnlocks[0];
@@ -72,9 +126,14 @@ async function handleTierUnlocks(
       `INSERT OR IGNORE INTO reward_unlocks
        (user_id, tier_id, week_start, stars_at_unlock, reward_amount, claimed)
        VALUES (?, ?, ?, ?, ?, 0)`,
-      [unlock.user_id, unlock.tier_id, unlock.week_start, unlock.stars_at_unlock, unlock.reward_amount]
+      [unlock.user_id, unlock.tier_id, unlock.week_start, unlock.stars_at_unlock, unlock.reward_amount],
     );
   }
+  // Persist the new rank into the weekly row so it survives between sessions
+  await db.runAsync(
+    `UPDATE weekly_summary SET current_tier_id = ? WHERE user_id = ? AND week_start = ?`,
+    [firstUnlock.tier_id, userId, weekStart],
+  );
   return { didRankUp: true, newTier };
 }
 
@@ -289,14 +348,20 @@ export function useLogTask(userId: number) {
            WHERE user_id = ? AND local_date = ?`,
           [userId, today]
         );
-        const weeklyRow = await db.getFirstAsync<{ weekly_stars: number }>(
-          `SELECT weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
+        const weeklyRow = await db.getFirstAsync<{ weekly_stars: number; current_tier_id: number | null }>(
+          `SELECT weekly_stars, current_tier_id FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
           [userId, weekStart]
         );
         const alreadyUnlocked = await db.getAllAsync<{ tier_id: number }>(
           `SELECT tier_id FROM reward_unlocks WHERE user_id = ? AND week_start = ?`,
           [userId, weekStart]
         );
+
+        // Carry-over: compute starting tier for new weeks; reuse existing for ongoing weeks.
+        const carryOverTierId = weeklyRow === null
+          ? await getCarryOverTierId(db, userId, tiers, weekStart)
+          : (weeklyRow.current_tier_id ?? tiers.find(t => t.tier_order === 1)!.id);
+        const startingTierOrder = tiers.find(t => t.id === carryOverTierId)?.tier_order ?? 0;
 
         const { todayStreak, streakResult: sr } = await computeTodayStreak(db, userId, today, yesterdayDate, daily);
         streakResult = sr;
@@ -315,6 +380,7 @@ export function useLogTask(userId: number) {
         const newUnlocks = computeTierUnlocks({
           userId, weekStart, oldStars, newStars: oldStars + totalStarsDelta,
           tiers, alreadyUnlockedTierIds: alreadyUnlocked.map(r => r.tier_id),
+          startingTierOrder,
         });
 
         await insertLogRows(db, activityRow, bonusRow);
@@ -331,17 +397,17 @@ export function useLogTask(userId: number) {
 
         await db.runAsync(
           `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars, peak_stars, current_tier_id)
-           VALUES (?, ?, ?, ?, ?, (SELECT id FROM tiers WHERE tier_order = 1 LIMIT 1))
+           VALUES (?, ?, ?, ?, ?, ?)
            ON CONFLICT(user_id, week_start) DO UPDATE SET
              total_points = total_points + ?,
              weekly_stars = weekly_stars + ?,
              peak_stars = MAX(peak_stars, weekly_stars + ?)`,
           [userId, weekStart, activityRow.points_earned, totalStarsDelta,
-           Math.max(0, totalStarsDelta),
+           Math.max(0, totalStarsDelta), carryOverTierId,
            activityRow.points_earned, totalStarsDelta, totalStarsDelta]
         );
 
-        const unlockResult = await handleTierUnlocks(db, tiers, newUnlocks);
+        const unlockResult = await handleTierUnlocks(db, tiers, newUnlocks, userId, weekStart);
         didRankUp = unlockResult.didRankUp;
         newTier = unlockResult.newTier;
 
