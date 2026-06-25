@@ -2,7 +2,7 @@
   "expo": {
     "name": "Habi",
     "slug": "habit-tracker",
-    "version": "1.0.40",
+    "version": "1.0.41",
     "scheme": "habittracker",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
