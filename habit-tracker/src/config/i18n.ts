@@ -352,6 +352,17 @@ const vi = {
   editSave: 'Lưu',
   editActivity: 'Chỉnh sửa',
 
+  // Backfill (Điểm danh bù)
+  backfillTitle: 'Điểm danh bù',
+  backfillQuota: (remaining: number) => `Còn ${remaining} lượt/tuần`,
+  backfillPickTask: 'Chọn hoạt động',
+  backfillConfirm: 'Điểm danh bù →',
+  backfillSuccess: 'Đã điểm danh bù! ✅',
+  backfillDenyQuota: 'Đã dùng hết 2 lượt điểm danh bù tuần này',
+  backfillDenyFull: 'Ngày này đã có hoạt động',
+  backfillDenyFreeze: 'Ngày này đã có Streak Freeze',
+  backfillEligible: 'Điểm danh bù',
+
   // Auto-translate
   translating: 'Đang dịch…',
 };
@@ -710,6 +721,17 @@ const en: typeof vi = {
   editDurationLabel: 'Duration (min)',
   editSave: 'Save',
   editActivity: 'Edit',
+
+  // Backfill (Điểm danh bù)
+  backfillTitle: 'Backfill Check-in',
+  backfillQuota: (remaining: number) => `${remaining} left this week`,
+  backfillPickTask: 'Select activity',
+  backfillConfirm: 'Log backfill →',
+  backfillSuccess: 'Backfill logged! ✅',
+  backfillDenyQuota: 'Backfill quota used up this week (2/2)',
+  backfillDenyFull: 'This day already has activity',
+  backfillDenyFreeze: 'This day has a Streak Freeze',
+  backfillEligible: 'Backfill',
 
   // Auto-translate
   translating: 'Translating…',

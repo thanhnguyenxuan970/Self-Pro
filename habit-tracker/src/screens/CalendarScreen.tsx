@@ -9,10 +9,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useCalendarData, CalendarDay } from '../queries/useCalendar';
+import { useBackfillStatus } from '../queries/useBackfillStatus';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
 import { AppColors, Radii, Spacing, FontFamily } from '../config/theme';
 import { AnimatedFireIcon, AnimatedStarIcon, AnimatedBurningStarIcon } from '../components/CalendarIcons';
+import { BackfillSheet } from '../components/BackfillSheet';
+import { canBackfill } from '../game/backfill';
+import { getLocalDate, getWeekStart, getWeekStartFor } from '../utils/formatters';
 
 const DOW_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -64,7 +68,13 @@ export function CalendarScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [yearMonth, setYearMonth] = useState(() => toYearMonth(new Date()));
+  const [backfillDate, setBackfillDate] = useState<string | null>(null);
+
   const { data: days = [] } = useCalendarData(userId, yearMonth);
+  const { data: backfillStatus } = useBackfillStatus(userId);
+
+  const todayStr = getLocalDate();
+  const currentWeekStart = getWeekStart();
 
   const today = toYearMonth(new Date()) === yearMonth
     ? new Date().getDate()
@@ -147,16 +157,52 @@ export function CalendarScreen() {
           const isMilestone = data?.is_milestone ?? false;
           const { cellBg, numColor } = resolveCellColors(isMilestone, isBest, !!data, isDark, colors);
           const cellIcon = resolveCellIcon(data, isMilestone, isBest, colors.muted);
-          return (
-            <View key={idx} style={[
-              styles.cell,
-              { backgroundColor: cellBg },
-              day === today && { borderWidth: 1.5, borderColor: colors.primary },
-            ]}>
+
+          const dateStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
+          const isEligible = canBackfill({
+            date: dateStr,
+            today: todayStr,
+            weekStartOfDate: getWeekStartFor(new Date(dateStr + 'T12:00:00')),
+            currentWeekStart,
+            dayHasActivity: !!data,
+            backfillsUsedThisWeek: backfillStatus?.backfillsUsedThisWeek ?? 0,
+            hasStreakFreeze: backfillStatus?.freezeDates?.has(dateStr) ?? false,
+          }).allowed;
+
+          const cellStyle = [
+            styles.cell,
+            { backgroundColor: cellBg },
+            day === today && { borderWidth: 1.5, borderColor: colors.primary },
+            isEligible && styles.cellEligible,
+          ];
+          const cellContent = (
+            <>
               <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
               <View style={styles.cellBottom}>
-                {cellIcon}
+                {cellIcon ?? (isEligible
+                  ? <Text style={styles.backfillHint}>+</Text>
+                  : null)}
               </View>
+            </>
+          );
+
+          if (isEligible) {
+            return (
+              <TouchableOpacity
+                key={idx}
+                style={cellStyle}
+                onPress={() => setBackfillDate(dateStr)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`${t.backfillEligible} ${dateStr}`}
+              >
+                {cellContent}
+              </TouchableOpacity>
+            );
+          }
+          return (
+            <View key={idx} style={cellStyle}>
+              {cellContent}
             </View>
           );
         })}
@@ -192,6 +238,14 @@ export function CalendarScreen() {
         </View>
       </View>
     </ScrollView>
+
+    <BackfillSheet
+      visible={!!backfillDate}
+      date={backfillDate ?? ''}
+      backfillsUsedThisWeek={backfillStatus?.backfillsUsedThisWeek ?? 0}
+      userId={userId}
+      onClose={() => setBackfillDate(null)}
+    />
     </SafeAreaView>
   );
 }
@@ -245,6 +299,17 @@ function makeStyles(colors: AppColors) {
     dayStars: { fontSize: 8, fontFamily: FontFamily.semiBold, marginTop: 1 },
     dayIcon: { fontSize: 9, marginTop: 1 },
     cellBottom: { alignItems: 'center', height: 16 },
+    cellEligible: {
+      borderWidth: 1,
+      borderColor: colors.primary,
+      borderStyle: 'dashed' as const,
+    },
+    backfillHint: {
+      fontSize: 10,
+      fontFamily: FontFamily.bold,
+      color: colors.primary,
+      marginTop: 1,
+    },
     legend: {
       flexDirection: 'row',
       justifyContent: 'center',

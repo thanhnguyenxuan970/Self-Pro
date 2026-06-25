@@ -199,6 +199,7 @@ export function useBackfillDay(userId: number) {
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
+      qc.invalidateQueries({ queryKey: ['backfill'] });
     },
 
     onError: (_err) => {
