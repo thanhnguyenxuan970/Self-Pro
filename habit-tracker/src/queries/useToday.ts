@@ -60,8 +60,7 @@ async function insertLogRows(
 
 /**
  * Computes the tier_id to carry into a new week.
- * - If last week had 0 stars: demote 1 tier.
- *   Floor: users with ≥10 lifetime stars can't drop below the 10-star tier.
+ * - If last week had 0 stars: demote 1 tier (no floor).
  * - Otherwise: carry over last week's earned tier unchanged.
  */
 async function getCarryOverTierId(
@@ -72,8 +71,6 @@ async function getCarryOverTierId(
 ): Promise<number> {
   const sorted = [...tiers].sort((a, b) => a.tier_order - b.tier_order);
   const lowestTier = sorted[0];
-  // Mewing (stars_required = 10) is the demotion floor for established users
-  const floorTier = sorted.find(t => t.stars_required >= 10) ?? lowestTier;
 
   const lastWeek = await db.getFirstAsync<{ weekly_stars: number; current_tier_id: number | null }>(
     `SELECT weekly_stars, current_tier_id FROM weekly_summary
@@ -97,16 +94,6 @@ async function getCarryOverTierId(
   const demotedTier = sorted.find(t => t.tier_order === demotedOrder);
   if (!demotedTier) return lowestTier.id;
 
-  // Demotion floor: ≥10 lifetime stars → can't drop below floorTier
-  const userRow = await db.getFirstAsync<{ treat_stars_lifetime: number }>(
-    `SELECT treat_stars_lifetime FROM users WHERE id = ?`,
-    [userId],
-  );
-  const lifetimeStars = userRow?.treat_stars_lifetime ?? 0;
-  if (lifetimeStars >= 10 && demotedTier.tier_order < floorTier.tier_order) {
-    return floorTier.id;
-  }
-
   return demotedTier.id;
 }
 
@@ -125,8 +112,8 @@ async function handleTierUnlocks(
     await db.runAsync(
       `INSERT OR IGNORE INTO reward_unlocks
        (user_id, tier_id, week_start, stars_at_unlock, reward_amount, claimed)
-       VALUES (?, ?, ?, ?, ?, 0)`,
-      [unlock.user_id, unlock.tier_id, unlock.week_start, unlock.stars_at_unlock, unlock.reward_amount],
+       VALUES (?, ?, ?, ?, 0, 0)`,
+      [unlock.user_id, unlock.tier_id, unlock.week_start, unlock.stars_at_unlock],
     );
   }
   // Persist the new rank into the weekly row so it survives between sessions
@@ -330,7 +317,7 @@ export function useLogTask(userId: number) {
 
       // tiers is a static lookup — never written, safe to read outside transaction
       const tiers = await db.getAllAsync<FullTierRow>(
-        `SELECT id, tier_order, rank_name, stars_required, reward_amount, reward_currency
+        `SELECT id, tier_order, rank_name, stars_required
          FROM tiers ORDER BY stars_required ASC`
       );
 

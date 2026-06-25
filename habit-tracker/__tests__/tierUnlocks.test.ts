@@ -1,9 +1,9 @@
 import { computeTierUnlocks, TierRow } from '../src/game/tierUnlocks';
 
 const tiers: TierRow[] = [
-  { id: 1, tier_order: 1, stars_required: 10,  reward_amount: 50000,  reward_currency: 'VND' },
-  { id: 2, tier_order: 2, stars_required: 25,  reward_amount: 100000, reward_currency: 'VND' },
-  { id: 3, tier_order: 3, stars_required: 50,  reward_amount: 150000, reward_currency: 'VND' },
+  { id: 1, tier_order: 1, stars_required: 10 },
+  { id: 2, tier_order: 2, stars_required: 25 },
+  { id: 3, tier_order: 3, stars_required: 50 },
 ];
 
 const base = {
@@ -24,7 +24,6 @@ test('crosses tier 1 threshold exactly → one unlock', () => {
   const result = computeTierUnlocks({ ...base, newStars: 10 });
   expect(result).toHaveLength(1);
   expect(result[0].tier_id).toBe(1);
-  expect(result[0].reward_amount).toBe(50000);
   expect(result[0].stars_at_unlock).toBe(10);
   expect(result[0].user_id).toBe(1);
   expect(result[0].week_start).toBe('2026-05-25');

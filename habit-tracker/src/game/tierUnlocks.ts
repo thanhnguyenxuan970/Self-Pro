@@ -2,8 +2,6 @@ export interface TierRow {
   id: number;
   tier_order: number;
   stars_required: number;
-  reward_amount: number;
-  reward_currency: string;
 }
 
 export interface NewUnlock {
@@ -11,8 +9,6 @@ export interface NewUnlock {
   tier_id: number;
   week_start: string;
   stars_at_unlock: number;
-  reward_amount: number;
-  reward_currency: string;
 }
 
 export interface TierUnlockInput {
@@ -49,7 +45,5 @@ export function computeTierUnlocks(input: TierUnlockInput): NewUnlock[] {
     tier_id: first.id,
     week_start: input.weekStart,
     stars_at_unlock: input.newStars,
-    reward_amount: first.reward_amount,
-    reward_currency: first.reward_currency,
   }];
 }
