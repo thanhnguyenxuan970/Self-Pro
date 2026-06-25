@@ -1,0 +1,42 @@
+# Changelog
+
+All notable changes to this project are documented here.
+
+Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
+
+## [0.1.0.0] - 2026-06-25
+
+### Added
+- **Backfill check-in ("điểm danh bù")** — tap any empty day in the current week on the Calendar to log a missed activity; streak automatically reconnects. Up to 2 backfills/week, guarded by 6-layer eligibility check (future date, today, out-of-week, day already has activity, streak freeze, quota exceeded)
+- **Full onboarding flow** — 2-step branded hero screen with benefit cards, language flag switcher, gender/birth-year setup form, and an animated rank mascot that breathes throughout
+- **Interactive tutorial** — 6-step Coachmark walkthrough on first launch; text switches language live when the user changes settings mid-tutorial
+- **Edit activity** — tap ✏️ on any task row in the Home screen to rename or change its default duration
+- **Auto-translate custom activity names** — names entered in Vietnamese are automatically translated to English for storage via a Supabase Edge Function (Claude Haiku)
+- **Honey accent color** — new amber/gold accent option in the appearance settings
+- **Calendar SVG badges** — flame icons mark streak milestones, star icons mark personal best days; animated entrance on calendar load
+- **Accent color picker + Wordmark** component in Settings screen
+- **Rank info sheet** — tap ❓ on the Rank screen to view the full 8-tier rank ladder
+- Browser prototype UI kit for design review (`ui_kits/habi-app/`)
+
+### Changed
+- App renamed to **Habi** (was "Habit Ring") across all UI strings and email sender name
+- **Typography** replaced Poppins with Be Vietnam Pro — full Vietnamese glyph coverage at every weight; mixed-metrics "random bolding" eliminated
+- **Rank system simplified** — removed VND reward amounts; demotion floor removed so any inactive week demotes exactly 1 tier; 1-tier-per-week promotion cap preserved
+- **Section labels** now sentence-case 12sp semiBold (removed uppercase eyebrow pattern that failed accessibility at 11pt)
+- All interactive elements standardized to `TouchableOpacity` (Pressable replaced in 3 component files)
+- Skill routing rules added to `CLAUDE.md` for gstack workflow automation
+
+### Fixed
+- **WCAG AA contrast** on 12+ screens: section labels, rank info text, coachmark body/skip/back buttons, stat sub-labels, calendar day-of-week labels
+- **Accessibility**: `accessibilityRole`/`accessibilityLabel` on tutorial nav buttons, rank mascot, level-up dismiss, calendar nav arrows; `reduceMotion` gating on all looping animations; `accessibilityLiveRegion` on tutorial step changes
+- Google Sign-In: set `persistSession: false` + `autoRefreshToken: false` to prevent DNS failure on startup; removed deprecated `androidClientId` from `GoogleSignin.configure()`; fixed DEVELOPER_ERROR (google-services.json OAuth client entry)
+- Android build: NDK 27 Clang ICE workaround (`android.ndk.maxParallelBuildJobs=1`); Metro `EXPO_METRO_MAX_WORKERS=1` for Node 24 V8 JIT crash; duplicate Props symbol fix in react-native-screens CMakeLists
+- DurationModal: keyboard occlusion and keystroke lag on Android
+- Tutorial race condition: moved `useSafeAreaInsets` above Modal boundary in Coachmark
+- i18n: Vietnamese template task names resolved correctly (Work/Study/Family/Relationship/Sports seeded in English now map to Vietnamese display); hardcoded `MAX` stat text in ProgressScreen translated
+- Loading state on TodayScreen now uses dark background (no white flash)
+- Touch targets: AccentPicker color swatches and Calendar month nav arrows now meet 44pt minimum
+
+### Removed
+- Exercise template task (removed via v8 DB migration — replaced by Sports template)
+- VND reward amounts from rank unlock events
