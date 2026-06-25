@@ -1,4 +1,5 @@
 import { canBackfill, backfillRemaining, computeStreakCounts, BackfillCheckInput } from '../src/game/backfill';
+import { getWeekStartFor } from '../src/utils/formatters';
 
 const base: BackfillCheckInput = {
   date: '2026-06-17',
@@ -53,5 +54,19 @@ describe('computeStreakCounts', () => {
     expect(computeStreakCounts([true, false, false, true])).toEqual([1, 0, 0, 1]);
     // sau khi bù T3 & T4 (set true):
     expect(computeStreakCounts([true, true, true, true])).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe('getWeekStartFor', () => {
+  it('returns Monday of the week for a Thursday', () => {
+    // 2026-06-25 is a Thursday → Monday = 2026-06-22
+    expect(getWeekStartFor(new Date('2026-06-25T12:00:00'))).toBe('2026-06-22');
+  });
+  it('returns same day for a Monday', () => {
+    expect(getWeekStartFor(new Date('2026-06-22T12:00:00'))).toBe('2026-06-22');
+  });
+  it('returns previous Monday for a Sunday', () => {
+    // 2026-06-28 is a Sunday → Monday = 2026-06-22
+    expect(getWeekStartFor(new Date('2026-06-28T12:00:00'))).toBe('2026-06-22');
   });
 });
