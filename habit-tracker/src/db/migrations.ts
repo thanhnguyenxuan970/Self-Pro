@@ -278,7 +278,17 @@ async function v8(db: SQLiteDatabase): Promise<void> {
   await db.execAsync(`DELETE FROM task_types WHERE name = 'Exercise'`);
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8];
+// v8 -> v9: backfill support — is_backfill flag + quota index
+async function v9(db: SQLiteDatabase): Promise<void> {
+  try { await db.runAsync(`ALTER TABLE activity_log ADD COLUMN is_backfill INTEGER NOT NULL DEFAULT 0`); }
+  catch (e: any) { if (!e?.message?.includes('duplicate column')) throw e; }
+  await db.execAsync(`
+    CREATE INDEX IF NOT EXISTS idx_activity_user_week_bf
+      ON activity_log(user_id, week_start, is_backfill)
+  `);
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
