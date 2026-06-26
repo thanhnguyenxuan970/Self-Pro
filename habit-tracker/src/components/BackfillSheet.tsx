@@ -91,7 +91,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
               <Text style={styles.title}>{t.backfillTitle}</Text>
               <Text style={styles.dateLabel}>{formatDate(date)}</Text>
             </View>
-            <View style={[styles.quotaBadge, quotaExceeded && { backgroundColor: colors.dangerSoft ?? colors.surface2 }]}>
+            <View style={[styles.quotaBadge, quotaExceeded && { backgroundColor: colors.dangerSoft }]}>
               <Text style={[styles.quotaText, quotaExceeded && { color: colors.danger }]}>
                 {t.backfillQuota(remaining)}
               </Text>
@@ -105,6 +105,11 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
           ) : (
             <>
               <Text style={styles.sectionLabel}>{t.backfillPickTask}</Text>
+              {tasks.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>{t.backfillNoTasks}</Text>
+                </View>
+              ) : null}
               <ScrollView
                 style={styles.taskList}
                 showsVerticalScrollIndicator={false}
@@ -242,6 +247,16 @@ function makeStyles(colors: AppColors) {
       fontFamily: FontFamily.semiBold,
       color: colors.ink2,
       marginBottom: 8,
+    },
+    emptyState: {
+      paddingVertical: 20,
+      alignItems: 'center',
+    },
+    emptyStateText: {
+      fontSize: 13,
+      fontFamily: FontFamily.regular,
+      color: colors.ink2,
+      textAlign: 'center',
     },
     taskList: {
       maxHeight: 280,

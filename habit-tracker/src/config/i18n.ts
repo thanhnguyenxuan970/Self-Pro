@@ -362,6 +362,7 @@ const vi = {
   backfillDenyFull: 'Ngày này đã có hoạt động',
   backfillDenyFreeze: 'Ngày này đã có Streak Freeze',
   backfillEligible: 'Điểm danh bù',
+  backfillNoTasks: 'Chưa có hoạt động nào. Thêm hoạt động trước.',
 
   // Auto-translate
   translating: 'Đang dịch…',
@@ -732,6 +733,7 @@ const en: typeof vi = {
   backfillDenyFull: 'This day already has activity',
   backfillDenyFreeze: 'This day has a Streak Freeze',
   backfillEligible: 'Backfill',
+  backfillNoTasks: 'No activities yet. Add an activity first.',
 
   // Auto-translate
   translating: 'Translating…',
