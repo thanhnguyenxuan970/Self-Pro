@@ -1,4 +1,4 @@
-# Codebase Audit — Habit ring (`Self-Pro/habit-tracker`)
+# Codebase Audit — Habi (`Self-Pro/habit-tracker`)
 
 **Scope:** bugs · compilation · dependency conflicts · logic flaws · performance · security · best practices.
 **Method:** `tsc --noEmit`, `jest`, dependency review, static scan, manual review of auth/sync/DB/game logic.

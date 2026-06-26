@@ -58,6 +58,18 @@ A **workspace of agent prompt files and design specs** — not a buildable proje
 
 - **Habit Tracker** — Gamified habit tracking React Native app. v0.1.0.0 shipped (2026-06-26).
 
+### Key project docs
+
+| File | Purpose |
+|------|---------|
+| `CHANGELOG.md` | Release notes — what shipped in each version |
+| `TODOS.md` | Open and completed work items |
+| `PRODUCT.md` | Product register, users, design principles |
+| `VERSION` | Current semver (`0.1.0.0`) |
+| `habit-tracker/AUDIT.md` | Security/correctness audit findings and status |
+| `Docs/habit_tracker_schema.md` | Schema DDL |
+| `Docs/habit_tracker_ui_architecture.md` | UI spec |
+
 ---
 
 ## Dev Process (process.md)
