@@ -172,8 +172,8 @@ function makeStyles(C: AppColors) {
     proBadge: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     proText: { fontSize: 12, fontFamily: FontFamily.bold, color: C.primaryPress, letterSpacing: 0.5 },
     h1: { fontSize: 25, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, textAlign: 'center', marginTop: Spacing.xs },
-    sub: { fontSize: 13, color: C.ink2, textAlign: 'center', marginTop: 2, marginBottom: Spacing.md },
-    tiles: { flexDirection: 'row', gap: 11, marginBottom: Spacing.md },
+    sub: { fontSize: 13, fontFamily: FontFamily.regular, lineHeight: 18, color: C.ink2, textAlign: 'center', marginTop: 2, marginBottom: Spacing.md },
+    tiles: { flexDirection: 'row', gap: 12, marginBottom: Spacing.md },
     tile: {
       flex: 1, backgroundColor: C.primarySoft, borderRadius: Radii.lg,
       paddingVertical: 14, paddingHorizontal: 12, alignItems: 'center',
