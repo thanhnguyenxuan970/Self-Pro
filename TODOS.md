@@ -1,5 +1,12 @@
 # TODOS
 
+## Open
+
+### Wire PaywallScreen into navigation
+`src/screens/PaywallScreen.tsx` exists and is polished (TouchableOpacity, a11y labels, CTA guard) but is not registered in `RootNavigator.tsx`. Needs: register the screen in the auth stack, decide trigger condition (free-trial expiry? specific SKU?), wire `onSubscribe`/`onRestore`/`onClose` callbacks to a subscription hook.
+
+---
+
 ## Completed
 
 ### Backfill check-in system (điểm danh bù)

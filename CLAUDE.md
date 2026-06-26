@@ -117,7 +117,7 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 
 **Data model:** append-only `activity_log` as source of truth; derived rollups via `daily_summary` / `weekly_summary`.
 
-**Navigation:** 5 bottom tabs + center FAB — Home (🏠), Calendar (🗓), [+FAB], Analytics (📊), Rank (🏆). ProfileScreen accessed via avatar tap (modal). Auth gate: `googleUser !== null && isOnboarded` → AppStack; else → SignIn → Onboarding → (PaywallScreen if subscription required). BackfillSheet opens as a bottom-sheet from Calendar day tap (eligible empty days only).
+**Navigation:** 5 bottom tabs + center FAB — Home (🏠), Calendar (🗓), [+FAB], Analytics (📊), Rank (🏆). ProfileScreen accessed via avatar tap (modal). Auth gate: `googleUser !== null && isOnboarded` → AppStack; else → SignIn → Onboarding. PaywallScreen exists (`src/screens/PaywallScreen.tsx`) but is not yet wired into RootNavigator — tracked as open work. BackfillSheet opens as a bottom-sheet from Calendar day tap (eligible empty days only).
 
 **State:** TanStack Query over local DB; each log mutation invalidates `today`, `week`, `progress`, `calendar` queries.
 
@@ -485,7 +485,7 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 ## Habit Tracker — Backfill Check-in (điểm danh bù) COMPLETE (2026-06-25)
 
 ### What Was Built
-- **`src/game/backfill.ts`**: Pure function `canBackfill` — 6-layer deny-reason check (FUTURE_DATE, TODAY, NOT_CURRENT_WEEK, DAY_NOT_EMPTY, HAS_FREEZE, QUOTA_EXCEEDED). `WEEKLY_BACKFILL_QUOTA = 2`. Returns `{ allowed, denyReason }`.
+- **`src/game/backfill.ts`**: Pure function `canBackfill` — 6-layer deny-reason check (FUTURE, TODAY, NOT_CURRENT_WEEK, DAY_NOT_EMPTY, HAS_FREEZE, QUOTA_EXCEEDED). `WEEKLY_BACKFILL_QUOTA = 2`. Returns `{ allowed, denyReason }`.
 - **`src/queries/useBackfill.ts`**: `backfillDay()` DB write — inserts into `activity_log` with `is_backfill = 1`, runs `recomputeStreakChain` for all days from backfill date to today (streak reconnect), enforces quota + guards inside `db.withExclusiveTransactionAsync` to prevent double-tap race.
 - **`src/queries/useBackfillStatus.ts`**: Reads `backfills_used` count for the current week, feeds into CalendarScreen eligibility map.
 - **`src/components/BackfillSheet.tsx`**: Bottom-sheet task picker with duration options; opens from CalendarScreen on eligible empty-day tap.
