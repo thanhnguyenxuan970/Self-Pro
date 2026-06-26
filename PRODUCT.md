@@ -10,7 +10,7 @@ Vietnamese Gen Z young adults (18–28), primarily Android, tracking daily habit
 
 ## Product Purpose
 
-Habi is a gamified habit tracker. Users log activities, earn rank points, climb a weekly leaderboard, and grow a self-treat fund (in VND). Success = a user opening the app daily without friction, feeling proud of their streak, and anticipating their next rank-up.
+Habi is a gamified habit tracker. Users log activities, earn rank points, and climb a weekly rank ladder that resets every Monday. Success = a user opening the app daily without friction, feeling proud of their streak, and anticipating their next rank-up.
 
 ## Brand Personality
 

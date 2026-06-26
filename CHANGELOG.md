@@ -12,7 +12,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **Interactive tutorial** — 6-step Coachmark walkthrough on first launch; text switches language live when the user changes settings mid-tutorial
 - **Edit activity** — tap ✏️ on any task row in the Home screen to rename or change its default duration
 - **Auto-translate custom activity names** — names entered in Vietnamese are automatically translated to English for storage via a Supabase Edge Function (Claude Haiku)
-- **Honey accent color** — new amber/gold accent option in the appearance settings
+- **Honey accent color** — new amber/gold accent option in appearance settings; the picker auto-discovers new accents at runtime, so future colors require no code change
 - **Calendar SVG badges** — flame icons mark streak milestones, star icons mark personal best days; animated entrance on calendar load
 - **Accent color picker + Wordmark** component in Settings screen
 - **Rank info sheet** — tap ❓ on the Rank screen to view the full 8-tier rank ladder
@@ -24,7 +24,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **Rank system simplified** — removed VND reward amounts; demotion floor removed so any inactive week demotes exactly 1 tier; 1-tier-per-week promotion cap preserved
 - **Section labels** now sentence-case 12sp semiBold (removed uppercase eyebrow pattern that failed accessibility at 11pt)
 - All interactive elements standardized to `TouchableOpacity` (Pressable replaced in 3 component files)
-- Skill routing rules added to `CLAUDE.md` for gstack workflow automation
+- Skill routing rules added to `CLAUDE.md` for gstack workflow automation (contributor tooling)
 
 ### Fixed
 - **WCAG AA contrast** on 12+ screens: section labels, rank info text, coachmark body/skip/back buttons, stat sub-labels, calendar day-of-week labels

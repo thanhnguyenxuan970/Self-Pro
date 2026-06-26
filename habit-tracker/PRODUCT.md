@@ -10,7 +10,7 @@ Vietnamese Gen Z (late teens – mid 20s). Use the app daily, usually morning or
 
 ## Product Purpose
 
-Gamified daily habit tracker. Users log activities (timed or non-timed), earn stars and rank points, and climb a weekly rank ladder reset every Monday. A self-treat fund accumulates in VND as a tangible reward. Success = user opens the app daily without friction and feels genuine progress after each session.
+Gamified daily habit tracker. Users log activities (timed or non-timed), earn stars and rank points, and climb a weekly rank ladder that resets every Monday. Success = user opens the app daily without friction and feels genuine progress after each session.
 
 ## Brand Personality
 

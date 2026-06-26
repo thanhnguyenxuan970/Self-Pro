@@ -56,7 +56,7 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 
 A **workspace of agent prompt files and design specs** — not a buildable project itself. Two active projects live here:
 
-- **Habit Tracker** — Gamified habit tracking React Native app. Day 21 COMPLETE (2026-06-01).
+- **Habit Tracker** — Gamified habit tracking React Native app. v0.1.0.0 shipped (2026-06-26).
 
 ---
 
@@ -99,7 +99,7 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 
 ## Habit Tracker Architecture
 
-**Status:** Tier 2 Core Interactions COMPLETE (2026-06-03). Code lives at `c:\Users\Admin\Desktop\Self-Pro\habit-tracker\`.
+**Status:** v0.1.0.0 SHIPPED (2026-06-26). Code lives at `c:\Users\Admin\Desktop\Self-Pro\habit-tracker\`.
 
 **Stack:** React Native + Expo SDK 56 + expo-sqlite (async API) + drizzle-orm (types only, raw SQL for runtime) + TanStack Query v5 + React Navigation v6 bottom tabs + Jest 30 + ts-jest 29 + @react-native-google-signin v13+
 
@@ -107,9 +107,9 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 
 **Navigation:** 5 bottom tabs + center FAB — Home (🏠), Calendar (🗓), [+FAB], Analytics (📊), Rank (🏆). ProfileScreen accessed via avatar tap (modal). Auth gate: `googleUser !== null && isOnboarded` → AppStack; else → SignIn → Onboarding.
 
-**State:** TanStack Query over local DB; each log mutation invalidates `today`, `week`, `fund`, `progress` queries.
+**State:** TanStack Query over local DB; each log mutation invalidates `today`, `week`, `progress`, `calendar` queries.
 
-**Rank system:** 8-tier Gen Z rank ladder. Weekly reset Monday 00:00 user-local. Self-treat fund in VND.
+**Rank system:** 8-tier Gen Z rank ladder. Weekly reset Monday 00:00 user-local. Promotes 1 tier max per week; demotes 1 tier on inactive weeks.
 
 ### Key Decisions (Days 1-9, condensed)
 - `drizzle-orm` types-only; all runtime queries raw expo-sqlite (`db.runAsync`, `db.getAllAsync`, `db.getFirstAsync`). `getDb()` singleton Promise.
