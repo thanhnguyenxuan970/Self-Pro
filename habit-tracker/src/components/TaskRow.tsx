@@ -2,19 +2,14 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { AppColors, FontFamily } from '../config/theme';
 import { useTranslations } from '../hooks/useSettings';
-import { TEMPLATE_NAME_TO_KEY, Strings } from '../config/i18n';
 import { useReduceMotion } from '../hooks/useReduceMotion';
+import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 
 export type Task = {
   id: number; name: string; kind: string; is_time_based: number;
   base_points: number; star_penalty: number; icon: string | null;
   category_id: number | null; sort_order: number;
 };
-
-function resolveTaskDisplayName(name: string, t: Strings): string {
-  const key = TEMPLATE_NAME_TO_KEY.get(name);
-  return key ? ((t as unknown as Record<string, string>)[key] ?? name) : name;
-}
 
 function fmtDuration(mins: number): string {
   if (mins < 60) return `${mins}m`;

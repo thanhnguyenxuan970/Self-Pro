@@ -203,9 +203,9 @@ export function useBackfillDay(userId: number) {
       }
 
       let newStreak = 0;
-      await db.withTransactionAsync(async () => {
+      await db.withExclusiveTransactionAsync(async (txn) => {
         newStreak = await runBackfillTx(
-          db, params, userId, backfillDate, backfillWeekStart, currentWeekStart, today,
+          txn, params, userId, backfillDate, backfillWeekStart, currentWeekStart, today,
         );
       });
       return { newStreak };

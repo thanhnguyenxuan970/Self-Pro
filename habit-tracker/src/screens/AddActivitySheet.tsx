@@ -12,13 +12,8 @@ import { useAuthUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
 import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
-import { TEMPLATE_NAME_TO_KEY, Strings } from '../config/i18n';
 import { supabase } from '../api/supabase';
-
-function resolveTaskDisplayName(name: string, t: Strings): string {
-  const key = TEMPLATE_NAME_TO_KEY.get(name);
-  return key ? ((t as unknown as Record<string, string>)[key] ?? name) : name;
-}
+import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 
 interface Props { visible: boolean; onClose: () => void; onSuggest?: () => void; }
 

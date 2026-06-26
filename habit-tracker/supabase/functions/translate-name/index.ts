@@ -13,22 +13,54 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-Deno.serve(async (req: Request): Promise<Response> => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: CORS_HEADERS });
-  }
+type ParsedBody = { name: string; targetLanguage: string };
 
-  let name: string;
-  let targetLanguage: string;
+async function parseRequestBody(req: Request): Promise<ParsedBody | Response> {
   try {
     const body = await req.json();
-    name = String(body.name ?? '').trim();
-    targetLanguage = String(body.targetLanguage ?? 'vi');
+    const name = String(body.name ?? '').trim();
+    const targetLanguage = String(body.targetLanguage ?? 'vi');
+    return { name, targetLanguage };
   } catch {
     return new Response(JSON.stringify({ error: 'invalid body' }), {
       status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     });
   }
+}
+
+type MMResponse = { responseStatus?: number; responseData?: { translatedText?: string } };
+
+async function translateText(name: string, targetLanguage: string): Promise<string> {
+  const langpair = `autodetect|${encodeURIComponent(targetLanguage)}`;
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(name)}&langpair=${langpair}`;
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 4000);
+  let res: Response;
+  try {
+    res = await fetch(url, { signal: ctrl.signal });
+  } catch {
+    clearTimeout(timeout);
+    return name;
+  }
+  clearTimeout(timeout);
+  if (!res.ok) return name;
+  try {
+    const d = await res.json() as MMResponse;
+    return (d?.responseStatus === 200 ? (d?.responseData?.translatedText ?? name) : name).trim();
+  } catch {
+    return name;
+  }
+}
+
+Deno.serve(async (req: Request): Promise<Response> => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: CORS_HEADERS });
+  }
+
+  const parsed = await parseRequestBody(req);
+  if (parsed instanceof Response) return parsed;
+
+  const { name, targetLanguage } = parsed;
 
   if (!['vi', 'en'].includes(targetLanguage)) {
     return new Response(JSON.stringify({ error: 'invalid targetLanguage' }), {
@@ -42,32 +74,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
-  const langpair = `autodetect|${encodeURIComponent(targetLanguage)}`;
-  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(name)}&langpair=${langpair}`;
-
-  const ctrl = new AbortController();
-  const timeout = setTimeout(() => ctrl.abort(), 4000);
-  const res = await fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(timeout));
-
-  if (!res.ok) {
-    return new Response(JSON.stringify({ translated: name }), {
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-    });
-  }
-
-  let data: unknown;
-  try {
-    data = await res.json();
-  } catch {
-    return new Response(JSON.stringify({ translated: name }), {
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-    });
-  }
-
-  type MMResponse = { responseStatus?: number; responseData?: { translatedText?: string } };
-  const d = data as MMResponse;
-  // responseStatus 200 = success; fallback to original on any error
-  const translated = (d?.responseStatus === 200 ? (d?.responseData?.translatedText ?? name) : name).trim();
+  const translated = await translateText(name, targetLanguage);
 
   return new Response(JSON.stringify({ translated }), {
     headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
