@@ -12,6 +12,7 @@ import { useAuthUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
 import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
+import { Strings } from '../config/i18n';
 import { supabase } from '../api/supabase';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 
