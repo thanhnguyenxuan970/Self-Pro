@@ -38,7 +38,7 @@ const PLANS: Plan[] = [
 
 function RingMark({ color, size = 18 }: { color: string; size?: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 200 200">
+    <Svg width={size} height={size} viewBox="0 0 200 200" accessible={false}>
       <Path d="M115.5,52 A56,56 0 1 1 84.5,52" fill="none" stroke={color} strokeWidth={26} strokeLinecap="round" />
       <Path d="M74,104 L94,124 L128,84" fill="none" stroke={color} strokeWidth={20} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
@@ -47,7 +47,7 @@ function RingMark({ color, size = 18 }: { color: string; size?: number }) {
 
 function AnalyticsArt({ color }: { color: string }) {
   return (
-    <Svg width={62} height={44} viewBox="0 0 124 88">
+    <Svg width={62} height={44} viewBox="0 0 124 88" accessible={false}>
       <Rect x={10} y={52} width={18} height={30} rx={5} fill={color} fillOpacity={0.35} />
       <Rect x={38} y={38} width={18} height={44} rx={5} fill={color} fillOpacity={0.55} />
       <Rect x={66} y={24} width={18} height={58} rx={5} fill={color} fillOpacity={0.8} />
@@ -58,7 +58,7 @@ function AnalyticsArt({ color }: { color: string }) {
 
 function RankArt({ color, gold }: { color: string; gold: string }) {
   return (
-    <Svg width={62} height={44} viewBox="0 0 124 88">
+    <Svg width={62} height={44} viewBox="0 0 124 88" accessible={false}>
       <Path d="M62,8 l7,15 16,2 -12,11 3,16 -14,-8 -14,8 3,-16 -12,-11 16,-2 Z" fill={gold} />
       <Rect x={30} y={60} width={20} height={22} rx={4} fill={color} fillOpacity={0.45} />
       <Rect x={52} y={50} width={20} height={32} rx={4} fill={color} />
@@ -143,6 +143,8 @@ export default function PaywallScreen({ onClose, onRestore, onSubscribe }: Paywa
           style={styles.cta}
           onPress={() => onSubscribe?.(selected)}
           activeOpacity={0.88}
+          accessibilityRole="button"
+          accessibilityLabel={current.cta}
         >
           <Text style={styles.ctaText}>{current.cta}</Text>
         </TouchableOpacity>
