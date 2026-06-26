@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
-## [0.1.0.0] - 2026-06-25
+## [0.1.0.0] - 2026-06-26
 
 ### Added
 - **Backfill check-in ("điểm danh bù")** — tap any empty day in the current week on the Calendar to log a missed activity; streak automatically reconnects. Up to 2 backfills/week, guarded by 6-layer eligibility check (future date, today, out-of-week, day already has activity, streak freeze, quota exceeded)
@@ -36,6 +36,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - i18n: Vietnamese template task names resolved correctly (Work/Study/Family/Relationship/Sports seeded in English now map to Vietnamese display); hardcoded `MAX` stat text in ProgressScreen translated
 - Loading state on TodayScreen now uses dark background (no white flash)
 - Touch targets: AccentPicker color swatches and Calendar month nav arrows now meet 44pt minimum
+- **Backfill race condition** — quota/dayHasActivity/freeze guards now run inside `withExclusiveTransactionAsync`; concurrent double-taps can no longer bypass the weekly quota
+- **Honey accent revert** — accent validator derives valid set from `Object.keys(ACCENTS)` at runtime; new accents no longer silently fall back to default
+- **Translation timeout** — Edge Function catches `AbortError` and returns original name instead of HTTP 500
+- **Task name display** — `resolveTaskDisplayName` unified to one shared util across all call sites; `?? name` fallback added against missing i18n keys
+- PaywallScreen CTA disabled during subscription processing to prevent double-tap
 
 ### Removed
 - Exercise template task (removed via v8 DB migration — replaced by Sports template)
