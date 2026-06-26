@@ -190,10 +190,10 @@ function makeStyles(C: AppColors) {
     priceLeft: { flexShrink: 1 },
     lblRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     lbl: { fontSize: 14, fontFamily: FontFamily.bold, color: C.inkDark },
-    meta: { fontSize: 12, color: C.muted, marginTop: 1 },
+    meta: { fontSize: 12, color: C.ink2, marginTop: 1 },
     priceRight: { alignItems: 'flex-end' },
     priceVal: { fontSize: 18, fontFamily: FontFamily.bold, color: C.inkDark },
-    per: { fontSize: 12, color: C.muted },
+    per: { fontSize: 12, color: C.ink2 },
     pop: {
       position: 'absolute', top: -9, left: 15, backgroundColor: C.primary,
       borderRadius: Radii.pill, paddingHorizontal: 9, paddingVertical: 2,
