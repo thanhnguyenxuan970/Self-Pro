@@ -105,16 +105,16 @@ All implementation tasks follow the 6-phase loop defined in `process.md`. Run ph
 
 **Data model:** append-only `activity_log` as source of truth; derived rollups via `daily_summary` / `weekly_summary`.
 
-**Navigation:** 5 bottom tabs + center FAB — Home (🏠), Calendar (🗓), [+FAB], Analytics (📊), Rank (🏆). ProfileScreen accessed via avatar tap (modal). Auth gate: `googleUser !== null && isOnboarded` → AppStack; else → SignIn → Onboarding.
+**Navigation:** 5 bottom tabs + center FAB — Home (🏠), Calendar (🗓), [+FAB], Analytics (📊), Rank (🏆). ProfileScreen accessed via avatar tap (modal). Auth gate: `googleUser !== null && isOnboarded` → AppStack; else → SignIn → Onboarding → (PaywallScreen if subscription required). BackfillSheet opens as a bottom-sheet from Calendar day tap (eligible empty days only).
 
 **State:** TanStack Query over local DB; each log mutation invalidates `today`, `week`, `progress`, `calendar` queries.
 
 **Rank system:** 8-tier Gen Z rank ladder. Weekly reset Monday 00:00 user-local. Promotes 1 tier max per week; demotes 1 tier on inactive weeks.
 
-### Key Decisions (Days 1-9, condensed)
+### Key Decisions (condensed)
 - `drizzle-orm` types-only; all runtime queries raw expo-sqlite (`db.runAsync`, `db.getAllAsync`, `db.getFirstAsync`). `getDb()` singleton Promise.
-- All DB writes in `useLogTask` inside `db.withTransactionAsync`. `jest.config.js` uses `transform` (not `globals`).
-- `streak_count` set on INSERT, never overwritten. `victory-native@^36` pinned (v40+ requires Skia).
+- All DB writes in `useLogTask` inside `db.withTransactionAsync`; backfill writes use `db.withExclusiveTransactionAsync` (race-condition guard). `jest.config.js` uses `transform` (not `globals`).
+- `streak_count` set on INSERT for normal logs; `recomputeStreakChain` in `useBackfill.ts` issues `UPDATE daily_summary SET streak_count` for all days from the backfilled date to today (the exception to write-once). `victory-native@^36` pinned (v40+ requires Skia).
 - `ALTER TABLE ADD COLUMN` wrapped in try/catch (SQLite has no `IF NOT EXISTS`). `expo-notifications` dynamic import in `useEffect`.
 - Auth: `GoogleUser` in `expo-secure-store` key `'habit_tracker_google_user'` (migrated from AsyncStorage — see Security Fixes). Gate: `googleUser !== null && isOnboarded`. `parseGoogleUser` validates all 3 fields.
 - `AppInner` pattern prevents double `NavigationContainer`. Center FAB uses `tabBarButton: () => <FABButton/>` + `tabPress: e.preventDefault()`.
@@ -467,6 +467,27 @@ Schema DDL: `habit_tracker_schema.md` | UI spec: `habit_tracker_ui_architecture.
 
 ### Test Results
 - `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 111/111 pass | `.\gradlew.bat bundleRelease` → BUILD SUCCESSFUL (versionCode 43)
+
+---
+
+## Habit Tracker — Backfill Check-in (điểm danh bù) COMPLETE (2026-06-25)
+
+### What Was Built
+- **`src/game/backfill.ts`**: Pure function `canBackfill` — 6-layer deny-reason check (FUTURE_DATE, TODAY, NOT_CURRENT_WEEK, DAY_NOT_EMPTY, HAS_FREEZE, QUOTA_EXCEEDED). `WEEKLY_BACKFILL_QUOTA = 2`. Returns `{ allowed, denyReason }`.
+- **`src/queries/useBackfill.ts`**: `backfillDay()` DB write — inserts into `activity_log` with `is_backfill = 1`, runs `recomputeStreakChain` for all days from backfill date to today (streak reconnect), enforces quota + guards inside `db.withExclusiveTransactionAsync` to prevent double-tap race.
+- **`src/queries/useBackfillStatus.ts`**: Reads `backfills_used` count for the current week, feeds into CalendarScreen eligibility map.
+- **`src/components/BackfillSheet.tsx`**: Bottom-sheet task picker with duration options; opens from CalendarScreen on eligible empty-day tap.
+- **`src/db/migrations.ts`**: v9 migration — `ALTER TABLE activity_log ADD COLUMN is_backfill INTEGER NOT NULL DEFAULT 0` + `CREATE INDEX IF NOT EXISTS idx_activity_backfill`.
+
+### Key Decisions
+- `db.withExclusiveTransactionAsync` (not `withTransactionAsync`) chosen for the backfill write path — exclusive lock prevents two concurrent taps from both passing the quota check before either commits.
+- `recomputeStreakChain` writes `UPDATE daily_summary SET streak_count` — this is the documented exception to the "streak_count never overwritten" invariant (normal logs still set once on INSERT only).
+- Pre-check in `canBackfill` runs before the transaction for UX (show deny reason before modal); all guards are re-verified atomically inside `runBackfillTx`.
+
+### Test Results
+- `npx tsc --noEmit` → 0 errors | `npx jest --runInBand` → 111/111 pass | `.\gradlew.bat bundleRelease` → BUILD SUCCESSFUL (versionCode 47)
+
+---
 
 ## Skill routing
 
