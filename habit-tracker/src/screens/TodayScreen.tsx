@@ -344,22 +344,21 @@ export function TodayScreen() {
     }
   }
 
+  async function tryUnlog(task: Task) {
+    try {
+      await unlogTask.mutateAsync({ taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD' });
+    } catch { Alert.alert(t.error, t.cantLog); }
+  }
+
   async function handleLog(task: Task) {
     if (task.is_time_based) {
       const totalMin = totalDurations?.get(task.id) ?? 0;
-      if (totalMin >= 60) {
-        try {
-          await unlogTask.mutateAsync({ taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD' });
-        } catch { Alert.alert(t.error, t.cantLog); }
-        return;
-      }
+      if (totalMin >= 60) { await tryUnlog(task); return; }
       setModalTask(task);
       return;
     }
     if (loggedIds?.has(task.id)) {
-      try {
-        await unlogTask.mutateAsync({ taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD' });
-      } catch { Alert.alert(t.error, t.cantLog); }
+      await tryUnlog(task);
       return;
     }
     if (justLoggedIds.has(task.id) || pendingLogTaskIds.current.has(task.id)) return;

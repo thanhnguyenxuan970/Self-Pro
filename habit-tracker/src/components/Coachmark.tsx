@@ -64,6 +64,11 @@ function handleSwipeGesture(
   }
 }
 
+function computeHighlightRect(rect: TargetRect | null): { hx: number; hy: number; hw: number; hh: number } {
+  if (!rect) return { hx: 0, hy: 0, hw: 0, hh: 0 };
+  return { hx: rect.x - PAD, hy: rect.y - PAD, hw: rect.width + PAD * 2, hh: rect.height + PAD * 2 };
+}
+
 export function Coachmark({ visible, rect, index, total, title, body, bottomInset, onNext, onBack, onSkip }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
@@ -95,10 +100,8 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
   const minBottom = TAB_BAR_H + bottomInset + 8;
   const { tipTop, tipBottom, tipLeft } = computeTipPosition(rect, H, W, measuredTipH, minBottom);
 
-  const hx = rect ? rect.x - PAD : 0;
-  const hy = rect ? rect.y - PAD : 0;
-  const hw = rect ? rect.width + PAD * 2 : 0;
-  const hh = rect ? rect.height + PAD * 2 : 0;
+  const { hx, hy, hw, hh } = computeHighlightRect(rect);
+  const nextLabel = isLast ? t.tutDone : t.tutNext;
 
   return (
     <Modal visible transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onSkip} statusBarTranslucent>
@@ -150,8 +153,8 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
                 <Text style={[styles.skip, { color: C.ink2 }]}>{t.tutSkip}</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={onNext} style={[styles.next, { backgroundColor: C.primary }]} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={isLast ? t.tutDone : t.tutNext.replace(/\s*[←→]$/, '')}>
-              <Text style={[styles.nextText, { color: C.white }]}>{isLast ? t.tutDone : t.tutNext}</Text>
+            <TouchableOpacity onPress={onNext} style={[styles.next, { backgroundColor: C.primary }]} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={nextLabel.replace(/\s*[←→]$/, '')}>
+              <Text style={[styles.nextText, { color: C.white }]}>{nextLabel}</Text>
             </TouchableOpacity>
           </View>
         </View>

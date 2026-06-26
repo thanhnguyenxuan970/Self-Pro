@@ -127,6 +127,92 @@ function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, ca
   );
 }
 
+function formatBucketLabel(bucket: string, r: Range, dayAbbr: string[]): string {
+  if (r === 'W') {
+    const d = new Date(bucket + 'T00:00:00');
+    return dayAbbr[d.getDay()] ?? bucket;
+  }
+  if (r === 'M') return bucket.slice(8);
+  return bucket;
+}
+
+function computeVisibleTicks(range: Range, tickValues: number[]): number[] {
+  if (range !== 'M') return tickValues;
+  const step = tickValues.length <= 10 ? 3 : 5;
+  const sparse = tickValues.filter((_, i) => i % step === 0);
+  const last = tickValues[tickValues.length - 1];
+  return last - sparse[sparse.length - 1] > step / 2 ? [...sparse, last] : sparse;
+}
+
+function openDateFilter(filterDate: string | null, setFilterDate: (d: string) => void) {
+  if (Platform.OS !== 'android') return;
+  const initial = filterDate ? new Date(filterDate + 'T00:00:00') : new Date();
+  DateTimePickerAndroid.open({
+    mode: 'date',
+    value: initial,
+    maximumDate: new Date(),
+    onChange: (event, selected) => {
+      if (event.type === 'set' && selected) {
+        const y = selected.getFullYear();
+        const m = String(selected.getMonth() + 1).padStart(2, '0');
+        const d = String(selected.getDate()).padStart(2, '0');
+        setFilterDate(`${y}-${m}-${d}`);
+      }
+    },
+  });
+}
+
+function confirmDeleteSelected(
+  ids: number[],
+  cancelSelection: () => void,
+  deleteLogs: { mutateAsync: (ids: number[]) => Promise<unknown> },
+  t: ProgTranslations,
+) {
+  Alert.alert(
+    t.deleteLogTitle,
+    t.deleteNItems(ids.length),
+    [
+      { text: t.cancel, style: 'cancel' },
+      {
+        text: t.delete, style: 'destructive',
+        onPress: () => {
+          deleteLogs.mutateAsync(ids)
+            .then(cancelSelection)
+            .catch(() => Alert.alert(t.error, t.deleteFailed));
+        },
+      },
+    ]
+  );
+}
+
+type ChartData = { bucket: string; goodStars: number; badStars: number };
+type XY = { x: number; y: number };
+
+function ProgressChartContent({ isLoading, chartData, totalSum, goodData, badData, chartWidth, visibleTicks, tickFormat, colors, styles, t }: {
+  isLoading: boolean; chartData: ChartData[]; totalSum: number;
+  goodData: XY[]; badData: XY[]; chartWidth: number; visibleTicks: number[];
+  tickFormat: (tv: number) => string; colors: AppColors; styles: ProgStyles; t: ProgTranslations;
+}) {
+  if (isLoading) return <ActivityIndicator color={colors.primary} />;
+  if (chartData.length === 0 || totalSum === 0) {
+    return (
+      <View style={styles.emptyChart}>
+        <Text style={styles.emptyText}>{t.noActivityYet}</Text>
+      </View>
+    );
+  }
+  return (
+    <VictoryChart width={chartWidth} height={190} padding={{ top: 10, bottom: 36, left: 36, right: 12 }} domainPadding={{ x: [20, 10] }} animate={false}>
+      <VictoryAxis tickValues={visibleTicks} tickFormat={tickFormat} style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.ink2, fontSize: 11, fontFamily: FontFamily.semiBold } }} />
+      <VictoryAxis dependentAxis style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.ink2, fontSize: 11 } }} />
+      <VictoryStack colorScale={[colors.primary, colors.danger]}>
+        <VictoryBar data={goodData} />
+        <VictoryBar data={badData} />
+      </VictoryStack>
+    </VictoryChart>
+  );
+}
+
 export function ProgressScreen() {
   const userId = useAuthUser();
   const { colors } = useTheme();
@@ -153,58 +239,16 @@ export function ProgressScreen() {
   const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(actLogs);
   const [addSheetVisible, setAddSheetVisible] = useState(false);
 
-  function handleDateFilter() {
-    if (Platform.OS !== 'android') return;
-    const initial = filterDate ? new Date(filterDate + 'T00:00:00') : new Date();
-    DateTimePickerAndroid.open({
-      mode: 'date',
-      value: initial,
-      maximumDate: new Date(),
-      onChange: (event, selected) => {
-        if (event.type === 'set' && selected) {
-          const y = selected.getFullYear();
-          const m = String(selected.getMonth() + 1).padStart(2, '0');
-          const d = String(selected.getDate()).padStart(2, '0');
-          setFilterDate(`${y}-${m}-${d}`);
-        }
-      },
-    });
-  }
-
   const RANGES = useMemo(() => [
     { key: 'W' as Range, label: t.rangeWeek },
     { key: 'M' as Range, label: t.rangeMonth },
     { key: 'Y' as Range, label: t.rangeYear },
   ], [t.rangeWeek, t.rangeMonth, t.rangeYear]);
 
-  const formatBucket = useCallback((bucket: string, r: Range): string => {
-    if (r === 'W') {
-      const d = new Date(bucket + 'T00:00:00');
-      return t.dayAbbr[d.getDay()] ?? bucket;
-    }
-    if (r === 'M') return bucket.slice(8);
-    return bucket; // 'Y': bucket is "2026", "2027" etc.
-  }, [t.dayAbbr]);
-
-
-  function handleDeleteSelected() {
-    const ids = Array.from(selectedIds);
-    Alert.alert(
-      t.deleteLogTitle,
-      t.deleteNItems(ids.length),
-      [
-        { text: t.cancel, style: 'cancel' },
-        {
-          text: t.delete, style: 'destructive',
-          onPress: () => {
-            deleteLogs.mutateAsync(ids)
-              .then(cancelSelection)
-              .catch(() => Alert.alert(t.error, t.deleteFailed));
-          },
-        },
-      ]
-    );
-  }
+  const formatBucket = useCallback(
+    (bucket: string, r: Range) => formatBucketLabel(bucket, r, t.dayAbbr),
+    [t.dayAbbr],
+  );
 
   const tickFormat = useCallback(
     (tv: number) => formatBucket(chartData[tv - 1]?.bucket ?? '', range),
@@ -225,17 +269,7 @@ export function ProgressScreen() {
     return { totalSum: sum, goodData: good, badData: bad, tickValues: ticks };
   }, [chartData]);
 
-  // Decimate ticks for dense ranges so X-axis labels don't overlap
-  const visibleTicks = useMemo(() => {
-    if (range === 'M') {
-      const step = tickValues.length <= 10 ? 3 : 5;
-      const sparse = tickValues.filter((_, i) => i % step === 0);
-      const last = tickValues[tickValues.length - 1];
-      // append last only when the gap is more than half a step to avoid crowding
-      return last - sparse[sparse.length - 1] > step / 2 ? [...sparse, last] : sparse;
-    }
-    return tickValues;
-  }, [range, tickValues]);
+  const visibleTicks = useMemo(() => computeVisibleTicks(range, tickValues), [range, tickValues]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -264,32 +298,12 @@ export function ProgressScreen() {
             <Text style={styles.cardTitle}>{t.chartTitle}</Text>
           </View>
           <View style={styles.chartWrap}>
-            {isLoading ? (
-              <ActivityIndicator color={colors.primary} />
-            ) : chartData.length === 0 || totalSum === 0 ? (
-              <View style={styles.emptyChart}>
-                <Text style={styles.emptyText}>{t.noActivityYet}</Text>
-              </View>
-            ) : (
-              <VictoryChart
-                width={chartWidth}
-                height={190}
-                padding={{ top: 10, bottom: 36, left: 36, right: 12 }}
-                domainPadding={{ x: [20, 10] }}
-                animate={false}
-              >
-                <VictoryAxis
-                  tickValues={visibleTicks}
-                  tickFormat={tickFormat}
-                  style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.ink2, fontSize: 11, fontFamily: FontFamily.semiBold } }}
-                />
-                <VictoryAxis dependentAxis style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.ink2, fontSize: 11 } }} />
-                <VictoryStack colorScale={[colors.primary, colors.danger]}>
-                  <VictoryBar data={goodData} />
-                  <VictoryBar data={badData} />
-                </VictoryStack>
-              </VictoryChart>
-            )}
+            <ProgressChartContent
+              isLoading={isLoading} chartData={chartData} totalSum={totalSum}
+              goodData={goodData} badData={badData} chartWidth={chartWidth}
+              visibleTicks={visibleTicks} tickFormat={tickFormat}
+              colors={colors} styles={styles} t={t}
+            />
           </View>
         </View>
 
@@ -346,11 +360,11 @@ export function ProgressScreen() {
           cancelSelection={cancelSelection}
           enterSelection={enterSelection}
           toggleSelect={toggleSelect}
-          handleDeleteSelected={handleDeleteSelected}
+          handleDeleteSelected={() => confirmDeleteSelected(Array.from(selectedIds), cancelSelection, deleteLogs, t)}
           deleteLogs={deleteLogs}
           onAddActivity={() => setAddSheetVisible(true)}
           filterDate={filterDate}
-          onFilterPress={handleDateFilter}
+          onFilterPress={() => openDateFilter(filterDate, setFilterDate)}
           onFilterClear={() => setFilterDate(null)}
           t={t}
           styles={styles}

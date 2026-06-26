@@ -16,6 +16,78 @@ const DURATION_OPTIONS: { label: string; mins: number }[] = [
   { label: '1.5h', mins: 90 },
 ];
 
+type PickerTask = { id: number; icon?: string | null; name: string };
+type BackfillErrorT = { backfillDenyQuota: string; backfillDenyFull: string; backfillDenyFreeze: string; cantLog: string };
+
+function resolveBackfillError(msg: string | undefined, t: BackfillErrorT): string {
+  if (msg === 'QUOTA_EXCEEDED') return t.backfillDenyQuota;
+  if (msg === 'DAY_NOT_EMPTY') return t.backfillDenyFull;
+  if (msg === 'HAS_FREEZE') return t.backfillDenyFreeze;
+  return t.cantLog;
+}
+
+interface TaskPickerListProps {
+  tasks: PickerTask[];
+  selectedTaskId: number | null;
+  onSelect: (id: number | null) => void;
+  emptyText: string;
+  colors: AppColors;
+  styles: ReturnType<typeof makeStyles>;
+}
+
+interface DurationPickerProps {
+  durationMin: number;
+  onSelect: (mins: number) => void;
+  colors: AppColors;
+  styles: ReturnType<typeof makeStyles>;
+}
+
+function DurationPicker({ durationMin, onSelect, colors, styles }: DurationPickerProps) {
+  return (
+    <View style={styles.durationRow}>
+      {DURATION_OPTIONS.map(opt => {
+        const on = durationMin === opt.mins;
+        return (
+          <TouchableOpacity key={opt.mins}
+            style={[styles.durChip, on && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
+            onPress={() => onSelect(opt.mins)} activeOpacity={0.7}
+            accessibilityRole="radio" accessibilityLabel={opt.label} accessibilityState={{ checked: on }}>
+            <Text style={[styles.durChipText, on && { color: colors.primary, fontFamily: FontFamily.semiBold }]}>
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+function TaskPickerList({ tasks, selectedTaskId, onSelect, emptyText, colors, styles }: TaskPickerListProps) {
+  if (tasks.length === 0) {
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyStateText}>{emptyText}</Text>
+      </View>
+    );
+  }
+  return (
+    <ScrollView style={styles.taskList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      {tasks.map(task => {
+        const on = selectedTaskId === task.id;
+        return (
+          <TouchableOpacity key={task.id} style={[styles.taskRow, on && { backgroundColor: colors.primarySoft }]}
+            onPress={() => onSelect(on ? null : task.id)} activeOpacity={0.7}
+            accessibilityRole="button" accessibilityState={{ selected: on }}>
+            <Text style={styles.taskIcon}>{task.icon ?? '⭐'}</Text>
+            <Text style={[styles.taskName, on && { color: colors.primary, fontFamily: FontFamily.semiBold }]} numberOfLines={1}>{task.name}</Text>
+            {on && <Text style={[styles.checkMark, { color: colors.primary }]}>✓</Text>}
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 interface Props {
   visible: boolean;
   date: string; // YYYY-MM-DD
@@ -69,15 +141,11 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
       Toast.show({ type: 'success', text1: t.backfillSuccess });
       onClose();
     } catch (err: unknown) {
-      const msg = (err as Error)?.message;
-      const reason =
-        msg === 'QUOTA_EXCEEDED' ? t.backfillDenyQuota :
-        msg === 'DAY_NOT_EMPTY'  ? t.backfillDenyFull :
-        msg === 'HAS_FREEZE'     ? t.backfillDenyFreeze :
-        t.cantLog;
-      Alert.alert(t.error, reason);
+      Alert.alert(t.error, resolveBackfillError((err as Error)?.message, t));
     }
   }
+
+  const ctaDisabled = !selectedTask || isPending;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -105,67 +173,23 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
           ) : (
             <>
               <Text style={styles.sectionLabel}>{t.backfillPickTask}</Text>
-              {tasks.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>{t.backfillNoTasks}</Text>
-                </View>
-              ) : null}
-              <ScrollView
-                style={styles.taskList}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-              >
-                {tasks.map(task => {
-                  const on = selectedTaskId === task.id;
-                  return (
-                    <TouchableOpacity
-                      key={task.id}
-                      style={[styles.taskRow, on && { backgroundColor: colors.primarySoft }]}
-                      onPress={() => setSelectedTaskId(on ? null : task.id)}
-                      activeOpacity={0.7}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: on }}
-                    >
-                      <Text style={styles.taskIcon}>{task.icon ?? '⭐'}</Text>
-                      <Text
-                        style={[styles.taskName, on && { color: colors.primary, fontFamily: FontFamily.semiBold }]}
-                        numberOfLines={1}
-                      >
-                        {task.name}
-                      </Text>
-                      {on && <Text style={[styles.checkMark, { color: colors.primary }]}>✓</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+              <TaskPickerList
+                tasks={tasks}
+                selectedTaskId={selectedTaskId}
+                onSelect={setSelectedTaskId}
+                emptyText={t.backfillNoTasks}
+                colors={colors}
+                styles={styles}
+              />
 
               {needsDuration && (
-                <View style={styles.durationRow}>
-                  {DURATION_OPTIONS.map(opt => {
-                    const on = durationMin === opt.mins;
-                    return (
-                      <TouchableOpacity
-                        key={opt.mins}
-                        style={[styles.durChip, on && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
-                        onPress={() => setDurationMin(opt.mins)}
-                        activeOpacity={0.7}
-                        accessibilityRole="radio"
-                        accessibilityLabel={opt.label}
-                        accessibilityState={{ checked: on }}
-                      >
-                        <Text style={[styles.durChipText, on && { color: colors.primary, fontFamily: FontFamily.semiBold }]}>
-                          {opt.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                <DurationPicker durationMin={durationMin} onSelect={setDurationMin} colors={colors} styles={styles} />
               )}
 
               <TouchableOpacity
-                style={[styles.cta, (!selectedTask || isPending) && styles.ctaDisabled]}
+                style={[styles.cta, ctaDisabled && styles.ctaDisabled]}
                 onPress={handleConfirm}
-                disabled={!selectedTask || isPending}
+                disabled={ctaDisabled}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel={t.backfillConfirm}
