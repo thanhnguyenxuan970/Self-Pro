@@ -11,19 +11,14 @@ import {
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
-import { TEMPLATE_NAME_TO_KEY, Strings } from '../config/i18n';
 import { useSelectionMode } from '../hooks/useSelectionMode';
 import { AddActivitySheet } from './AddActivitySheet';
+import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 
 type Range = 'W' | 'M' | 'Y';
 
 type ProgStyles = ReturnType<typeof makeStyles>;
 type ProgTranslations = ReturnType<typeof useTranslations>;
-
-function resolveTaskDisplayName(name: string, t: Strings): string {
-  const key = TEMPLATE_NAME_TO_KEY.get(name);
-  return key ? t[key as keyof Strings] as string : name;
-}
 
 // fallow-ignore-next-line complexity
 function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, enterSelection, bonusDay, timeLocale, t, styles }: {

@@ -30,18 +30,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
+  if (!['vi', 'en'].includes(targetLanguage)) {
+    return new Response(JSON.stringify({ error: 'invalid targetLanguage' }), {
+      status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
+  }
+
   if (!name) {
     return new Response(JSON.stringify({ translated: '' }), {
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     });
   }
 
-  // langpair: source|target — 'en|vi' or 'vi|en'
-  // Auto-detect source by using 'autodetect' as source lang
-  const langpair = `autodetect|${targetLanguage}`;
+  const langpair = `autodetect|${encodeURIComponent(targetLanguage)}`;
   const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(name)}&langpair=${langpair}`;
 
-  const res = await fetch(url);
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 4000);
+  const res = await fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(timeout));
 
   if (!res.ok) {
     return new Response(JSON.stringify({ translated: name }), {
@@ -49,12 +55,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
-  const data = await res.json();
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    return new Response(JSON.stringify({ translated: name }), {
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
+  }
+
+  type MMResponse = { responseStatus?: number; responseData?: { translatedText?: string } };
+  const d = data as MMResponse;
   // responseStatus 200 = success; fallback to original on any error
-  const translated = (data?.responseStatus === 200
-    ? (data?.responseData?.translatedText ?? name)
-    : name
-  ).trim();
+  const translated = (d?.responseStatus === 200 ? (d?.responseData?.translatedText ?? name) : name).trim();
 
   return new Response(JSON.stringify({ translated }), {
     headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },

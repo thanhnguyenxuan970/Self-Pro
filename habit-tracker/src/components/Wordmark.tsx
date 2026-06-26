@@ -1,3 +1,4 @@
+// fallow-ignore unused-files
 import React from 'react';
 import Svg, { G, Path, Text, TSpan } from 'react-native-svg';
 import { useTheme } from '../hooks/useSettings';

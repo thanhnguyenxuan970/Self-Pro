@@ -1,3 +1,4 @@
+// fallow-ignore unused-files
 import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';

@@ -26,6 +26,44 @@ const TIP_W = 280;
 const TIP_H = 160;
 const TAB_BAR_H = 62;
 
+function computeTipPosition(
+  rect: TargetRect | null, H: number, W: number, measuredTipH: number, minBottom: number,
+): { tipTop: number | undefined; tipBottom: number | undefined; tipLeft: number } {
+  let tipTop: number | undefined;
+  let tipBottom: number | undefined;
+  if (rect) {
+    const spaceBelow = H - (rect.y + rect.height) - minBottom - GAP;
+    const spaceAbove = rect.y - GAP;
+    if (spaceBelow >= measuredTipH) {
+      tipTop = Math.min(rect.y + rect.height + GAP, H - minBottom - measuredTipH);
+    } else if (spaceAbove >= measuredTipH) {
+      tipBottom = Math.max(H - rect.y + GAP, minBottom);
+    } else {
+      tipTop = Math.max(GAP * 2, rect.y - measuredTipH - GAP);
+    }
+  } else {
+    tipTop = H / 2 - measuredTipH / 2;
+  }
+  const tipLeft = Math.max(16, Math.min(W - TIP_W - 16, (W - TIP_W) / 2));
+  return { tipTop, tipBottom, tipLeft };
+}
+
+function handleSwipeGesture(
+  g: { dx: number; dy: number },
+  evt: { nativeEvent: { pageX: number } },
+  windowWidth: number,
+  onNext: () => void,
+  onBack: () => void,
+) {
+  if (Math.abs(g.dx) >= 50) {
+    if (g.dx < 0) onNext();
+    else onBack();
+  } else if (Math.abs(g.dy) < 30 && Math.abs(g.dx) < 20) {
+    if (evt.nativeEvent.pageX < windowWidth / 2) onBack();
+    else onNext();
+  }
+}
+
 export function Coachmark({ visible, rect, index, total, title, body, bottomInset, onNext, onBack, onSkip }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
@@ -46,14 +84,7 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderRelease: (evt, g) => {
-        const w = Dimensions.get('window').width;
-        if (Math.abs(g.dx) >= 50) {
-          if (g.dx < 0) onNextRef.current();
-          else onBackRef.current();
-        } else if (Math.abs(g.dy) < 30 && Math.abs(g.dx) < 20) {
-          if (evt.nativeEvent.pageX < w / 2) onBackRef.current();
-          else onNextRef.current();
-        }
+        handleSwipeGesture(g, evt, Dimensions.get('window').width, onNextRef.current, onBackRef.current);
       },
     })
   ).current;
@@ -62,23 +93,7 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
 
   const isLast = index >= total - 1;
   const minBottom = TAB_BAR_H + bottomInset + 8;
-
-  let tipTop: number | undefined;
-  let tipBottom: number | undefined;
-  if (rect) {
-    const spaceBelow = H - (rect.y + rect.height) - minBottom - GAP;
-    const spaceAbove = rect.y - GAP;
-    if (spaceBelow >= measuredTipH) {
-      tipTop = Math.min(rect.y + rect.height + GAP, H - minBottom - measuredTipH);
-    } else if (spaceAbove >= measuredTipH) {
-      tipBottom = Math.max(H - rect.y + GAP, minBottom);
-    } else {
-      tipTop = Math.max(GAP * 2, rect.y - measuredTipH - GAP);
-    }
-  } else {
-    tipTop = H / 2 - measuredTipH / 2;
-  }
-  const tipLeft = Math.max(16, Math.min(W - TIP_W - 16, (W - TIP_W) / 2));
+  const { tipTop, tipBottom, tipLeft } = computeTipPosition(rect, H, W, measuredTipH, minBottom);
 
   const hx = rect ? rect.x - PAD : 0;
   const hy = rect ? rect.y - PAD : 0;

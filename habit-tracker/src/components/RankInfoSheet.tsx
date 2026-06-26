@@ -3,7 +3,7 @@ import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'rea
 import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useTheme } from '../hooks/useSettings';
 
-export interface RankTier {
+interface RankTier {
   id: number;
   tier_order: number;     // 1..7
   rank_name: string;

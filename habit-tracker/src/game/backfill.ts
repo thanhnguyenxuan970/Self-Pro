@@ -1,6 +1,8 @@
 // Hàm THUẦN cho "Điểm danh bù" — không chạm DB, dễ unit-test.
 // Phần ghi DB + cộng weekly_stars để ở tầng gọi (xem backfill-spec.md §4–6).
 
+export const WEEKLY_BACKFILL_QUOTA = 2;
+
 export interface BackfillCheckInput {
   date: string;              // 'YYYY-MM-DD' ngày muốn điểm danh bù
   today: string;             // 'YYYY-MM-DD'
@@ -26,7 +28,7 @@ export type BackfillCheck =
 
 /** Guardrail điểm danh bù (xếp lớp). Trả lý do đầu tiên bị chặn. */
 export function canBackfill(i: BackfillCheckInput): BackfillCheck {
-  const quota = i.quotaPerWeek ?? 2;
+  const quota = i.quotaPerWeek ?? WEEKLY_BACKFILL_QUOTA;
   if (i.date > i.today) return { allowed: false, reason: 'FUTURE' };
   if (i.date === i.today) return { allowed: false, reason: 'TODAY' };
   if (i.weekStartOfDate !== i.currentWeekStart) return { allowed: false, reason: 'NOT_CURRENT_WEEK' };
@@ -37,7 +39,7 @@ export function canBackfill(i: BackfillCheckInput): BackfillCheck {
 }
 
 /** Số lượt điểm danh bù còn lại trong tuần. */
-export function backfillRemaining(usedThisWeek: number, quotaPerWeek = 2): number {
+export function backfillRemaining(usedThisWeek: number, quotaPerWeek = WEEKLY_BACKFILL_QUOTA): number {
   return Math.max(0, quotaPerWeek - usedThisWeek);
 }
 

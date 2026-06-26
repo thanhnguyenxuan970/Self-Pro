@@ -52,12 +52,47 @@ function resolveCellColors(
   return { cellBg: 'transparent', numColor: colors.inkDark };
 }
 
+interface BackfillInfo {
+  backfillsUsedThisWeek: number;
+  freezeDates: Set<string>;
+}
+
+function resolveDayCellProps(
+  day: number,
+  dayMap: Record<string, CalendarDay>,
+  backfillInfo: BackfillInfo | undefined,
+  yearMonth: string,
+  todayStr: string,
+  currentWeekStart: string,
+  isDark: boolean,
+  colors: AppColors,
+): { dateStr: string; isEligible: boolean; cellBg: string; numColor: string; cellIcon: React.ReactNode } {
+  const data = dayMap[day];
+  const isBest = data ? Boolean(data.is_best_day) : false;
+  const isMilestone = data ? Boolean(data.is_milestone) : false;
+  const { cellBg, numColor } = resolveCellColors(isMilestone, isBest, !!data, isDark, colors);
+  const cellIcon = resolveCellIcon(data, isMilestone, isBest, colors.muted);
+  const dateStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
+  const backfillsUsed = backfillInfo ? backfillInfo.backfillsUsedThisWeek : 0;
+  const hasFreeze = backfillInfo ? backfillInfo.freezeDates.has(dateStr) : false;
+  const isEligible = canBackfill({
+    date: dateStr,
+    today: todayStr,
+    weekStartOfDate: getWeekStartFor(new Date(dateStr + 'T12:00:00')),
+    currentWeekStart,
+    dayHasActivity: !!data,
+    backfillsUsedThisWeek: backfillsUsed,
+    hasStreakFreeze: hasFreeze,
+  }).allowed;
+  return { dateStr, isEligible, cellBg, numColor, cellIcon };
+}
+
 function resolveCellIcon(data: CalendarDay | undefined, isMilestone: boolean, isBest: boolean, muteColor: string) {
   if (!data) return null;
   if (isMilestone && isBest) return <AnimatedBurningStarIcon />;
   if (isMilestone) return <AnimatedFireIcon />;
   if (isBest) return <AnimatedStarIcon />;
-  return <Text style={{ fontSize: 9, fontFamily: FontFamily.semiBold, marginTop: 1, color: muteColor }}>{parseFloat(data.stars.toFixed(1))}★</Text>;
+  return <Text style={{ fontSize: 11, fontFamily: FontFamily.semiBold, marginTop: 1, color: muteColor }}>{parseFloat(data.stars.toFixed(1))}★</Text>;
 }
 
 export function CalendarScreen() {
@@ -152,23 +187,9 @@ export function CalendarScreen() {
       <View style={styles.grid}>
         {cells.map((day, idx) => {
           if (!day) return <View key={idx} style={styles.cell} />;
-          const data = dayMap[day];
-          const isBest = data?.is_best_day ?? false;
-          const isMilestone = data?.is_milestone ?? false;
-          const { cellBg, numColor } = resolveCellColors(isMilestone, isBest, !!data, isDark, colors);
-          const cellIcon = resolveCellIcon(data, isMilestone, isBest, colors.muted);
-
-          const dateStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
-          const isEligible = canBackfill({
-            date: dateStr,
-            today: todayStr,
-            weekStartOfDate: getWeekStartFor(new Date(dateStr + 'T12:00:00')),
-            currentWeekStart,
-            dayHasActivity: !!data,
-            backfillsUsedThisWeek: backfillStatus?.backfillsUsedThisWeek ?? 0,
-            hasStreakFreeze: backfillStatus?.freezeDates?.has(dateStr) ?? false,
-          }).allowed;
-
+          const { dateStr, isEligible, cellBg, numColor, cellIcon } = resolveDayCellProps(
+            day, dayMap, backfillStatus, yearMonth, todayStr, currentWeekStart, isDark, colors,
+          );
           const cellStyle = [
             styles.cell,
             { backgroundColor: cellBg },
@@ -179,32 +200,18 @@ export function CalendarScreen() {
             <>
               <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
               <View style={styles.cellBottom}>
-                {cellIcon ?? (isEligible
-                  ? <Text style={styles.backfillHint}>+</Text>
-                  : null)}
+                {cellIcon ?? (isEligible ? <Text style={styles.backfillHint}>+</Text> : null)}
               </View>
             </>
           );
-
           if (isEligible) {
             return (
-              <TouchableOpacity
-                key={idx}
-                style={cellStyle}
-                onPress={() => setBackfillDate(dateStr)}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={`${t.backfillEligible} ${dateStr}`}
-              >
+              <TouchableOpacity key={idx} style={cellStyle} onPress={() => setBackfillDate(dateStr)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={`${t.backfillEligible} ${dateStr}`}>
                 {cellContent}
               </TouchableOpacity>
             );
           }
-          return (
-            <View key={idx} style={cellStyle}>
-              {cellContent}
-            </View>
-          );
+          return <View key={idx} style={cellStyle}>{cellContent}</View>;
         })}
       </View>
 

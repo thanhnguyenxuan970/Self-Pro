@@ -1,5 +1,5 @@
 import type { AppLanguage } from '../contexts/SettingsContext';
-import { AccentKey, DEFAULT_ACCENT } from '../config/accents';
+import { ACCENTS, AccentKey, DEFAULT_ACCENT } from '../config/accents';
 
 export function parseSettingsBool(raw: string | null): boolean {
   return raw === 'true';
@@ -11,8 +11,7 @@ export function parseSettingsLang(raw: string | null): AppLanguage {
 }
 
 export function parseSettingsAccent(raw: string | null): AccentKey {
-  const valid: AccentKey[] = ['green', 'indigo', 'rose', 'sky', 'violet'];
-  if (raw && (valid as string[]).includes(raw)) return raw as AccentKey;
+  if (raw && (Object.keys(ACCENTS) as string[]).includes(raw)) return raw as AccentKey;
   return DEFAULT_ACCENT;
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, ScrollView,
   StyleSheet, ActivityIndicator, Alert,
@@ -27,7 +27,7 @@ interface Props {
 export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, onClose }: Props) {
   const { colors } = useTheme();
   const t = useTranslations();
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const { data: tasks = [] } = useTodayTasks(userId);
   const { mutateAsync, isPending } = useBackfillDay(userId);
@@ -44,8 +44,8 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
 
   const remaining = backfillRemaining(backfillsUsedThisWeek);
   const quotaExceeded = remaining <= 0;
-  const selectedTask = tasks.find(tk => tk.id === selectedTaskId);
-  const needsDuration = selectedTask?.is_time_based === 1;
+  const selectedTask = useMemo(() => tasks.find(tk => tk.id === selectedTaskId), [tasks, selectedTaskId]);
+  const needsDuration = !!selectedTask?.is_time_based;
 
   function formatDate(d: string): string {
     const [y, m, day] = d.split('-').map(Number);
@@ -82,7 +82,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
+        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel={t.close} />
         <View style={styles.sheet}>
           <View style={styles.grip} />
 
@@ -149,6 +149,9 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
                         style={[styles.durChip, on && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
                         onPress={() => setDurationMin(opt.mins)}
                         activeOpacity={0.7}
+                        accessibilityRole="radio"
+                        accessibilityLabel={opt.label}
+                        accessibilityState={{ checked: on }}
                       >
                         <Text style={[styles.durChipText, on && { color: colors.primary, fontFamily: FontFamily.semiBold }]}>
                           {opt.label}

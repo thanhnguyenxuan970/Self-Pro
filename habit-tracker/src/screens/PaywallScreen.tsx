@@ -1,3 +1,4 @@
+// fallow-ignore unused-files
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -70,6 +71,7 @@ function RankArt({ color, gold }: { color: string; gold: string }) {
 export default function PaywallScreen({ onClose, onRestore, onSubscribe }: PaywallScreenProps) {
   const { colors: C, styles } = useScreenCommons(makeStyles);
   const [selected, setSelected] = useState<PlanId>('yearly');
+  const [loading, setLoading] = useState(false);
   const current = PLANS.find((p) => p.id === selected) ?? PLANS[1];
   const store = Platform.OS === 'ios' ? 'App Store' : 'Google Play';
 
@@ -140,8 +142,13 @@ export default function PaywallScreen({ onClose, onRestore, onSubscribe }: Paywa
         })}
 
         <TouchableOpacity
-          style={styles.cta}
-          onPress={() => onSubscribe?.(selected)}
+          style={[styles.cta, loading && { opacity: 0.6 }]}
+          onPress={async () => {
+            if (loading) return;
+            setLoading(true);
+            try { await onSubscribe?.(selected); } finally { setLoading(false); }
+          }}
+          disabled={loading}
           activeOpacity={0.88}
           accessibilityRole="button"
           accessibilityLabel={current.cta}

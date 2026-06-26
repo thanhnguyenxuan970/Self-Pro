@@ -26,8 +26,8 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { cueStreakMilestone } from '../audio/uiSounds';
 import { useSelectionMode } from '../hooks/useSelectionMode';
 import { DAILY_BONUS_THRESHOLD } from '../config/constants';
-import { TEMPLATE_NAME_TO_KEY, Strings } from '../config/i18n';
 import { useTutorial } from '../hooks/useTutorial';
+import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 
 const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑' };
 
@@ -72,7 +72,7 @@ function useProgressBarAnimation(dailyPoints: number): { barWidthAnim: Animated.
     const h = DAILY_BONUS_THRESHOLD;
     if ((prev < h / 2 && dailyPoints >= h / 2) || (prev < h && dailyPoints >= h)) {
       barGlowOpacity.setValue(0.7);
-      Animated.timing(barGlowOpacity, { toValue: 0, duration: 700, useNativeDriver: false }).start();
+      Animated.timing(barGlowOpacity, { toValue: 0, duration: 700, useNativeDriver: true }).start();
     }
     prevRef.current = dailyPoints;
   }, [dailyPoints]);
@@ -111,11 +111,6 @@ function SuggestionEntranceWrapper({ index, reduceMotion, children }: { index: n
       {children}
     </Animated.View>
   );
-}
-
-function resolveTaskDisplayName(name: string, t: Strings): string {
-  const key = TEMPLATE_NAME_TO_KEY.get(name);
-  return key ? ((t as unknown as Record<string, string>)[key] ?? name) : name;
 }
 
 function parseLogDuration(duration: string, durationUnit: 'min' | 'hr', errorTitle: string, validDurationMsg: string, maxDurationMsg: string): number | null {

@@ -20,6 +20,9 @@ export function AccentPicker({ accent, onSelect, colors }: Props) {
             activeOpacity={0.75}
             onPress={() => onSelect(key)}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            accessibilityRole="radio"
+            accessibilityLabel={key}
+            accessibilityState={{ checked: isActive }}
             style={[
               styles.swatch,
               { backgroundColor: ACCENTS[key].swatch },

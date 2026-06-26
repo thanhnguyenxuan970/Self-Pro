@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getDb } from '../db/client';
 import { getWeekStart } from '../utils/formatters';
 
-export type BackfillStatus = {
+type BackfillStatus = {
   backfillsUsedThisWeek: number;
   freezeDates: Set<string>;
 };
