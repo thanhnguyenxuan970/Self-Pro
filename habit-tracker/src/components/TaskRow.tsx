@@ -22,7 +22,6 @@ function useTaskRowAnimation(justLogged: boolean, done: boolean) {
   const reduceMotion = useReduceMotion();
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const slideAnim = useRef(new Animated.Value(0)).current;
   const checkScaleAnim = useRef(new Animated.Value(1)).current;
   const prevLogged = useRef(false);
   const prevDone = useRef<boolean | null>(null);
@@ -31,14 +30,12 @@ function useTaskRowAnimation(justLogged: boolean, done: boolean) {
     if (justLogged && !prevLogged.current) {
       const anim = Animated.parallel([
         Animated.spring(scaleAnim, { toValue: 0.85, tension: 200, friction: 10, useNativeDriver: true }),
-        Animated.spring(slideAnim, { toValue: 40, tension: 200, friction: 10, useNativeDriver: true }),
         Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
       ]);
       anim.start(({ finished }) => {
         if (finished) {
           fadeAnim.setValue(1);
           scaleAnim.setValue(1);
-          slideAnim.setValue(0);
         }
       });
       prevLogged.current = justLogged;
@@ -61,7 +58,7 @@ function useTaskRowAnimation(justLogged: boolean, done: boolean) {
     prevDone.current = done;
   }, [done, reduceMotion]);
 
-  return { fadeAnim, scaleAnim, slideAnim, checkScaleAnim };
+  return { fadeAnim, scaleAnim, checkScaleAnim };
 }
 
 type Styles = ReturnType<typeof makeTaskRowStyles>;
@@ -121,10 +118,10 @@ type Props = {
 export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, onPress, onLongPress, onEdit, logPending, colors }: Props) {
   const t = useTranslations();
   const styles = useMemo(() => makeTaskRowStyles(colors), [colors]);
-  const { fadeAnim, scaleAnim, slideAnim, checkScaleAnim } = useTaskRowAnimation(justLogged, done);
+  const { fadeAnim, scaleAnim, checkScaleAnim } = useTaskRowAnimation(justLogged, done);
 
   return (
-    <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }, { translateX: slideAnim }] }}>
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
       <TouchableOpacity
         style={[styles.task, isLast && styles.taskLast, isSelected && styles.taskSelected]}
         onPress={onPress}

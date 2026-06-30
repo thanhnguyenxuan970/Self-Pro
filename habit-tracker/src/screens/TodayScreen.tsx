@@ -490,19 +490,16 @@ export function TodayScreen() {
         <View
           style={[styles.hero, { backgroundColor: isDebt ? colors.danger : colors.primary }]}
         >
-          <Text style={styles.heroLabel}>{t.heroLabel}</Text>
+          <View style={styles.heroTopRow}>
+            <Text style={styles.heroLabel}>{t.heroLabel}</Text>
+            <Animated.View style={[styles.rankChip, { transform: [{ scale: rankBounceAnim }] }]}>
+              <Text style={styles.rankChipText}>{rankEmoji} {rankName}</Text>
+            </Animated.View>
+          </View>
           <View style={styles.heroBal}>
             <Text style={styles.heroStar}>★</Text>
             <Animated.View style={{ transform: [{ scale: starsPopAnim }] }}>
               <Text style={styles.heroBalNum}>{weeklyStars}</Text>
-            </Animated.View>
-          </View>
-          <View style={styles.heroFoot}>
-            <Text style={[styles.heroDelta, isDebt ? styles.heroDeltaDown : styles.heroDeltaUp]}>
-              {dailyPoints > 0 ? t.upDelta(dailyPoints) : t.noDelta}
-            </Text>
-            <Animated.View style={[styles.rankChip, { transform: [{ scale: rankBounceAnim }] }]}>
-              <Text style={styles.rankChipText}>{rankEmoji} {rankName}</Text>
             </Animated.View>
           </View>
           {streak > 0 && (
@@ -510,18 +507,16 @@ export function TodayScreen() {
               <Text style={styles.heroStreak}>{t.streakChip(streak)}</Text>
             </Animated.View>
           )}
-        </View>
-
-        <View style={styles.progCard}>
-          <View style={styles.progTop}>
-            <Text style={styles.progLabel}>{t.pointsLabel}</Text>
-            <Text style={styles.progPts}><Text style={styles.progPtsBold}>{dailyPoints}</Text> / {DAILY_BONUS_THRESHOLD}</Text>
+          <View style={styles.heroDivider} />
+          <View style={styles.heroProgRow}>
+            <Text style={styles.heroProgLabel}>{t.pointsLabel}</Text>
+            <Text style={styles.heroProgPts}><Text style={styles.heroProgPtsBold}>{dailyPoints}</Text> / {DAILY_BONUS_THRESHOLD}</Text>
           </View>
-          <View style={styles.bar}>
-            <Animated.View style={[styles.barFill, { width: barWidthAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) }]} />
-            <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.white, opacity: barGlowOpacity, borderRadius: Radii.pill }]} />
+          <View style={styles.heroBar}>
+            <Animated.View style={[styles.heroBarFill, { width: barWidthAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) }]} />
+            <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.35)', opacity: barGlowOpacity, borderRadius: Radii.pill }]} />
           </View>
-          <Text style={styles.progCap}>{t.streakBonus(DAILY_BONUS_THRESHOLD)}</Text>
+          <Text style={styles.heroProgCap}>{t.streakBonus(DAILY_BONUS_THRESHOLD)}</Text>
         </View>
 
         {!selectionMode && suggestions
@@ -645,14 +640,11 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.xl, padding: 20, overflow: 'hidden',
       ...Shadows.hero,
     },
+    heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     heroLabel: { fontSize: 12, opacity: 0.85, fontFamily: FontFamily.semiBold, letterSpacing: 0.3, color: C.white },
     heroBal: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
     heroStar: { fontSize: 32, color: C.starGold },
     heroBalNum: { fontSize: 40, fontFamily: FontFamily.extraBold, letterSpacing: -1.2, color: C.white, lineHeight: 44 },
-    heroFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
-    heroDelta: { fontSize: 12, paddingHorizontal: 11, paddingVertical: 5, borderRadius: Radii.pill, fontFamily: FontFamily.bold, overflow: 'hidden' },
-    heroDeltaUp: { backgroundColor: 'rgba(255,255,255,0.16)', color: C.white },
-    heroDeltaDown: { backgroundColor: 'rgba(255,255,255,0.16)', color: C.white },
     rankChip: {
       flexDirection: 'row', alignItems: 'center', gap: 6,
       backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 12, paddingVertical: 6,
@@ -663,22 +655,14 @@ function makeStyles(C: AppColors) {
       color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: FontFamily.semiBold,
       marginTop: 8, alignSelf: 'center', letterSpacing: 0.3,
     },
-
-    progCard: {
-      marginHorizontal: Spacing.lg, marginTop: 12,
-      backgroundColor: C.surface, borderRadius: Radii.lg,
-      padding: 15, borderWidth: 1, borderColor: C.line, ...Shadows.light,
-    },
-    progTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    progLabel: { fontSize: 13, fontFamily: FontFamily.bold, color: C.inkDark },
-    progPts: { fontSize: 13, fontFamily: FontFamily.bold, color: C.inkDark },
-    progPtsBold: { fontSize: 16, fontFamily: FontFamily.extraBold, color: C.primary },
-    bar: {
-      height: 10, backgroundColor: C.surface2, borderRadius: Radii.pill,
-      marginTop: 10, overflow: 'hidden',
-    },
-    barFill: { height: '100%', backgroundColor: C.primary, borderRadius: Radii.pill },
-    progCap: { fontSize: 11.5, color: C.ink2, marginTop: 8 },
+    heroDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginTop: 14, marginBottom: 12 },
+    heroProgRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+    heroProgLabel: { fontSize: 12, fontFamily: FontFamily.semiBold, color: 'rgba(255,255,255,0.85)' },
+    heroProgPts: { fontSize: 12, fontFamily: FontFamily.bold, color: C.white },
+    heroProgPtsBold: { fontSize: 15, fontFamily: FontFamily.extraBold, color: C.white },
+    heroBar: { height: 8, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: Radii.pill, overflow: 'hidden' },
+    heroBarFill: { height: '100%', backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: Radii.pill },
+    heroProgCap: { fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 6 },
 
     sectionLabel: {
       fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2,
