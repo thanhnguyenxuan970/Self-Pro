@@ -38,6 +38,8 @@ export function ShareCardModal({
   const cardRef = useRef<View>(null);
 
   async function pickPhoto(slot: 'before' | 'after') {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.9,
