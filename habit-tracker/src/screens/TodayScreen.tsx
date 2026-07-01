@@ -21,6 +21,7 @@ import { Task, TaskRow } from '../components/TaskRow';
 import { SkeletonRow } from '../components/SkeletonRow';
 import { LevelUpCelebrationModal } from '../components/LevelUpCelebrationModal';
 import { EditActivityModal } from '../components/EditActivityModal';
+import { ShareCardModal } from './ShareCardModal';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { cueStreakMilestone } from '../audio/uiSounds';
@@ -28,6 +29,7 @@ import { useSelectionMode } from '../hooks/useSelectionMode';
 import { DAILY_BONUS_THRESHOLD } from '../config/constants';
 import { useTutorial } from '../hooks/useTutorial';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
+import { useShareCardData, tierPercentile } from '../hooks/useShareCardData';
 
 const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑' };
 
@@ -276,6 +278,9 @@ export function TodayScreen() {
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set());
   const [pendingLevelUp, setPendingLevelUp] = useState<{ tierOrder: number; tierName: string } | null>(null);
   const [levelUpChecked, setLevelUpChecked] = useState(false);
+  const [showShareCard, setShowShareCard] = useState(false);
+
+  const { data: shareCardData } = useShareCardData(userId);
 
   useEffect(() => {
     AsyncStorage.getItem(PENDING_LEVELUP_KEY).then(raw => {
@@ -312,6 +317,7 @@ export function TodayScreen() {
     : null;
   const rankName = currentTier?.rank_name ?? '—';
   const rankEmoji = currentTier ? (RANK_EMOJI[currentTier.tier_order] ?? '⭐') : '⭐';
+  const percentile = tierPercentile(currentTier?.tier_order ?? 1);
 
   const reduceMotion = useReduceMotion();
   const hasStreak = streak > 0;
@@ -335,12 +341,17 @@ export function TodayScreen() {
     });
   }, [tasks, loggedIds]);
 
+  const SHARE_MILESTONES = [7, 30, 90];
+
   function showStreakToast(newStreak: number, prevStreak: number) {
     if (newStreak === 1 && prevStreak > 1) {
       Toast.show({ type: 'error', text1: t.streakBreakTitle, text2: t.streakBreakMsg(prevStreak), visibilityTime: 3000 });
     } else if (newStreak > 1 && newStreak > prevStreak) {
-      if ([3, 7, 30].includes(newStreak)) cueStreakMilestone();
+      if ([3, 7, 30, 90].includes(newStreak)) cueStreakMilestone();
       Toast.show({ type: 'success', text1: t.streakMilestone(newStreak), visibilityTime: 1800 });
+      if (SHARE_MILESTONES.includes(newStreak)) {
+        setTimeout(() => setShowShareCard(true), 1500);
+      }
     }
   }
 
@@ -473,6 +484,17 @@ export function TodayScreen() {
           setPendingLevelUp(null);
           AsyncStorage.removeItem(PENDING_LEVELUP_KEY).catch(() => {});
         }}
+        onShare={() => setShowShareCard(true)}
+      />
+      <ShareCardModal
+        visible={showShareCard}
+        onClose={() => setShowShareCard(false)}
+        streakCount={streak}
+        daysDone={shareCardData?.daysDone ?? 0}
+        percentile={percentile}
+        topHabitName={shareCardData?.topHabitName ?? ''}
+        weeklyStars={weeklyStars}
+        tierName={rankName}
       />
       <View style={styles.topbar}>
         <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile' as never)} activeOpacity={0.85} accessibilityLabel={t.openProfile} accessibilityRole="button">

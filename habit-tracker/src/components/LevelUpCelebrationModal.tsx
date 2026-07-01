@@ -32,9 +32,10 @@ interface Props {
   tierOrder: number;
   tierName: string;
   onDismiss: () => void;
+  onShare?: () => void;
 }
 
-export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismiss }: Props) {
+export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismiss, onShare }: Props) {
   const t = useTranslations();
   const { colors: C } = useTheme();
   const reduceMotion = useReduceMotion();
@@ -154,6 +155,17 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
           >
             <Text style={[styles.dismissBtnText, { color: C.onAccent }]}>{t.levelUpDismiss}</Text>
           </TouchableOpacity>
+          {onShare && (
+            <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={() => { onDismiss(); setTimeout(onShare, 300); }}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={t.shareAchievement}
+            >
+              <Text style={[styles.shareBtnText, { color: C.muted }]}>{t.shareAchievement}</Text>
+            </TouchableOpacity>
+          )}
         </TouchableOpacity>
       </TouchableOpacity>
     </Modal>
@@ -213,5 +225,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: FontFamily.extraBold,
     letterSpacing: 0.3,
+  },
+  shareBtn: {
+    marginTop: Spacing.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
+  shareBtnText: {
+    fontSize: 14,
+    fontFamily: FontFamily.semiBold,
   },
 });

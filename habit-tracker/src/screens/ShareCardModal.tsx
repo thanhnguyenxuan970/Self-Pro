@@ -1,0 +1,251 @@
+import React, { useRef, useState } from 'react';
+import {
+  Modal, View, Text, TouchableOpacity, StyleSheet,
+  ActivityIndicator, ScrollView, Dimensions,
+} from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as Sharing from 'expo-sharing';
+import { captureRef } from 'react-native-view-shot';
+import { ShareCard, CARD_W, CARD_H } from '../components/ShareCard';
+import { FontFamily, Radii, Spacing } from '../config/theme';
+import { useTheme, useTranslations } from '../hooks/useSettings';
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const PREVIEW_SCALE = (SCREEN_W - 48) / CARD_W;
+const MARGIN_H = CARD_W * (PREVIEW_SCALE - 1) / 2;   // negative — shrinks layout
+const MARGIN_V = CARD_H * (PREVIEW_SCALE - 1) / 2;   // negative — shrinks layout
+
+interface Props {
+  visible: boolean;
+  onClose: () => void;
+  streakCount: number;
+  daysDone: number;
+  percentile: number;
+  topHabitName: string;
+  weeklyStars: number;
+  tierName: string;
+}
+
+export function ShareCardModal({
+  visible, onClose,
+  streakCount, daysDone, percentile, topHabitName, weeklyStars, tierName,
+}: Props) {
+  const { colors: C } = useTheme();
+  const t = useTranslations();
+  const [beforeUri, setBeforeUri] = useState<string | undefined>();
+  const [afterUri, setAfterUri] = useState<string | undefined>();
+  const [capturing, setCapturing] = useState(false);
+  const cardRef = useRef<View>(null);
+
+  async function pickPhoto(slot: 'before' | 'after') {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.9,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+    if (!result.canceled && result.assets[0]) {
+      if (slot === 'before') setBeforeUri(result.assets[0].uri);
+      else setAfterUri(result.assets[0].uri);
+    }
+  }
+
+  async function handleShare() {
+    if (!cardRef.current) return;
+    setCapturing(true);
+    try {
+      const uri = await captureRef(cardRef, { format: 'png', quality: 1, result: 'tmpfile' });
+      await Sharing.shareAsync(uri, { mimeType: 'image/png', UTI: 'public.png' });
+    } catch {
+      // share cancelled or failed — no-op
+    } finally {
+      setCapturing(false);
+    }
+  }
+
+  function handleClose() {
+    setBeforeUri(undefined);
+    setAfterUri(undefined);
+    onClose();
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <View style={styles.backdrop}>
+        <View style={[styles.sheet, { backgroundColor: C.surface }]}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: C.inkDark }]}>{t.shareTitle}</Text>
+            <TouchableOpacity
+              onPress={handleClose}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel={t.close}
+            >
+              <Text style={[styles.closeIcon, { color: C.muted }]}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            {/* Card preview — scaled to fit screen width */}
+            <View style={styles.previewContainer}>
+              <ShareCard
+                ref={cardRef}
+                streakCount={streakCount}
+                daysDone={daysDone}
+                percentile={percentile}
+                topHabitName={topHabitName}
+                weeklyStars={weeklyStars}
+                tierName={tierName}
+                beforeUri={beforeUri}
+                afterUri={afterUri}
+              />
+            </View>
+
+            {/* Photo pickers */}
+            <View style={styles.photoPickerRow}>
+              <TouchableOpacity
+                style={[
+                  styles.photoPickerBtn,
+                  { backgroundColor: C.surface2, borderColor: beforeUri ? '#35D68B' : C.line },
+                ]}
+                onPress={() => pickPhoto('before')}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.photoPickerIcon, { color: beforeUri ? '#35D68B' : C.muted }]}>
+                  {beforeUri ? '✓' : '📷'}
+                </Text>
+                <Text style={[styles.photoPickerLabel, { color: C.ink2 }]}>{t.shareBefore}</Text>
+              </TouchableOpacity>
+
+              <Text style={[styles.photoPickerArrow, { color: C.faint }]}>→</Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.photoPickerBtn,
+                  { backgroundColor: C.surface2, borderColor: afterUri ? '#35D68B' : C.line },
+                ]}
+                onPress={() => pickPhoto('after')}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.photoPickerIcon, { color: afterUri ? '#35D68B' : C.muted }]}>
+                  {afterUri ? '✓' : '📷'}
+                </Text>
+                <Text style={[styles.photoPickerLabel, { color: C.ink2 }]}>{t.shareAfter}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.hint, { color: C.faint }]}>{t.sharePhotoHint}</Text>
+          </ScrollView>
+
+          {/* Share CTA */}
+          <TouchableOpacity
+            style={[styles.shareBtn, capturing && styles.shareBtnDisabled]}
+            onPress={handleShare}
+            disabled={capturing}
+            activeOpacity={0.85}
+          >
+            {capturing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.shareBtnText}>{t.shareBtn}</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  sheet: {
+    borderTopLeftRadius: Radii.xxl,
+    borderTopRightRadius: Radii.xxl,
+    paddingTop: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.xl,
+    maxHeight: '92%',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  title: {
+    fontSize: 18,
+    fontFamily: FontFamily.bold,
+  },
+  closeIcon: {
+    fontSize: 18,
+    fontFamily: FontFamily.semiBold,
+  },
+  scrollContent: {
+    gap: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  previewContainer: {
+    // negative margins absorb the layout space the transform leaves behind
+    marginHorizontal: MARGIN_H,
+    marginVertical: MARGIN_V,
+    transform: [{ scale: PREVIEW_SCALE }],
+    alignSelf: 'center',
+  },
+  photoPickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    justifyContent: 'center',
+  },
+  photoPickerBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radii.lg,
+    borderWidth: 1.5,
+  },
+  photoPickerIcon: {
+    fontSize: 18,
+  },
+  photoPickerLabel: {
+    fontSize: 14,
+    fontFamily: FontFamily.semiBold,
+  },
+  photoPickerArrow: {
+    fontSize: 18,
+    fontFamily: FontFamily.bold,
+  },
+  hint: {
+    fontSize: 12,
+    fontFamily: FontFamily.regular,
+    textAlign: 'center',
+    lineHeight: 17,
+  },
+  shareBtn: {
+    marginTop: Spacing.sm,
+    backgroundColor: '#35D68B',
+    paddingVertical: 16,
+    borderRadius: Radii.pill,
+    alignItems: 'center',
+  },
+  shareBtnDisabled: {
+    opacity: 0.65,
+  },
+  shareBtnText: {
+    fontSize: 16,
+    fontFamily: FontFamily.extraBold,
+    color: '#fff',
+    letterSpacing: 0.2,
+  },
+});

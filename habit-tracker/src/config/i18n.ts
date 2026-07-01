@@ -366,6 +366,18 @@ const vi = {
 
   // Auto-translate
   translating: 'Đang dịch…',
+
+  // Share card
+  shareTitle: 'Chia sẻ thành tích',
+  shareBtn: 'Chia sẻ lên story ↗',
+  shareBefore: 'Ảnh trước',
+  shareAfter: 'Ảnh sau',
+  sharePhotoHint: 'Tuỳ chọn — thêm ảnh trước & sau để card đẹp hơn',
+  shareStreakLabel: (n: number) => `${n} ngày streak`,
+  shareDaysLabel: (n: number) => `${n} ngày hành trình`,
+  shareTopHabitLabel: 'Hoạt động nổi bật',
+  sharePercentileLabel: (n: number) => `Top ${n}% người dùng`,
+  shareAchievement: '📸 Chia sẻ',
 };
 
 const en: typeof vi = {
@@ -737,6 +749,18 @@ const en: typeof vi = {
 
   // Auto-translate
   translating: 'Translating…',
+
+  // Share card
+  shareTitle: 'Share your achievement',
+  shareBtn: 'Share to story ↗',
+  shareBefore: 'Before photo',
+  shareAfter: 'After photo',
+  sharePhotoHint: 'Optional — add before & after photos to make it pop',
+  shareStreakLabel: (n: number) => `${n}-day streak`,
+  shareDaysLabel: (n: number) => `${n}-day journey`,
+  shareTopHabitLabel: 'Top activity',
+  sharePercentileLabel: (n: number) => `Top ${n}% of users`,
+  shareAchievement: '📸 Share',
 };
 
 export type Strings = typeof vi;
