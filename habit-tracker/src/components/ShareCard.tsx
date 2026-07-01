@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontFamily } from '../config/theme';
+import { useTranslations } from '../hooks/useSettings';
 
 export const CARD_W = 400;
 export const CARD_H = 711;
@@ -27,6 +28,7 @@ export const ShareCard = React.forwardRef<View, ShareCardProps>(function ShareCa
   { streakCount, daysDone, percentile, topHabitName, weeklyStars, tierName, beforeUri, afterUri },
   ref,
 ) {
+  const t = useTranslations();
   const hasPhotos = !!(beforeUri || afterUri);
   const journeyPct = Math.min(1, daysDone / 90);
 
@@ -46,9 +48,9 @@ export const ShareCard = React.forwardRef<View, ShareCardProps>(function ShareCa
       <View style={styles.heroSection}>
         <Text style={styles.heroEmoji}>🔥</Text>
         <Text style={styles.heroNumber}>{streakCount}</Text>
-        <Text style={styles.heroLabel}>ngày streak liên tiếp</Text>
+        <Text style={styles.heroLabel}>{t.shareStreakUnit}</Text>
         {weeklyStars > 0 && (
-          <Text style={styles.starsRow}>★ {weeklyStars} sao tuần này</Text>
+          <Text style={styles.starsRow}>{t.shareWeeklyStars(weeklyStars)}</Text>
         )}
       </View>
 
@@ -61,7 +63,7 @@ export const ShareCard = React.forwardRef<View, ShareCardProps>(function ShareCa
             ) : (
               <View style={[styles.photo, styles.photoEmpty]} />
             )}
-            <Text style={styles.photoLabel}>Trước</Text>
+            <Text style={styles.photoLabel}>{t.shareBefore}</Text>
           </View>
           <Text style={styles.photoArrow}>→</Text>
           <View style={styles.photoSlot}>
@@ -70,7 +72,7 @@ export const ShareCard = React.forwardRef<View, ShareCardProps>(function ShareCa
             ) : (
               <View style={[styles.photo, styles.photoEmpty]} />
             )}
-            <Text style={styles.photoLabel}>Sau</Text>
+            <Text style={styles.photoLabel}>{t.shareAfter}</Text>
           </View>
         </View>
       )}
@@ -79,24 +81,24 @@ export const ShareCard = React.forwardRef<View, ShareCardProps>(function ShareCa
       <View style={styles.progressSection}>
         {topHabitName !== '' && (
           <>
-            <Text style={styles.habitSectionLabel}>Hoạt động nổi bật</Text>
+            <Text style={styles.habitSectionLabel}>{t.shareTopHabitLabel}</Text>
             <Text style={styles.habitName} numberOfLines={1}>{topHabitName}</Text>
           </>
         )}
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${Math.round(journeyPct * 100)}%` as `${number}%` }]} />
         </View>
-        <Text style={styles.progressText}>{daysDone} ngày hành trình</Text>
+        <Text style={styles.progressText}>{t.shareDaysLabel(daysDone)}</Text>
       </View>
 
       {/* Percentile */}
       <View style={styles.percentileChip}>
-        <Text style={styles.percentileText}>🏆 Top {percentile}% người dùng</Text>
+        <Text style={styles.percentileText}>🏆 {t.sharePercentileLabel(percentile)}</Text>
       </View>
 
       {/* Watermark */}
       <View style={styles.watermark}>
-        <Text style={styles.watermarkText}>habi · tải ngay để bắt đầu</Text>
+        <Text style={styles.watermarkText}>{t.shareWatermark}</Text>
       </View>
     </View>
   );

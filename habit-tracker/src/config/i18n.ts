@@ -378,6 +378,9 @@ const vi = {
   shareTopHabitLabel: 'Hoạt động nổi bật',
   sharePercentileLabel: (n: number) => `Top ${n}% người dùng`,
   shareAchievement: '📸 Chia sẻ',
+  shareStreakUnit: 'ngày streak',
+  shareWeeklyStars: (n: number) => `★ ${n} sao`,
+  shareWatermark: 'habi · tải ngay để bắt đầu',
 };
 
 const en: typeof vi = {
@@ -761,6 +764,9 @@ const en: typeof vi = {
   shareTopHabitLabel: 'Top activity',
   sharePercentileLabel: (n: number) => `Top ${n}% of users`,
   shareAchievement: '📸 Share',
+  shareStreakUnit: 'day streak',
+  shareWeeklyStars: (n: number) => `★ ${n} stars`,
+  shareWatermark: 'habi · download now',
 };
 
 export type Strings = typeof vi;
