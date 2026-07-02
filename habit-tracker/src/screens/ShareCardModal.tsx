@@ -112,48 +112,54 @@ export function ShareCardModal({
               <TouchableOpacity
                 style={[
                   styles.photoPickerBtn,
-                  { backgroundColor: C.surface2, borderColor: beforeUri ? '#35D68B' : C.line },
+                  { backgroundColor: C.surface2, borderColor: beforeUri ? C.primary : C.line },
                 ]}
                 onPress={() => pickPhoto('before')}
                 activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={t.shareBefore}
               >
-                <Text style={[styles.photoPickerIcon, { color: beforeUri ? '#35D68B' : C.muted }]}>
+                <Text style={[styles.photoPickerIcon, { color: beforeUri ? C.primary : C.muted }]}>
                   {beforeUri ? '✓' : '📷'}
                 </Text>
                 <Text style={[styles.photoPickerLabel, { color: C.ink2 }]}>{t.shareBefore}</Text>
               </TouchableOpacity>
 
-              <Text style={[styles.photoPickerArrow, { color: C.faint }]}>→</Text>
+              <Text style={[styles.photoPickerArrow, { color: C.muted }]}>→</Text>
 
               <TouchableOpacity
                 style={[
                   styles.photoPickerBtn,
-                  { backgroundColor: C.surface2, borderColor: afterUri ? '#35D68B' : C.line },
+                  { backgroundColor: C.surface2, borderColor: afterUri ? C.primary : C.line },
                 ]}
                 onPress={() => pickPhoto('after')}
                 activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={t.shareAfter}
               >
-                <Text style={[styles.photoPickerIcon, { color: afterUri ? '#35D68B' : C.muted }]}>
+                <Text style={[styles.photoPickerIcon, { color: afterUri ? C.primary : C.muted }]}>
                   {afterUri ? '✓' : '📷'}
                 </Text>
                 <Text style={[styles.photoPickerLabel, { color: C.ink2 }]}>{t.shareAfter}</Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.hint, { color: C.faint }]}>{t.sharePhotoHint}</Text>
+            <Text style={[styles.hint, { color: C.muted }]}>{t.sharePhotoHint}</Text>
           </ScrollView>
 
           {/* Share CTA */}
           <TouchableOpacity
-            style={[styles.shareBtn, capturing && styles.shareBtnDisabled]}
+            style={[styles.shareBtn, { backgroundColor: C.primary }, capturing && styles.shareBtnDisabled]}
             onPress={handleShare}
             disabled={capturing}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={t.shareBtn}
           >
             {capturing ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={C.white} />
             ) : (
-              <Text style={styles.shareBtnText}>{t.shareBtn}</Text>
+              <Text style={[styles.shareBtnText, { color: C.white }]}>{t.shareBtn}</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -236,7 +242,6 @@ const styles = StyleSheet.create({
   },
   shareBtn: {
     marginTop: Spacing.sm,
-    backgroundColor: '#35D68B',
     paddingVertical: 16,
     borderRadius: Radii.pill,
     alignItems: 'center',
@@ -247,7 +252,6 @@ const styles = StyleSheet.create({
   shareBtnText: {
     fontSize: 16,
     fontFamily: FontFamily.extraBold,
-    color: '#fff',
     letterSpacing: 0.2,
   },
 });

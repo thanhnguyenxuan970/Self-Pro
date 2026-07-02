@@ -381,6 +381,14 @@ const vi = {
   shareStreakUnit: 'ngày streak',
   shareWeeklyStars: (n: number) => `★ ${n} sao`,
   shareWatermark: 'habi · tải ngay để bắt đầu',
+
+  // SignInScreen
+  signInBtn: 'Đăng nhập bằng Google',
+  signInTagline: 'vòng lặp thói quen mỗi ngày',
+  signInHint: 'MVP · Xác thực qua Google · Dữ liệu lưu trên máy',
+
+  // CalendarScreen DOW (Mon-Sun order)
+  calDow: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
 };
 
 const en: typeof vi = {
@@ -767,6 +775,14 @@ const en: typeof vi = {
   shareStreakUnit: 'day streak',
   shareWeeklyStars: (n: number) => `★ ${n} stars`,
   shareWatermark: 'habi · download now',
+
+  // SignInScreen
+  signInBtn: 'Sign in with Google',
+  signInTagline: 'daily completion, the loop',
+  signInHint: 'MVP · Google auth · Data stored on device',
+
+  // CalendarScreen DOW (Mon-Sun order)
+  calDow: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'],
 };
 
 export type Strings = typeof vi;

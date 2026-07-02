@@ -56,10 +56,12 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
   const particles = particlesRef.current;
 
   const runningRef = useRef(false);
+  const burstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!visible) return;
     runningRef.current = true;
+    if (reduceMotion) return;
 
     function burst() {
       if (!runningRef.current) return;
@@ -90,7 +92,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
         )
       ).start(({ finished }) => {
         if (finished && runningRef.current) {
-          setTimeout(burst, 450);
+          burstTimerRef.current = setTimeout(burst, 450);
         }
       });
     }
@@ -98,13 +100,17 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
     burst();
     return () => {
       runningRef.current = false;
+      if (burstTimerRef.current != null) {
+        clearTimeout(burstTimerRef.current);
+        burstTimerRef.current = null;
+      }
       particles.forEach(p => {
         p.tx.stopAnimation();
         p.ty.stopAnimation();
         p.opacity.stopAnimation();
       });
     };
-  }, [visible]);
+  }, [visible, reduceMotion]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>

@@ -73,7 +73,7 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
           </Svg>
         </View>
         <Text style={styles.title}>Habi</Text>
-        <Text style={styles.subtitle}>daily completion, the loop</Text>
+        <Text style={styles.subtitle}>{t.signInTagline}</Text>
 
         {loading ? (
           <ActivityIndicator size="large" color={GREEN.primary} style={{ marginTop: Spacing.xl }} />
@@ -83,13 +83,15 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
             onPress={handleGoogleSignIn}
             disabled={loading}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t.signInBtn}
           >
             <Text style={styles.googleIcon}>G</Text>
-            <Text style={styles.googleButtonText}>Đăng nhập bằng Google</Text>
+            <Text style={styles.googleButtonText}>{t.signInBtn}</Text>
           </TouchableOpacity>
         )}
 
-        <Text style={styles.hint}>MVP · Xác thực qua Google · Dữ liệu lưu trên máy</Text>
+        <Text style={styles.hint}>{t.signInHint}</Text>
       </View>
     </View>
   );
@@ -135,7 +137,7 @@ function makeStyles(C: AppColors) {
     googleButtonText: { color: C.inkDark, fontFamily: FontFamily.semiBold, fontSize: 16 },
     hint: {
       ...Typography.caption,
-      color: C.faint,
+      color: C.muted,
       marginTop: Spacing.lg,
       textAlign: 'center',
     },

@@ -204,7 +204,6 @@ const styles = StyleSheet.create({
     color: MUTED,
     fontFamily: FontFamily.semiBold,
     letterSpacing: 0.4,
-    textTransform: 'uppercase',
   },
   habitName: {
     fontSize: 20,

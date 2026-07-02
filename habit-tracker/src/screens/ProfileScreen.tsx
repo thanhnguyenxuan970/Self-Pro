@@ -113,7 +113,7 @@ function makePhStyles(C: AppColors) {
     avatarFallback: { alignItems: 'center', justifyContent: 'center' },
     avatarInitial: { fontSize: 32, fontFamily: FontFamily.extraBold, color: C.primaryPress },
     name: { fontSize: 20, fontFamily: FontFamily.extraBold, letterSpacing: -0.3, color: C.inkDark, marginTop: 10 },
-    sub: { fontSize: 12.5, color: C.muted, marginTop: 3 },
+    sub: { fontSize: 12.5, color: C.ink2, marginTop: 3 },
     lifeRow: {
       flexDirection: 'row', marginHorizontal: Spacing.lg, marginTop: 14,
       backgroundColor: C.surface, borderWidth: 1, borderColor: C.line,

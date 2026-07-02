@@ -46,6 +46,9 @@ function LanguageOption({ lang, l, isLast, onPress, styles }: { lang: string; l:
       style={[styles.row, isLast && styles.rowLast]}
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole="radio"
+      accessibilityLabel={l === 'vi' ? 'Tiếng Việt' : 'English'}
+      accessibilityState={{ checked: lang === l }}
     >
       <Text style={styles.rowIc}>{l === 'vi' ? '🇻🇳' : '🇬🇧'}</Text>
       <Text style={styles.rowLabel}>{l === 'vi' ? 'Tiếng Việt' : 'English'}</Text>
@@ -161,7 +164,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
 
         {/* Language */}
         <Text style={styles.sectionLabel}>{t.sectionLanguage}</Text>
-        <View style={styles.card}>
+        <View style={styles.card} accessibilityRole="radiogroup">
           {(['vi', 'en'] as AppLanguage[]).map((l, idx) => (
             <LanguageOption
               key={l}
@@ -283,7 +286,7 @@ function makeStyles(C: AppColors) {
       marginHorizontal: Spacing.lg,
       marginTop: 12,
       fontSize: 12,
-      color: C.muted,
+      color: C.ink2,
       lineHeight: 18,
     },
     reminderTime: {

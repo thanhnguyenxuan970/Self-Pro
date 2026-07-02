@@ -18,7 +18,6 @@ import { BackfillSheet } from '../components/BackfillSheet';
 import { canBackfill } from '../game/backfill';
 import { getLocalDate, getWeekStart, getWeekStartFor } from '../utils/formatters';
 
-const DOW_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 function toYearMonth(date: Date): string {
   const y = date.getFullYear();
@@ -178,7 +177,7 @@ export function CalendarScreen() {
 
       {/* DOW Labels */}
       <View style={styles.dowRow}>
-        {DOW_LABELS.map((l, i) => (
+        {t.calDow.map((l, i) => (
           <Text key={i} style={styles.dowLabel}>{l}</Text>
         ))}
       </View>

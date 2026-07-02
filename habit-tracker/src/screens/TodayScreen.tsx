@@ -201,7 +201,7 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
                   value={duration}
                   onChangeText={setDuration}
                   placeholder="0"
-                  placeholderTextColor={colors.faint}
+                  placeholderTextColor={colors.muted}
                   autoFocus
                 />
                 <View style={styles.unitToggle}>
@@ -654,7 +654,7 @@ function makeStyles(C: AppColors) {
     greet: { flex: 1 },
     hi: { fontSize: 15, fontFamily: FontFamily.extraBold, letterSpacing: -0.2, color: C.inkDark },
     date: { fontSize: 12, color: C.ink2, marginTop: 1 },
-    gearBtn: { padding: 6 },
+    gearBtn: { padding: 11 },
     gearIcon: { fontSize: 22 },
 
     hero: {
@@ -695,7 +695,7 @@ function makeStyles(C: AppColors) {
     },
     selActions: { flexDirection: 'row', gap: 8, marginRight: Spacing.lg, marginTop: 20 },
     selBtn: {
-      paddingHorizontal: 10, paddingVertical: 5,
+      paddingHorizontal: 10, paddingVertical: 10,
       backgroundColor: C.surface2, borderRadius: Radii.sm,
       borderWidth: 1, borderColor: C.line2,
     },
@@ -720,7 +720,7 @@ function makeStyles(C: AppColors) {
     },
     suggestionChipText: { color: C.primary, fontSize: 13, fontFamily: FontFamily.semiBold },
     suggestionDismiss: { marginLeft: 8, padding: 4 },
-    suggestionDismissText: { color: C.faint, fontSize: 14, fontFamily: FontFamily.bold },
+    suggestionDismissText: { color: C.muted, fontSize: 14, fontFamily: FontFamily.bold },
 
     empty: { padding: 36, paddingHorizontal: 12, alignItems: 'center' },
     emptyEmoji: { fontSize: 42, marginBottom: 8, opacity: 0.6 },

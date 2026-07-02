@@ -44,7 +44,7 @@ interface DurationPickerProps {
 
 function DurationPicker({ durationMin, onSelect, colors, styles }: DurationPickerProps) {
   return (
-    <View style={styles.durationRow}>
+    <View style={styles.durationRow} accessibilityRole="radiogroup">
       {DURATION_OPTIONS.map(opt => {
         const on = durationMin === opt.mins;
         return (
@@ -195,7 +195,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
                 accessibilityLabel={t.backfillConfirm}
               >
                 {isPending
-                  ? <ActivityIndicator color="#fff" />
+                  ? <ActivityIndicator color={colors.white} />
                   : <Text style={styles.ctaText}>{t.backfillConfirm}</Text>
                 }
               </TouchableOpacity>
@@ -321,7 +321,7 @@ function makeStyles(colors: AppColors) {
     },
     durChip: {
       flex: 1,
-      paddingVertical: 9,
+      paddingVertical: 16,
       borderRadius: Radii.sm,
       borderWidth: 1,
       borderColor: colors.line,
@@ -345,7 +345,7 @@ function makeStyles(colors: AppColors) {
     ctaText: {
       fontSize: 15,
       fontFamily: FontFamily.bold,
-      color: '#fff',
+      color: colors.white,
     },
   });
 }

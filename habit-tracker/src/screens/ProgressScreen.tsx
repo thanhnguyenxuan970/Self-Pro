@@ -465,7 +465,7 @@ function makeStyles(C: AppColors) {
       alignItems: 'center', paddingVertical: 24, marginHorizontal: Spacing.lg,
     },
     logEmpty: {
-      textAlign: 'center', color: C.muted, fontSize: 13,
+      textAlign: 'center', color: C.ink2, fontSize: 13,
       marginBottom: 14,
     },
     logEmptyCta: {

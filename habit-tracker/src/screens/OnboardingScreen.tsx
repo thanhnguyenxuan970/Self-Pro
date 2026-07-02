@@ -39,15 +39,19 @@ export function OnboardingScreen({ onComplete }: Props) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    if (reduceMotion) { fadeAnim.setValue(1); slideAnim.setValue(0); return; }
     fadeAnim.setValue(0);
     slideAnim.setValue(24);
-    Animated.parallel([
+    const anim = Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
       Animated.spring(slideAnim, { toValue: 0, tension: 100, friction: 8, useNativeDriver: true }),
-    ]).start();
+    ]);
+    anim.start();
+    return () => anim.stop();
   }, [step]);
 
   useEffect(() => {
+    if (reduceMotion) return;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.06, duration: 1800, useNativeDriver: true }),
@@ -167,10 +171,11 @@ export function OnboardingScreen({ onComplete }: Props) {
                 value={birthYear}
                 onChangeText={setBirthYear}
                 placeholder={t.onboardBirthYearPlaceholder}
-                placeholderTextColor={colors.faint}
+                placeholderTextColor={colors.muted}
                 keyboardType="number-pad"
                 maxLength={4}
                 returnKeyType="done"
+                accessibilityLabel={t.onboardBirthYearOptional}
               />
 
               <TouchableOpacity

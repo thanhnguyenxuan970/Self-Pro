@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
+import { useTranslations } from '../hooks/useSettings';
 
 export type PlanId = 'monthly' | 'yearly' | 'lifetime';
 
@@ -70,6 +71,7 @@ function RankArt({ color, gold }: { color: string; gold: string }) {
 
 export default function PaywallScreen({ onClose, onRestore, onSubscribe }: PaywallScreenProps) {
   const { colors: C, styles } = useScreenCommons(makeStyles);
+  const t = useTranslations();
   const [selected, setSelected] = useState<PlanId>('yearly');
   const [loading, setLoading] = useState(false);
   const current = PLANS.find((p) => p.id === selected) ?? PLANS[1];
@@ -79,7 +81,7 @@ export default function PaywallScreen({ onClose, onRestore, onSubscribe }: Paywa
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityLabel="Đóng" accessibilityRole="button" activeOpacity={0.7}>
+          <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityLabel={t.close} accessibilityRole="button" activeOpacity={0.7}>
             <Text style={styles.close}>✕</Text>
           </TouchableOpacity>
           <View style={styles.proBadge}>
