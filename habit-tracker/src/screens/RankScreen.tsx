@@ -146,8 +146,8 @@ export function RankScreen() {
           <View style={styles.rankhero}>
             <View style={[styles.rankheroGlow, { backgroundColor: cfg.color }]} importantForAccessibility="no" />
             <RankMascot ref={mascotRef} tier={(currentTier?.tier_order ?? 1) - 1} size={100} loop reduceMotion={reduceMotion} />
-            <Text style={styles.rankNm}>{currentTier?.rank_name}</Text>
-            <Text style={styles.rankEn}>{cfg.descriptor}</Text>
+            <Text style={styles.rankNm}>{t.rankNameMap[currentTier?.rank_name ?? ''] ?? currentTier?.rank_name}</Text>
+            <Text style={styles.rankEn}>{t.rankQuoteMap[currentTier?.rank_name ?? ''] ?? cfg.descriptor}</Text>
             <View style={styles.rankWk}>
               <Text style={styles.rankWkTxt}>{t.weekStars(currentStars)}</Text>
             </View>
@@ -155,14 +155,14 @@ export function RankScreen() {
               <View style={[styles.barFill, { width: `${Math.round(progressPct * 100)}%` as `${number}%` }]} />
             </View>
             {starsToNext > 0 ? (
-              <Text style={styles.nextCap}>{t.nextRank(starsToNext, nextTier?.rank_name ?? '')}</Text>
+              <Text style={styles.nextCap}>{t.nextRank(starsToNext, t.rankNameMap[nextTier?.rank_name ?? ''] ?? nextTier?.rank_name ?? '')}</Text>
             ) : (
               <Text style={styles.nextCap}>{t.maxRank}</Text>
             )}
           </View>
         ) : (
           <View style={styles.rankEmptyWrap}>
-            <RankEmptyState currentStars={currentStars} nextRankName={nextTier?.rank_name ?? 'Delulu'} />
+            <RankEmptyState currentStars={currentStars} nextRankName={t.rankNameMap[nextTier?.rank_name ?? 'Delulu'] ?? nextTier?.rank_name ?? 'Delulu'} />
           </View>
         )}
 
@@ -206,7 +206,7 @@ export function RankScreen() {
                     </View>
                     <View style={styles.rkInfo}>
                       <Text style={styles.rkA}>{t.weekItem(week.week_start)}</Text>
-                      <Text style={styles.rkB}>{weekTier?.rank_name ?? '—'}</Text>
+                      <Text style={styles.rkB}>{weekTier ? (t.rankNameMap[weekTier.rank_name] ?? weekTier.rank_name) : '—'}</Text>
                     </View>
                     <Text style={styles.rkThr}>{week.weekly_stars} ★</Text>
                   </View>

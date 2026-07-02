@@ -18,6 +18,7 @@ import Svg, { G, Polygon, Path, Circle, Rect, Ellipse, Line } from 'react-native
 import * as Haptics from 'expo-haptics';
 import { RANKS, STAR_POINTS, type Channel, type SvgEl } from '../config/ranks.config';
 import { playRankSound } from '../audio/rankSound';
+import { useTranslations } from '../hooks/useSettings';
 
 // Interpolate a channel from p (0→1); returns constant dflt if channel absent
 function chanInterp(p: Animated.Value, arr: Channel | undefined, dflt: number): Animated.AnimatedInterpolation<number> {
@@ -71,6 +72,7 @@ interface Props { tier: number; size?: number; loop?: boolean; reduceMotion?: bo
 export const RankMascot = forwardRef<RankMascotHandle, Props>(
   ({ tier, size = 120, loop = true, reduceMotion = false }, ref) => {
     const rank = RANKS[Math.min(Math.max(tier, 0), RANKS.length - 1)];
+    const t = useTranslations();
     const p = useRef(new Animated.Value(0)).current;
     const pop = useRef(new Animated.Value(1)).current;
     const loopAnim = useRef<Animated.CompositeAnimation | null>(null);
@@ -122,7 +124,7 @@ export const RankMascot = forwardRef<RankMascotHandle, Props>(
         style={{ width: size, height: size, transform: [{ scale: pop }] }}
         accessible
         accessibilityRole="image"
-        accessibilityLabel={rank.name}
+        accessibilityLabel={t.rankNameMap[rank.name] ?? rank.name}
       >
         <Animated.View
           style={{

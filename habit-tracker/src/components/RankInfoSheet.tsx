@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';
-import { useTheme } from '../hooks/useSettings';
+import { useTheme, useTranslations } from '../hooks/useSettings';
 
 interface RankTier {
   id: number;
@@ -25,6 +25,7 @@ const POINTS: { e: string; t: string; s: string }[] = [
 
 export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props) {
   const { colors: C } = useTheme();
+  const t = useTranslations();
   const styles = makeStyles(C);
   const sorted = [...tiers].sort((a, b) => a.tier_order - b.tier_order);
 
@@ -60,7 +61,7 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
                   <View style={[styles.lnum, cur && styles.lnumCur]}>
                     <Text style={[styles.lnumText, cur && styles.lnumTextCur]}>{tier.tier_order}</Text>
                   </View>
-                  <Text style={styles.lname}>{tier.rank_name}</Text>
+                  <Text style={styles.lname}>{t.rankNameMap[tier.rank_name] ?? tier.rank_name}</Text>
                   {cur ? (
                     <View style={styles.youtag}>
                       <Text style={styles.youtagText}>BẠN</Text>

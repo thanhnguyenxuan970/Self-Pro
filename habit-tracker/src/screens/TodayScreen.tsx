@@ -316,6 +316,7 @@ export function TodayScreen() {
     ? rankData.tiers.find(t => t.id === rankData.currentTierId) ?? null
     : null;
   const rankName = currentTier?.rank_name ?? '—';
+  const rankDisplayName = currentTier ? (t.rankNameMap[rankName] ?? rankName) : rankName;
   const rankEmoji = currentTier ? (RANK_EMOJI[currentTier.tier_order] ?? '⭐') : '⭐';
   const percentile = tierPercentile(currentTier?.tier_order ?? 1);
 
@@ -479,7 +480,7 @@ export function TodayScreen() {
       <LevelUpCelebrationModal
         visible={pendingLevelUp !== null}
         tierOrder={pendingLevelUp?.tierOrder ?? 1}
-        tierName={pendingLevelUp?.tierName ?? ''}
+        tierName={t.rankNameMap[pendingLevelUp?.tierName ?? ''] ?? pendingLevelUp?.tierName ?? ''}
         onDismiss={() => {
           setPendingLevelUp(null);
           AsyncStorage.removeItem(PENDING_LEVELUP_KEY).catch(() => {});
@@ -494,7 +495,7 @@ export function TodayScreen() {
         percentile={percentile}
         topHabitName={shareCardData?.topHabitName ?? ''}
         weeklyStars={weeklyStars}
-        tierName={rankName}
+        tierName={rankDisplayName}
       />
       <View style={styles.topbar}>
         <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile' as never)} activeOpacity={0.85} accessibilityLabel={t.openProfile} accessibilityRole="button">
@@ -515,7 +516,7 @@ export function TodayScreen() {
           <View style={styles.heroTopRow}>
             <Text style={styles.heroLabel}>{t.heroLabel}</Text>
             <Animated.View style={[styles.rankChip, { transform: [{ scale: rankBounceAnim }] }]}>
-              <Text style={styles.rankChipText}>{rankEmoji} {rankName}</Text>
+              <Text style={styles.rankChipText}>{rankEmoji} {rankDisplayName}</Text>
             </Animated.View>
           </View>
           <View style={styles.heroBal}>

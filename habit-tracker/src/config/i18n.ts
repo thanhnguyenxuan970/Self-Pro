@@ -161,14 +161,25 @@ const vi = {
   philoCaption: 'Triết lý: process-focused · zero FOMO · zero so sánh độc hại',
   weeklyHistory: 'Lịch sử các tuần',
   weekItem: (start: string) => `Tuần ${start}`,
+  // Rank display name (short, fits UI)
+  rankNameMap: {
+    'Delulu':         'Delulu',
+    'Mewing':         'Mewing',
+    'Rizz':           'Rizz',
+    'Gigachad':       'Gigachad',
+    'Aura Farmer':    'Full Aura',
+    'Main Character': 'Main Char',
+    'GOATED':         'GOATED',
+  } as Record<string, string>,
+  // Rank quote (Gen-Z phrase, shown under rank name/mascot/share card)
   rankQuoteMap: {
-    'Delulu':         '"delulu là solulu"',
-    'Mewing':         '"đang mewing mạnh lắm"',
-    'Rizz':           '"hit the griddy 💃"',
-    'Gigachad':       '"quá swole bro"',
-    'Aura Farmer':    '"aura đang tăng full"',
-    'Main Character': '"plot armor 100%"',
-    'GOATED':         '"infinite W, no cap"',
+    'Delulu':         'Vượt mức pickleball',
+    'Mewing':         'Coi chừng đó',
+    'Rizz':           'Keo dị má',
+    'Gigachad':       'Mày khoải',
+    'Aura Farmer':    'Khao khát center',
+    'Main Character': 'Vô chùa ko bik lay ai',
+    'GOATED':         'infinite W, no cap 🐐',
   } as Record<string, string>,
 
   // LogActivitySheet
@@ -555,6 +566,15 @@ const en: typeof vi = {
   philoCaption: 'Philosophy: process-focused · zero FOMO · zero toxic comparison',
   weeklyHistory: 'Weekly history',
   weekItem: (start) => `Week ${start}`,
+  rankNameMap: {
+    'Delulu':         'Delulu',
+    'Mewing':         'Mewing',
+    'Rizz':           'Rizz',
+    'Gigachad':       'Gigachad',
+    'Aura Farmer':    'Aura Farmer',
+    'Main Character': 'Main Character',
+    'GOATED':         'GOATED',
+  } as Record<string, string>,
   rankQuoteMap: {
     'Delulu':         '"delulu is the solulu"',
     'Mewing':         '"locked in, jaw tight"',
