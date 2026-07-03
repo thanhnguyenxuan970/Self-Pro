@@ -542,6 +542,18 @@ export function TodayScreen() {
           <Text style={styles.heroProgCap}>{t.streakBonus(DAILY_BONUS_THRESHOLD)}</Text>
         </View>
 
+        <TouchableOpacity
+          style={styles.challengeEntryCard}
+          onPress={() => navigation.navigate('ChallengeHub' as never)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t.challengeHomeCard}
+        >
+          <Text style={styles.challengeEntryIcon}>🎯</Text>
+          <Text style={styles.challengeEntryText}>{t.challengeHomeCard}</Text>
+          <Text style={styles.challengeEntryArrow}>→</Text>
+        </TouchableOpacity>
+
         {!selectionMode && suggestions
           .filter(s => !dismissedSuggestions.has(s.id) && !(loggedIds?.has(s.id)))
           .map((s, index) => (
@@ -686,6 +698,16 @@ function makeStyles(C: AppColors) {
     heroBar: { height: 8, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: Radii.pill, overflow: 'hidden' },
     heroBarFill: { height: '100%', backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: Radii.pill },
     heroProgCap: { fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 6 },
+
+    challengeEntryCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      marginHorizontal: Spacing.lg, marginTop: 12,
+      backgroundColor: C.surface, borderRadius: Radii.lg, padding: 14,
+      ...Shadows.light,
+    },
+    challengeEntryIcon: { fontSize: 20 },
+    challengeEntryText: { flex: 1, fontSize: 15, fontFamily: FontFamily.semiBold, color: C.inkDark },
+    challengeEntryArrow: { fontSize: 16, fontFamily: FontFamily.semiBold, color: C.muted },
 
     sectionLabel: {
       fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2,

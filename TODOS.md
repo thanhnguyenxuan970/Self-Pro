@@ -5,9 +5,15 @@
 ### Wire PaywallScreen into navigation
 `src/screens/PaywallScreen.tsx` exists and is polished (TouchableOpacity, a11y labels, CTA guard) but is not registered in `RootNavigator.tsx`. Needs: register the screen in the auth stack, decide trigger condition (free-trial expiry? specific SKU?), wire `onSubscribe`/`onRestore`/`onClose` callbacks to a subscription hook.
 
+### Visually verify Challenge feature on a working emulator/device
+The 7/21/30/66-day Challenge feature (ChallengeHub/CreateChallenge/ChallengeDetail) shipped with `tsc`/`jest` green but was never visually verified — the dev AVD used this session has no network egress at all (`ping 8.8.8.8` → unreachable, confirmed at the app OkHttp layer too), so Metro could never deliver a bundle to it under any hostname. Needs a real device or a properly networked emulator to confirm layout, the day-grid cell colors, and the share-card capture actually render as intended.
+
 ---
 
 ## Completed
+
+### Challenge feature — 7/21/30/66-day habit challenges (2026-07-03)
+New `challenges` + `challenge_log` SQLite tables (migration v10, partial unique index enforces one active challenge), pure logic in `src/lib/challenge.ts` (ICT-pinned date math, lazy rollover — no midnight timer exists in this app so gaps are filled on next foreground), `useChallenge.ts` TanStack Query hooks, ChallengeHub/CreateChallenge/ChallengeDetail screens reachable from a new TodayScreen entry card, share via existing `react-native-view-shot`/`expo-image-picker`. Reviewed via `/autoplan` (codex unavailable, single Claude voice + one independent eng subagent) — corrected the original spec's assumptions about a client-side store and a `components/core` library that don't exist in this codebase. 14 new unit tests, 187/187 suite green, `tsc` clean. Not visually verified this session — see Open items.
 
 ### Design review + impeccable audit fixes (2026-07-03)
 Emulator-based design review (hero rank chip cryptic "—" for no-rank state → reuses

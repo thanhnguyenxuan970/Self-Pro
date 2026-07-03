@@ -11,6 +11,9 @@ import { CalendarScreen } from '../screens/CalendarScreen';
 import { RankScreen } from '../screens/RankScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { ChallengeHubScreen } from '../screens/ChallengeHubScreen';
+import { CreateChallengeScreen } from '../screens/CreateChallengeScreen';
+import { ChallengeDetailScreen } from '../screens/ChallengeDetailScreen';
 import { SignInScreen } from '../screens/SignInScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { AppColors, Shadows, FontFamily } from '../config/theme';
@@ -183,6 +186,21 @@ function AppStack({
         >
           {() => <SettingsScreen onDeleteAccount={onDeleteAccount} />}
         </Stack.Screen>
+        <Stack.Screen
+          name="ChallengeHub"
+          component={ChallengeHubScreen}
+          options={{ ...modalHeaderOptions, title: t.screenChallengeHub }}
+        />
+        <Stack.Screen
+          name="CreateChallenge"
+          component={CreateChallengeScreen}
+          options={{ ...modalHeaderOptions, title: t.screenCreateChallenge }}
+        />
+        <Stack.Screen
+          name="ChallengeDetail"
+          component={ChallengeDetailScreen}
+          options={{ ...modalHeaderOptions, title: t.screenChallengeDetail }}
+        />
       </Stack.Navigator>
       <AddActivitySheet
         visible={fabVisible}

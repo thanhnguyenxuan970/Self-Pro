@@ -288,7 +288,37 @@ async function v9(db: SQLiteDatabase): Promise<void> {
   `);
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9];
+// v9 -> v10: challenge system (7/21/30/66-day habit challenges)
+async function v10(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS challenges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      task_type_id INTEGER,
+      target_days INTEGER NOT NULL CHECK(target_days IN (7,21,30,66)),
+      start_date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','done','failed')),
+      freezes_left INTEGER NOT NULL DEFAULT 1,
+      before_photo TEXT,
+      after_photo TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_challenges_one_active
+      ON challenges(user_id) WHERE status='active';
+
+    CREATE TABLE IF NOT EXISTS challenge_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      challenge_id INTEGER NOT NULL,
+      local_date TEXT NOT NULL,
+      state TEXT NOT NULL CHECK(state IN ('done','reset','freeze')),
+      UNIQUE(challenge_id, local_date)
+    );
+    CREATE INDEX IF NOT EXISTS idx_challenge_log_challenge ON challenge_log(challenge_id);
+  `);
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
