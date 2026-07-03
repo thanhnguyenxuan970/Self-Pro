@@ -1,0 +1,4 @@
+interface:
+  display_name: "Optimize Code"
+  short_description: "Improve performance and maintainability safely"
+  default_prompt: "Use $optimize to improve this code without changing behavior."

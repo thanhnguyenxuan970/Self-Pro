@@ -1,0 +1,4 @@
+interface:
+  display_name: "Start Session"
+  short_description: "Summarize project status and next actions"
+  default_prompt: "Use $start to summarize project status, risks, and next actions."

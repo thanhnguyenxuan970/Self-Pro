@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fix Metro"
+  short_description: "Repair Metro bundler connection failures"
+  default_prompt: "Use $metro-fix to diagnose and repair this Metro runtime failure."

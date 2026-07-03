@@ -14,6 +14,17 @@
             "statusMessage": "Checking UI changes"
           }
         ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR}/habit-tracker\" && npx tsc --noEmit",
+            "timeout": 60,
+            "statusMessage": "Type-checking habit-tracker"
+          }
+        ]
       }
     ]
   },

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plan Next Session"
+  short_description: "Prioritize the next development session"
+  default_prompt: "Use $check to assess this workspace and plan the next session."

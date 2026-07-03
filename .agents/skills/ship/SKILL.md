@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Final delivery: update CLAUDE.md (close), run the review board, then auto-commit all session changes. Use instead of running close + caveman-commit separately.
+description: Finalize delivery by updating project docs, running the review board, preparing a Conventional Commit message, and committing verified changes. Use when shipping completed work.
 ---
 
 Finalize and ship the current session's work.
@@ -8,9 +8,9 @@ Finalize and ship the current session's work.
 ## Phase 1 — CLOSE
 
 Run skill `close`:
-- Update CLAUDE.md with completed work, section status, next steps, key decisions.
+- Update AGENTS.md or appropriate project documentation with completed work, status, next steps, and durable decisions.
 - Append any new errors to Known Errors & Fixes table.
-- Do not proceed until CLAUDE.md is updated and under 500 lines.
+- Keep AGENTS.md concise; move long release history to CHANGELOG.md or dedicated docs.
 
 ---
 
@@ -24,11 +24,11 @@ Run skill `review-board` on the diff being shipped.
 
 ---
 
-## Phase 3 — CAVEMAN-COMMIT
+## Phase 3 — PREPARE COMMIT
 
-Run skill `caveman:caveman-commit` to generate the commit message.
+Use the `pr-preparer` agent instructions to generate the commit message after review approval.
 
-- Scope: all changes made this session (including CLAUDE.md update from Phase 1, and any P0 fixes from Phase 2).
+- Scope: all changes made this session, including documentation updates and any P0 fixes from Phase 2.
 - Skill produces a conventional-commits subject + optional body.
 - Do not proceed until message is ready.
 
@@ -50,7 +50,7 @@ git commit -m "<subject from Phase 3>"
 
 ## Final Report
 
-- CLAUDE.md updated: ✅ / ❌
+- Project documentation updated: ✅ / ❌
 - Review board: N findings (P0: x fixed, P1: y, P2: z)
 - Commit created: ✅ `<hash> <subject>` / ❌ reason
 - Status: ✅ SHIPPED

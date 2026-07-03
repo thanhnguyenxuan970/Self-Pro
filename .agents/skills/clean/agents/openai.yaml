@@ -1,0 +1,4 @@
+interface:
+  display_name: "Clean Workspace"
+  short_description: "Find unnecessary workspace files safely"
+  default_prompt: "Use $clean to audit this workspace for safe cleanup candidates."

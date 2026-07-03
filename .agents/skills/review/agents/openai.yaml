@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review System"
+  short_description: "Review correctness, security, and test coverage"
+  default_prompt: "Use $review to perform a comprehensive review of the current changes."

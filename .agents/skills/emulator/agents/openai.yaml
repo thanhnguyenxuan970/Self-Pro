@@ -1,0 +1,4 @@
+interface:
+  display_name: "Android Emulator"
+  short_description: "Operate and verify the Android emulator"
+  default_prompt: "Use $emulator to prepare and interact with the habit-tracker emulator."

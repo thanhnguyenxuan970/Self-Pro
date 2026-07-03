@@ -1,0 +1,14 @@
+# Project-scoped Codex settings. Keep credentials and personal preferences global.
+project_root_markers = [".git"]
+project_doc_max_bytes = 32768
+
+[features]
+hooks = true
+
+[agents]
+max_threads = 4
+max_depth = 1
+
+[mcp_servers."code-review-graph"]
+command = "code-review-graph"
+args = ["serve"]

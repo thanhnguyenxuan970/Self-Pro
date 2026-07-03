@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ship Changes"
+  short_description: "Review, document, and commit completed work"
+  default_prompt: "Use $ship to finalize, review, and commit the completed work."

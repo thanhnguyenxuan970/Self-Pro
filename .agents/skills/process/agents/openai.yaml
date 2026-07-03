@@ -1,0 +1,4 @@
+interface:
+  display_name: "Delivery Process"
+  short_description: "Run the complete repository delivery pipeline"
+  default_prompt: "Use $process to execute the repository delivery process end to end."

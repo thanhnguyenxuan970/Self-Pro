@@ -1,14 +1,14 @@
 ---
 name: process
-description: Full delivery pipeline. Runs check_plan → implement → check_code → review → [$ponytail:ponytail-review](C:\\Users\\Admin\\.codex\\plugins\\cache\\ponytail\\ponytail\\4.8.4\\skills\\ponytail-review\\SKILL.md) & fix → close → caveman:caveman-commit in sequence.
+description: Run the full Self-Pro delivery pipeline from plan validation through implementation, verification, review, documentation, and commit preparation. Use for implementation tasks governed by the repository process.
 ---
 
 Execute the full delivery pipeline for the current plan. Ask user which plan file if unclear.
 
 ## Phase 1 — VALIDATE PLAN
 
-1. Run skill `check_plan` on the plan file.
-   - Do not proceed until check_plan reports ✅ PLAN CLEAN.
+1. Run skill `check-plan` on the plan file or active Codex plan.
+   - Do not proceed until check-plan reports ✅ PLAN CLEAN.
    - If `[NEEDS CONFIRMATION]` items remain, surface them to user and wait for resolution.
 
 ---
@@ -31,15 +31,15 @@ When all steps are done (or blocked with reason), state:
 
 ## Phase 3 — VERIFY CODE
 
-1. Run skill `check_code` on all files created or modified during Phase 2.
+1. Run skill `check-code` on all files created or modified during Phase 2.
    - Scope: only files touched in Phase 2 (not the entire codebase).
-   - Do not proceed until check_code reports ✅ CODE CLEAN.
+   - Do not proceed until check-code reports ✅ CODE CLEAN.
 
 ---
 
 ## Phase 4 — REVIEW & FIX
 
-1. Run skill `review` then [$ponytail:ponytail-review](C:\\Users\\Admin\\.codex\\plugins\\cache\\ponytail\\ponytail\\4.8.4\\skills\\ponytail-review\\SKILL.md) on all files created or modified during Phase 2.
+1. Run skill `review` on all files created or modified during Phase 2, using the Codex code-reviewer agent instructions for the final pass.
    - Fix every issue surfaced before proceeding.
    - Do not proceed to Phase 5 until review is clean.
 
@@ -54,7 +54,7 @@ When all steps are done (or blocked with reason), state:
 
 ## Phase 6 — COMMIT
 
-Run skill `caveman:caveman-commit` to generate and create the commit.
+Use the `pr-preparer` agent instructions to generate a Conventional Commit message, then create the commit.
 
 - Scope: all changes from Phases 2–5.
 - Do not commit until close completes successfully.
@@ -65,14 +65,12 @@ Run skill `caveman:caveman-commit` to generate and create the commit.
 
 | Phase uses | Skill tool name | File |
 |---|---|---|
-| check_plan | `check_plan` | `check_plan.md` (project-local) |
-| check_code | `check_code` | `check_code.md` (project-local) |
+| check-plan | `check-plan` | `.agents/skills/check-plan/SKILL.md` |
+| check-code | `check-code` | `.agents/skills/check-code/SKILL.md` |
 | review | `review` | `review.md` (project-local) |
 | close | `close` | `close.md` (project-local) |
-| ponytail-review | [$ponytail:ponytail-review](C:\\Users\\Admin\\.codex\\plugins\\cache\\ponytail\\ponytail\\4.8.4\\skills\\ponytail-review\\SKILL.md) | global (Ponytail plugin) |
-| caveman-commit | `caveman:caveman-commit` | global (caveman plugin) |
 
-**Note:** compact is handled by Claude natively — do not invoke as a skill.
+**Note:** Context compaction is handled by Codex automatically; do not invoke it as a skill.
 
 ---
 

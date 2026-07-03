@@ -1,0 +1,4 @@
+interface:
+  display_name: "Recheck Plan"
+  short_description: "Harden a plan until confidence is high"
+  default_prompt: "Use $recheck to refine the active plan until it is implementation-ready."

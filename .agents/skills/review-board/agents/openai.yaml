@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Board"
+  short_description: "Run a multi-lens review of current changes"
+  default_prompt: "Use $review-board to review the current diff across specialist lenses."
