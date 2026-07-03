@@ -390,7 +390,7 @@ function makeStyles(C: AppColors) {
     },
     segBtnActive: {
       backgroundColor: C.surface,
-      shadowColor: '#14231A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 2, elevation: 1,
+      ...Shadows.light,
     },
     segTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.ink2 },
     segTxtActive: { color: C.inkDark },
