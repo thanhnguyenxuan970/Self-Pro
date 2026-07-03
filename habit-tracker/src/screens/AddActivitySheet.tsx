@@ -11,6 +11,7 @@ import { cueModalOpen, cueModalClose } from '../audio/uiSounds';
 import { useAuthUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 import { Strings } from '../config/i18n';
 import { supabase } from '../api/supabase';
@@ -149,6 +150,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
   const { colors } = useTheme();
   const t = useTranslations();
   const [lang] = useLanguage();
+  const reduceMotion = useReduceMotion();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const createTask = useCreateTask(userId);
@@ -182,16 +184,32 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
   useEffect(() => {
     if (visible) {
       cueModalOpen();
+      if (reduceMotion) {
+        backdropOpacity.setValue(1);
+        sheetTranslateY.setValue(0);
+        return;
+      }
       Animated.parallel([
         Animated.timing(backdropOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
         Animated.spring(sheetTranslateY, { toValue: 0, tension: 120, friction: 12, useNativeDriver: true }),
       ]).start();
     }
-  }, [visible]);
+  }, [visible, reduceMotion]);
 
   function handleClose() {
     Keyboard.dismiss();
     cueModalClose();
+    if (reduceMotion) {
+      backdropOpacity.setValue(0);
+      sheetTranslateY.setValue(300);
+      setName('');
+      setSelectedSuggestion(null);
+      setStep('create');
+      setPendingTask(null);
+      submittingRef.current = false;
+      onClose();
+      return;
+    }
     Animated.parallel([
       Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
       Animated.spring(sheetTranslateY, { toValue: 300, tension: 120, friction: 12, useNativeDriver: true }),
