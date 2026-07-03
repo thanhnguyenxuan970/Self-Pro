@@ -224,6 +224,8 @@ export function useAuth() {
     const db = await getDb();
     await db.withTransactionAsync(async () => {
       for (const sql of [
+        'DELETE FROM challenge_log WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)',
+        'DELETE FROM challenges WHERE user_id = ?',
         'DELETE FROM activity_log WHERE user_id = ?',
         'DELETE FROM daily_summary WHERE user_id = ?',
         'DELETE FROM weekly_summary WHERE user_id = ?',
@@ -270,6 +272,8 @@ export function useAuth() {
     const db = await getDb();
     await db.withTransactionAsync(async () => {
       for (const sql of [
+        'DELETE FROM challenge_log WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)',
+        'DELETE FROM challenges WHERE user_id = ?',
         'DELETE FROM activity_log WHERE user_id = ?',
         'DELETE FROM daily_summary WHERE user_id = ?',
         'DELETE FROM weekly_summary WHERE user_id = ?',

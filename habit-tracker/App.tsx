@@ -7,7 +7,7 @@ import {
   BeVietnamPro_700Bold,
   BeVietnamPro_800ExtraBold,
 } from '@expo-google-fonts/be-vietnam-pro';
-import { ActivityIndicator, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { ActivityIndicator, AppState, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
@@ -25,6 +25,14 @@ import { FontFamily } from './src/config/theme';
 import { LevelUpCelebrationModal } from './src/components/LevelUpCelebrationModal';
 import { PENDING_LEVELUP_KEY } from './src/queries/useToday';
 import { TutorialProvider } from './src/hooks/useTutorial';
+import { rolloverChallenge } from './src/queries/useChallenge';
+
+const ICT_OFFSET_MS = 7 * 60 * 60 * 1000;
+function msUntilIctMidnight(now = Date.now()): number {
+  const ict = new Date(now + ICT_OFFSET_MS);
+  const next = Date.UTC(ict.getUTCFullYear(), ict.getUTCMonth(), ict.getUTCDate() + 1) - ICT_OFFSET_MS;
+  return next - now;
+}
 
 function AppInner() {
   const [fontsLoaded] = useFonts({
@@ -126,6 +134,27 @@ function AppInner() {
       return () => clearTimeout(id);
     }
   }, [dbReady, weekReset]);
+
+  useEffect(() => {
+    if (!dbReady) return;
+    const run = () => rolloverChallenge(userId)
+      .then(() => queryClient.invalidateQueries({ queryKey: ['challenge'] }))
+      .catch(() => {});
+    run();
+    let dailyTimer: ReturnType<typeof setInterval> | undefined;
+    const midnightTimer = setTimeout(() => {
+      run();
+      dailyTimer = setInterval(run, 24 * 60 * 60 * 1000);
+    }, msUntilIctMidnight());
+    const appStateSubscription = AppState.addEventListener('change', state => {
+      if (state === 'active') run();
+    });
+    return () => {
+      clearTimeout(midnightTimer);
+      if (dailyTimer) clearInterval(dailyTimer);
+      appStateSubscription.remove();
+    };
+  }, [dbReady, userId]);
 
   if (dbError) {
     return (
