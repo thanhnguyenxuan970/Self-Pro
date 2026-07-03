@@ -73,7 +73,13 @@ export function SubActivitySheet({ visible, title, subOptions, showDuration = fa
               {opts.map((o) => {
                 const on = sub === o.key;
                 return (
-                  <TouchableOpacity key={o.key} onPress={() => setSub(on ? undefined : o.key)} style={[styles.chip, on && styles.chipOn]}>
+                  <TouchableOpacity
+                    key={o.key}
+                    onPress={() => setSub(on ? undefined : o.key)}
+                    style={[styles.chip, on && styles.chipOn]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                  >
                     <Text style={[styles.chipText, on && styles.chipTextOn]}>{o.label}</Text>
                   </TouchableOpacity>
                 );
@@ -88,7 +94,13 @@ export function SubActivitySheet({ visible, title, subOptions, showDuration = fa
                 {DURATIONS.map((d, i) => {
                   const on = durIdx === i;
                   return (
-                    <TouchableOpacity key={d.label} onPress={() => setDurIdx(on ? undefined : i)} style={[styles.chip, on && styles.chipOn]}>
+                    <TouchableOpacity
+                      key={d.label}
+                      onPress={() => setDurIdx(on ? undefined : i)}
+                      style={[styles.chip, on && styles.chipOn]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                    >
                       <Text style={[styles.chipText, on && styles.chipTextOn]}>{d.label}</Text>
                     </TouchableOpacity>
                   );
@@ -98,10 +110,10 @@ export function SubActivitySheet({ visible, title, subOptions, showDuration = fa
           ) : null}
 
           <View style={styles.acts}>
-            <TouchableOpacity style={[styles.btn, styles.skip]} onPress={onClose}>
+            <TouchableOpacity style={[styles.btn, styles.skip]} onPress={onClose} accessibilityRole="button">
               <Text style={styles.skipText}>Bỏ qua</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.btn, styles.save]} onPress={confirm}>
+            <TouchableOpacity style={[styles.btn, styles.save]} onPress={confirm} accessibilityRole="button">
               <Text style={styles.saveText}>Lưu</Text>
             </TouchableOpacity>
           </View>
@@ -113,7 +125,7 @@ export function SubActivitySheet({ visible, title, subOptions, showDuration = fa
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
-    wrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(8,16,11,0.45)' },
+    wrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
     sheet: { backgroundColor: C.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: Spacing.lg, paddingBottom: Spacing.xl },
     grip: { width: 38, height: 4, borderRadius: 2, backgroundColor: C.line2, alignSelf: 'center', marginBottom: 14 },
     title: { fontSize: 16, fontFamily: FontFamily.bold, color: C.inkDark },

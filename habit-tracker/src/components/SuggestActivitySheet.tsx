@@ -78,7 +78,13 @@ export function SuggestActivitySheet({ visible, onClose }: Props) {
             maxLength={300}
           />
 
-          <TouchableOpacity style={[styles.btn, !canSend && styles.btnOff]} onPress={submit} disabled={!canSend}>
+          <TouchableOpacity
+            style={[styles.btn, !canSend && styles.btnOff]}
+            onPress={submit}
+            disabled={!canSend}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canSend }}
+          >
             <Text style={styles.btnText}>{submitting ? 'Đang gửi…' : 'Gửi đề xuất'}</Text>
           </TouchableOpacity>
         </View>
