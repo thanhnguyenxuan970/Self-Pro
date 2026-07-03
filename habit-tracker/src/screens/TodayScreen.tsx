@@ -316,7 +316,7 @@ export function TodayScreen() {
     ? rankData.tiers.find(t => t.id === rankData.currentTierId) ?? null
     : null;
   const rankName = currentTier?.rank_name ?? '—';
-  const rankDisplayName = currentTier ? (t.rankNameMap[rankName] ?? rankName) : rankName;
+  const rankDisplayName = currentTier ? (t.rankNameMap[rankName] ?? rankName) : t.noRankTitle;
   const rankEmoji = currentTier ? (RANK_EMOJI[currentTier.tier_order] ?? '⭐') : '⭐';
   const percentile = tierPercentile(currentTier?.tier_order ?? 1);
 
