@@ -45,3 +45,8 @@ supabase/.temp/
 # JVM crash dumps from Android builds
 hs_err_pid*.log
 replay_pid*.log
+
+# QA/verification scratch artifacts (screenshots, UI dumps, temp DBs)
+.visual-verify/
+.audit/
+metro-*.log

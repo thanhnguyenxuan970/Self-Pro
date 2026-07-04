@@ -4,15 +4,21 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
-## [Unreleased] — v1.0.49 — 2026-07-02
+## [Unreleased]
+
+## [1.1.0.0] - 2026-07-04
 
 ### Added
+- **Rank ladder extension**: added two new tiers (Final Boss, Ascended) on top of the existing 7-tier ladder, with bilingual (EN/VI) rank names, new mascot sound cues, share-card percentile support, and a matching migration (v13) for the `tiers` table
 - **Trophy Shelf**: new achievements/badges screen reachable from Profile, with a Badge Detail sheet. Nine badges computed live from existing stats (best streak, total challenge days, weekly rank tier) via `src/lib/achievements.ts` — no separate reward economy, just a display of milestones already tracked. First-unlock date persisted in a new `achievement_unlocks` SQLite table (migration v11). Share badge reuses the existing `react-native-view-shot` + `expo-sharing` pattern
+- **Test coverage**: regression tests for `resolveUserRow`'s account-dedup branching (OIDC sub match, legacy email migration, anonymous-row claim, new-user insert), for `deleteAccount`'s destructive delete completeness (asserts every per-user-id table is purged), and for `challengeStreak`
 - **Challenge system**: shipped 7/21/30/66-day habit challenges with `ChallengeHub`, `CreateChallenge`, and `ChallengeDetail`, backed by new `challenges` and `challenge_log` SQLite tables plus a one-active-challenge partial unique index
 - **Challenge share cards**: ChallengeDetail now renders an off-screen share template and exports it through the existing `react-native-view-shot` + `expo-sharing` flow, with optional before/after photos
 - **Supabase auth sign-in logging**: new `007_log_auth_signins.sql` trigger writes auth sign-ins into remote `activity_log` as `LOGIN` rows and backfills the latest known sign-in per account when missing
 
 ### Fixed
+- **Data integrity — legacy task type removal**: the migration that drops the seeded 'Exercise' task type now nulls out `activity_log.task_type_id` references first instead of hard-deleting the row out from under them, so historical log entries no longer silently vanish from top-activities/share-card views
+- **ShareCard Pro-gating**: sharing achievement cards now checks a `useProStatus()` stub (currently always `false`) and shows a "coming soon" message instead of performing the real capture+share — closes a gap where the feature would have shipped fully unlocked ahead of the paywall/RevenueCat wiring
 - **Android release build stability on Windows**: release bundling now keeps Gradle project parallelism off, avoiding corrupted Expo/React Native generated native metadata during `bundleRelease`
 - **Challenge rollover**: active challenges now run rollover at app start, every midnight in `Asia/Ho_Chi_Minh`, and on foreground resume; account reset/delete also clears challenge rows
 - **Challenge detail layout**: the mini-calendar now renders as a fixed 30-cell window, matching the shipped brief across short and long challenge durations
@@ -25,6 +31,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **ShareCard**: removed `textTransform: 'uppercase'` from `habitSectionLabel` (matches app-wide section label convention)
 - **PaywallScreen**: close button `accessibilityLabel` reads from `t.close` (was hardcoded `"Đóng"`)
 - **Placeholder contrast**: `TodayScreen` and `OnboardingScreen` birth-year `TextInput` `placeholderTextColor` changed from `colors.faint` to `colors.muted`
+- **Performance — RankScreen**: weekly reset countdown extracted into a memoized leaf component so its 1s tick no longer re-renders the leaderboard/history lists and mascot animation
+- **Performance — News feed**: `UpdatesScreen` now renders via `FlatList` instead of `ScrollView`+`.map`, virtualizing what was an unbounded, ever-growing list
+- **Anti-pattern — News feed**: replaced the colored side-stripe "unread" indicator with a dot next to the title, matching the existing unread-dot convention used elsewhere in the app
+- **Theming — SignInScreen**: logo mark and loading spinner now use theme tokens (`colors.primary`/`primarySoft`/`starGold`/`primaryPress`) instead of hardcoded hex, so the sign-in screen now supports dark mode and the accent picker
+- **Accessibility — TaskRow**: done/selected state now exposed via `accessibilityState` (`checked`/`selected`), not just a visual checkmark; edit-icon touch target enlarged to 44pt
+- **Accessibility — ProgressScreen**: points chart now exposes a text summary (`accessibilityLabel`) of good/bad-habit totals for screen readers
+- **Accessibility — ChallengeDayGrid**: day-cell state (done/freeze/reset) no longer conveyed by color alone — added ✓/🧊/✕ glyphs and a per-cell `accessibilityLabel`
+- **Accessibility — SettingsScreen**: removed nested `TouchableOpacity` in reminder rows (ambiguous hit-testing); dark-mode and sound switches now carry `accessibilityLabel`
+- **i18n — RankInfoSheet, PaywallScreen, ShareCardModal**: all remaining hardcoded Vietnamese strings (rank explainer copy, paywall plans/CTAs/fine print, Pro-feature share alert) now route through `t.*` translation keys
+- **Layout — ProfileScreen**: wrapped in `SafeAreaView edges={['bottom']}`, matching the safe-area convention used by every other modal-stack screen
 
 ---
 
