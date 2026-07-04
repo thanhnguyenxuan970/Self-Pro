@@ -14,6 +14,7 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 import { ChallengeHubScreen } from '../screens/ChallengeHubScreen';
 import { CreateChallengeScreen } from '../screens/CreateChallengeScreen';
 import { ChallengeDetailScreen } from '../screens/ChallengeDetailScreen';
+import { TrophyShelfScreen } from '../screens/TrophyShelfScreen';
 import { SignInScreen } from '../screens/SignInScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { AppColors, Shadows, FontFamily } from '../config/theme';
@@ -200,6 +201,11 @@ function AppStack({
           name="ChallengeDetail"
           component={ChallengeDetailScreen}
           options={{ ...modalHeaderOptions, title: t.screenChallengeDetail }}
+        />
+        <Stack.Screen
+          name="TrophyShelf"
+          component={TrophyShelfScreen}
+          options={{ ...modalHeaderOptions, title: t.screenTrophyShelf }}
         />
       </Stack.Navigator>
       <AddActivitySheet

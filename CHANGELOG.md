@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased] — v1.0.49 — 2026-07-02
 
 ### Added
+- **Trophy Shelf**: new achievements/badges screen reachable from Profile, with a Badge Detail sheet. Nine badges computed live from existing stats (best streak, total challenge days, weekly rank tier) via `src/lib/achievements.ts` — no separate reward economy, just a display of milestones already tracked. First-unlock date persisted in a new `achievement_unlocks` SQLite table (migration v11). Share badge reuses the existing `react-native-view-shot` + `expo-sharing` pattern
 - **Challenge system**: shipped 7/21/30/66-day habit challenges with `ChallengeHub`, `CreateChallenge`, and `ChallengeDetail`, backed by new `challenges` and `challenge_log` SQLite tables plus a one-active-challenge partial unique index
 - **Challenge share cards**: ChallengeDetail now renders an off-screen share template and exports it through the existing `react-native-view-shot` + `expo-sharing` flow, with optional before/after photos
 - **Supabase auth sign-in logging**: new `007_log_auth_signins.sql` trigger writes auth sign-ins into remote `activity_log` as `LOGIN` rows and backfills the latest known sign-in per account when missing

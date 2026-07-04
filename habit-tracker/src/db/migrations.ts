@@ -318,7 +318,20 @@ async function v10(db: SQLiteDatabase): Promise<void> {
   `);
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10];
+// v10 -> v11: achievement unlocks (Trophy Shelf)
+async function v11(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS achievement_unlocks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      achievement_id TEXT NOT NULL,
+      unlocked_at TEXT NOT NULL,
+      UNIQUE(user_id, achievement_id)
+    );
+  `);
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
