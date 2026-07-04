@@ -33,7 +33,7 @@ import { useShareCardData, tierPercentile } from '../hooks/useShareCardData';
 import { useNewsFeed } from '../queries/useNews';
 import { getNewsViewerKey } from '../utils/news';
 
-const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑' };
+const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑', 8: '👾', 9: '😇' };
 
 function useRankBounceAnimation(rankName: string, reduceMotion: boolean): Animated.Value {
   const anim = useRef(new Animated.Value(1)).current;

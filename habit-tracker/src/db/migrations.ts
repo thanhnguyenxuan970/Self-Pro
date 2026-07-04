@@ -385,7 +385,48 @@ async function v12(db: SQLiteDatabase): Promise<void> {
   `);
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12];
+// v12 -> v13: extend rank ladder with Final Boss + Ascended
+async function v13(db: SQLiteDatabase): Promise<void> {
+  const tiers: [number, number, string, number][] = [
+    [1, 5, 'Delulu', 50000],
+    [2, 10, 'Mewing', 100000],
+    [3, 20, 'Rizz', 150000],
+    [4, 40, 'Gigachad', 200000],
+    [5, 80, 'Aura Farmer', 300000],
+    [6, 160, 'Main Character', 500000],
+    [7, 320, 'GOATED', 750000],
+    [8, 640, 'Final Boss', 1000000],
+    [9, 1280, 'Ascended', 1500000],
+  ];
+
+  await db.withTransactionAsync(async () => {
+    await db.execAsync(`DELETE FROM tiers WHERE tier_order > 9;`);
+
+    for (const [tierOrder, starsRequired, rankName, rewardAmount] of tiers) {
+      const existing = await db.getFirstAsync<{ id: number }>(
+        `SELECT id FROM tiers WHERE tier_order = ? LIMIT 1`,
+        [tierOrder],
+      );
+
+      if (existing) {
+        await db.runAsync(
+          `UPDATE tiers
+           SET stars_required = ?, rank_name = ?, reward_amount = ?, reward_currency = 'VND'
+           WHERE id = ?`,
+          [starsRequired, rankName, rewardAmount, existing.id],
+        );
+      } else {
+        await db.runAsync(
+          `INSERT INTO tiers (tier_order, stars_required, rank_name, reward_amount, reward_currency)
+           VALUES (?, ?, ?, ?, 'VND')`,
+          [tierOrder, starsRequired, rankName, rewardAmount],
+        );
+      }
+    }
+  });
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

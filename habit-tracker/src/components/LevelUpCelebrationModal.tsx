@@ -4,10 +4,11 @@ import {
   Animated, StyleSheet, Dimensions,
 } from 'react-native';
 import { RankMascot } from './RankMascot';
-import { RANKS } from '../config/ranks.config';
+import { getRankConfigByTierOrder } from '../config/ranks.config';
 import { Radii, Spacing, FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useReduceMotion } from '../hooks/useReduceMotion';
+import { getCelebrationGlowColor, shouldRunCelebrationBurst } from '../lib/rankPresentation';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -39,7 +40,9 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
   const t = useTranslations();
   const { colors: C } = useTheme();
   const reduceMotion = useReduceMotion();
-  const cfg = RANKS[Math.min(Math.max(tierOrder - 1, 0), RANKS.length - 1)];
+  const cfg = getRankConfigByTierOrder(tierOrder);
+  const rankLabel = t.rankNameMap[cfg.name] ?? cfg.name;
+  const rankAltLabel = rankLabel === cfg.nameVi ? cfg.name : cfg.nameVi;
 
   const particlesRef = useRef<Particle[] | null>(null);
   if (!particlesRef.current) {
@@ -61,7 +64,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
   useEffect(() => {
     if (!visible) return;
     runningRef.current = true;
-    if (reduceMotion) return;
+    if (!shouldRunCelebrationBurst(visible, reduceMotion)) return;
 
     function burst() {
       if (!runningRef.current) return;
@@ -140,6 +143,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
           onPress={() => {}}
           style={[styles.card, { borderColor: cfg.color + '99', backgroundColor: C.surface }]}
         >
+          <View style={[styles.cardGlow, { backgroundColor: getCelebrationGlowColor(tierOrder) }]} pointerEvents="none" />
           <Text style={styles.fireworksEmoji}>🎉</Text>
           <Text style={[styles.levelUpTitle, { color: cfg.color }]}>{t.levelUpTitle}</Text>
 
@@ -147,7 +151,8 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
             <RankMascot tier={tierOrder - 1} size={88} loop reduceMotion={reduceMotion} />
           </View>
 
-          <Text style={[styles.tierName, { color: C.inkDark }]}>{tierName}</Text>
+          <Text style={[styles.tierName, { color: C.inkDark }]}>{rankLabel}</Text>
+          <Text style={[styles.tierNameVi, { color: C.ink2 }]}>{rankAltLabel}</Text>
           <Text style={[styles.descriptor, { color: cfg.color + 'CC' }]}>{cfg.descriptor}</Text>
 
           <Text style={[styles.subtitle, { color: C.muted }]}>{t.levelUpSubtitle(tierName)}</Text>
@@ -193,6 +198,16 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     maxWidth: 320,
     width: '100%',
+    overflow: 'hidden',
+  },
+  cardGlow: {
+    position: 'absolute',
+    top: -8,
+    left: 24,
+    right: 24,
+    height: 120,
+    borderRadius: 999,
+    opacity: 0.16,
   },
   fireworksEmoji: { fontSize: 48, marginBottom: 2 },
   levelUpTitle: {
@@ -207,6 +222,11 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.extraBold,
     marginTop: Spacing.sm,
     letterSpacing: -0.5,
+  },
+  tierNameVi: {
+    fontSize: 13,
+    fontFamily: FontFamily.semiBold,
+    marginTop: 3,
   },
   descriptor: {
     fontSize: 13,

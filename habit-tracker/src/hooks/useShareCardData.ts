@@ -6,7 +6,7 @@ import { useTranslations } from './useSettings';
 
 // Tier order (1–7) → approximate 30-day cohort percentile
 const TIER_PERCENTILE: Record<number, number> = {
-  1: 50, 2: 65, 3: 75, 4: 82, 5: 90, 6: 95, 7: 99,
+  1: 50, 2: 65, 3: 75, 4: 82, 5: 90, 6: 95, 7: 99, 8: 100, 9: 100,
 };
 
 export function tierPercentile(tierOrder: number): number {

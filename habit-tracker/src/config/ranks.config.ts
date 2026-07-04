@@ -1,12 +1,10 @@
-// ranks.config.ts
 // Single source of truth for the rank system: thresholds, colors, pose geometry,
-// per-tier "absurd" animation keyframes, and sound/haptic mapping.
-// Consumed by RankMascot.tsx — add or reorder ranks here, nothing else changes.
+// per-tier animation keyframes, and bilingual rank labels.
 
-export type Channel = [at: number, value: number][]; // keyframe stops, at in 0..1
+export type Channel = [at: number, value: number][];
 
 export interface RankAnim {
-  duration: number;        // ms per loop
+  duration: number;
   loop: boolean;
   channels: Partial<Record<
     'translateX' | 'translateY' | 'rotate' | 'scale' | 'scaleX' | 'scaleY' | 'skewX',
@@ -15,39 +13,60 @@ export interface RankAnim {
 }
 
 export interface SvgEl {
-  // minimal descriptor RankMascot maps to react-native-svg primitives
   t: 'path' | 'polygon' | 'circle' | 'rect' | 'ellipse' | 'line';
-  d?: string; points?: string;
-  cx?: number; cy?: number; r?: number; rx?: number; ry?: number;
-  x?: number; y?: number; width?: number; height?: number;
-  x1?: number; y1?: number; x2?: number; y2?: number;
-  fill?: string; stroke?: string; sw?: number; cap?: 'round' | 'butt';
+  d?: string;
+  points?: string;
+  cx?: number;
+  cy?: number;
+  r?: number;
+  rx?: number;
+  ry?: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
+  fill?: string;
+  stroke?: string;
+  sw?: number;
+  cap?: 'round' | 'butt';
 }
 
 export interface Rank {
-  tier: number;            // 0..6
+  tier: number; // 0-based index for UI animation/audio lookups
   name: string;
-  stars: number;           // threshold to reach this rank
+  nameVi: string;
+  stars: number; // threshold to reach this rank
   descriptor: string;
-  color: string;           // body fill
-  edge: string;            // limb + outline
-  limbs: string[];         // path `d` strings, stroked in `edge`
-  face: SvgEl[];           // eyes / mouth / extras (crown etc.)
-  anim: RankAnim;          // looping "absurd" signature
-  sfx: string;             // bundled audio asset key (see assets/sfx)
-  haptic: 'success' | 'heavy-success'; // expo-haptics pattern
+  color: string;
+  edge: string;
+  glow?: string;
+  limbs: string[];
+  face: SvgEl[];
+  anim: RankAnim;
+  sfx: string;
+  haptic: 'success' | 'heavy-success';
 }
 
-// shared star body (R22) — same silhouette for every rank
 export const STAR_POINTS =
   '0,-22 5.41,-7.44 20.92,-6.8 8.75,2.84 12.93,17.8 0,9.2 -12.93,17.8 -8.75,2.84 -20.92,-6.8 -5.41,-7.44';
 
 const FACE = (els: SvgEl[]): SvgEl[] => els;
+const GOATED_TIER_ORDER = 7;
+const GOATED_STARS = 320;
 
 export const RANKS: Rank[] = [
   {
-    tier: 0, name: 'Delulu', stars: 5, descriptor: 'noodle mode',
-    color: '#A78BFA', edge: '#7C5CE0',
+    tier: 0,
+    name: 'Delulu',
+    nameVi: 'Ảo Tưởng',
+    stars: 5,
+    descriptor: 'noodle mode',
+    color: '#A78BFA',
+    edge: '#7C5CE0',
     limbs: ['M-9,-8 Q-26,-4 -28,-22', 'M9,-8 Q26,-4 30,-20', 'M-6,14 Q-18,26 -22,18', 'M6,14 Q18,28 24,20'],
     face: FACE([
       { t: 'path', d: 'M-10,-7 q3,4 6,0', stroke: '#2A2A2A', sw: 2, cap: 'round' },
@@ -55,15 +74,21 @@ export const RANKS: Rank[] = [
       { t: 'ellipse', cx: 0, cy: 3, rx: 4, ry: 5, fill: '#2A2A2A' },
     ]),
     anim: { duration: 1400, loop: true, channels: {
-      rotate: [[0, -18], [.25, 14], [.5, -10], [.75, 16], [1, -18]],
-      skewX:  [[0, 8], [.25, -10], [.5, 12], [.75, -8], [1, 8]],
-      scaleY: [[0, 1], [.25, .85], [.5, 1.15], [.75, 1], [1, 1]],
+      rotate: [[0, -18], [0.25, 14], [0.5, -10], [0.75, 16], [1, -18]],
+      skewX: [[0, 8], [0.25, -10], [0.5, 12], [0.75, -8], [1, 8]],
+      scaleY: [[0, 1], [0.25, 0.85], [0.5, 1.15], [0.75, 1], [1, 1]],
     }},
-    sfx: 'delulu', haptic: 'success',
+    sfx: 'delulu',
+    haptic: 'success',
   },
   {
-    tier: 1, name: 'Mewing', stars: 10, descriptor: 'max send',
-    color: '#818CF8', edge: '#5B61D6',
+    tier: 1,
+    name: 'Mewing',
+    nameVi: 'Chuẩn Hàm',
+    stars: 10,
+    descriptor: 'max send',
+    color: '#818CF8',
+    edge: '#5B61D6',
     limbs: ['M-13,12 Q-20,20 -14,24', 'M13,12 Q20,20 14,24', 'M-12,0 L-20,-4', 'M12,0 L20,-4'],
     face: FACE([
       { t: 'path', d: 'M-9,-7 L-3,-5', stroke: '#2A2A2A', sw: 2, cap: 'round' },
@@ -71,15 +96,21 @@ export const RANKS: Rank[] = [
       { t: 'circle', cx: 0, cy: 2, r: 3, fill: '#2A2A2A' },
     ]),
     anim: { duration: 2000, loop: true, channels: {
-      translateY: [[0, 0], [.5, 4], [.62, -34], [.8, 0], [1, 0]],
-      scaleY:     [[0, 1], [.5, .6], [.62, 1.4], [.8, .9], [1, 1]],
-      scaleX:     [[0, 1], [.5, 1.3], [.62, .7], [.8, 1.1], [1, 1]],
+      translateY: [[0, 0], [0.5, 4], [0.62, -34], [0.8, 0], [1, 0]],
+      scaleY: [[0, 1], [0.5, 0.6], [0.62, 1.4], [0.8, 0.9], [1, 1]],
+      scaleX: [[0, 1], [0.5, 1.3], [0.62, 0.7], [0.8, 1.1], [1, 1]],
     }},
-    sfx: 'mewing', haptic: 'success',
+    sfx: 'mewing',
+    haptic: 'success',
   },
   {
-    tier: 2, name: 'Rizz', stars: 20, descriptor: 'hit the griddy',
-    color: '#60A5FA', edge: '#3B82F6',
+    tier: 2,
+    name: 'Rizz',
+    nameVi: 'Cuốn Hút',
+    stars: 20,
+    descriptor: 'hit the griddy',
+    color: '#60A5FA',
+    edge: '#3B82F6',
     limbs: ['M-6,15 L-16,32', 'M6,15 L16,30', 'M-13,1 Q-24,-6 -28,-14', 'M13,-1 Q24,-8 28,-16'],
     face: FACE([
       { t: 'circle', cx: -7, cy: -8, r: 2.2, fill: '#2A2A2A' },
@@ -87,14 +118,20 @@ export const RANKS: Rank[] = [
       { t: 'path', d: 'M-5,-1 q6,4 11,-2', stroke: '#2A2A2A', sw: 2, cap: 'round' },
     ]),
     anim: { duration: 550, loop: true, channels: {
-      rotate:     [[0, -7], [1, 7]],
+      rotate: [[0, -7], [1, 7]],
       translateX: [[0, -3], [1, 3]],
     }},
-    sfx: 'rizz', haptic: 'success',
+    sfx: 'rizz',
+    haptic: 'success',
   },
   {
-    tier: 3, name: 'Gigachad', stars: 40, descriptor: 'too swole',
-    color: '#2DD4BF', edge: '#14B8A6',
+    tier: 3,
+    name: 'Gigachad',
+    nameVi: 'Cơ Bắp',
+    stars: 40,
+    descriptor: 'too swole',
+    color: '#2DD4BF',
+    edge: '#14B8A6',
     limbs: ['M-7,15 L-19,33', 'M7,15 L19,33', 'M-12,-4 Q-26,-6 -22,-20', 'M12,-4 Q26,-6 22,-20'],
     face: FACE([
       { t: 'circle', cx: -23, cy: -19, r: 6, fill: '#14B8A6' },
@@ -104,14 +141,20 @@ export const RANKS: Rank[] = [
       { t: 'path', d: 'M-6,2 q6,4 12,0', stroke: '#2A2A2A', sw: 2.5, cap: 'round' },
     ]),
     anim: { duration: 1600, loop: true, channels: {
-      scaleX: [[0, 1], [.35, 1.05], [.55, 1.45], [.7, 1.5], [.85, .92], [1, 1]],
-      scaleY: [[0, 1], [.35, 1.05], [.55, 1.3], [.7, 1.32], [.85, .92], [1, 1]],
+      scaleX: [[0, 1], [0.35, 1.05], [0.55, 1.45], [0.7, 1.5], [0.85, 0.92], [1, 1]],
+      scaleY: [[0, 1], [0.35, 1.05], [0.55, 1.3], [0.7, 1.32], [0.85, 0.92], [1, 1]],
     }},
-    sfx: 'gigachad', haptic: 'heavy-success',
+    sfx: 'gigachad',
+    haptic: 'heavy-success',
   },
   {
-    tier: 4, name: 'Aura Farmer', stars: 80, descriptor: 'spin to win',
-    color: '#F472B6', edge: '#EC4899',
+    tier: 4,
+    name: 'Aura Farmer',
+    nameVi: 'Cày Hào Quang',
+    stars: 80,
+    descriptor: 'spin to win',
+    color: '#F472B6',
+    edge: '#EC4899',
     limbs: ['M-6,14 Q-16,22 -12,30', 'M6,14 Q16,22 12,30', 'M-12,1 L-24,-6', 'M12,1 L24,-6'],
     face: FACE([
       { t: 'circle', cx: -6, cy: -6, r: 2, fill: '#2A2A2A' },
@@ -119,14 +162,20 @@ export const RANKS: Rank[] = [
       { t: 'path', d: 'M-6,1 q6,5 12,0', stroke: '#2A2A2A', sw: 2, cap: 'round' },
     ]),
     anim: { duration: 1300, loop: true, channels: {
-      rotate: [[0, 0], [.45, 180], [.55, 200], [1, 360]],
-      scaleX: [[0, 1], [.45, .7], [.55, .7], [1, 1]],
+      rotate: [[0, 0], [0.45, 180], [0.55, 200], [1, 360]],
+      scaleX: [[0, 1], [0.45, 0.7], [0.55, 0.7], [1, 1]],
     }},
-    sfx: 'aura-farmer', haptic: 'heavy-success',
+    sfx: 'aura-farmer',
+    haptic: 'heavy-success',
   },
   {
-    tier: 5, name: 'Main Character', stars: 160, descriptor: 'hair flip',
-    color: '#FB923C', edge: '#EA7317',
+    tier: 5,
+    name: 'Main Character',
+    nameVi: 'Nhân Vật Chính',
+    stars: 160,
+    descriptor: 'hair flip',
+    color: '#FB923C',
+    edge: '#EA7317',
     limbs: ['M2,15 L13,38', 'M-2,15 L-16,40', 'M11,0 Q24,-2 26,-14', 'M-12,0 Q-22,4 -26,-6'],
     face: FACE([
       { t: 'rect', x: -13, y: -10, width: 11, height: 6, fill: '#2A2A2A' },
@@ -135,14 +184,21 @@ export const RANKS: Rank[] = [
       { t: 'path', d: 'M-4,2 q5,3 9,-1', stroke: '#2A2A2A', sw: 2, cap: 'round' },
     ]),
     anim: { duration: 1800, loop: true, channels: {
-      rotate:     [[0, 0], [.2, -4], [.4, 28], [.55, 30], [.75, -6], [1, 0]],
-      translateX: [[0, 0], [.4, 8], [.55, 8], [.75, 0], [1, 0]],
+      rotate: [[0, 0], [0.2, -4], [0.4, 28], [0.55, 30], [0.75, -6], [1, 0]],
+      translateX: [[0, 0], [0.4, 8], [0.55, 8], [0.75, 0], [1, 0]],
     }},
-    sfx: 'main-character', haptic: 'heavy-success',
+    sfx: 'main-character',
+    haptic: 'heavy-success',
   },
   {
-    tier: 6, name: 'GOATED', stars: 320, descriptor: 'infinite W',
-    color: '#F4C842', edge: '#A87B12',
+    tier: 6,
+    name: 'GOATED',
+    nameVi: 'Vô Đối',
+    stars: 320,
+    descriptor: 'infinite W',
+    color: '#F4C842',
+    edge: '#A87B12',
+    glow: '#FFE066',
     limbs: ['M-6,14 Q-18,18 -14,28', 'M6,14 Q18,18 14,28', 'M-12,-4 L-26,-16', 'M12,-4 L26,-16'],
     face: FACE([
       { t: 'path', d: 'M-12,-23 L-12,-33 L-4,-27 L0,-36 L4,-27 L12,-33 L12,-23 Z', fill: '#FFE066', stroke: '#A87B12', sw: 1.5 },
@@ -151,16 +207,90 @@ export const RANKS: Rank[] = [
       { t: 'path', d: 'M-7,-1 q7,7 14,0', stroke: '#2A2A2A', sw: 2, cap: 'round' },
     ]),
     anim: { duration: 1500, loop: true, channels: {
-      translateY: [[0, 3], [.2, 8], [.45, -22], [.7, -4], [.85, 4], [1, 3]],
-      rotate:     [[0, 0], [.45, -200], [.7, -360], [1, -360]],
-      scaleY:     [[0, 1], [.2, .85], [.85, .92], [1, 1]],
+      translateY: [[0, 3], [0.2, 8], [0.45, -22], [0.7, -4], [0.85, 4], [1, 3]],
+      rotate: [[0, 0], [0.45, -200], [0.7, -360], [1, -360]],
+      scaleY: [[0, 1], [0.2, 0.85], [0.85, 0.92], [1, 1]],
     }},
-    sfx: 'goated', haptic: 'heavy-success',
+    sfx: 'goated',
+    haptic: 'heavy-success',
+  },
+  {
+    tier: 7,
+    name: 'Final Boss',
+    nameVi: 'Trùm Cuối',
+    stars: 640,
+    descriptor: 'boss music on',
+    color: '#8B5CF6',
+    edge: '#5B21B6',
+    glow: '#8B5CF6',
+    limbs: ['M-12,-4 Q-26,-10 -22,-24', 'M12,-4 Q26,-10 22,-24', 'M-7,15 L-17,35', 'M7,15 L17,35'],
+    face: FACE([
+      { t: 'path', d: 'M-16,-20 Q-25,-29 -20,-38 Q-12,-35 -10,-24 Z', fill: '#5B21B6' },
+      { t: 'path', d: 'M16,-20 Q25,-29 20,-38 Q12,-35 10,-24 Z', fill: '#5B21B6' },
+      { t: 'path', d: 'M-11,-13 q4,-3 8,0', stroke: '#2A2A2A', sw: 2.2, cap: 'round' },
+      { t: 'path', d: 'M3,-13 q4,-3 8,0', stroke: '#2A2A2A', sw: 2.2, cap: 'round' },
+      { t: 'circle', cx: -7, cy: -7, r: 2.8, fill: '#FDE047', stroke: '#2A2A2A', sw: 0.8 },
+      { t: 'circle', cx: 7, cy: -7, r: 2.8, fill: '#FDE047', stroke: '#2A2A2A', sw: 0.8 },
+      { t: 'path', d: 'M-4,4 q6,3 12,-2', stroke: '#2A2A2A', sw: 2, cap: 'round' },
+    ]),
+    anim: { duration: 1300, loop: true, channels: {
+      translateY: [[0, 0], [0.25, -3], [0.5, 0], [0.75, -2], [1, 0]],
+      rotate: [[0, -2.5], [0.25, 2.5], [0.5, -1.5], [0.75, 3], [1, -2.5]],
+      scaleX: [[0, 1], [0.25, 1.04], [0.75, 1.05], [1, 1]],
+    }},
+    sfx: 'final-boss',
+    haptic: 'heavy-success',
+  },
+  {
+    tier: 8,
+    name: 'Ascended',
+    nameVi: 'Đỉnh Của Chóp',
+    stars: 1280,
+    descriptor: 'god mode: on',
+    color: '#F5EEFF',
+    edge: '#C9A227',
+    glow: '#E0A93B',
+    limbs: ['M-11,2 Q-25,-1 -27,-9', 'M11,2 Q25,-1 27,-9', 'M-6,15 Q-15,25 -5,27', 'M6,15 Q15,25 5,27'],
+    face: FACE([
+      { t: 'ellipse', cx: 0, cy: -30.5, rx: 15, ry: 4.6, stroke: '#E0A93B', sw: 2 },
+      { t: 'path', d: 'M-10,-7 q3,3 6,0', stroke: '#2A2A2A', sw: 2, cap: 'round' },
+      { t: 'path', d: 'M2,-7 q3,3 6,0', stroke: '#2A2A2A', sw: 2, cap: 'round' },
+      { t: 'circle', cx: -10, cy: -1, r: 2.1, fill: '#F9A8D4' },
+      { t: 'circle', cx: 10, cy: -1, r: 2.1, fill: '#F9A8D4' },
+      { t: 'path', d: 'M-6,4 q6,5 12,0', stroke: '#2A2A2A', sw: 2, cap: 'round' },
+    ]),
+    anim: { duration: 2600, loop: true, channels: {
+      translateY: [[0, 2.5], [0.5, -4.5], [1, 2.5]],
+      scaleX: [[0, 1], [0.5, 1.03], [1, 1]],
+      scaleY: [[0, 1], [0.5, 1.03], [1, 1]],
+    }},
+    sfx: 'ascended',
+    haptic: 'heavy-success',
   },
 ];
 
-const rankForStars = (total: number): Rank => {
-  let r = RANKS[0];
-  for (const x of RANKS) if (total >= x.stars) r = x;
-  return r;
-};
+export function getRankThreshold(tierOrder: number): number {
+  if (tierOrder <= 0) return 0;
+  if (tierOrder <= GOATED_TIER_ORDER) return RANKS[tierOrder - 1]?.stars ?? 0;
+  return GOATED_STARS * 2 ** (tierOrder - GOATED_TIER_ORDER);
+}
+
+export function getRankConfigByTier(tier: number): Rank {
+  return RANKS[Math.min(Math.max(tier, 0), RANKS.length - 1)];
+}
+
+export function getRankConfigByTierOrder(tierOrder: number): Rank {
+  return getRankConfigByTier(tierOrder - 1);
+}
+
+export function getRankConfigByName(name: string): Rank | undefined {
+  return RANKS.find(rank => rank.name === name);
+}
+
+export function getRankForStars(total: number): Rank {
+  let rank = RANKS[0];
+  for (const candidate of RANKS) {
+    if (total >= candidate.stars) rank = candidate;
+  }
+  return rank;
+}
