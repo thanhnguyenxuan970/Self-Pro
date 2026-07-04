@@ -1,25 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../db/client';
-import { ACHIEVEMENTS } from '../config/achievements';
 import { getLocalDate } from '../utils/formatters';
-
-type AchievementSourceType = 'challenge' | 'streak' | 'rank' | 'record';
-type AchievementRarity = 'common' | 'rare' | 'legendary';
-
-function achievementSourceType(achievementId: string): AchievementSourceType {
-  const achievement = ACHIEVEMENTS.find(item => item.id === achievementId);
-  if (achievement?.metric === 'challengeDays') return 'challenge';
-  if (achievement?.metric === 'streak') return 'streak';
-  if (achievement?.metric === 'rankTier') return 'rank';
-  return 'record';
-}
-
-function achievementRarity(achievementId: string): AchievementRarity {
-  const achievement = ACHIEVEMENTS.find(item => item.id === achievementId);
-  if (achievement?.tier === 'silver' || achievement?.tier === 'gold') return 'rare';
-  if (achievement?.tier === 'platinum' || achievement?.tier === 'diamond') return 'legendary';
-  return 'common';
-}
 
 /** Total days completed across all challenges (active + past), all-time. */
 export function useChallengeDaysTotal(userId: number) {
@@ -28,27 +9,27 @@ export function useChallengeDaysTotal(userId: number) {
     queryFn: async () => {
       const db = await getDb();
       const row = await db.getFirstAsync<{ n: number }>(
-        `SELECT COUNT(*) AS n FROM challenge_days cd
-         JOIN challenges c ON c.id = cd.challenge_id
-         WHERE c.user_id = ?`,
-        [userId],
+        `SELECT COUNT(*) AS n FROM challenge_log cl
+         JOIN challenges c ON c.id = cl.challenge_id
+         WHERE c.user_id = ? AND cl.state = 'done'`,
+        [userId]
       );
       return row?.n ?? 0;
     },
   });
 }
 
-/** Map of achievement key -> first earned date (YYYY-MM-DD). */
+/** Map of achievementId -> date first recorded as unlocked (YYYY-MM-DD). */
 export function useAchievementUnlocks(userId: number) {
   return useQuery({
     queryKey: ['achievements', 'unlocks', userId],
     queryFn: async () => {
       const db = await getDb();
-      const rows = await db.getAllAsync<{ key: string; earned_at: string }>(
-        `SELECT key, earned_at FROM achievements WHERE user_id = ?`,
-        [userId],
+      const rows = await db.getAllAsync<{ achievement_id: string; unlocked_at: string }>(
+        `SELECT achievement_id, unlocked_at FROM achievement_unlocks WHERE user_id = ?`,
+        [userId]
       );
-      return Object.fromEntries(rows.map(row => [row.key, row.earned_at])) as Record<string, string>;
+      return Object.fromEntries(rows.map(r => [r.achievement_id, r.unlocked_at])) as Record<string, string>;
     },
   });
 }
@@ -60,15 +41,9 @@ export function useRecordAchievementUnlock(userId: number) {
     mutationFn: async (achievementId: string) => {
       const db = await getDb();
       await db.runAsync(
-        `INSERT OR IGNORE INTO achievements (user_id, key, rarity, earned_at, source_type, source_id)
-         VALUES (?, ?, ?, ?, ?, NULL)`,
-        [
-          userId,
-          achievementId,
-          achievementRarity(achievementId),
-          getLocalDate(),
-          achievementSourceType(achievementId),
-        ],
+        `INSERT INTO achievement_unlocks (user_id, achievement_id, unlocked_at) VALUES (?, ?, ?)
+         ON CONFLICT(user_id, achievement_id) DO NOTHING`,
+        [userId, achievementId, getLocalDate()]
       );
     },
     onSuccess: () => {

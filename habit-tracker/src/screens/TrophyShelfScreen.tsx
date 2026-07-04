@@ -19,10 +19,10 @@ export function TrophyShelfScreen() {
   const { data: allTime, isLoading: allTimeLoading } = useAllTimeStats(userId);
   const { data: rank, isLoading: rankLoading } = useRankData(userId);
   const { data: challengeDaysDone, isLoading: challengeLoading } = useChallengeDaysTotal(userId);
-  const { data: unlocks = {} } = useAchievementUnlocks(userId);
+  const { data: unlocks = {}, isLoading: unlocksLoading } = useAchievementUnlocks(userId);
   const recordUnlock = useRecordAchievementUnlock(userId);
 
-  const isLoading = allTimeLoading || rankLoading || challengeLoading;
+  const isLoading = allTimeLoading || rankLoading || challengeLoading || unlocksLoading;
 
   const stats: AchievementStats = useMemo(() => {
     const tiers = rank?.tiers ?? [];
@@ -149,8 +149,8 @@ function makeStyles(C: AppColors) {
     filterRow: { marginBottom: Spacing.lg },
     chip: {
       backgroundColor: C.surface2, borderRadius: Radii.pill,
-      paddingVertical: 7, paddingHorizontal: 14, marginRight: 8,
-      borderWidth: 1, borderColor: C.line2,
+      paddingVertical: 7, paddingHorizontal: 14, marginRight: 8, minHeight: 44,
+      borderWidth: 1, borderColor: C.line2, alignItems: 'center', justifyContent: 'center',
     },
     chipSelected: { borderColor: C.primary, backgroundColor: C.primarySoft },
     chipText: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path, G } from 'react-native-svg';
 import { TIER_COINS, EMBLEM_TINT, EMBLEM_PATH } from '../config/badgeTiers';
 import type { Tier, Emblem } from '../config/achievements';
-import { AppColors, FontFamily } from '../config/theme';
+import { AppColors, FontFamily, Radii } from '../config/theme';
 
 interface Props {
   tier: Tier;
@@ -71,10 +71,10 @@ function makeStyles(colors: AppColors) {
   return StyleSheet.create({
     wrap: { alignItems: 'center', width: '100%' },
     pillTrack: {
-      position: 'absolute', alignSelf: 'center', bottom: -3, height: 10, borderRadius: 999,
+      position: 'absolute', alignSelf: 'center', bottom: -3, height: 10, borderRadius: Radii.pill,
       overflow: 'hidden', backgroundColor: colors.surface2,
     },
-    pillFill: { height: '100%', borderRadius: 999, backgroundColor: colors.primary },
+    pillFill: { height: '100%', borderRadius: Radii.pill, backgroundColor: colors.primary },
     label: { marginTop: 9, fontSize: 11, fontFamily: FontFamily.bold, textAlign: 'center', color: colors.inkDark },
     sub: { marginTop: 2, fontSize: 10.5, fontFamily: FontFamily.semiBold, textAlign: 'center', color: colors.muted },
   });
