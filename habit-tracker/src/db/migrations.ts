@@ -318,7 +318,70 @@ async function v10(db: SQLiteDatabase): Promise<void> {
   `);
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10];
+// v10 -> v11: achievement unlocks (Trophy Shelf)
+async function v11(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS achievement_unlocks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      achievement_id TEXT NOT NULL,
+      unlocked_at TEXT NOT NULL,
+      UNIQUE(user_id, achievement_id)
+    );
+  `);
+}
+
+// v11 -> v12: challenge_days + achievements + challenge metadata
+async function v12(db: SQLiteDatabase): Promise<void> {
+  for (const sql of [
+    `ALTER TABLE challenges ADD COLUMN freeze_used INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE challenges ADD COLUMN streak_current INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE challenges ADD COLUMN completed_at TEXT`,
+  ]) {
+    try { await db.runAsync(sql); } catch (e: any) {
+      if (!e?.message?.includes('duplicate column')) throw e;
+    }
+  }
+
+  await db.execAsync(`
+    UPDATE challenges
+    SET freeze_used = 1
+    WHERE COALESCE(freezes_left, 1) <= 0;
+
+    CREATE TABLE IF NOT EXISTS challenge_days (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      challenge_id INTEGER NOT NULL,
+      local_date TEXT NOT NULL,
+      logged_at INTEGER NOT NULL,
+      UNIQUE(challenge_id, local_date)
+    );
+    CREATE INDEX IF NOT EXISTS idx_challenge_days_challenge ON challenge_days(challenge_id);
+
+    INSERT OR IGNORE INTO challenge_days (challenge_id, local_date, logged_at)
+    SELECT challenge_id, local_date,
+           CAST(strftime('%s', local_date || ' 12:00:00') AS INTEGER) * 1000
+    FROM challenge_log
+    WHERE state = 'done';
+
+    CREATE TABLE IF NOT EXISTS achievements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      key TEXT NOT NULL,
+      rarity TEXT NOT NULL CHECK(rarity IN ('common','rare','legendary')),
+      earned_at TEXT NOT NULL,
+      source_type TEXT NOT NULL CHECK(source_type IN ('challenge','streak','rank','record')),
+      source_id INTEGER
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_achievements_scope
+      ON achievements(user_id, key, source_type, COALESCE(source_id, -1));
+
+    INSERT OR IGNORE INTO achievements (user_id, key, rarity, earned_at, source_type, source_id)
+    SELECT user_id, achievement_id, 'common', unlocked_at, 'record', NULL
+    FROM achievement_unlocks;
+  `);
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

@@ -160,8 +160,11 @@ export async function resolveUserRow(
  * custom setup and only clears earned/logged history.
  */
 export const RESET_PROGRESS_STATEMENTS = [
+  'DELETE FROM challenge_days WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)',
   'DELETE FROM challenge_log WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)',
   'DELETE FROM challenges WHERE user_id = ?',
+  'DELETE FROM achievements WHERE user_id = ?',
+  'DELETE FROM achievement_unlocks WHERE user_id = ?',
   'DELETE FROM activity_log WHERE user_id = ?',
   'DELETE FROM daily_summary WHERE user_id = ?',
   'DELETE FROM weekly_summary WHERE user_id = ?',
@@ -173,8 +176,11 @@ export const RESET_PROGRESS_STATEMENTS = [
 
 /** Per-user tables purged by deleteAccount — must cover every table with a user_id column. */
 export const DELETE_ACCOUNT_STATEMENTS = [
+  'DELETE FROM challenge_days WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)',
   'DELETE FROM challenge_log WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)',
   'DELETE FROM challenges WHERE user_id = ?',
+  'DELETE FROM achievements WHERE user_id = ?',
+  'DELETE FROM achievement_unlocks WHERE user_id = ?',
   'DELETE FROM activity_log WHERE user_id = ?',
   'DELETE FROM daily_summary WHERE user_id = ?',
   'DELETE FROM weekly_summary WHERE user_id = ?',

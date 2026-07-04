@@ -30,6 +30,8 @@ import { DAILY_BONUS_THRESHOLD } from '../config/constants';
 import { useTutorial } from '../hooks/useTutorial';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 import { useShareCardData, tierPercentile } from '../hooks/useShareCardData';
+import { useNewsFeed } from '../queries/useNews';
+import { getNewsViewerKey } from '../utils/news';
 
 const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑' };
 
@@ -319,6 +321,8 @@ export function TodayScreen() {
   const rankDisplayName = currentTier ? (t.rankNameMap[rankName] ?? rankName) : t.noRankTitle;
   const rankEmoji = currentTier ? (RANK_EMOJI[currentTier.tier_order] ?? '⭐') : '⭐';
   const percentile = tierPercentile(currentTier?.tier_order ?? 1);
+  const newsViewerKey = getNewsViewerKey(googleUser?.sub);
+  const { unreadCount: unreadNewsCount } = useNewsFeed(newsViewerKey);
 
   const reduceMotion = useReduceMotion();
   const hasStreak = streak > 0;
@@ -505,9 +509,21 @@ export function TodayScreen() {
           <Text style={styles.hi}>{t.greeting(googleUser?.name?.split(' ').pop() ?? '')}</Text>
           <Text style={styles.date}>{dateStr}</Text>
         </View>
-        <TouchableOpacity style={styles.gearBtn} onPress={() => navigation.navigate('Settings' as never)} activeOpacity={0.7} accessibilityLabel={t.openSettings} accessibilityRole="button">
-          <Text style={styles.gearIcon}>⚙️</Text>
-        </TouchableOpacity>
+        <View style={styles.topbarActions}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => navigation.navigate('News' as never)}
+            activeOpacity={0.7}
+            accessibilityLabel={t.openNews}
+            accessibilityRole="button"
+          >
+            <Text style={styles.iconGlyph}>🔔</Text>
+            {unreadNewsCount > 0 ? <View style={styles.newsDot} /> : null}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('Settings' as never)} activeOpacity={0.7} accessibilityLabel={t.openSettings} accessibilityRole="button">
+            <Text style={styles.iconGlyph}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
         <View
@@ -667,8 +683,18 @@ function makeStyles(C: AppColors) {
     greet: { flex: 1 },
     hi: { fontSize: 15, fontFamily: FontFamily.extraBold, letterSpacing: -0.2, color: C.inkDark },
     date: { fontSize: 12, color: C.ink2, marginTop: 1 },
-    gearBtn: { padding: 11 },
-    gearIcon: { fontSize: 22 },
+    topbarActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    iconBtn: {
+      width: 44, height: 44, borderRadius: 22,
+      justifyContent: 'center', alignItems: 'center',
+      position: 'relative',
+    },
+    iconGlyph: { fontSize: 21 },
+    newsDot: {
+      position: 'absolute', top: 8, right: 8,
+      width: 10, height: 10, borderRadius: 5,
+      backgroundColor: C.danger, borderWidth: 2, borderColor: C.bgBase,
+    },
 
     hero: {
       marginHorizontal: Spacing.lg, marginTop: 14,

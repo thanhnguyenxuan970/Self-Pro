@@ -1,14 +1,15 @@
 import React, { useRef, useState } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, StyleSheet,
-  ActivityIndicator, ScrollView, Dimensions,
+  ActivityIndicator, ScrollView, Dimensions, Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
 import { ShareCard, CARD_W, CARD_H } from '../components/ShareCard';
 import { FontFamily, Radii, Spacing } from '../config/theme';
-import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
+import { useProStatus } from '../hooks/useProStatus';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const PREVIEW_SCALE = (SCREEN_W - 48) / CARD_W;
@@ -32,6 +33,8 @@ export function ShareCardModal({
 }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
+  const [lang] = useLanguage();
+  const { isPro } = useProStatus();
   const [beforeUri, setBeforeUri] = useState<string | undefined>();
   const [afterUri, setAfterUri] = useState<string | undefined>();
   const [capturing, setCapturing] = useState(false);
@@ -53,6 +56,15 @@ export function ShareCardModal({
   }
 
   async function handleShare() {
+    if (!isPro) {
+      Alert.alert(
+        lang === 'vi' ? 'Tính năng Pro' : 'Pro feature',
+        lang === 'vi'
+          ? 'Chia sẻ thẻ thành tích sắp ra mắt cùng gói Pro.'
+          : 'Sharing achievement cards is coming soon with Pro.',
+      );
+      return;
+    }
     if (!cardRef.current) return;
     setCapturing(true);
     try {
@@ -159,7 +171,9 @@ export function ShareCardModal({
             {capturing ? (
               <ActivityIndicator color={C.white} />
             ) : (
-              <Text style={[styles.shareBtnText, { color: C.white }]}>{t.shareBtn}</Text>
+              <Text style={[styles.shareBtnText, { color: C.white }]}>
+                {isPro ? t.shareBtn : `🔒 ${t.shareBtn}`}
+              </Text>
             )}
           </TouchableOpacity>
         </View>

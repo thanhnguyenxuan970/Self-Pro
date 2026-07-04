@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Image,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useWeeklySummary, useDailySummary } from '../queries/useToday';
 import { useAllTimeStats } from '../queries/useProgress';
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
@@ -17,6 +18,7 @@ type Props = {
 
 export function ProfileScreen({ googleUser, onSignOut }: Props) {
   const userId = useAuthUser();
+  const navigation = useNavigation();
   const { colors } = useTheme();
   const t = useTranslations();
   const [accent, setAccent] = useAccent();
@@ -61,6 +63,19 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
           <Text style={ph.lifeL}>{t.statTotalStars}</Text>
         </View>
       </View>
+
+      {/* Trophy shelf entry */}
+      <TouchableOpacity
+        style={ph.trophyRow}
+        onPress={() => (navigation as any).navigate('TrophyShelf')}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={t.screenTrophyShelf}
+      >
+        <Text style={ph.trophyIcon}>🏆</Text>
+        <Text style={ph.trophyLabel}>{t.screenTrophyShelf}</Text>
+        <Text style={ph.trophyChevron}>›</Text>
+      </TouchableOpacity>
 
       {/* Accent color picker */}
       <View style={styles.accentCard}>
@@ -123,5 +138,16 @@ function makePhStyles(C: AppColors) {
     lifeDivider: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: C.line },
     lifeV: { fontSize: 17, fontFamily: FontFamily.extraBold, color: C.inkDark },
     lifeL: { fontSize: 12, color: C.ink2, fontFamily: FontFamily.semiBold, marginTop: 3 },
+    trophyRow: {
+      flexDirection: 'row', alignItems: 'center',
+      marginHorizontal: Spacing.lg, marginTop: 14,
+      backgroundColor: C.surface, borderRadius: Radii.md,
+      borderWidth: 1, borderColor: C.line,
+      paddingHorizontal: 15, paddingVertical: 14,
+      ...Shadows.light,
+    },
+    trophyIcon: { fontSize: 20, marginRight: 10 },
+    trophyLabel: { flex: 1, fontSize: 15, fontFamily: FontFamily.semiBold, color: C.inkDark },
+    trophyChevron: { fontSize: 20, color: C.faint, fontFamily: FontFamily.bold },
   });
 }

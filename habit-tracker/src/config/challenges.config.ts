@@ -5,6 +5,10 @@ export const PHAO_COUNT = 1;
 
 export const CHALLENGE_NAME_MAX_LENGTH = 40;
 
+export function challengeCompletionStars(targetDays: number): number {
+  return Math.max(1, Math.floor(targetDays / CHALLENGE_DURATIONS[0]));
+}
+
 export const CHALLENGE_RULE_COPY = {
   vi: (freezes: number) => `Ghi nhận mỗi ngày. Bỏ lỡ 1 ngày sẽ dùng ${freezes} lượt phao cứu trợ. Hết phao mà bỏ lỡ → thử thách thất bại.`,
   en: (freezes: number) => `Log every day. A missed day uses one of your ${freezes} freezes. Missing a day with none left fails the challenge.`,

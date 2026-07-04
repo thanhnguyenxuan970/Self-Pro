@@ -1,4 +1,5 @@
 import { challengeDate, challengeStreak, completeChallenge, currentDay, currentDayIndex, computeProgress, computeRollover, dateRange, isComplete, logToday, progress, restart, type Challenge, type DayEntry } from '../src/lib/challenge';
+import { challengeCompletionStars } from '../src/config/challenges.config';
 
 const challenge: Challenge = {
   id: 4, name: 'Read', taskType: null, targetDays: 7, startDate: '2026-06-17',
@@ -53,6 +54,15 @@ describe('computeProgress', () => {
   });
   it('computes partial progress', () => {
     expect(computeProgress(3, 21)).toEqual({ fraction: 3 / 21, daysLeft: 18 });
+  });
+});
+
+describe('challengeCompletionStars', () => {
+  it('scales reward from the configured 7-day base', () => {
+    expect(challengeCompletionStars(7)).toBe(1);
+    expect(challengeCompletionStars(21)).toBe(3);
+    expect(challengeCompletionStars(30)).toBe(4);
+    expect(challengeCompletionStars(66)).toBe(9);
   });
 });
 
