@@ -64,16 +64,32 @@ export function ChallengeDayGrid({ targetDays, startDate, log, today }: Props) {
     }
   }
 
+  function cellGlyph(state: CellState): string | null {
+    switch (state) {
+      case 'done': return '✓';
+      case 'freeze': return '🧊';
+      case 'reset': return '✕';
+      default: return null;
+    }
+  }
+
   return (
     <View style={styles.grid}>
-      {cells.map(cell => (
-        <View
-          key={cell.label}
-          style={[styles.cell, { backgroundColor: cellColor(cell.state) }, cell.state === 'today' && { borderWidth: 2, borderColor: C.primary }]}
-        >
-          <Text style={[styles.cellText, (cell.state === 'done' || cell.state === 'freeze') && { color: C.white }]}>{cell.label}</Text>
-        </View>
-      ))}
+      {cells.map(cell => {
+        const glyph = cellGlyph(cell.state);
+        const onTint = cell.state === 'done' || cell.state === 'freeze';
+        return (
+          <View
+            key={cell.label}
+            style={[styles.cell, { backgroundColor: cellColor(cell.state) }, cell.state === 'today' && { borderWidth: 2, borderColor: C.primary }]}
+            accessible
+            accessibilityLabel={`${cell.label}: ${cell.state}`}
+          >
+            <Text style={[styles.cellText, onTint && { color: C.white }]}>{cell.label}</Text>
+            {glyph ? <Text style={[styles.cellGlyph, onTint && { color: C.white }]}>{glyph}</Text> : null}
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -93,7 +109,9 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.xs,
       alignItems: 'center',
       justifyContent: 'center',
+      position: 'relative',
     },
     cellText: { fontSize: 11, fontFamily: FontFamily.semiBold, color: C.ink2 },
+    cellGlyph: { position: 'absolute', top: 1, right: 2, fontSize: 7, lineHeight: 8, color: C.ink2 },
   });
 }

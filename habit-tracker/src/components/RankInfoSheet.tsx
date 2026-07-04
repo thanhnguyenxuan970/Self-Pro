@@ -2,10 +2,11 @@ import React from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { getRankConfigByTierOrder } from '../config/ranks.config';
 
 interface RankTier {
   id: number;
-  tier_order: number;     // 1..7
+  tier_order: number;
   rank_name: string;
   stars_required: number;
 }
@@ -17,17 +18,16 @@ interface Props {
   onClose: () => void;
 }
 
-const POINTS: { e: string; t: string; s: string }[] = [
-  { e: '⭐', t: 'Làm việc → nhận sao', s: 'Hoàn thành hoạt động là có sao.' },
-  { e: '📈', t: 'Đủ sao → lên hạng', s: 'Có 7 hạng, càng nhiều sao càng cao.' },
-  { e: '♻️', t: 'Reset mỗi thứ 2', s: 'Sao về mức sàn — giữ hạng phải duy trì.' },
-];
-
 export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
   const styles = makeStyles(C);
   const sorted = [...tiers].sort((a, b) => a.tier_order - b.tier_order);
+  const points: { e: string; t: string; s: string }[] = [
+    { e: '⭐', t: t.rankInfoPoint1Title, s: t.rankInfoPoint1Sub },
+    { e: '📈', t: t.rankInfoPoint2Title, s: t.rankInfoPoint2Sub(sorted.length) },
+    { e: '♻️', t: t.rankInfoPoint3Title, s: t.rankInfoPoint3Sub },
+  ];
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -36,14 +36,14 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
         <View style={styles.sheet}>
           <View style={styles.grip} />
           <View style={styles.head}>
-            <Text style={styles.title}>Rank là gì?</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Đóng">
+            <Text style={styles.title}>{t.rankInfoTitle}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={13} accessibilityRole="button" accessibilityLabel={t.close}>
               <Text style={styles.close}>✕</Text>
             </TouchableOpacity>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
-            {POINTS.map((p) => (
+            {points.map((p) => (
               <View key={p.t} style={styles.pt}>
                 <Text style={styles.ptEmoji}>{p.e}</Text>
                 <View style={styles.flex1}>
@@ -53,18 +53,24 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
               </View>
             ))}
 
-            <Text style={styles.sec}>Thang bậc · {sorted.length} hạng</Text>
+            <Text style={styles.sec}>{t.rankInfoTiersHeading(sorted.length)}</Text>
             {sorted.map((tier) => {
               const cur = tier.id === currentTierId;
+              const cfg = getRankConfigByTierOrder(tier.tier_order);
+              const rankLabel = t.rankNameMap[cfg.name] ?? cfg.name;
+              const rankAltLabel = rankLabel === cfg.nameVi ? cfg.name : cfg.nameVi;
               return (
                 <View key={tier.id} style={[styles.lrow, cur && styles.lrowCur]}>
                   <View style={[styles.lnum, cur && styles.lnumCur]}>
                     <Text style={[styles.lnumText, cur && styles.lnumTextCur]}>{tier.tier_order}</Text>
                   </View>
-                  <Text style={styles.lname}>{t.rankNameMap[tier.rank_name] ?? tier.rank_name}</Text>
+                  <View style={styles.lcopy}>
+                    <Text style={styles.lname} numberOfLines={1}>{rankLabel}</Text>
+                    <Text style={styles.lnameVi} numberOfLines={1}>{rankAltLabel}</Text>
+                  </View>
                   {cur ? (
                     <View style={styles.youtag}>
-                      <Text style={styles.youtagText}>BẠN</Text>
+                      <Text style={styles.youtagText}>{t.leaderboardYou}</Text>
                     </View>
                   ) : null}
                   <Text style={styles.lstar}>{tier.stars_required} ⭐</Text>
@@ -99,9 +105,11 @@ function makeStyles(C: AppColors) {
     lnumCur: { backgroundColor: C.primary },
     lnumText: { fontSize: 11, fontFamily: FontFamily.bold, color: C.ink2 },
     lnumTextCur: { color: C.white },
-    lname: { flex: 1, fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
+    lcopy: { flex: 1, minWidth: 0 },
+    lname: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
+    lnameVi: { fontSize: 11.5, fontFamily: FontFamily.regular, color: C.ink2, marginTop: 1 },
     lstar: { fontSize: 12.5, fontFamily: FontFamily.semiBold, color: C.ink2 },
     youtag: { backgroundColor: C.primary, borderRadius: Radii.pill, paddingHorizontal: 6, paddingVertical: 1, marginRight: 6 },
-    youtagText: { fontSize: 11, fontFamily: FontFamily.bold, color: C.white },
+    youtagText: { fontSize: 11, fontFamily: FontFamily.bold, color: C.white, textTransform: 'uppercase' },
   });
 }

@@ -1,8 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
   Image,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -39,6 +39,38 @@ export function NewsScreen() {
     markAllRead.mutate();
   }, [latestNewsId, unreadCount, markAllRead]);
 
+  const renderItem = useCallback(({ item }: { item: (typeof news)[number] }) => {
+    const read = isNewsRead(item.id, lastSeenNewsId);
+    const tagLabel = item.tag?.trim() || item.version;
+    return (
+      <View style={[styles.card, !read && styles.cardUnread]}>
+        <View style={styles.cardMetaRow}>
+          <View style={styles.versionBadge}>
+            <Text style={styles.versionText}>{item.version}</Text>
+          </View>
+          <View style={styles.tagBadge}>
+            <Text style={styles.tagText}>{tagLabel}</Text>
+          </View>
+        </View>
+
+        {item.image ? <Image source={{ uri: item.image }} style={styles.cardImage} resizeMode="cover" /> : null}
+
+        <View style={styles.cardHeaderRow}>
+          <View style={styles.cardCopy}>
+            <View style={styles.cardTitleRow}>
+              {!read ? <View style={styles.cardUnreadDot} /> : null}
+              <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+            </View>
+            <Text style={styles.cardDate}>{formatNewsDate(item.published_at, t.timeLocale)}</Text>
+          </View>
+          {read ? <Text style={styles.readBadge}>{t.newsReadBadge}</Text> : null}
+        </View>
+
+        <Text style={styles.cardBodyText} numberOfLines={3}>{item.body}</Text>
+      </View>
+    );
+  }, [lastSeenNewsId, styles, t]);
+
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <View style={styles.header}>
@@ -74,39 +106,13 @@ export function NewsScreen() {
           <Text style={styles.stateBody}>{t.newsEmptyBody}</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
-          {news.map((item) => {
-            const read = isNewsRead(item.id, lastSeenNewsId);
-            const tagLabel = item.tag?.trim() || item.version;
-            return (
-              <View key={item.id} style={[styles.card, !read && styles.cardUnread]}>
-                {!read ? <View style={styles.unreadStripe} /> : null}
-                <View style={styles.cardBody}>
-                  <View style={styles.cardMetaRow}>
-                    <View style={styles.versionBadge}>
-                      <Text style={styles.versionText}>{item.version}</Text>
-                    </View>
-                    <View style={styles.tagBadge}>
-                      <Text style={styles.tagText}>{tagLabel}</Text>
-                    </View>
-                  </View>
-
-                  {item.image ? <Image source={{ uri: item.image }} style={styles.cardImage} resizeMode="cover" /> : null}
-
-                  <View style={styles.cardHeaderRow}>
-                    <View style={styles.cardCopy}>
-                      <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-                      <Text style={styles.cardDate}>{formatNewsDate(item.published_at, t.timeLocale)}</Text>
-                    </View>
-                    {read ? <Text style={styles.readBadge}>{t.newsReadBadge}</Text> : null}
-                  </View>
-
-                  <Text style={styles.cardBodyText} numberOfLines={3}>{item.body}</Text>
-                </View>
-              </View>
-            );
-          })}
-        </ScrollView>
+        <FlatList
+          data={news}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
       )}
     </SafeAreaView>
   );
@@ -165,17 +171,15 @@ function makeStyles(C: AppColors) {
     retryText: { fontSize: 13, fontFamily: FontFamily.bold, color: C.white },
     listContent: { padding: Spacing.lg, paddingTop: Spacing.sm, gap: 12 },
     card: {
-      flexDirection: 'row',
       borderRadius: Radii.xl,
       backgroundColor: C.surface,
       borderWidth: 1,
       borderColor: C.line,
       overflow: 'hidden',
+      padding: 16,
       ...Shadows.light,
     },
     cardUnread: { backgroundColor: C.primarySoft + '66', borderColor: C.primary + '33' },
-    unreadStripe: { width: 5, backgroundColor: C.primary },
-    cardBody: { flex: 1, padding: 16 },
     cardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
     versionBadge: {
       paddingHorizontal: 10,
@@ -200,7 +204,9 @@ function makeStyles(C: AppColors) {
     },
     cardHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
     cardCopy: { flex: 1 },
-    cardTitle: { fontSize: 16, fontFamily: FontFamily.extraBold, color: C.inkDark, lineHeight: 22 },
+    cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    cardUnreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.danger },
+    cardTitle: { flexShrink: 1, fontSize: 16, fontFamily: FontFamily.extraBold, color: C.inkDark, lineHeight: 22 },
     cardDate: { marginTop: 4, fontSize: 12, fontFamily: FontFamily.medium, color: C.muted },
     readBadge: {
       alignSelf: 'center',

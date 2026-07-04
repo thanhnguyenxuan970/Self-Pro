@@ -7,15 +7,11 @@ import { useLeaderboard } from '../queries/useLeaderboard';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
-import { RANKS } from '../config/ranks.config';
+import { getRankConfigByTierOrder } from '../config/ranks.config';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { RankInfoSheet } from '../components/RankInfoSheet';
 import { RankEmptyState } from '../components/RankEmptyState';
 import { SkeletonRow } from '../components/SkeletonRow';
-
-function rankConfig(tierOrder: number) {
-  return RANKS[Math.min(Math.max(tierOrder - 1, 0), RANKS.length - 1)];
-}
 
 function getNextMonday(): Date {
   const now = new Date();
@@ -51,6 +47,26 @@ type LeaderboardSectionProps = {
   youLabel: string;
   emptyLabel: string;
 };
+
+const ResetCountdownChip = React.memo(function ResetCountdownChip({
+  styles,
+  label,
+}: {
+  styles: ReturnType<typeof makeStyles>;
+  label: string;
+}) {
+  const [countdownMs, setCountdownMs] = useState(() => getNextMonday().getTime() - Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setCountdownMs(getNextMonday().getTime() - Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <View style={styles.resetChip}>
+      <Text style={styles.resetChipLabel}>{label}</Text>
+      <Text style={styles.resetChipCountdown}>{fmtCountdown(countdownMs)}</Text>
+    </View>
+  );
+});
 
 function LeaderboardSection({ leaderboard, lbLoading, styles, colors, youLabel, emptyLabel }: LeaderboardSectionProps) {
   if (lbLoading) {
@@ -90,12 +106,6 @@ export function RankScreen() {
 
   const reduceMotion = useReduceMotion();
 
-  const [countdownMs, setCountdownMs] = useState(() => getNextMonday().getTime() - Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setCountdownMs(getNextMonday().getTime() - Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   useEffect(() => {
     rankMascotBridge.ref = mascotRef;
     return () => { rankMascotBridge.ref = null; };
@@ -124,13 +134,19 @@ export function RankScreen() {
   // Rank is authoritative from current_tier_id (carry-over + cap system), not derived from star count
   const currentTier = currentTierId ? tiers.find(t => t.id === currentTierId) : undefined;
   const nextTier = currentTier ? tiers.find(t => t.tier_order === currentTier.tier_order + 1) : tiers.find(t => t.stars_required > currentStars);
+  const firstTierStars = tiers[0]?.stars_required ?? 5;
   const prevTierStars = currentTier?.stars_required ?? 0;
   const nextTierStars = nextTier?.stars_required ?? prevTierStars;
   const starsToNext = nextTier ? Math.max(0, nextTierStars - currentStars) : 0;
   const progressPct = nextTier
     ? Math.min(1, Math.max(0, (currentStars - prevTierStars) / Math.max(1, nextTierStars - prevTierStars)))
     : 1;
-  const cfg = rankConfig(currentTier?.tier_order ?? 1);
+  const cfg = getRankConfigByTierOrder(currentTier?.tier_order ?? 1);
+  const nextCfg = nextTier ? getRankConfigByTierOrder(nextTier.tier_order) : null;
+  const rankLabel = t.rankNameMap[cfg.name] ?? cfg.name;
+  const rankAltLabel = rankLabel === cfg.nameVi ? cfg.name : cfg.nameVi;
+  const nextRankLabel = nextCfg ? (t.rankNameMap[nextCfg.name] ?? nextCfg.name) : (t.rankNameMap[nextTier?.rank_name ?? ''] ?? nextTier?.rank_name ?? '');
+  const nextRankAltLabel = nextCfg ? (nextRankLabel === nextCfg.nameVi ? nextCfg.name : nextCfg.nameVi) : null;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -142,12 +158,13 @@ export function RankScreen() {
           </TouchableOpacity>
         </View>
 
-        {currentStars >= 5 ? (
+        {currentStars >= firstTierStars ? (
           <View style={styles.rankhero}>
-            <View style={[styles.rankheroGlow, { backgroundColor: cfg.color }]} importantForAccessibility="no" />
+            <View style={[styles.rankheroGlow, { backgroundColor: cfg.glow ?? cfg.color }]} importantForAccessibility="no" />
             <RankMascot ref={mascotRef} tier={(currentTier?.tier_order ?? 1) - 1} size={100} loop reduceMotion={reduceMotion} />
-            <Text style={styles.rankNm}>{t.rankNameMap[currentTier?.rank_name ?? ''] ?? currentTier?.rank_name}</Text>
-            <Text style={styles.rankEn}>{t.rankQuoteMap[currentTier?.rank_name ?? ''] ?? cfg.descriptor}</Text>
+            <Text style={styles.rankNm} numberOfLines={2}>{rankLabel}</Text>
+            <Text style={styles.rankVi} numberOfLines={2}>{rankAltLabel}</Text>
+            <Text style={styles.rankEn} numberOfLines={2}>{t.rankQuoteMap[currentTier?.rank_name ?? ''] ?? cfg.descriptor}</Text>
             <View style={styles.rankWk}>
               <Text style={styles.rankWkTxt}>{t.weekStars(currentStars)}</Text>
             </View>
@@ -155,21 +172,22 @@ export function RankScreen() {
               <View style={[styles.barFill, { width: `${Math.round(progressPct * 100)}%` as `${number}%` }]} />
             </View>
             {starsToNext > 0 ? (
-              <Text style={styles.nextCap}>{t.nextRank(starsToNext, t.rankNameMap[nextTier?.rank_name ?? ''] ?? nextTier?.rank_name ?? '')}</Text>
+              <Text style={styles.nextCap}>{t.nextRank(starsToNext, nextRankAltLabel ? `${nextRankLabel} · ${nextRankAltLabel}` : nextRankLabel)}</Text>
             ) : (
               <Text style={styles.nextCap}>{t.maxRank}</Text>
             )}
           </View>
         ) : (
           <View style={styles.rankEmptyWrap}>
-            <RankEmptyState currentStars={currentStars} nextRankName={t.rankNameMap[nextTier?.rank_name ?? 'Delulu'] ?? nextTier?.rank_name ?? 'Delulu'} />
+            <RankEmptyState
+              currentStars={currentStars}
+              unlockStars={firstTierStars}
+              nextRankName={nextRankAltLabel ? `${nextRankLabel} · ${nextRankAltLabel}` : nextRankLabel}
+            />
           </View>
         )}
 
-        <View style={styles.resetChip}>
-          <Text style={styles.resetChipLabel}>{t.resetCountdownLabel}</Text>
-          <Text style={styles.resetChipCountdown}>{fmtCountdown(countdownMs)}</Text>
-        </View>
+        <ResetCountdownChip styles={styles} label={t.resetCountdownLabel} />
 
         {currentTierOrder > 0 && (
           <>
@@ -194,7 +212,9 @@ export function RankScreen() {
               {history.map((week, idx) => {
                 const weekTier = week.current_tier_id ? tiers.find((tr) => tr.id === week.current_tier_id) : null;
                 const isLast = idx === history.length - 1;
-                const wrc = weekTier ? rankConfig(weekTier.tier_order) : null;
+                const wrc = weekTier ? getRankConfigByTierOrder(weekTier.tier_order) : null;
+                const weekRankLabel = wrc ? (t.rankNameMap[wrc.name] ?? wrc.name) : '—';
+                const weekRankAltLabel = wrc ? (weekRankLabel === wrc.nameVi ? wrc.name : wrc.nameVi) : '—';
                 return (
                   <View key={week.week_start} style={[styles.rk, isLast && styles.rkLast]}>
                     <View style={styles.rkMascot}>
@@ -206,7 +226,8 @@ export function RankScreen() {
                     </View>
                     <View style={styles.rkInfo}>
                       <Text style={styles.rkA}>{t.weekItem(week.week_start)}</Text>
-                      <Text style={styles.rkB}>{weekTier ? (t.rankNameMap[weekTier.rank_name] ?? weekTier.rank_name) : '—'}</Text>
+                      <Text style={styles.rkB} numberOfLines={1}>{weekRankLabel}</Text>
+                      <Text style={styles.rkC} numberOfLines={1}>{weekRankAltLabel}</Text>
                     </View>
                     <Text style={styles.rkThr}>{week.weekly_stars} ★</Text>
                   </View>
@@ -248,6 +269,7 @@ function makeStyles(C: AppColors) {
     },
     rankEm: { fontSize: 54, marginBottom: 2 },
     rankNm: { fontSize: 25, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, marginTop: 8 },
+    rankVi: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.ink2, marginTop: 3, textAlign: 'center' },
     rankEn: { fontSize: 12.5, color: C.muted, marginTop: 2, fontStyle: 'italic' },
     rankWk: {
       marginTop: 12, backgroundColor: C.starSoft,
@@ -285,6 +307,7 @@ function makeStyles(C: AppColors) {
     rkInfo: { flex: 1 },
     rkA: { fontSize: 14, fontFamily: FontFamily.extraBold, color: C.inkDark },
     rkB: { fontSize: 11.5, color: C.ink2, marginTop: 2 },
+    rkC: { fontSize: 11, color: C.muted, marginTop: 1 },
     rkThr: { fontSize: 11.5, fontFamily: FontFamily.extraBold, color: C.muted },
 
     lbRow: {

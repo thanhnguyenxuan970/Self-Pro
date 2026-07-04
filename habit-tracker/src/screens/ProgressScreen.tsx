@@ -201,15 +201,19 @@ function ProgressChartContent({ isLoading, chartData, totalSum, goodData, badDat
       </View>
     );
   }
+  const goodSum = goodData.reduce((sum, p) => sum + p.y, 0);
+  const badSum = badData.reduce((sum, p) => sum + p.y, 0);
   return (
-    <VictoryChart width={chartWidth} height={190} padding={{ top: 10, bottom: 36, left: 36, right: 12 }} domainPadding={{ x: [20, 10] }} animate={false}>
-      <VictoryAxis tickValues={visibleTicks} tickFormat={tickFormat} style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.ink2, fontSize: 11, fontFamily: FontFamily.semiBold } }} />
-      <VictoryAxis dependentAxis style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.ink2, fontSize: 11 } }} />
-      <VictoryStack colorScale={[colors.primary, colors.danger]}>
-        <VictoryBar data={goodData} />
-        <VictoryBar data={badData} />
-      </VictoryStack>
-    </VictoryChart>
+    <View accessible accessibilityLabel={t.chartSummary(goodSum, badSum)}>
+      <VictoryChart width={chartWidth} height={190} padding={{ top: 10, bottom: 36, left: 36, right: 12 }} domainPadding={{ x: [20, 10] }} animate={false}>
+        <VictoryAxis tickValues={visibleTicks} tickFormat={tickFormat} style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.ink2, fontSize: 11, fontFamily: FontFamily.semiBold } }} />
+        <VictoryAxis dependentAxis style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.ink2, fontSize: 11 } }} />
+        <VictoryStack colorScale={[colors.primary, colors.danger]}>
+          <VictoryBar data={goodData} />
+          <VictoryBar data={badData} />
+        </VictoryStack>
+      </VictoryChart>
+    </View>
   );
 }
 

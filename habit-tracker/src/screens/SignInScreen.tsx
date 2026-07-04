@@ -3,10 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } fr
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { GoogleUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
-import { ACCENTS } from '../config/accents';
 import { useTheme, useTranslations } from '../hooks/useSettings';
-
-const GREEN = ACCENTS.green.light;
 
 type Props = {
   onSignIn: () => void;
@@ -57,17 +54,17 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
       <View style={styles.card}>
         <View style={styles.logoContainer}>
           <Svg width={88} height={88} viewBox="0 0 60 60">
-            <Rect x="0" y="0" width="60" height="60" rx="14" ry="14" fill="#E6F4EC" />
-            <Circle cx="30" cy="30" r="17" fill="none" stroke="#C6E9D5" strokeWidth="6.5" />
+            <Rect x="0" y="0" width="60" height="60" rx="14" ry="14" fill={colors.surface2} />
+            <Circle cx="30" cy="30" r="17" fill="none" stroke={colors.primarySoft} strokeWidth="6.5" />
             <Path
               d="M30,13 A17,17 0 1 1 13,30"
-              fill="none" stroke="#25B36E" strokeWidth="6.5"
+              fill="none" stroke={colors.primary} strokeWidth="6.5"
               strokeLinecap="round"
             />
-            <Circle cx="13" cy="30" r="2.4" fill="#E0A93B" />
+            <Circle cx="13" cy="30" r="2.4" fill={colors.starGold} />
             <Path
               d="M23,31 L28,36 L38,25"
-              fill="none" stroke="#0F7A50" strokeWidth="4.5"
+              fill="none" stroke={colors.primaryPress} strokeWidth="4.5"
               strokeLinecap="round" strokeLinejoin="round"
             />
           </Svg>
@@ -76,7 +73,7 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
         <Text style={styles.subtitle}>{t.signInTagline}</Text>
 
         {loading ? (
-          <ActivityIndicator size="large" color={GREEN.primary} style={{ marginTop: Spacing.xl }} />
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: Spacing.xl }} />
         ) : (
           <TouchableOpacity
             style={styles.googleButton}

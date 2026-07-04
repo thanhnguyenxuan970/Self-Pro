@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useWeeklySummary, useDailySummary } from '../queries/useToday';
 import { useAllTimeStats } from '../queries/useProgress';
@@ -34,7 +35,8 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
   const totalStars = allTime ? allTime.totalStars : 0;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
       {/* Centered profile header */}
       <View style={ph.head}>
         {googleUser.picture ? (
@@ -88,6 +90,7 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
         <Text style={styles.logoutBtnText}>{t.signOut}</Text>
       </TouchableOpacity>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 

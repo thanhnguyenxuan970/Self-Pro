@@ -131,6 +131,7 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
         activeOpacity={0.7}
         accessibilityLabel={resolveTaskDisplayName(item.name, t)}
         accessibilityRole="button"
+        accessibilityState={{ checked: done, selected: selectionMode ? isSelected : undefined }}
       >
         <Animated.View style={[styles.check, resolveCheckStyle(styles, selectionMode, isSelected, done, isBad), { transform: [{ scale: checkScaleAnim }] }]}>
           <Text style={styles.checkMark}>{resolveCheckMark(selectionMode, isSelected, done, isBad)}</Text>
@@ -144,7 +145,7 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
           {!selectionMode && onEdit ? (
             <TouchableOpacity
               onPress={onEdit}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
               accessibilityLabel={t.editActivity}
               accessibilityRole="button"
             >

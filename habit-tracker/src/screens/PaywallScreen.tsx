@@ -6,6 +6,7 @@ import Svg, { Path, Rect } from 'react-native-svg';
 import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useTranslations } from '../hooks/useSettings';
+import type { Strings } from '../config/i18n';
 
 export type PlanId = 'monthly' | 'yearly' | 'lifetime';
 
@@ -28,15 +29,17 @@ interface Plan {
 
 // Prices mirror the VN localized pricing strategy. Move to i18n / RevenueCat
 // offerings when wiring real billing.
-const PLANS: Plan[] = [
-  { id: 'monthly', label: 'Tháng', price: '49.000đ', per: '/ tháng', cta: 'Bắt đầu gói tháng' },
-  {
-    id: 'yearly', label: 'Năm', price: '249.000đ', per: '/ năm',
-    meta: '~20.750đ / tháng', badge: 'PHỔ BIẾN', save: '−58%',
-    cta: 'Dùng thử 7 ngày miễn phí',
-  },
-  { id: 'lifetime', label: 'Trọn đời', price: '599.000đ', per: 'một lần', cta: 'Mở khoá trọn đời' },
-];
+function getPlans(t: Strings): Plan[] {
+  return [
+    { id: 'monthly', label: t.paywallMonthlyLabel, price: '49.000đ', per: t.paywallPerMonth, cta: t.paywallMonthlyCta },
+    {
+      id: 'yearly', label: t.paywallYearlyLabel, price: '249.000đ', per: t.paywallPerYear,
+      meta: t.paywallYearlyMeta, badge: t.paywallPopularBadge, save: t.paywallYearlySave,
+      cta: t.paywallYearlyCta,
+    },
+    { id: 'lifetime', label: t.paywallLifetimeLabel, price: '599.000đ', per: t.paywallOneTime, cta: t.paywallLifetimeCta },
+  ];
+}
 
 function RingMark({ color, size = 18 }: { color: string; size?: number }) {
   return (
@@ -72,6 +75,7 @@ function RankArt({ color, gold }: { color: string; gold: string }) {
 export default function PaywallScreen({ onClose, onRestore, onSubscribe }: PaywallScreenProps) {
   const { colors: C, styles } = useScreenCommons(makeStyles);
   const t = useTranslations();
+  const PLANS = React.useMemo(() => getPlans(t), [t]);
   const [selected, setSelected] = useState<PlanId>('yearly');
   const [loading, setLoading] = useState(false);
   const current = PLANS.find((p) => p.id === selected) ?? PLANS[1];
@@ -91,19 +95,19 @@ export default function PaywallScreen({ onClose, onRestore, onSubscribe }: Paywa
           <View style={{ width: 20 }} />
         </View>
 
-        <Text style={styles.h1}>Mở khoá Pro 🔓</Text>
-        <Text style={styles.sub}>Soi tiến bộ · Leo top</Text>
+        <Text style={styles.h1}>{t.paywallHeadline}</Text>
+        <Text style={styles.sub}>{t.paywallSubhead}</Text>
 
         <View style={styles.tiles}>
           <View style={styles.tile}>
             <AnalyticsArt color={C.primary} />
-            <Text style={styles.tileTitle}>Analytics</Text>
-            <Text style={styles.tileDesc}>Biểu đồ & lịch sử đầy đủ</Text>
+            <Text style={styles.tileTitle}>{t.paywallAnalyticsTitle}</Text>
+            <Text style={styles.tileDesc}>{t.paywallAnalyticsDesc}</Text>
           </View>
           <View style={styles.tile}>
             <RankArt color={C.primary} gold={C.starGold} />
-            <Text style={styles.tileTitle}>Đua top</Text>
-            <Text style={styles.tileDesc}>Bạn đang top mấy %?</Text>
+            <Text style={styles.tileTitle}>{t.paywallRankTitle}</Text>
+            <Text style={styles.tileDesc}>{t.paywallRankDesc}</Text>
           </View>
         </View>
 
@@ -159,9 +163,9 @@ export default function PaywallScreen({ onClose, onRestore, onSubscribe }: Paywa
         </TouchableOpacity>
 
         <View style={styles.fineRow}>
-          <Text style={styles.fine}>Thanh toán qua {store} · huỷ bất cứ lúc nào · </Text>
-          <TouchableOpacity onPress={onRestore} accessibilityRole="button" accessibilityLabel="Khôi phục mua hàng" activeOpacity={0.7}>
-            <Text style={[styles.fine, styles.link]}>Khôi phục</Text>
+          <Text style={styles.fine}>{t.paywallFinePrint(store)}</Text>
+          <TouchableOpacity onPress={onRestore} accessibilityRole="button" accessibilityLabel={t.paywallRestore} activeOpacity={0.7}>
+            <Text style={[styles.fine, styles.link]}>{t.paywallRestoreLink}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

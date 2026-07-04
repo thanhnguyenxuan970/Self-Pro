@@ -8,7 +8,7 @@ import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
 import { ShareCard, CARD_W, CARD_H } from '../components/ShareCard';
 import { FontFamily, Radii, Spacing } from '../config/theme';
-import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
+import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useProStatus } from '../hooks/useProStatus';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -33,7 +33,6 @@ export function ShareCardModal({
 }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
-  const [lang] = useLanguage();
   const { isPro } = useProStatus();
   const [beforeUri, setBeforeUri] = useState<string | undefined>();
   const [afterUri, setAfterUri] = useState<string | undefined>();
@@ -57,12 +56,7 @@ export function ShareCardModal({
 
   async function handleShare() {
     if (!isPro) {
-      Alert.alert(
-        lang === 'vi' ? 'Tính năng Pro' : 'Pro feature',
-        lang === 'vi'
-          ? 'Chia sẻ thẻ thành tích sắp ra mắt cùng gói Pro.'
-          : 'Sharing achievement cards is coming soon with Pro.',
-      );
+      Alert.alert(t.shareProFeatureTitle, t.shareProFeatureMsg);
       return;
     }
     if (!cardRef.current) return;

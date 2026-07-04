@@ -88,6 +88,7 @@ const vi = {
   currentPeriod: 'Hiện tại',
   dayAbbr: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
   chartTitle: 'Điểm theo thời gian',
+  chartSummary: (good: number, bad: number) => `Biểu đồ: ${good} điểm thói quen tốt, ${bad} điểm thói quen xấu.`,
   noActivityYet: 'Chưa có hoạt động nào',
   progressEmptyMsg: 'Ghi thói quen đầu tiên để xem tiến độ ở đây',
   progressEmptyCta: 'Ghi hoạt động',
@@ -165,13 +166,15 @@ const vi = {
   weekItem: (start: string) => `Tuần ${start}`,
   // Rank display name (short, fits UI)
   rankNameMap: {
-    'Delulu':         'Delulu',
-    'Mewing':         'Mewing',
-    'Rizz':           'Rizz',
-    'Gigachad':       'Gigachad',
-    'Aura Farmer':    'Full Aura',
-    'Main Character': 'Main Char',
-    'GOATED':         'GOATED',
+    'Delulu':         'Ảo Tưởng',
+    'Mewing':         'Chuẩn Hàm',
+    'Rizz':           'Cuốn Hút',
+    'Gigachad':       'Cơ Bắp',
+    'Aura Farmer':    'Cày Hào Quang',
+    'Main Character': 'Nhân Vật Chính',
+    'GOATED':         'Vô Đối',
+    'Final Boss':     'Trùm Cuối',
+    'Ascended':       'Đỉnh Của Chóp',
   } as Record<string, string>,
   // Rank quote (Gen-Z phrase, shown under rank name/mascot/share card)
   rankQuoteMap: {
@@ -182,6 +185,8 @@ const vi = {
     'Aura Farmer':    'Khao khát center',
     'Main Character': 'Vô chùa ko bik lay ai',
     'GOATED':         'infinite W, no cap 🐐',
+    'Final Boss':     'boss music on',
+    'Ascended':       'god mode: on',
   } as Record<string, string>,
 
   // LogActivitySheet
@@ -217,7 +222,7 @@ const vi = {
   challengeHomeCard: 'Thử thách',
   challengeDayOf: (day: number, total: number) => `Ngày ${day}/${total}`,
   challengeEmptyTitle: 'Chưa có thử thách nào',
-  challengeEmptyBody: 'Bắt đầu thử thách 7, 21, 30 hoặc 66 ngày để xây dựng thói quen.',
+  challengeEmptyBody: 'Bắt đầu thử thách 30, 60 hoặc 100 ngày để xây dựng thói quen.',
   challengeCreateCta: 'Tạo thử thách mới',
   challengePastSection: 'Thử thách đã qua',
   challengeStatusDone: 'Hoàn thành',
@@ -241,6 +246,10 @@ const vi = {
   challengeLogTodayCta: 'Ghi nhận hôm nay',
   challengeLoggedToday: 'Đã ghi nhận hôm nay',
   challengeShareCta: 'Chia sẻ',
+  challengeDeleteCta: 'Xoá thử thách',
+  challengeDeleteTitle: 'Xoá thử thách',
+  challengeDeleteMsg: 'Thử thách này và toàn bộ tiến độ liên quan sẽ bị xoá vĩnh viễn. Bạn có chắc không?',
+  challengeDeleteFailed: 'Không thể xoá thử thách. Thử lại.',
   challengeCompletedTitle: 'Chúc mừng hoàn thành!',
   challengeFailedTitle: 'Thử thách đã kết thúc',
   challengeRestartCta: 'Thử lại',
@@ -292,6 +301,14 @@ const vi = {
   openNews: 'Mở tin mới',
   dismissSuggestion: 'Bỏ qua gợi ý',
   rankInfo: 'Thông tin xếp hạng',
+  rankInfoTitle: 'Rank là gì?',
+  rankInfoPoint1Title: 'Làm việc → nhận sao',
+  rankInfoPoint1Sub: 'Hoàn thành hoạt động là có sao.',
+  rankInfoPoint2Title: 'Đủ sao → lên hạng',
+  rankInfoPoint2Sub: (n: number) => `Có ${n} hạng, càng nhiều sao càng cao.`,
+  rankInfoPoint3Title: 'Reset mỗi thứ 2',
+  rankInfoPoint3Sub: 'Sao về mức sàn — giữ hạng phải duy trì.',
+  rankInfoTiersHeading: (n: number) => `Thang bậc · ${n} hạng`,
   newsTitle: 'Có gì mới',
   newsUnreadCount: (n: number) => n === 0 ? 'Tất cả đã đọc' : `${n} tin chưa đọc`,
   newsMarkAllRead: 'Đánh dấu đã đọc tất cả',
@@ -406,6 +423,7 @@ const vi = {
 
   // Notifications
   addReminder: '+ Thêm nhắc nhở',
+  clearReminder: 'Xoá nhắc nhở',
 
   // RankScreen countdown
   resetCountdownLabel: 'Reset T2 · 00:00 — Còn lại',
@@ -479,6 +497,8 @@ const vi = {
   shareStreakUnit: 'ngày streak',
   shareWeeklyStars: (n: number) => `★ ${n} sao`,
   shareWatermark: 'habi · tải ngay để bắt đầu',
+  shareProFeatureTitle: 'Tính năng Pro',
+  shareProFeatureMsg: 'Chia sẻ thẻ thành tích sắp ra mắt cùng gói Pro.',
 
   // SignInScreen
   signInBtn: 'Đăng nhập bằng Google',
@@ -487,6 +507,29 @@ const vi = {
 
   // CalendarScreen DOW (Mon-Sun order)
   calDow: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
+
+  // PaywallScreen
+  paywallHeadline: 'Mở khoá Pro 🔓',
+  paywallSubhead: 'Soi tiến bộ · Leo top',
+  paywallAnalyticsTitle: 'Analytics',
+  paywallAnalyticsDesc: 'Biểu đồ & lịch sử đầy đủ',
+  paywallRankTitle: 'Đua top',
+  paywallRankDesc: 'Bạn đang top mấy %?',
+  paywallMonthlyLabel: 'Tháng',
+  paywallPerMonth: '/ tháng',
+  paywallMonthlyCta: 'Bắt đầu gói tháng',
+  paywallYearlyLabel: 'Năm',
+  paywallPerYear: '/ năm',
+  paywallYearlyMeta: '~20.750đ / tháng',
+  paywallPopularBadge: 'PHỔ BIẾN',
+  paywallYearlySave: '−58%',
+  paywallYearlyCta: 'Dùng thử 7 ngày miễn phí',
+  paywallLifetimeLabel: 'Trọn đời',
+  paywallOneTime: 'một lần',
+  paywallLifetimeCta: 'Mở khoá trọn đời',
+  paywallFinePrint: (store: string) => `Thanh toán qua ${store} · huỷ bất cứ lúc nào · `,
+  paywallRestore: 'Khôi phục mua hàng',
+  paywallRestoreLink: 'Khôi phục',
 };
 
 const en: typeof vi = {
@@ -578,6 +621,7 @@ const en: typeof vi = {
   currentPeriod: 'Current',
   dayAbbr: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
   chartTitle: 'Points over time',
+  chartSummary: (good, bad) => `Chart: ${good} good-habit points, ${bad} bad-habit points.`,
   noActivityYet: 'No activity yet',
   progressEmptyMsg: 'Log your first habit to see progress here',
   progressEmptyCta: 'Log activity',
@@ -661,6 +705,8 @@ const en: typeof vi = {
     'Aura Farmer':    'Aura Farmer',
     'Main Character': 'Main Character',
     'GOATED':         'GOATED',
+    'Final Boss':     'Final Boss',
+    'Ascended':       'Ascended',
   } as Record<string, string>,
   rankQuoteMap: {
     'Delulu':         '"delulu is the solulu"',
@@ -670,6 +716,8 @@ const en: typeof vi = {
     'Aura Farmer':    '"aura farming fr fr"',
     'Main Character': '"main character energy"',
     'GOATED':         '"infinite W, no cap"',
+    'Final Boss':     '"boss music on"',
+    'Ascended':       '"god mode: on"',
   } as Record<string, string>,
 
   // LogActivitySheet
@@ -705,7 +753,7 @@ const en: typeof vi = {
   challengeHomeCard: 'Challenges',
   challengeDayOf: (day: number, total: number) => `Day ${day}/${total}`,
   challengeEmptyTitle: 'No challenges yet',
-  challengeEmptyBody: 'Start a 7, 21, 30, or 66-day challenge to build a habit.',
+  challengeEmptyBody: 'Start a 30, 60, or 100-day challenge to build a habit.',
   challengeCreateCta: 'Start a new challenge',
   challengePastSection: 'Past challenges',
   challengeStatusDone: 'Completed',
@@ -729,6 +777,10 @@ const en: typeof vi = {
   challengeLogTodayCta: 'Log today',
   challengeLoggedToday: 'Logged today',
   challengeShareCta: 'Share',
+  challengeDeleteCta: 'Delete challenge',
+  challengeDeleteTitle: 'Delete challenge',
+  challengeDeleteMsg: 'This challenge and its related progress will be permanently deleted. Are you sure?',
+  challengeDeleteFailed: 'Could not delete challenge. Try again.',
   challengeCompletedTitle: 'Congrats, you did it!',
   challengeFailedTitle: 'Challenge ended',
   challengeRestartCta: 'Try again',
@@ -780,6 +832,14 @@ const en: typeof vi = {
   openNews: 'Open news',
   dismissSuggestion: 'Dismiss suggestion',
   rankInfo: 'Rank information',
+  rankInfoTitle: 'What is Rank?',
+  rankInfoPoint1Title: 'Do it → earn stars',
+  rankInfoPoint1Sub: 'Completing an activity earns you a star.',
+  rankInfoPoint2Title: 'Enough stars → rank up',
+  rankInfoPoint2Sub: (n) => `There are ${n} ranks — more stars, higher rank.`,
+  rankInfoPoint3Title: 'Resets every Monday',
+  rankInfoPoint3Sub: 'Stars return to the floor — keeping rank takes upkeep.',
+  rankInfoTiersHeading: (n) => `Ranks · ${n} tiers`,
   newsTitle: "What's New",
   newsUnreadCount: (n: number) => n === 0 ? 'All caught up' : `${n} unread update${n === 1 ? '' : 's'}`,
   newsMarkAllRead: 'Mark all as read',
@@ -894,6 +954,7 @@ const en: typeof vi = {
 
   // Notifications
   addReminder: '+ Add reminder',
+  clearReminder: 'Clear reminder',
 
   // RankScreen countdown
   resetCountdownLabel: 'Reset Mon · 00:00 — Time left',
@@ -967,6 +1028,8 @@ const en: typeof vi = {
   shareStreakUnit: 'day streak',
   shareWeeklyStars: (n: number) => `★ ${n} stars`,
   shareWatermark: 'habi · download now',
+  shareProFeatureTitle: 'Pro feature',
+  shareProFeatureMsg: 'Sharing achievement cards is coming soon with Pro.',
 
   // SignInScreen
   signInBtn: 'Sign in with Google',
@@ -975,6 +1038,29 @@ const en: typeof vi = {
 
   // CalendarScreen DOW (Mon-Sun order)
   calDow: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'],
+
+  // PaywallScreen
+  paywallHeadline: 'Unlock Pro 🔓',
+  paywallSubhead: 'Track progress · Climb ranks',
+  paywallAnalyticsTitle: 'Analytics',
+  paywallAnalyticsDesc: 'Full charts & history',
+  paywallRankTitle: 'Climb ranks',
+  paywallRankDesc: 'What percentile are you in?',
+  paywallMonthlyLabel: 'Monthly',
+  paywallPerMonth: '/ month',
+  paywallMonthlyCta: 'Start monthly plan',
+  paywallYearlyLabel: 'Yearly',
+  paywallPerYear: '/ year',
+  paywallYearlyMeta: '~20,750đ / month',
+  paywallPopularBadge: 'MOST POPULAR',
+  paywallYearlySave: '−58%',
+  paywallYearlyCta: 'Start 7-day free trial',
+  paywallLifetimeLabel: 'Lifetime',
+  paywallOneTime: 'one-time',
+  paywallLifetimeCta: 'Unlock lifetime',
+  paywallFinePrint: (store) => `Billed via ${store} · cancel anytime · `,
+  paywallRestore: 'Restore purchase',
+  paywallRestoreLink: 'Restore',
 };
 
 export type Strings = typeof vi;

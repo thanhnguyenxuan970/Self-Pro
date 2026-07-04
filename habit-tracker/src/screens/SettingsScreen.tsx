@@ -143,6 +143,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
               onValueChange={setIsDark}
               thumbColor={isDark ? colors.primary : colors.faint}
               trackColor={{ false: colors.line2, true: colors.primarySoft }}
+              accessibilityLabel={t.darkModeLabel}
             />
           </View>
         </View>
@@ -158,6 +159,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
               onValueChange={setAudioEnabled}
               thumbColor={audioEnabled ? colors.primary : colors.faint}
               trackColor={{ false: colors.line2, true: colors.primarySoft }}
+              accessibilityLabel={t.soundEnabledLabel}
             />
           </View>
         </View>
@@ -185,22 +187,27 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
             const canAddMore = savedTimes.filter(Boolean).length < 3;
             const isLast = !canAddMore && !savedTimes.slice(idx + 1).some(Boolean);
             return (
-              <TouchableOpacity
-                key={idx}
-                style={[styles.row, isLast && styles.rowLast]}
-                onPress={() => handleOpenPicker(idx)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.rowIc}>🔔</Text>
-                <Text style={[styles.rowLabel, styles.reminderTime]}>{time}</Text>
+              <View key={idx} style={[styles.row, isLast && styles.rowLast]}>
+                <TouchableOpacity
+                  style={styles.reminderMain}
+                  onPress={() => handleOpenPicker(idx)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={time}
+                >
+                  <Text style={styles.rowIc}>🔔</Text>
+                  <Text style={[styles.rowLabel, styles.reminderTime]}>{time}</Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => handleClearReminder(idx)}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.clearReminder}
                 >
                   <Text style={styles.reminderClear}>✕</Text>
                 </TouchableOpacity>
-              </TouchableOpacity>
+              </View>
             );
           })}
           {savedTimes.filter(Boolean).length < 3 && (
@@ -208,6 +215,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
               style={[styles.row, styles.rowLast]}
               onPress={handleAddReminder}
               activeOpacity={0.7}
+              accessibilityRole="button"
             >
               <Text style={[styles.rowLabel, styles.addReminderText]}>{t.addReminder}</Text>
             </TouchableOpacity>
@@ -289,6 +297,7 @@ function makeStyles(C: AppColors) {
       color: C.ink2,
       lineHeight: 18,
     },
+    reminderMain: { flex: 1, flexDirection: 'row', alignItems: 'center' },
     reminderTime: {
       fontSize: 17,
       fontFamily: FontFamily.bold,
