@@ -1,16 +1,17 @@
-import React, { useRef, useMemo, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Animated } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Radii, Spacing, Shadows, AppColors } from '../config/theme';
+import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useRankData } from '../queries/useRank';
 import { useLeaderboard } from '../queries/useLeaderboard';
-import { getCurrentTier } from '../game/tierLookup';
-import { getStarsToNextTier } from '../game/tierProgress';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
 import { RANKS } from '../config/ranks.config';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
+import { RankInfoSheet } from '../components/RankInfoSheet';
+import { RankEmptyState } from '../components/RankEmptyState';
+import { SkeletonRow } from '../components/SkeletonRow';
 
 function rankConfig(tierOrder: number) {
   return RANKS[Math.min(Math.max(tierOrder - 1, 0), RANKS.length - 1)];
@@ -39,83 +40,6 @@ function fmtCountdown(ms: number): string {
   return d > 0 ? `${d}d ${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`;
 }
 
-type RankDataType = NonNullable<ReturnType<typeof useRankData>['data']>;
-
-function useRankGlowAnimation(
-  data: RankDataType | undefined,
-  sortedTiersLength: number,
-  reduceMotion: boolean,
-): { glowAnim: Animated.Value; scaleAnim: Animated.Value } {
-  const glowAnim = useRef(new Animated.Value(0.15)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const glowLoopRef = useRef<Animated.CompositeAnimation | null>(null);
-
-  useEffect(() => {
-    if (!data || sortedTiersLength === 0) return;
-    const currentTierLocal = getCurrentTier(data.currentStars, data.tiers);
-    if (!currentTierLocal) return;
-
-    Animated.sequence([
-      Animated.spring(scaleAnim, { toValue: 1.04, tension: 200, friction: 8, useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }),
-    ]).start();
-
-    if (!reduceMotion) {
-      glowLoopRef.current = Animated.loop(
-        Animated.sequence([
-          Animated.timing(glowAnim, { toValue: 0.9, duration: 900, useNativeDriver: true }),
-          Animated.timing(glowAnim, { toValue: 0.15, duration: 900, useNativeDriver: true }),
-        ])
-      );
-      glowLoopRef.current.start();
-    }
-    return () => glowLoopRef.current?.stop();
-  }, [data, sortedTiersLength, reduceMotion]);
-
-  return { glowAnim, scaleAnim };
-}
-
-type TierItem = RankDataType['tiers'][number];
-
-type RankLadderRowProps = {
-  tier: TierItem;
-  isCurrent: boolean;
-  isLast: boolean;
-  range: string;
-  scaleAnim: Animated.Value;
-  glowAnim: Animated.Value;
-  reduceMotion: boolean;
-  styles: ReturnType<typeof makeStyles>;
-};
-
-function RankLadderRow({ tier, isCurrent, isLast, range, scaleAnim, glowAnim, reduceMotion, styles }: RankLadderRowProps) {
-  const rc = rankConfig(tier.tier_order);
-  return (
-    <Animated.View
-      style={[
-        styles.rk,
-        isCurrent && { ...styles.rkCur, backgroundColor: rc.color + '22' },
-        isLast && styles.rkLast,
-        isCurrent ? { transform: [{ scale: scaleAnim }] } : undefined,
-      ]}
-    >
-      {isCurrent && (
-        <Animated.View
-          style={[StyleSheet.absoluteFill, { borderRadius: Radii.md, borderWidth: 1.5, borderColor: rc.color, opacity: glowAnim }]}
-          pointerEvents="none"
-        />
-      )}
-      <View style={styles.rkMascot}>
-        <RankMascot tier={tier.tier_order - 1} size={36} loop={isCurrent} reduceMotion={reduceMotion} />
-      </View>
-      <View style={styles.rkInfo}>
-        <Text style={[styles.rkA, isCurrent && { color: rc.color }]}>{tier.rank_name}</Text>
-        <Text style={styles.rkB}>{rc.descriptor}</Text>
-      </View>
-      <Text style={[styles.rkThr, isCurrent && { color: rc.color }]}>{range}</Text>
-    </Animated.View>
-  );
-}
 
 type LBEntry = NonNullable<ReturnType<typeof useLeaderboard>['data']>[number];
 
@@ -177,31 +101,32 @@ export function RankScreen() {
     return () => { rankMascotBridge.ref = null; };
   }, []);
 
-  const sortedTiers = useMemo(() => {
-    if (!data) return [];
-    const cur = getCurrentTier(data.currentStars, data.tiers);
-    return cur ? [cur] : [];
-  }, [data]);
-
-  const currentTierOrder = data ? (getCurrentTier(data.currentStars, data.tiers)?.tier_order ?? 0) : 0;
+  const currentTierOrder = data
+    ? (data.currentTierId ? (data.tiers.find(t => t.id === data.currentTierId)?.tier_order ?? 0) : 0)
+    : 0;
   const { data: leaderboard = [], isLoading: lbLoading } = useLeaderboard(
     googleUser?.email ?? null,
     currentTierOrder,
     data?.tiers ?? [],
   );
 
-  const { glowAnim, scaleAnim } = useRankGlowAnimation(data, sortedTiers.length, reduceMotion);
+  const [infoVisible, setInfoVisible] = useState(false);
 
   if (isLoading || !data) {
-    return <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View>;
+    return (
+      <View style={[styles.loading, { justifyContent: 'flex-start', paddingTop: Spacing.xl }]}>
+        {[0, 1, 2, 3, 4].map((i) => <SkeletonRow key={i} colors={colors} />)}
+      </View>
+    );
   }
 
-  const { currentStars, tiers, history } = data;
-  const currentTier = getCurrentTier(currentStars, tiers);
-  const starsToNext = getStarsToNextTier(currentStars, tiers);
-  const nextTier = tiers.find((tr) => tr.stars_required > currentStars);
+  const { currentStars, currentTierId, tiers, history } = data;
+  // Rank is authoritative from current_tier_id (carry-over + cap system), not derived from star count
+  const currentTier = currentTierId ? tiers.find(t => t.id === currentTierId) : undefined;
+  const nextTier = currentTier ? tiers.find(t => t.tier_order === currentTier.tier_order + 1) : tiers.find(t => t.stars_required > currentStars);
   const prevTierStars = currentTier?.stars_required ?? 0;
   const nextTierStars = nextTier?.stars_required ?? prevTierStars;
+  const starsToNext = nextTier ? Math.max(0, nextTierStars - currentStars) : 0;
   const progressPct = nextTier
     ? Math.min(1, Math.max(0, (currentStars - prevTierStars) / Math.max(1, nextTierStars - prevTierStars)))
     : 1;
@@ -210,64 +135,40 @@ export function RankScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>{t.rankTitle}</Text>
-
-        <View style={styles.rankhero}>
-          <View style={[styles.rankheroGlow, { backgroundColor: cfg.color }]} />
-          {currentStars >= 5 ? (
-            <>
-              <RankMascot ref={mascotRef} tier={(currentTier?.tier_order ?? 1) - 1} size={100} loop reduceMotion={reduceMotion} />
-              <Text style={styles.rankNm}>{currentTier?.rank_name}</Text>
-              <Text style={styles.rankEn}>{cfg.descriptor}</Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.rankEm}>❓</Text>
-              <Text style={styles.rankNm}>{t.noRankTitle}</Text>
-              <Text style={styles.rankEn}>{t.noRankDesc}</Text>
-            </>
-          )}
-          <View style={styles.rankWk}>
-            <Text style={styles.rankWkTxt}>{t.weekStars(currentStars)}</Text>
-          </View>
-          <View style={styles.bar}>
-            <View style={[styles.barFill, { width: `${Math.round(progressPct * 100)}%` as `${number}%` }]} />
-          </View>
-          {starsToNext > 0 ? (
-            <Text style={styles.nextCap}>{t.nextRank(starsToNext, nextTier?.rank_name ?? '')}</Text>
-          ) : (
-            <Text style={styles.nextCap}>{t.maxRank}</Text>
-          )}
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>{t.rankTitle}</Text>
+          <TouchableOpacity onPress={() => setInfoVisible(true)} hitSlop={10} style={styles.infoBtn} accessibilityLabel={t.rankInfo} accessibilityRole="button">
+            <Text style={styles.infoBtnText}>?</Text>
+          </TouchableOpacity>
         </View>
+
+        {currentStars >= 5 ? (
+          <View style={styles.rankhero}>
+            <View style={[styles.rankheroGlow, { backgroundColor: cfg.color }]} importantForAccessibility="no" />
+            <RankMascot ref={mascotRef} tier={(currentTier?.tier_order ?? 1) - 1} size={100} loop reduceMotion={reduceMotion} />
+            <Text style={styles.rankNm}>{t.rankNameMap[currentTier?.rank_name ?? ''] ?? currentTier?.rank_name}</Text>
+            <Text style={styles.rankEn}>{t.rankQuoteMap[currentTier?.rank_name ?? ''] ?? cfg.descriptor}</Text>
+            <View style={styles.rankWk}>
+              <Text style={styles.rankWkTxt}>{t.weekStars(currentStars)}</Text>
+            </View>
+            <View style={styles.bar}>
+              <View style={[styles.barFill, { width: `${Math.round(progressPct * 100)}%` as `${number}%` }]} />
+            </View>
+            {starsToNext > 0 ? (
+              <Text style={styles.nextCap}>{t.nextRank(starsToNext, t.rankNameMap[nextTier?.rank_name ?? ''] ?? nextTier?.rank_name ?? '')}</Text>
+            ) : (
+              <Text style={styles.nextCap}>{t.maxRank}</Text>
+            )}
+          </View>
+        ) : (
+          <View style={styles.rankEmptyWrap}>
+            <RankEmptyState currentStars={currentStars} nextRankName={t.rankNameMap[nextTier?.rank_name ?? 'Delulu'] ?? nextTier?.rank_name ?? 'Delulu'} />
+          </View>
+        )}
 
         <View style={styles.resetChip}>
           <Text style={styles.resetChipLabel}>{t.resetCountdownLabel}</Text>
           <Text style={styles.resetChipCountdown}>{fmtCountdown(countdownMs)}</Text>
-        </View>
-
-        <Text style={styles.sectionLabel}>{t.rankLadder}</Text>
-        <View style={styles.card}>
-          {sortedTiers.map((tier, idx, arr) => {
-            if (!tier) return null;
-            const isCurrent = tier.id === currentTier?.id;
-            const isLast = idx === arr.length - 1;
-            const range = idx > 0
-              ? `${tier.stars_required}–${(arr[idx - 1]?.stars_required ?? 999) - 1} ★`
-              : `${tier.stars_required}+ ★`;
-            return (
-              <RankLadderRow
-                key={tier.id}
-                tier={tier}
-                isCurrent={isCurrent}
-                isLast={isLast}
-                range={range}
-                scaleAnim={scaleAnim}
-                glowAnim={glowAnim}
-                reduceMotion={reduceMotion}
-                styles={styles}
-              />
-            );
-          })}
         </View>
 
         {currentTierOrder > 0 && (
@@ -305,7 +206,7 @@ export function RankScreen() {
                     </View>
                     <View style={styles.rkInfo}>
                       <Text style={styles.rkA}>{t.weekItem(week.week_start)}</Text>
-                      <Text style={styles.rkB}>{weekTier?.rank_name ?? '—'}</Text>
+                      <Text style={styles.rkB}>{weekTier ? (t.rankNameMap[weekTier.rank_name] ?? weekTier.rank_name) : '—'}</Text>
                     </View>
                     <Text style={styles.rkThr}>{week.weekly_stars} ★</Text>
                   </View>
@@ -315,6 +216,12 @@ export function RankScreen() {
           </>
         )}
       </ScrollView>
+      <RankInfoSheet
+        visible={infoVisible}
+        tiers={tiers}
+        currentTierId={currentTier?.id ?? null}
+        onClose={() => setInfoVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -324,8 +231,12 @@ function makeStyles(C: AppColors) {
     safeArea: { flex: 1, backgroundColor: C.bgBase },
     content: { paddingBottom: 40 },
     loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bgBase },
-    title: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5, color: C.inkDark, marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
+    titleRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
+    title: { fontSize: 24, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, flex: 1 },
+    infoBtn: { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: C.faint, alignItems: 'center', justifyContent: 'center' },
+    infoBtnText: { fontSize: 15, fontFamily: FontFamily.bold, color: C.muted },
 
+    rankEmptyWrap: { marginHorizontal: Spacing.lg },
     rankhero: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,
       borderRadius: Radii.xl, padding: 22, alignItems: 'center',
@@ -336,28 +247,27 @@ function makeStyles(C: AppColors) {
       opacity: 0.4,
     },
     rankEm: { fontSize: 54, marginBottom: 2 },
-    rankNm: { fontSize: 25, fontWeight: '800', letterSpacing: -0.5, color: C.inkDark, marginTop: 8 },
+    rankNm: { fontSize: 25, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, marginTop: 8 },
     rankEn: { fontSize: 12.5, color: C.muted, marginTop: 2, fontStyle: 'italic' },
     rankWk: {
       marginTop: 12, backgroundColor: C.starSoft,
       paddingHorizontal: 14, paddingVertical: 6, borderRadius: Radii.pill,
     },
-    rankWkTxt: { fontSize: 13, fontWeight: '800', color: C.starGold },
+    rankWkTxt: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.starGold },
     bar: { width: '100%', height: 8, backgroundColor: C.surface2, borderRadius: Radii.pill, marginTop: 14, overflow: 'hidden' },
     barFill: { height: '100%', backgroundColor: C.primary, borderRadius: Radii.pill },
-    nextCap: { fontSize: 12, color: C.muted, marginTop: 13, fontWeight: '600', textAlign: 'center' },
+    nextCap: { fontSize: 12, color: C.muted, marginTop: 13, fontFamily: FontFamily.semiBold, textAlign: 'center' },
 
     resetChip: {
       marginHorizontal: Spacing.lg, marginTop: 12,
       alignItems: 'center', justifyContent: 'center',
       backgroundColor: C.surface2, borderRadius: Radii.md, paddingVertical: 12, paddingHorizontal: 16,
     },
-    resetChipLabel: { fontSize: 11, fontWeight: '700', color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
-    resetChipCountdown: { fontSize: 22, fontWeight: '800', color: C.inkDark, letterSpacing: 1, marginTop: 4, fontVariant: ['tabular-nums'] },
+    resetChipLabel: { fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2 },
+    resetChipCountdown: { fontSize: 22, fontFamily: FontFamily.extraBold, color: C.inkDark, letterSpacing: 1, marginTop: 4, fontVariant: ['tabular-nums'] },
 
     sectionLabel: {
-      fontSize: 11, fontWeight: '700', color: C.muted,
-      textTransform: 'uppercase', letterSpacing: 0.7,
+      fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2,
       marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
     },
     card: {
@@ -369,18 +279,13 @@ function makeStyles(C: AppColors) {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       paddingVertical: 10, borderBottomWidth: 1, borderColor: C.line,
     },
-    rkCur: {
-      backgroundColor: C.primarySoft,
-      marginHorizontal: -8, paddingHorizontal: 14,
-      borderRadius: Radii.md, borderBottomWidth: 0, marginVertical: 2,
-    },
     rkLast: { borderBottomWidth: 0 },
     rkMascot: { width: 36, height: 36, flexShrink: 0 },
     rkEm: { fontSize: 20, width: 36, textAlign: 'center', flexShrink: 0 },
     rkInfo: { flex: 1 },
-    rkA: { fontSize: 14, fontWeight: '800', color: C.inkDark },
-    rkB: { fontSize: 11.5, color: C.muted, marginTop: 2 },
-    rkThr: { fontSize: 11.5, fontWeight: '800', color: C.muted },
+    rkA: { fontSize: 14, fontFamily: FontFamily.extraBold, color: C.inkDark },
+    rkB: { fontSize: 11.5, color: C.ink2, marginTop: 2 },
+    rkThr: { fontSize: 11.5, fontFamily: FontFamily.extraBold, color: C.muted },
 
     lbRow: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -388,11 +293,11 @@ function makeStyles(C: AppColors) {
     },
     lbRowLast: { borderBottomWidth: 0 },
     lbRowMe: { backgroundColor: C.primarySoft, marginHorizontal: -8, paddingHorizontal: 14, borderRadius: Radii.sm, borderBottomWidth: 0, marginVertical: 2 },
-    lbRank: { width: 32, fontSize: 13, fontWeight: '800', color: C.muted, textAlign: 'center' },
+    lbRank: { width: 32, fontSize: 13, fontFamily: FontFamily.extraBold, color: C.muted, textAlign: 'center' },
     lbRankTop: { color: C.starGold },
     lbInfo: { flex: 1, minWidth: 0 },
-    lbName: { fontSize: 13, fontWeight: '600', color: C.inkDark },
-    lbStars: { fontSize: 13, fontWeight: '800', color: C.primary },
+    lbName: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
+    lbStars: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primary },
     lbEmpty: { paddingVertical: 20, alignItems: 'center' },
     lbEmptyTxt: { fontSize: 13, color: C.muted },
   });

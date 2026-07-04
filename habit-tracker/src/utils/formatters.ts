@@ -28,6 +28,15 @@ export function getWeekStart(): string {
   return toYMD(d);
 }
 
+/** YYYY-MM-DD for Monday of the week containing `date` */
+export function getWeekStartFor(date: Date): string {
+  const d = new Date(date);
+  const dow = d.getDay();
+  const diff = dow === 0 ? 6 : dow - 1;
+  d.setDate(d.getDate() - diff);
+  return toYMD(d);
+}
+
 export function getRangeLabel(range: 'D' | 'W' | 'M' | 'Y', now: Date = new Date()): string {
   if (range === 'D') {
     return `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;

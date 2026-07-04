@@ -1,8 +1,7 @@
 export interface TierRow {
   id: number;
+  tier_order: number;
   stars_required: number;
-  reward_amount: number;
-  reward_currency: string;
 }
 
 export interface NewUnlock {
@@ -10,8 +9,6 @@ export interface NewUnlock {
   tier_id: number;
   week_start: string;
   stars_at_unlock: number;
-  reward_amount: number;
-  reward_currency: string;
 }
 
 export interface TierUnlockInput {
@@ -21,22 +18,32 @@ export interface TierUnlockInput {
   newStars: number;
   tiers: TierRow[];
   alreadyUnlockedTierIds: number[];
+  /** tier_order of the tier carried into this week — growth cap = startingTierOrder + 1 */
+  startingTierOrder: number;
 }
 
 export function computeTierUnlocks(input: TierUnlockInput): NewUnlock[] {
-  return input.tiers
-    .filter(
-      t =>
-        !input.alreadyUnlockedTierIds.includes(t.id) &&
-        input.oldStars < t.stars_required &&
-        input.newStars >= t.stars_required
+  // At most 1 rank advance per week
+  if (input.alreadyUnlockedTierIds.length > 0) return [];
+
+  const qualifying = input.tiers
+    .filter(t =>
+      t.tier_order > input.startingTierOrder &&   // only tiers above the week-start rank
+      input.oldStars < t.stars_required &&
+      input.newStars >= t.stars_required,
     )
-    .map(t => ({
-      user_id: input.userId,
-      tier_id: t.id,
-      week_start: input.weekStart,
-      stars_at_unlock: input.newStars,
-      reward_amount: t.reward_amount,
-      reward_currency: t.reward_currency,
-    }));
+    .sort((a, b) => a.stars_required - b.stars_required);
+
+  const first = qualifying[0];
+  if (!first) return [];
+
+  // Growth cap: max 1 tier advance above the week-start rank
+  if (first.tier_order > input.startingTierOrder + 1) return [];
+
+  return [{
+    user_id: input.userId,
+    tier_id: first.id,
+    week_start: input.weekStart,
+    stars_at_unlock: input.newStars,
+  }];
 }

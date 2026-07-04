@@ -9,11 +9,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useCalendarData, CalendarDay } from '../queries/useCalendar';
+import { useBackfillStatus } from '../queries/useBackfillStatus';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
-import { AppColors, Radii, Spacing } from '../config/theme';
+import { AppColors, Radii, Spacing, FontFamily } from '../config/theme';
+import { AnimatedFireIcon, AnimatedStarIcon, AnimatedBurningStarIcon } from '../components/CalendarIcons';
+import { BackfillSheet } from '../components/BackfillSheet';
+import { canBackfill } from '../game/backfill';
+import { getLocalDate, getWeekStart, getWeekStartFor } from '../utils/formatters';
 
-const DOW_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 function toYearMonth(date: Date): string {
   const y = date.getFullYear();
@@ -42,17 +46,52 @@ function resolveCellColors(
   isMilestone: boolean, isBest: boolean, hasActivity: boolean,
   isDark: boolean, colors: AppColors,
 ): { cellBg: string; numColor: string } {
-  if (isMilestone) return { cellBg: '#F97316', numColor: '#fff' };
-  if (isBest) return { cellBg: '#FBBF24', numColor: '#fff' };
-  if (hasActivity) return { cellBg: isDark ? colors.surface2 : colors.primarySoft, numColor: colors.primary };
+  if (isMilestone || isBest) return { cellBg: 'transparent', numColor: colors.inkDark };
+  if (hasActivity) return { cellBg: colors.primarySoft, numColor: colors.primary };
   return { cellBg: 'transparent', numColor: colors.inkDark };
+}
+
+interface BackfillInfo {
+  backfillsUsedThisWeek: number;
+  freezeDates: Set<string>;
+}
+
+function resolveDayCellProps(
+  day: number,
+  dayMap: Record<string, CalendarDay>,
+  backfillInfo: BackfillInfo | undefined,
+  yearMonth: string,
+  todayStr: string,
+  currentWeekStart: string,
+  isDark: boolean,
+  colors: AppColors,
+): { dateStr: string; isEligible: boolean; cellBg: string; numColor: string; cellIcon: React.ReactNode } {
+  const data = dayMap[day];
+  const isBest = data ? Boolean(data.is_best_day) : false;
+  const isMilestone = data ? Boolean(data.is_milestone) : false;
+  const { cellBg, numColor } = resolveCellColors(isMilestone, isBest, !!data, isDark, colors);
+  const cellIcon = resolveCellIcon(data, isMilestone, isBest, colors.muted);
+  const dateStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
+  const backfillsUsed = backfillInfo ? backfillInfo.backfillsUsedThisWeek : 0;
+  const hasFreeze = backfillInfo ? backfillInfo.freezeDates.has(dateStr) : false;
+  const isEligible = canBackfill({
+    date: dateStr,
+    today: todayStr,
+    weekStartOfDate: getWeekStartFor(new Date(dateStr + 'T12:00:00')),
+    currentWeekStart,
+    dayHasActivity: !!data,
+    backfillsUsedThisWeek: backfillsUsed,
+    hasStreakFreeze: hasFreeze,
+  }).allowed;
+  return { dateStr, isEligible, cellBg, numColor, cellIcon };
 }
 
 function resolveCellIcon(data: CalendarDay | undefined, isMilestone: boolean, isBest: boolean, muteColor: string) {
   if (!data) return null;
-  if (isMilestone) return <Text style={{ fontSize: 9, marginTop: 1 }}>🔥</Text>;
-  if (isBest) return <Text style={{ fontSize: 9, marginTop: 1 }}>⭐</Text>;
-  return <Text style={{ fontSize: 8, fontWeight: '600', marginTop: 1, color: muteColor }}>{parseFloat(data.stars.toFixed(1))}★</Text>;
+  if (isMilestone && isBest) return <AnimatedBurningStarIcon />;
+  if (isMilestone) return <AnimatedFireIcon />;
+  if (isBest) return <AnimatedStarIcon />;
+  return <Text style={{ fontSize: 11, fontFamily: FontFamily.semiBold, marginTop: 1, color: muteColor }}>{parseFloat(data.stars.toFixed(1))}★</Text>;
 }
 
 export function CalendarScreen() {
@@ -63,7 +102,13 @@ export function CalendarScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [yearMonth, setYearMonth] = useState(() => toYearMonth(new Date()));
+  const [backfillDate, setBackfillDate] = useState<string | null>(null);
+
   const { data: days = [] } = useCalendarData(userId, yearMonth);
+  const { data: backfillStatus } = useBackfillStatus(userId);
+
+  const todayStr = getLocalDate();
+  const currentWeekStart = getWeekStart();
 
   const today = toYearMonth(new Date()) === yearMonth
     ? new Date().getDate()
@@ -117,13 +162,13 @@ export function CalendarScreen() {
 
       {/* Month Nav */}
       <View style={styles.monthNav}>
-        <TouchableOpacity onPress={prevMonth} style={styles.navBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={prevMonth} style={styles.navBtn} activeOpacity={0.7} accessibilityLabel={t.prevMonth} accessibilityRole="button">
           <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={colors.inkDark} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <Path d="M15 18l-6-6 6-6" />
           </Svg>
         </TouchableOpacity>
         <Text style={styles.monthLabel}>{monthLabel(yearMonth, locale)}</Text>
-        <TouchableOpacity onPress={nextMonth} style={styles.navBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={nextMonth} style={styles.navBtn} activeOpacity={0.7} accessibilityLabel={t.nextMonth} accessibilityRole="button">
           <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={colors.inkDark} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <Path d="M9 18l6-6-6-6" />
           </Svg>
@@ -132,7 +177,7 @@ export function CalendarScreen() {
 
       {/* DOW Labels */}
       <View style={styles.dowRow}>
-        {DOW_LABELS.map((l, i) => (
+        {t.calDow.map((l, i) => (
           <Text key={i} style={styles.dowLabel}>{l}</Text>
         ))}
       </View>
@@ -141,35 +186,43 @@ export function CalendarScreen() {
       <View style={styles.grid}>
         {cells.map((day, idx) => {
           if (!day) return <View key={idx} style={styles.cell} />;
-          const data = dayMap[day];
-          const isBest = data?.is_best_day ?? false;
-          const isMilestone = data?.is_milestone ?? false;
-          const { cellBg, numColor } = resolveCellColors(isMilestone, isBest, !!data, isDark, colors);
-          return (
-            <View key={idx} style={[styles.cell, { backgroundColor: cellBg }]}>
-              <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
-              {resolveCellIcon(data, isMilestone, isBest, colors.muted)}
-              {day === today && !isBest && !isMilestone && (
-                <View style={[styles.todayDot, { backgroundColor: colors.primary }]} />
-              )}
-            </View>
+          const { dateStr, isEligible, cellBg, numColor, cellIcon } = resolveDayCellProps(
+            day, dayMap, backfillStatus, yearMonth, todayStr, currentWeekStart, isDark, colors,
           );
+          const cellStyle = [
+            styles.cell,
+            { backgroundColor: cellBg },
+            day === today && { borderWidth: 1.5, borderColor: colors.primary },
+            isEligible && styles.cellEligible,
+          ];
+          const cellContent = (
+            <>
+              <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
+              <View style={styles.cellBottom}>
+                {cellIcon ?? (isEligible ? <Text style={styles.backfillHint}>+</Text> : null)}
+              </View>
+            </>
+          );
+          if (isEligible) {
+            return (
+              <TouchableOpacity key={idx} style={cellStyle} onPress={() => setBackfillDate(dateStr)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={`${t.backfillEligible} ${dateStr}`}>
+                {cellContent}
+              </TouchableOpacity>
+            );
+          }
+          return <View key={idx} style={cellStyle}>{cellContent}</View>;
         })}
       </View>
 
       {/* Legend */}
       <View style={styles.legend}>
         <View style={styles.legendItem}>
-          <Text style={styles.legendIcon}>🔥</Text>
+          <AnimatedFireIcon size={20} />
           <Text style={styles.legendLabel}>{t.calendarMilestone}</Text>
         </View>
         <View style={styles.legendItem}>
-          <Text style={styles.legendIcon}>⭐</Text>
+          <AnimatedStarIcon size={20} />
           <Text style={styles.legendLabel}>{t.calendarBestDay}</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: isDark ? colors.surface2 : colors.primarySoft }]} />
-          <Text style={styles.legendLabel}>{t.calendarActive}</Text>
         </View>
       </View>
 
@@ -191,6 +244,14 @@ export function CalendarScreen() {
         </View>
       </View>
     </ScrollView>
+
+    <BackfillSheet
+      visible={!!backfillDate}
+      date={backfillDate ?? ''}
+      backfillsUsedThisWeek={backfillStatus?.backfillsUsedThisWeek ?? 0}
+      userId={userId}
+      onClose={() => setBackfillDate(null)}
+    />
     </SafeAreaView>
   );
 }
@@ -201,43 +262,60 @@ function makeStyles(colors: AppColors) {
     container: { flex: 1 },
     content: { paddingHorizontal: Spacing.lg, paddingBottom: 40, paddingTop: 16 },
     header: { marginBottom: 16, marginTop: 8 },
-    title: { fontSize: 22, fontWeight: '800', color: colors.inkDark },
+    title: { fontSize: 22, fontFamily: FontFamily.extraBold, color: colors.inkDark },
     monthNav: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       marginBottom: 16,
     },
-    navBtn: { padding: 8 },
-    monthLabel: { fontSize: 16, fontWeight: '700', color: colors.inkDark },
+    navBtn: { padding: 12 },
+    monthLabel: { fontSize: 16, fontFamily: FontFamily.bold, color: colors.inkDark },
     dowRow: {
       flexDirection: 'row',
       marginBottom: 4,
+      marginHorizontal: -Spacing.lg,
+      paddingHorizontal: 4,
     },
     dowLabel: {
       flex: 1,
       textAlign: 'center',
-      fontSize: 11,
-      fontWeight: '700',
-      color: colors.muted,
+      fontSize: 12,
+      fontFamily: FontFamily.bold,
+      color: colors.ink2,
       paddingVertical: 4,
     },
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
+      marginHorizontal: -Spacing.lg,
+      paddingHorizontal: 4,
     },
     cell: {
       width: '14.285%',
       aspectRatio: 1,
-      justifyContent: 'center',
+      justifyContent: 'space-between',
+      paddingTop: 6,
+      paddingBottom: 5,
       alignItems: 'center',
       borderRadius: Radii.sm,
       marginVertical: 2,
     },
-    dayNum: { fontSize: 13, fontWeight: '700' },
-    dayStars: { fontSize: 8, fontWeight: '600', marginTop: 1 },
+    dayNum: { fontSize: 15, fontFamily: FontFamily.bold },
+    dayStars: { fontSize: 8, fontFamily: FontFamily.semiBold, marginTop: 1 },
     dayIcon: { fontSize: 9, marginTop: 1 },
-    todayDot: { width: 4, height: 4, borderRadius: 2, marginTop: 2 },
+    cellBottom: { alignItems: 'center', height: 16 },
+    cellEligible: {
+      borderWidth: 1,
+      borderColor: colors.primary,
+      borderStyle: 'dashed' as const,
+    },
+    backfillHint: {
+      fontSize: 10,
+      fontFamily: FontFamily.bold,
+      color: colors.primary,
+      marginTop: 1,
+    },
     legend: {
       flexDirection: 'row',
       justifyContent: 'center',
@@ -246,9 +324,8 @@ function makeStyles(colors: AppColors) {
       marginBottom: 8,
     },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    legendDot: { width: 10, height: 10, borderRadius: 5 },
-    legendIcon: { fontSize: 12 },
-    legendLabel: { fontSize: 11, color: colors.muted },
+    legendIcon: { fontSize: 14 },
+    legendLabel: { fontSize: 13, color: colors.muted },
     summary: {
       flexDirection: 'row',
       backgroundColor: colors.surface2,
@@ -258,7 +335,7 @@ function makeStyles(colors: AppColors) {
     },
     summaryCell: { flex: 1, alignItems: 'center' },
     summarySep: { width: 1, backgroundColor: colors.line },
-    summaryV: { fontSize: 18, fontWeight: '800', color: colors.primary },
-    summaryL: { fontSize: 11, color: colors.muted, marginTop: 2 },
+    summaryV: { fontSize: 18, fontFamily: FontFamily.extraBold, color: colors.primary },
+    summaryL: { fontSize: 11, color: colors.ink2, marginTop: 2 },
   });
 }

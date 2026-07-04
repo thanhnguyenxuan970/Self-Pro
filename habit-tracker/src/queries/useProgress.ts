@@ -174,10 +174,13 @@ export function useStarsToNextTier(userId: number) {
   });
 }
 
-/** Recent activity log entries with task name, for display and bulk delete */
-export function useRecentActivityLogs(userId: number, limit = 50) {
+/** Recent activity log entries with task name, for display and bulk delete.
+ *  fromDate/toDate: 'YYYY-MM-DD'. Defaults to past 7 days when omitted. */
+export function useRecentActivityLogs(userId: number, limit = 50, fromDate?: string, toDate?: string) {
+  const effectiveTo = toDate ?? getLocalDate();
+  const effectiveFrom = fromDate ?? getLocalDateOffset(-6);
   return useQuery({
-    queryKey: ['progress', 'actlog', userId],
+    queryKey: ['progress', 'actlog', userId, effectiveFrom, effectiveTo, limit],
     queryFn: async (): Promise<ActivityLogEntry[]> => {
       const db = await getDb();
       const rows = await db.getAllAsync<ActivityLogEntry>(
@@ -186,9 +189,10 @@ export function useRecentActivityLogs(userId: number, limit = 50) {
          FROM activity_log a
          LEFT JOIN task_types tt ON tt.id = a.task_type_id
          WHERE a.user_id = ?
+           AND a.local_date BETWEEN ? AND ?
          ORDER BY a.logged_at DESC
          LIMIT ?`,
-        [userId, limit]
+        [userId, effectiveFrom, effectiveTo, limit]
       );
       return rows;
     },

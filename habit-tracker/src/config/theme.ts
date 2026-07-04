@@ -1,4 +1,5 @@
 // src/theme.ts
+import { AccentKey, ACCENTS, DEFAULT_ACCENT } from './accents';
 
 const Colors = {
   primary: '#25B36E',
@@ -16,9 +17,11 @@ const Colors = {
   starGold: '#E0A93B',
   starSoft: '#FBEFD3',
   danger: '#D74045',
+  dangerPress: '#A82830',
   dangerSoft: '#FBE2E3',
   line: '#E5E8E6',
   line2: '#D5D9D6',
+  onAccent: '#FFFFFF',
   white: '#FFFFFF',
 };
 
@@ -38,16 +41,21 @@ const DarkColors = {
   starGold: '#E0A93B',
   starSoft: '#3D2E0F',
   danger: '#E05A5F',
+  dangerPress: '#C03538',
   dangerSoft: '#3D1A1B',
   line: '#2B3028',
   line2: '#3A403C',
+  onAccent: '#FFFFFF',
   white: '#FFFFFF',
 };
 
 export type AppColors = typeof Colors;
 
-export function getColors(isDark: boolean): AppColors {
-  return isDark ? DarkColors : Colors;
+export function getColors(isDark: boolean, accent: AccentKey = DEFAULT_ACCENT): AppColors {
+  const base = isDark ? DarkColors : Colors;
+  const palette = ACCENTS[accent];
+  const p = isDark ? palette.dark : palette.light;
+  return { ...base, ...p, onAccent: palette.onAccent };
 }
 
 export const Radii = {
@@ -60,19 +68,29 @@ export const Radii = {
   pill: 999,
 };
 
+export const FontFamily = {
+  regular:   'BeVietnamPro_400Regular',
+  medium:    'BeVietnamPro_500Medium',
+  semiBold:  'BeVietnamPro_600SemiBold',
+  bold:      'BeVietnamPro_700Bold',
+  extraBold: 'BeVietnamPro_800ExtraBold',
+};
+
 export const Typography = {
-  title: { fontSize: 24, fontWeight: '800' as const, letterSpacing: -0.5 },
+  display:    { fontFamily: FontFamily.extraBold, fontSize: 48, letterSpacing: -1.5, lineHeight: 56 },
+  xlarge:     { fontFamily: FontFamily.extraBold, fontSize: 42, letterSpacing: -2,   lineHeight: 50 },
+  large:      { fontFamily: FontFamily.extraBold, fontSize: 32, letterSpacing: -1,   lineHeight: 40 },
+  title:      { fontFamily: FontFamily.bold,      fontSize: 24, letterSpacing: -0.5, lineHeight: 30 },
+  subheading: { fontFamily: FontFamily.semiBold,  fontSize: 18, letterSpacing: -0.2, lineHeight: 24 },
+  body:       { fontFamily: FontFamily.regular,   fontSize: 15,                      lineHeight: 22 },
+  bodyStrong: { fontFamily: FontFamily.semiBold,  fontSize: 15,                      lineHeight: 22 },
+  secondary:  { fontFamily: FontFamily.regular,   fontSize: 13,                      lineHeight: 18 },
+  caption:    { fontFamily: FontFamily.regular,   fontSize: 12,                      lineHeight: 17 },
   sectionLabel: {
-    fontSize: 11,
-    fontWeight: '700' as const,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.7,
+    fontFamily: FontFamily.semiBold,
+    fontSize: 12,
+    lineHeight: 17,
   },
-  body: { fontSize: 14, lineHeight: 20 },
-  bodyStrong: { fontSize: 14, fontWeight: '600' as const },
-  caption: { fontSize: 12 },
-  large: { fontSize: 32, fontWeight: '800' as const, letterSpacing: -1 },
-  xlarge: { fontSize: 42, fontWeight: '800' as const, letterSpacing: -2 },
 };
 
 export const Shadows = {

@@ -154,6 +154,39 @@ export async function resolveUserRow(
   return { id: newUserId, isNew: true };
 }
 
+/**
+ * Per-user tables cleared by resetProgress. Intentionally excludes user-config
+ * tables (categories, task_types, treats) — "reset progress" keeps the user's
+ * custom setup and only clears earned/logged history.
+ */
+export const RESET_PROGRESS_STATEMENTS = [
+  'DELETE FROM challenge_log WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)',
+  'DELETE FROM challenges WHERE user_id = ?',
+  'DELETE FROM activity_log WHERE user_id = ?',
+  'DELETE FROM daily_summary WHERE user_id = ?',
+  'DELETE FROM weekly_summary WHERE user_id = ?',
+  'DELETE FROM reward_unlocks WHERE user_id = ?',
+  'DELETE FROM treat_history WHERE user_id = ?',
+  'DELETE FROM streak_freezes WHERE user_id = ?',
+  'DELETE FROM fund_transactions WHERE user_id = ?',
+];
+
+/** Per-user tables purged by deleteAccount — must cover every table with a user_id column. */
+export const DELETE_ACCOUNT_STATEMENTS = [
+  'DELETE FROM challenge_log WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)',
+  'DELETE FROM challenges WHERE user_id = ?',
+  'DELETE FROM activity_log WHERE user_id = ?',
+  'DELETE FROM daily_summary WHERE user_id = ?',
+  'DELETE FROM weekly_summary WHERE user_id = ?',
+  'DELETE FROM reward_unlocks WHERE user_id = ?',
+  'DELETE FROM treats WHERE user_id = ?',
+  'DELETE FROM treat_history WHERE user_id = ?',
+  'DELETE FROM streak_freezes WHERE user_id = ?',
+  'DELETE FROM task_types WHERE user_id = ?',
+  'DELETE FROM categories WHERE user_id = ?',
+  'DELETE FROM fund_transactions WHERE user_id = ?',
+];
+
 export const UserIdContext = createContext<number>(1);
 export function useAuthUser(): number {
   return useContext(UserIdContext);
@@ -223,15 +256,7 @@ export function useAuth() {
     const { getDb } = await import('../db/client');
     const db = await getDb();
     await db.withTransactionAsync(async () => {
-      for (const sql of [
-        'DELETE FROM activity_log WHERE user_id = ?',
-        'DELETE FROM daily_summary WHERE user_id = ?',
-        'DELETE FROM weekly_summary WHERE user_id = ?',
-        'DELETE FROM reward_unlocks WHERE user_id = ?',
-        'DELETE FROM treat_history WHERE user_id = ?',
-        'DELETE FROM streak_freezes WHERE user_id = ?',
-        'DELETE FROM fund_transactions WHERE user_id = ?',
-      ]) {
+      for (const sql of RESET_PROGRESS_STATEMENTS) {
         await db.runAsync(sql, [uid]);
       }
       await db.runAsync(
@@ -269,18 +294,7 @@ export function useAuth() {
     const { getDb } = await import('../db/client');
     const db = await getDb();
     await db.withTransactionAsync(async () => {
-      for (const sql of [
-        'DELETE FROM activity_log WHERE user_id = ?',
-        'DELETE FROM daily_summary WHERE user_id = ?',
-        'DELETE FROM weekly_summary WHERE user_id = ?',
-        'DELETE FROM reward_unlocks WHERE user_id = ?',
-        'DELETE FROM treats WHERE user_id = ?',
-        'DELETE FROM treat_history WHERE user_id = ?',
-        'DELETE FROM streak_freezes WHERE user_id = ?',
-        'DELETE FROM task_types WHERE user_id = ?',
-        'DELETE FROM categories WHERE user_id = ?',
-        'DELETE FROM fund_transactions WHERE user_id = ?',
-      ]) {
+      for (const sql of DELETE_ACCOUNT_STATEMENTS) {
         await db.runAsync(sql, [uid]);
       }
       await db.runAsync('DELETE FROM users WHERE id = ?', [uid]);

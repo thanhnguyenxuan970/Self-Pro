@@ -242,14 +242,6 @@ async function v4(db: SQLiteDatabase): Promise<void> {
 
 // v4 -> v5: seed default task types
 async function v5(db: SQLiteDatabase): Promise<void> {
-  const taskCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM task_types');
-  if (!taskCount || taskCount.count === 0) {
-    await db.execAsync(
-      `INSERT OR IGNORE INTO task_types (user_id, name, kind, is_time_based, base_points, star_penalty, archived)
-       VALUES (1, 'Exercise', 'GOOD', 0, 10, 50, 0)`
-    );
-  }
-
   await db.execAsync(`
     INSERT OR IGNORE INTO task_types (user_id, name, icon, kind, is_time_based, base_points, star_penalty, archived)
     SELECT u.id, 'Cleaning', '🧹', 'GOOD', 0, 10, 50, 0 FROM users u;
@@ -276,7 +268,70 @@ async function v6(db: SQLiteDatabase): Promise<void> {
   `);
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6];
+// v6 -> v7: cap weekly_stars to 5 (week-2 reset — all accounts capped at first-tier threshold)
+async function v7(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`UPDATE weekly_summary SET weekly_stars = MIN(weekly_stars, 5) WHERE weekly_stars > 5`);
+}
+
+// v7 -> v8: remove legacy 'Exercise' task type seeded in early builds
+async function v8(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`DELETE FROM task_types WHERE name = 'Exercise'`);
+}
+
+// v8 -> v9: backfill support — is_backfill flag + quota index
+async function v9(db: SQLiteDatabase): Promise<void> {
+  try { await db.runAsync(`ALTER TABLE activity_log ADD COLUMN is_backfill INTEGER NOT NULL DEFAULT 0`); }
+  catch (e: any) { if (!e?.message?.includes('duplicate column')) throw e; }
+  await db.execAsync(`
+    CREATE INDEX IF NOT EXISTS idx_activity_user_week_bf
+      ON activity_log(user_id, week_start, is_backfill)
+  `);
+}
+
+// v9 -> v10: challenge system (7/21/30/66-day habit challenges)
+async function v10(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS challenges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      task_type_id INTEGER,
+      target_days INTEGER NOT NULL CHECK(target_days IN (7,21,30,66)),
+      start_date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','done','failed')),
+      freezes_left INTEGER NOT NULL DEFAULT 1,
+      before_photo TEXT,
+      after_photo TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_challenges_one_active
+      ON challenges(user_id) WHERE status='active';
+
+    CREATE TABLE IF NOT EXISTS challenge_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      challenge_id INTEGER NOT NULL,
+      local_date TEXT NOT NULL,
+      state TEXT NOT NULL CHECK(state IN ('done','reset','freeze')),
+      UNIQUE(challenge_id, local_date)
+    );
+    CREATE INDEX IF NOT EXISTS idx_challenge_log_challenge ON challenge_log(challenge_id);
+  `);
+}
+
+// v10 -> v11: achievement unlocks (Trophy Shelf)
+async function v11(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS achievement_unlocks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      achievement_id TEXT NOT NULL,
+      unlocked_at TEXT NOT NULL,
+      UNIQUE(user_id, achievement_id)
+    );
+  `);
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

@@ -37,9 +37,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from: 'Habit Ring <onboarding@resend.dev>',
+      from: 'Habi <onboarding@resend.dev>',
       to: [to],
-      subject: `[Habit Ring] ${esc(record.type)} feedback #${esc(record.id)}`,
+      subject: `[Habi] ${esc(record.type)} feedback #${esc(record.id)}`,
       html: `
         <h3>New ${esc(record.type)} feedback</h3>
         <p style="white-space:pre-wrap">${esc(record.message)}</p>

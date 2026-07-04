@@ -1,6 +1,6 @@
 ---
 name: process
-description: Full delivery pipeline. Runs check_plan → implement → check_code → review → caveman:caveman-review & fix → close → caveman:caveman-commit in sequence.
+description: Full delivery pipeline. Runs check_plan → implement → check_code → review → [$ponytail:ponytail-review](C:\\Users\\Admin\\.codex\\plugins\\cache\\ponytail\\ponytail\\4.8.4\\skills\\ponytail-review\\SKILL.md) & fix → close → caveman:caveman-commit in sequence.
 ---
 
 Execute the full delivery pipeline for the current plan. Ask user which plan file if unclear.
@@ -39,7 +39,7 @@ When all steps are done (or blocked with reason), state:
 
 ## Phase 4 — REVIEW & FIX
 
-1. Run skill `review` then skill `caveman:caveman-review` on all files created or modified during Phase 2.
+1. Run skill `review` then [$ponytail:ponytail-review](C:\\Users\\Admin\\.codex\\plugins\\cache\\ponytail\\ponytail\\4.8.4\\skills\\ponytail-review\\SKILL.md) on all files created or modified during Phase 2.
    - Fix every issue surfaced before proceeding.
    - Do not proceed to Phase 5 until review is clean.
 
@@ -69,7 +69,7 @@ Run skill `caveman:caveman-commit` to generate and create the commit.
 | check_code | `check_code` | `check_code.md` (project-local) |
 | review | `review` | `review.md` (project-local) |
 | close | `close` | `close.md` (project-local) |
-| caveman-review | `caveman:caveman-review` | global (caveman plugin) |
+| ponytail-review | [$ponytail:ponytail-review](C:\\Users\\Admin\\.codex\\plugins\\cache\\ponytail\\ponytail\\4.8.4\\skills\\ponytail-review\\SKILL.md) | global (Ponytail plugin) |
 | caveman-commit | `caveman:caveman-commit` | global (caveman plugin) |
 
 **Note:** compact is handled by Claude natively — do not invoke as a skill.

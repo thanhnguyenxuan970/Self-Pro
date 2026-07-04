@@ -1,1 +1,13 @@
 nul
+.gstack/
+.github/hooks/
+
+# Local Codex overrides and diagnostics
+AGENTS.override.md
+**/AGENTS.override.md
+.codex-log/
+.codex/*.local.toml
+
+# JVM crash dumps
+hs_err_pid*.log
+replay_pid*.log

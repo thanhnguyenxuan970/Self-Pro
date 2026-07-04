@@ -5,8 +5,9 @@ import {
 } from 'react-native';
 import { RankMascot } from './RankMascot';
 import { RANKS } from '../config/ranks.config';
-import { Radii, Spacing } from '../config/theme';
-import { useTranslations } from '../hooks/useSettings';
+import { Radii, Spacing, FontFamily } from '../config/theme';
+import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -31,10 +32,13 @@ interface Props {
   tierOrder: number;
   tierName: string;
   onDismiss: () => void;
+  onShare?: () => void;
 }
 
-export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismiss }: Props) {
+export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismiss, onShare }: Props) {
   const t = useTranslations();
+  const { colors: C } = useTheme();
+  const reduceMotion = useReduceMotion();
   const cfg = RANKS[Math.min(Math.max(tierOrder - 1, 0), RANKS.length - 1)];
 
   const particlesRef = useRef<Particle[] | null>(null);
@@ -52,10 +56,12 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
   const particles = particlesRef.current;
 
   const runningRef = useRef(false);
+  const burstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!visible) return;
     runningRef.current = true;
+    if (reduceMotion) return;
 
     function burst() {
       if (!runningRef.current) return;
@@ -86,7 +92,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
         )
       ).start(({ finished }) => {
         if (finished && runningRef.current) {
-          setTimeout(burst, 450);
+          burstTimerRef.current = setTimeout(burst, 450);
         }
       });
     }
@@ -94,13 +100,17 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
     burst();
     return () => {
       runningRef.current = false;
+      if (burstTimerRef.current != null) {
+        clearTimeout(burstTimerRef.current);
+        burstTimerRef.current = null;
+      }
       particles.forEach(p => {
         p.tx.stopAnimation();
         p.ty.stopAnimation();
         p.opacity.stopAnimation();
       });
     };
-  }, [visible]);
+  }, [visible, reduceMotion]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
@@ -128,27 +138,40 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismis
         <TouchableOpacity
           activeOpacity={1}
           onPress={() => {}}
-          style={[styles.card, { borderColor: cfg.color + '99' }]}
+          style={[styles.card, { borderColor: cfg.color + '99', backgroundColor: C.surface }]}
         >
           <Text style={styles.fireworksEmoji}>🎉</Text>
           <Text style={[styles.levelUpTitle, { color: cfg.color }]}>{t.levelUpTitle}</Text>
 
           <View style={styles.mascotWrap}>
-            <RankMascot tier={tierOrder - 1} size={88} loop reduceMotion={false} />
+            <RankMascot tier={tierOrder - 1} size={88} loop reduceMotion={reduceMotion} />
           </View>
 
-          <Text style={styles.tierName}>{tierName}</Text>
+          <Text style={[styles.tierName, { color: C.inkDark }]}>{tierName}</Text>
           <Text style={[styles.descriptor, { color: cfg.color + 'CC' }]}>{cfg.descriptor}</Text>
 
-          <Text style={styles.subtitle}>{t.levelUpSubtitle(tierName)}</Text>
+          <Text style={[styles.subtitle, { color: C.muted }]}>{t.levelUpSubtitle(tierName)}</Text>
 
           <TouchableOpacity
             style={[styles.dismissBtn, { backgroundColor: cfg.color }]}
             onPress={onDismiss}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={t.levelUpDismiss}
           >
-            <Text style={styles.dismissBtnText}>{t.levelUpDismiss}</Text>
+            <Text style={[styles.dismissBtnText, { color: C.onAccent }]}>{t.levelUpDismiss}</Text>
           </TouchableOpacity>
+          {onShare && (
+            <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={() => { onDismiss(); setTimeout(onShare, 300); }}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={t.shareAchievement}
+            >
+              <Text style={[styles.shareBtnText, { color: C.muted }]}>{t.shareAchievement}</Text>
+            </TouchableOpacity>
+          )}
         </TouchableOpacity>
       </TouchableOpacity>
     </Modal>
@@ -163,7 +186,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   card: {
-    backgroundColor: '#141A17',
     borderRadius: Radii.xl,
     padding: Spacing.xl,
     alignItems: 'center',
@@ -175,15 +197,14 @@ const styles = StyleSheet.create({
   fireworksEmoji: { fontSize: 48, marginBottom: 2 },
   levelUpTitle: {
     fontSize: 28,
-    fontWeight: '900',
+    fontFamily: FontFamily.extraBold,
     letterSpacing: 1.5,
     marginBottom: Spacing.md,
   },
   mascotWrap: { marginVertical: Spacing.sm },
   tierName: {
     fontSize: 24,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: FontFamily.extraBold,
     marginTop: Spacing.sm,
     letterSpacing: -0.5,
   },
@@ -191,11 +212,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontStyle: 'italic',
     marginTop: 4,
-    fontWeight: '600',
+    fontFamily: FontFamily.semiBold,
   },
   subtitle: {
     fontSize: 14,
-    color: '#8FA896',
     marginTop: Spacing.md,
     textAlign: 'center',
     lineHeight: 21,
@@ -208,9 +228,17 @@ const styles = StyleSheet.create({
     borderRadius: Radii.pill,
   },
   dismissBtnText: {
-    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '800',
+    fontFamily: FontFamily.extraBold,
     letterSpacing: 0.3,
+  },
+  shareBtn: {
+    marginTop: Spacing.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
+  shareBtnText: {
+    fontSize: 14,
+    fontFamily: FontFamily.semiBold,
   },
 });

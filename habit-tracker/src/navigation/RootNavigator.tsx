@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, TouchableOpacity, StyleSheet, StatusBar, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -11,12 +11,18 @@ import { CalendarScreen } from '../screens/CalendarScreen';
 import { RankScreen } from '../screens/RankScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { ChallengeHubScreen } from '../screens/ChallengeHubScreen';
+import { CreateChallengeScreen } from '../screens/CreateChallengeScreen';
+import { ChallengeDetailScreen } from '../screens/ChallengeDetailScreen';
+import { TrophyShelfScreen } from '../screens/TrophyShelfScreen';
 import { SignInScreen } from '../screens/SignInScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
-import { AppColors, Shadows } from '../config/theme';
+import { AppColors, Shadows, FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { AddActivitySheet } from '../screens/AddActivitySheet';
+import { SuggestActivitySheet } from '../components/SuggestActivitySheet';
 import { GoogleUser } from '../hooks/useAuth';
+import { useTutorial } from '../hooks/useTutorial';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -63,9 +69,12 @@ function IconPlus() {
 }
 
 function FABButton({ onPress, colors }: { onPress: () => void; colors: AppColors }) {
+  const { targetRef } = useTutorial();
+  const t = useTranslations();
+  const fabRef = useMemo(() => targetRef('fab'), [targetRef]);
   return (
-    <TouchableOpacity style={fabStyles.container} onPress={onPress} activeOpacity={0.85}>
-      <View style={[fabStyles.button, { backgroundColor: colors.primary }]}>
+    <TouchableOpacity style={fabStyles.container} onPress={onPress} activeOpacity={0.85} accessibilityLabel={t.addActivity} accessibilityRole="button">
+      <View ref={fabRef} style={[fabStyles.button, { backgroundColor: colors.primary }]}>
         <IconPlus />
       </View>
     </TouchableOpacity>
@@ -102,7 +111,7 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.faint,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '700', marginTop: 4 },
+        tabBarLabelStyle: { fontSize: 10, fontFamily: FontFamily.bold, marginTop: 4 },
       }}
     >
       <Tab.Screen
@@ -142,14 +151,13 @@ function AppStack({
   googleUser,
   onSignOut,
   onDeleteAccount,
-  onResetProgress,
 }: {
   googleUser: GoogleUser;
   onSignOut: () => Promise<void>;
   onDeleteAccount: (userId: number) => Promise<void>;
-  onResetProgress: (userId: number) => Promise<void>;
 }) {
   const [fabVisible, setFabVisible] = useState(false);
+  const [suggestVisible, setSuggestVisible] = useState(false);
   const { colors } = useTheme();
   const t = useTranslations();
 
@@ -177,10 +185,35 @@ function AppStack({
           name="Settings"
           options={{ ...modalHeaderOptions, title: t.screenSettings }}
         >
-          {() => <SettingsScreen onDeleteAccount={onDeleteAccount} onResetProgress={onResetProgress} />}
+          {() => <SettingsScreen onDeleteAccount={onDeleteAccount} />}
         </Stack.Screen>
+        <Stack.Screen
+          name="ChallengeHub"
+          component={ChallengeHubScreen}
+          options={{ ...modalHeaderOptions, title: t.screenChallengeHub }}
+        />
+        <Stack.Screen
+          name="CreateChallenge"
+          component={CreateChallengeScreen}
+          options={{ ...modalHeaderOptions, title: t.screenCreateChallenge }}
+        />
+        <Stack.Screen
+          name="ChallengeDetail"
+          component={ChallengeDetailScreen}
+          options={{ ...modalHeaderOptions, title: t.screenChallengeDetail }}
+        />
+        <Stack.Screen
+          name="TrophyShelf"
+          component={TrophyShelfScreen}
+          options={{ ...modalHeaderOptions, title: t.screenTrophyShelf }}
+        />
       </Stack.Navigator>
-      <AddActivitySheet visible={fabVisible} onClose={() => setFabVisible(false)} />
+      <AddActivitySheet
+        visible={fabVisible}
+        onClose={() => setFabVisible(false)}
+        onSuggest={() => { setFabVisible(false); setSuggestVisible(true); }}
+      />
+      <SuggestActivitySheet visible={suggestVisible} onClose={() => setSuggestVisible(false)} />
     </>
   );
 }
@@ -192,7 +225,6 @@ export function RootNavigator({
   onSignInWithGoogle,
   onSignOut,
   onDeleteAccount,
-  onResetProgress,
 }: {
   isOnboarded: boolean;
   googleUser: GoogleUser | null;
@@ -200,7 +232,6 @@ export function RootNavigator({
   onSignInWithGoogle: (user: GoogleUser, idToken?: string) => Promise<boolean>;
   onSignOut: () => Promise<void>;
   onDeleteAccount: (userId: number) => Promise<void>;
-  onResetProgress: (userId: number) => Promise<void>;
 }) {
   const { isDark } = useTheme();
   return (
@@ -211,7 +242,7 @@ export function RootNavigator({
         translucent
       />
       {googleUser !== null && isOnboarded ? (
-        <AppStack googleUser={googleUser} onSignOut={onSignOut} onDeleteAccount={onDeleteAccount} onResetProgress={onResetProgress} />
+        <AppStack googleUser={googleUser} onSignOut={onSignOut} onDeleteAccount={onDeleteAccount} />
       ) : (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="SignIn">

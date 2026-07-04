@@ -3,7 +3,6 @@ export type Tier = {
   tier_order: number;
   stars_required: number;
   rank_name: string;
-  reward_amount: number;
 };
 
 export function getCurrentTier(stars: number, tiers: Tier[]): Tier | undefined {

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Milestone Audit"
+  short_description: "Audit a completed development milestone"
+  default_prompt: "Use $milestone-audit to audit and close the current milestone."

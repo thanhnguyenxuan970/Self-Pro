@@ -1,8 +1,17 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
-import { ActivityIndicator, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import {
+  useFonts,
+  BeVietnamPro_400Regular,
+  BeVietnamPro_500Medium,
+  BeVietnamPro_600SemiBold,
+  BeVietnamPro_700Bold,
+  BeVietnamPro_800ExtraBold,
+} from '@expo-google-fonts/be-vietnam-pro';
+import { ActivityIndicator, AppState, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { queryClient } from './src/queries/queryClient';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { getDb } from './src/db/client';
@@ -12,10 +21,27 @@ import { useAuth, resolveUserRow, UserIdContext, GoogleUserContext } from './src
 import { syncToSupabase } from './src/api/syncService';
 import { SettingsProvider } from './src/contexts/SettingsContext';
 import { useTheme } from './src/hooks/useSettings';
+import { FontFamily } from './src/config/theme';
 import { LevelUpCelebrationModal } from './src/components/LevelUpCelebrationModal';
 import { PENDING_LEVELUP_KEY } from './src/queries/useToday';
+import { TutorialProvider } from './src/hooks/useTutorial';
+import { rolloverChallenge } from './src/queries/useChallenge';
+
+const ICT_OFFSET_MS = 7 * 60 * 60 * 1000;
+function msUntilIctMidnight(now = Date.now()): number {
+  const ict = new Date(now + ICT_OFFSET_MS);
+  const next = Date.UTC(ict.getUTCFullYear(), ict.getUTCMonth(), ict.getUTCDate() + 1) - ICT_OFFSET_MS;
+  return next - now;
+}
 
 function AppInner() {
+  const [fontsLoaded] = useFonts({
+    BeVietnamPro_400Regular,
+    BeVietnamPro_500Medium,
+    BeVietnamPro_600SemiBold,
+    BeVietnamPro_700Bold,
+    BeVietnamPro_800ExtraBold,
+  });
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -37,7 +63,6 @@ function AppInner() {
     signInWithGoogle,
     signOut,
     deleteAccount,
-    resetProgress,
   } = useAuth();
 
   // Wait for auth to finish loading (AsyncStorage is async) so googleUser is
@@ -110,6 +135,27 @@ function AppInner() {
     }
   }, [dbReady, weekReset]);
 
+  useEffect(() => {
+    if (!dbReady) return;
+    const run = () => rolloverChallenge(userId)
+      .then(() => queryClient.invalidateQueries({ queryKey: ['challenge'] }))
+      .catch(() => {});
+    run();
+    let dailyTimer: ReturnType<typeof setInterval> | undefined;
+    const midnightTimer = setTimeout(() => {
+      run();
+      dailyTimer = setInterval(run, 24 * 60 * 60 * 1000);
+    }, msUntilIctMidnight());
+    const appStateSubscription = AppState.addEventListener('change', state => {
+      if (state === 'active') run();
+    });
+    return () => {
+      clearTimeout(midnightTimer);
+      if (dailyTimer) clearInterval(dailyTimer);
+      appStateSubscription.remove();
+    };
+  }, [dbReady, userId]);
+
   if (dbError) {
     return (
       <View style={[appStyles.center, { backgroundColor: colors.bgBase }]}>
@@ -121,7 +167,7 @@ function AppInner() {
     );
   }
 
-  if (!dbReady || authLoading) {
+  if (!dbReady || authLoading || !fontsLoaded) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bgBase, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -132,7 +178,7 @@ function AppInner() {
   return (
     <UserIdContext.Provider value={userId}>
     <GoogleUserContext.Provider value={googleUser}>
-      <>
+      <TutorialProvider>
         <RootNavigator
           isOnboarded={isOnboarded}
           googleUser={googleUser}
@@ -140,7 +186,6 @@ function AppInner() {
           onSignInWithGoogle={signInWithGoogle}
           onSignOut={signOut}
           onDeleteAccount={deleteAccount}
-          onResetProgress={resetProgress}
         />
         <Toast />
         {celebrationData && (
@@ -151,7 +196,7 @@ function AppInner() {
             onDismiss={() => setCelebrationData(null)}
           />
         )}
-      </>
+      </TutorialProvider>
     </GoogleUserContext.Provider>
     </UserIdContext.Provider>
   );
@@ -161,15 +206,17 @@ const appStyles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   errorMsg: { fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
   retryBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 8 },
-  retryTxt: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  retryTxt: { color: '#fff', fontSize: 15, fontFamily: FontFamily.semiBold },
 });
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
-        <AppInner />
-      </SettingsProvider>
-    </QueryClientProvider>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <SettingsProvider>
+          <AppInner />
+        </SettingsProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }

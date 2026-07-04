@@ -1,0 +1,4 @@
+interface:
+  display_name: "Frontend Design Taste"
+  short_description: "Build distinctive production frontend designs"
+  default_prompt: "Use $design-taste-frontend to design and implement this frontend experience."

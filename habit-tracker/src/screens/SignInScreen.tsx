@@ -2,8 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { GoogleUser } from '../hooks/useAuth';
-import { Typography, Radii, Spacing, Shadows, AppColors } from '../config/theme';
+import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
+import { ACCENTS } from '../config/accents';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+
+const GREEN = ACCENTS.green.light;
 
 type Props = {
   onSignIn: () => void;
@@ -69,27 +72,26 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
             />
           </Svg>
         </View>
-        <Text style={styles.title}>
-          {'habit '}
-          <Text style={{ color: colors.primary }}>ring</Text>
-        </Text>
-        <Text style={styles.subtitle}>daily completion, the loop</Text>
+        <Text style={styles.title}>Habi</Text>
+        <Text style={styles.subtitle}>{t.signInTagline}</Text>
 
         {loading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: Spacing.xl }} />
+          <ActivityIndicator size="large" color={GREEN.primary} style={{ marginTop: Spacing.xl }} />
         ) : (
           <TouchableOpacity
             style={styles.googleButton}
             onPress={handleGoogleSignIn}
             disabled={loading}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t.signInBtn}
           >
             <Text style={styles.googleIcon}>G</Text>
-            <Text style={styles.googleButtonText}>Đăng nhập bằng Google</Text>
+            <Text style={styles.googleButtonText}>{t.signInBtn}</Text>
           </TouchableOpacity>
         )}
 
-        <Text style={styles.hint}>MVP · Xác thực qua Google · Dữ liệu lưu trên máy</Text>
+        <Text style={styles.hint}>{t.signInHint}</Text>
       </View>
     </View>
   );
@@ -131,11 +133,11 @@ function makeStyles(C: AppColors) {
       borderColor: C.line,
       ...Shadows.light,
     },
-    googleIcon: { fontSize: 18, fontWeight: '700', color: '#4285F4', marginRight: 10 },
-    googleButtonText: { color: C.inkDark, fontWeight: '600', fontSize: 16 },
+    googleIcon: { fontSize: 18, fontFamily: FontFamily.bold, color: '#4285F4', marginRight: 10 },
+    googleButtonText: { color: C.inkDark, fontFamily: FontFamily.semiBold, fontSize: 16 },
     hint: {
       ...Typography.caption,
-      color: C.faint,
+      color: C.muted,
       marginTop: Spacing.lg,
       textAlign: 'center',
     },

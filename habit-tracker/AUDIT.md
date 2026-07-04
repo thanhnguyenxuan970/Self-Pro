@@ -1,8 +1,8 @@
-# Codebase Audit — Habit ring (`Self-Pro/habit-tracker`)
+# Codebase Audit — Habi (`Self-Pro/habit-tracker`)
 
 **Scope:** bugs · compilation · dependency conflicts · logic flaws · performance · security · best practices.
 **Method:** `tsc --noEmit`, `jest`, dependency review, static scan, manual review of auth/sync/DB/game logic.
-**Baseline (verified):** `tsc --noEmit` → **0 errors** · `jest` → **90/90 passing (13 suites)**.
+**Baseline (verified):** `tsc --noEmit` → **0 errors** · `jest` → **111/111 passing**.
 
 Severity: **Critical** = act before next release · **High** = fix soon · **Medium** = should fix · **Low** = polish.
 Status: ✅ Fixed this pass · 🔧 Recommended (left for you) · 🔎 Verify.
@@ -87,7 +87,7 @@ No imports anywhere in `src/` (the auth path moved to `@react-native-google-sign
 ---
 
 ## What's healthy (don't change)
-- `tsc` strict mode is clean; 90/90 tests pass.
+- `tsc` strict mode is clean; 111/111 tests pass.
 - All runtime SQL in `src/queries/**` is parameterized (no injection).
 - RLS policies are correctly authored (keyed on `auth.email()`).
 - Only `EXPO_PUBLIC_*` values in `.env.local` (anon key + OAuth client IDs are client-public by design); `.env.local` is gitignored; no server secrets in the client.
@@ -97,7 +97,7 @@ No imports anywhere in `src/` (the auth path moved to `@react-native-google-sign
 - `typescript ~6.0.3` is an unusual line — confirm it's intended (vs 5.x). It compiled clean here.
 - Run `npx expo-doctor` in a networked environment to validate native-module alignment (not runnable in this sandbox).
 
-## Fixes applied this pass (verified `tsc` 0 errors, `jest` 90/90)
+## Fixes applied this pass (verified `tsc` 0 errors, `jest` 111/111)
 1. `CLAUDE.md` — redacted keystore password (C1).
 2. `src/api/syncService.ts` — per-user sync scoping + cursors (H1).
 3. `src/db/migrations.ts` — added activity_log / fund_transactions indexes (M1).

@@ -1,7 +1,9 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
-import { AppColors } from '../config/theme';
+import { AppColors, FontFamily } from '../config/theme';
 import { useTranslations } from '../hooks/useSettings';
+import { useReduceMotion } from '../hooks/useReduceMotion';
+import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 
 export type Task = {
   id: number; name: string; kind: string; is_time_based: number;
@@ -16,24 +18,24 @@ function fmtDuration(mins: number): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-function useTaskRowAnimation(justLogged: boolean) {
+function useTaskRowAnimation(justLogged: boolean, done: boolean) {
+  const reduceMotion = useReduceMotion();
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const slideAnim = useRef(new Animated.Value(0)).current;
+  const checkScaleAnim = useRef(new Animated.Value(1)).current;
   const prevLogged = useRef(false);
+  const prevDone = useRef<boolean | null>(null);
 
   useEffect(() => {
     if (justLogged && !prevLogged.current) {
       const anim = Animated.parallel([
         Animated.spring(scaleAnim, { toValue: 0.85, tension: 200, friction: 10, useNativeDriver: true }),
-        Animated.spring(slideAnim, { toValue: 40, tension: 200, friction: 10, useNativeDriver: true }),
         Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
       ]);
       anim.start(({ finished }) => {
         if (finished) {
           fadeAnim.setValue(1);
           scaleAnim.setValue(1);
-          slideAnim.setValue(0);
         }
       });
       prevLogged.current = justLogged;
@@ -42,7 +44,21 @@ function useTaskRowAnimation(justLogged: boolean) {
     prevLogged.current = justLogged;
   }, [justLogged]);
 
-  return { fadeAnim, scaleAnim, slideAnim };
+  useEffect(() => {
+    if (prevDone.current === null) {
+      prevDone.current = done;
+      return;
+    }
+    if (done && !prevDone.current && !reduceMotion) {
+      checkScaleAnim.setValue(0.1);
+      Animated.spring(checkScaleAnim, { toValue: 1, tension: 220, friction: 6, useNativeDriver: true }).start();
+    } else if (!done && prevDone.current) {
+      checkScaleAnim.setValue(1);
+    }
+    prevDone.current = done;
+  }, [done, reduceMotion]);
+
+  return { fadeAnim, scaleAnim, checkScaleAnim };
 }
 
 type Styles = ReturnType<typeof makeTaskRowStyles>;
@@ -96,16 +112,16 @@ type Props = {
   isSelected: boolean; selectionMode: boolean; justLogged: boolean;
   totalDurationMin?: number; logPending: boolean;
   colors: AppColors;
-  onPress: () => void; onLongPress: () => void;
+  onPress: () => void; onLongPress: () => void; onEdit?: () => void;
 };
 
-export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, onPress, onLongPress, logPending, colors }: Props) {
+export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, onPress, onLongPress, onEdit, logPending, colors }: Props) {
   const t = useTranslations();
   const styles = useMemo(() => makeTaskRowStyles(colors), [colors]);
-  const { fadeAnim, scaleAnim, slideAnim } = useTaskRowAnimation(justLogged);
+  const { fadeAnim, scaleAnim, checkScaleAnim } = useTaskRowAnimation(justLogged, done);
 
   return (
-    <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }, { translateX: slideAnim }] }}>
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
       <TouchableOpacity
         style={[styles.task, isLast && styles.taskLast, isSelected && styles.taskSelected]}
         onPress={onPress}
@@ -113,18 +129,32 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
         delayLongPress={300}
         disabled={!selectionMode && logPending}
         activeOpacity={0.7}
+        accessibilityLabel={resolveTaskDisplayName(item.name, t)}
+        accessibilityRole="button"
       >
-        <View style={[styles.check, resolveCheckStyle(styles, selectionMode, isSelected, done, isBad)]}>
+        <Animated.View style={[styles.check, resolveCheckStyle(styles, selectionMode, isSelected, done, isBad), { transform: [{ scale: checkScaleAnim }] }]}>
           <Text style={styles.checkMark}>{resolveCheckMark(selectionMode, isSelected, done, isBad)}</Text>
-        </View>
+        </Animated.View>
         <View style={styles.tBody}>
-          <Text style={[styles.tName, done && styles.tNameDone]}>{item.name}</Text>
+          <Text style={[styles.tName, done && styles.tNameDone]} numberOfLines={1}>{resolveTaskDisplayName(item.name, t)}</Text>
           <TaskMetaRow item={item} done={done} isBad={isBad} totalDurationMin={totalDurationMin}
             timedMeta={t.timedMeta} badHabitMeta={t.badHabitMeta} ptsLabel={t.ptsLabel} styles={styles} />
         </View>
-        <Text style={[styles.tPts, resolvePtsStyle(styles, done, isBad)]}>
-          {isBad ? `−${item.star_penalty} ★` : '+1 ★'}
-        </Text>
+        <View style={styles.rightCol}>
+          {!selectionMode && onEdit ? (
+            <TouchableOpacity
+              onPress={onEdit}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel={t.editActivity}
+              accessibilityRole="button"
+            >
+              <Text style={styles.editIcon}>✏️</Text>
+            </TouchableOpacity>
+          ) : null}
+          <Text style={[styles.tPts, resolvePtsStyle(styles, done, isBad)]}>
+            {isBad ? `−${item.star_penalty} ★` : '+1 ★'}
+          </Text>
+        </View>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -147,15 +177,17 @@ function makeTaskRowStyles(C: AppColors) {
     },
     checkDone: { backgroundColor: C.primary, borderColor: C.primary },
     checkBad: { backgroundColor: C.danger, borderColor: C.danger },
-    checkMark: { fontSize: 13, fontWeight: '800', color: '#fff' },
+    checkMark: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.white },
     tBody: { flex: 1, minWidth: 0 },
-    tName: { fontSize: 14.5, fontWeight: '600', color: C.inkDark },
+    tName: { fontSize: 14.5, fontFamily: FontFamily.semiBold, color: C.inkDark },
     tNameDone: { color: C.muted, textDecorationLine: 'line-through' },
     tMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
     tMetaText: { fontSize: 11.5, color: C.muted },
-    tMetaDuration: { color: C.primary, fontWeight: '700' },
+    tMetaDuration: { color: C.primary, fontFamily: FontFamily.bold },
     dot: { width: 3, height: 3, backgroundColor: C.faint, borderRadius: 2 },
-    tPts: { fontSize: 13, fontWeight: '800', flexShrink: 0 },
+    rightCol: { alignItems: 'flex-end', gap: 2, flexShrink: 0 },
+    editIcon: { fontSize: 14 },
+    tPts: { fontSize: 13, fontFamily: FontFamily.extraBold, flexShrink: 0 },
     tPtsPos: { color: C.primary },
     tPtsNeg: { color: C.danger },
     tPtsIdle: { color: C.faint },

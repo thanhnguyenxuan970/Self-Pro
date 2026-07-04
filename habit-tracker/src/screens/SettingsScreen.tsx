@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import { Radii, Spacing, Shadows, Typography, AppColors } from '../config/theme';
+import { Radii, Spacing, Shadows, Typography, AppColors, FontFamily } from '../config/theme';
 import { useDarkMode, useLanguage, useAudioEnabled, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
 import { useAuthUser } from '../hooks/useAuth';
 import {
@@ -17,7 +17,6 @@ import { FeedbackSheet } from './FeedbackSheet';
 
 type Props = {
   onDeleteAccount: (userId: number) => Promise<void>;
-  onResetProgress: (userId: number) => Promise<void>;
 };
 
 function openTimePicker(currentVal: string | null, onSet: (time: string) => void) {
@@ -47,6 +46,9 @@ function LanguageOption({ lang, l, isLast, onPress, styles }: { lang: string; l:
       style={[styles.row, isLast && styles.rowLast]}
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole="radio"
+      accessibilityLabel={l === 'vi' ? 'Tiếng Việt' : 'English'}
+      accessibilityState={{ checked: lang === l }}
     >
       <Text style={styles.rowIc}>{l === 'vi' ? '🇻🇳' : '🇬🇧'}</Text>
       <Text style={styles.rowLabel}>{l === 'vi' ? 'Tiếng Việt' : 'English'}</Text>
@@ -55,7 +57,7 @@ function LanguageOption({ lang, l, isLast, onPress, styles }: { lang: string; l:
   );
 }
 
-export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
+export function SettingsScreen({ onDeleteAccount }: Props) {
   const userId = useAuthUser();
   const [isDark, setIsDark] = useDarkMode();
   const [lang, setLanguage] = useLanguage();
@@ -64,7 +66,6 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [deleting, setDeleting] = useState(false);
-  const [resetting, setResetting] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
 
   const { data: savedNotifTime } = useNotificationTime(userId);
@@ -101,31 +102,6 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
     const nextIdx = savedTimes.findIndex(v => !v);
     if (nextIdx === -1) return;
     openTimePicker(null, (time) => handleSetReminder(nextIdx, time));
-  }
-
-  function handleResetProgress() {
-    Alert.alert(
-      t.resetProgressTitle,
-      t.resetProgressMsg,
-      [
-        { text: t.cancel, style: 'cancel' },
-        {
-          text: t.resetProgressBtn,
-          style: 'destructive',
-          onPress: async () => {
-            setResetting(true);
-            try {
-              await onResetProgress(userId);
-              Alert.alert('', t.resetProgressSuccess);
-            } catch {
-              Alert.alert(t.error, t.resetProgressError);
-            } finally {
-              setResetting(false);
-            }
-          },
-        },
-      ],
-    );
   }
 
   function handleDeleteAccount() {
@@ -188,7 +164,7 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
 
         {/* Language */}
         <Text style={styles.sectionLabel}>{t.sectionLanguage}</Text>
-        <View style={styles.card}>
+        <View style={styles.card} accessibilityRole="radiogroup">
           {(['vi', 'en'] as AppLanguage[]).map((l, idx) => (
             <LanguageOption
               key={l}
@@ -256,16 +232,6 @@ export function SettingsScreen({ onDeleteAccount, onResetProgress }: Props) {
         <Text style={styles.sectionLabel}>{t.sectionAccount}</Text>
         <View style={styles.card}>
           <TouchableOpacity
-            style={[styles.row, { opacity: resetting ? 0.5 : 1 }]}
-            onPress={handleResetProgress}
-            disabled={resetting}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.rowIc}>🔄</Text>
-            <Text style={[styles.rowLabel, { color: colors.danger }]}>{t.resetProgressLabel}</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
             style={[styles.row, styles.rowLast, { opacity: deleting ? 0.5 : 1 }]}
             onPress={handleDeleteAccount}
             disabled={deleting}
@@ -289,7 +255,7 @@ function makeStyles(C: AppColors) {
     safe: { flex: 1, backgroundColor: C.bgBase },
     sectionLabel: {
       ...Typography.sectionLabel,
-      color: C.muted,
+      color: C.ink2,
       marginHorizontal: Spacing.lg,
       marginTop: 24,
       marginBottom: 8,
@@ -313,30 +279,30 @@ function makeStyles(C: AppColors) {
     },
     rowLast: { borderBottomWidth: 0 },
     rowIc: { fontSize: 20, width: 28, textAlign: 'center' },
-    rowLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: C.inkDark },
-    check: { fontSize: 16, fontWeight: '800', color: C.primary },
-    chevron: { fontSize: 18, color: C.faint },
+    rowLabel: { flex: 1, fontSize: 15, fontFamily: FontFamily.semiBold, color: C.inkDark },
+    check: { fontSize: 16, fontFamily: FontFamily.extraBold, color: C.primary },
+    chevron: { fontSize: 18, color: C.muted },
     hint: {
       marginHorizontal: Spacing.lg,
       marginTop: 12,
       fontSize: 12,
-      color: C.muted,
+      color: C.ink2,
       lineHeight: 18,
     },
     reminderTime: {
       fontSize: 17,
-      fontWeight: '700',
+      fontFamily: FontFamily.bold,
       color: C.primary,
     },
     reminderClear: {
       fontSize: 16,
-      color: C.faint,
-      fontWeight: '700',
+      color: C.muted,
+      fontFamily: FontFamily.bold,
       paddingHorizontal: 4,
     },
     addReminderText: {
       color: C.primary,
-      fontWeight: '700',
+      fontFamily: FontFamily.bold,
     },
   });
 }

@@ -38,3 +38,10 @@ yarn-error.*
 
 # generated native folders
 /ios
+
+# Supabase CLI
+supabase/.temp/
+
+# JVM crash dumps from Android builds
+hs_err_pid*.log
+replay_pid*.log

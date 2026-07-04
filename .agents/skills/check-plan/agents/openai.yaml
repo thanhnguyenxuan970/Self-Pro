@@ -1,0 +1,4 @@
+interface:
+  display_name: "Check Plan"
+  short_description: "Validate and refine an implementation plan"
+  default_prompt: "Use $check-plan to validate the active implementation plan."

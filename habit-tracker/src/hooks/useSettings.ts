@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useSettingsContext, AppLanguage } from '../contexts/SettingsContext';
 import { getColors, AppColors } from '../config/theme';
 import { getTranslations, Strings } from '../config/i18n';
+import { AccentKey } from '../config/accents';
 
 export type { AppLanguage };
 
@@ -20,9 +21,14 @@ export function useAudioEnabled(): [boolean, (v: boolean) => void] {
   return [audioEnabled, setAudioEnabled];
 }
 
+export function useAccent(): [AccentKey, (v: AccentKey) => void] {
+  const { accent, setAccent } = useSettingsContext();
+  return [accent, setAccent];
+}
+
 export function useTheme(): { colors: AppColors; isDark: boolean } {
-  const { isDark } = useSettingsContext();
-  return useMemo(() => ({ colors: getColors(isDark), isDark }), [isDark]);
+  const { isDark, accent } = useSettingsContext();
+  return useMemo(() => ({ colors: getColors(isDark, accent), isDark }), [isDark, accent]);
 }
 
 export function useTranslations(): Strings {

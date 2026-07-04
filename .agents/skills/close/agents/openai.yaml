@@ -1,0 +1,4 @@
+interface:
+  display_name: "Close Session"
+  short_description: "Finalize documentation and remaining work"
+  default_prompt: "Use $close to finalize project documentation and session status."

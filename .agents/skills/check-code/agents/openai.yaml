@@ -1,0 +1,4 @@
+interface:
+  display_name: "Check Code"
+  short_description: "Review, fix, and optimize changed code"
+  default_prompt: "Use $check-code to verify the current changes until clean."
