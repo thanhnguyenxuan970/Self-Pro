@@ -58,10 +58,15 @@ describe('computeProgress', () => {
 });
 
 describe('challengeCompletionStars', () => {
-  it('scales reward from the configured 7-day base', () => {
+  it('uses the new fixed reward tiers for 30, 60, and 100-day challenges', () => {
+    expect(challengeCompletionStars(30)).toBe(30);
+    expect(challengeCompletionStars(60)).toBe(120);
+    expect(challengeCompletionStars(100)).toBe(300);
+  });
+
+  it('keeps legacy rewards stable for older challenge durations', () => {
     expect(challengeCompletionStars(7)).toBe(1);
     expect(challengeCompletionStars(21)).toBe(3);
-    expect(challengeCompletionStars(30)).toBe(4);
     expect(challengeCompletionStars(66)).toBe(9);
   });
 });

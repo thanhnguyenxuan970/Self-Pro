@@ -17,7 +17,7 @@ export function CreateChallengeScreen() {
 
   const [name, setName] = useState('');
   const [taskTypeId, setTaskTypeId] = useState<number | null>(null);
-  const [targetDays, setTargetDays] = useState<number>(CHALLENGE_DURATIONS[1]);
+  const [targetDays, setTargetDays] = useState<number>(CHALLENGE_DURATIONS[0]);
   const [beforePhoto, setBeforePhoto] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
