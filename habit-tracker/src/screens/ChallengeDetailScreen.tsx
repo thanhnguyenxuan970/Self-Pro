@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -7,7 +7,7 @@ import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
-import { useChallengeById, useLogChallengeDay, useRestartChallenge, useSetChallengeAfterPhoto } from '../queries/useChallenge';
+import { useChallengeById, useDeleteChallenge, useLogChallengeDay, useRestartChallenge, useSetChallengeAfterPhoto } from '../queries/useChallenge';
 import { challengeDate } from '../lib/challenge';
 import { ChallengeProgressRing } from '../components/ChallengeProgressRing';
 import { ChallengeDayGrid } from '../components/ChallengeDayGrid';
@@ -23,6 +23,7 @@ export function ChallengeDetailScreen() {
   const logDay = useLogChallengeDay(userId);
   const setAfterPhoto = useSetChallengeAfterPhoto(userId);
   const restartChallenge = useRestartChallenge(userId);
+  const deleteChallenge = useDeleteChallenge(userId);
   const [capturing, setCapturing] = useState(false);
   const shareRef = useRef<View>(null);
 
@@ -67,6 +68,29 @@ export function ChallengeDetailScreen() {
     } finally {
       setCapturing(false);
     }
+  }
+
+  function handleDelete() {
+    if (challengeId == null) return;
+    Alert.alert(
+      t.challengeDeleteTitle,
+      t.challengeDeleteMsg,
+      [
+        { text: t.cancel, style: 'cancel' },
+        {
+          text: t.delete,
+          style: 'destructive',
+          onPress: () => {
+            deleteChallenge.mutateAsync(challengeId)
+              .then(() => {
+                if (navigation.canGoBack()) navigation.goBack();
+                else (navigation as any).navigate('ChallengeHub');
+              })
+              .catch(() => Alert.alert(t.error, t.challengeDeleteFailed));
+          },
+        },
+      ],
+    );
   }
 
   if (isLoading || !challenge) {
@@ -154,6 +178,17 @@ export function ChallengeDetailScreen() {
           {capturing ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.shareBtnText}>{t.challengeShareCta}</Text>}
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.deleteBtn, deleteChallenge.isPending && styles.logBtnDisabled]}
+          onPress={handleDelete}
+          disabled={deleteChallenge.isPending}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={t.challengeDeleteCta}
+        >
+          {deleteChallenge.isPending ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.deleteBtnText}>{t.challengeDeleteCta}</Text>}
+        </TouchableOpacity>
+
         {/* Off-screen share card */}
         <View style={styles.offscreen} pointerEvents="none">
           <View ref={shareRef} style={styles.shareCard} collapsable={false}>
@@ -200,6 +235,11 @@ function makeStyles(C: AppColors) {
       paddingVertical: 14, borderRadius: Radii.pill, alignItems: 'center',
     },
     shareBtnText: { ...Typography.bodyStrong, color: C.primary },
+    deleteBtn: {
+      alignSelf: 'stretch', backgroundColor: C.dangerSoft, borderWidth: 1, borderColor: C.danger,
+      paddingVertical: 14, borderRadius: Radii.pill, alignItems: 'center',
+    },
+    deleteBtnText: { ...Typography.bodyStrong, color: C.danger },
     offscreen: { position: 'absolute', top: -9999, left: -9999 },
     shareCard: {
       width: 320, height: 320, backgroundColor: C.primary, borderRadius: Radii.xl,

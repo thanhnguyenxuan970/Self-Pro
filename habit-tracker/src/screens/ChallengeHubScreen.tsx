@@ -17,7 +17,7 @@ export function ChallengeHubScreen() {
 
   useEffect(() => {
     if (active) rollover.mutate();
-    // Run once per mount to catch missed days — not on every `active` refetch.
+    // Run once per mount to catch missed days, not on every active refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -35,18 +35,6 @@ export function ChallengeHubScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <View style={styles.headerRow}>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('CreateChallenge' as never)}
-          style={styles.addBtn}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel={t.challengeCreateCta}
-        >
-          <Text style={styles.addBtnText}>＋</Text>
-        </TouchableOpacity>
-      </View>
-
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {showEmpty ? (
           <View style={styles.emptyState}>
@@ -63,6 +51,16 @@ export function ChallengeHubScreen() {
           </View>
         ) : (
           <>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('CreateChallenge' as never)}
+              style={styles.createCta}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={t.challengeCreateCta}
+            >
+              <Text style={styles.createCtaText}>{t.challengeCreateCta}</Text>
+            </TouchableOpacity>
+
             {active && (
               <ChallengeCard
                 name={active.name}
@@ -107,20 +105,7 @@ function makeStyles(C: AppColors) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: C.bgBase },
     loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    headerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'flex-end',
-      paddingHorizontal: Spacing.lg,
-      paddingTop: Spacing.md,
-      paddingBottom: Spacing.sm,
-    },
-    addBtn: {
-      width: 44, height: 44, borderRadius: Radii.pill,
-      backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center',
-    },
-    addBtnText: { fontSize: 20, fontFamily: FontFamily.semiBold, color: C.primary },
-    scrollContent: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl, gap: Spacing.lg },
+    scrollContent: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.xl, gap: Spacing.lg },
     emptyState: { alignItems: 'center', paddingTop: 60, paddingHorizontal: Spacing.lg },
     emptyTitle: { ...Typography.subheading, color: C.inkDark, marginBottom: Spacing.xs, textAlign: 'center' },
     emptyBody: { ...Typography.body, color: C.ink2, textAlign: 'center', marginBottom: Spacing.lg },
@@ -129,6 +114,17 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.pill,
     },
     emptyCtaText: { ...Typography.bodyStrong, color: C.white },
+    createCta: {
+      backgroundColor: C.primarySoft,
+      borderRadius: Radii.md,
+      paddingVertical: 13,
+      paddingHorizontal: Spacing.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: C.primary,
+    },
+    createCtaText: { ...Typography.bodyStrong, fontFamily: FontFamily.semiBold, color: C.primary },
     pastSection: { gap: Spacing.sm },
     sectionLabel: { ...Typography.sectionLabel, color: C.ink2 },
     pastCard: {

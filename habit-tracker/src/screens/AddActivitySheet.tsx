@@ -367,6 +367,9 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
                 <Text style={[styles.durationLabel, !hasName && styles.durationLabelDim]}>
                   {t.addActivityHowLong}
                 </Text>
+                {!hasName && (
+                  <Text style={styles.durationHint}>{t.addActivityEmptyName}</Text>
+                )}
 
                 <TouchableOpacity
                   style={[styles.durationChip, !hasName && styles.durationChipDim]}
@@ -382,9 +385,10 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.noTimerBtn}
+                  style={[styles.noTimerBtn, !hasName && styles.noTimerBtnDisabled]}
                   onPress={() => handleCreate(false)}
                   disabled={!hasName || isPending}
+                  activeOpacity={0.8}
                 >
                   <Text style={[styles.noTimerText, !hasName && styles.noTimerTextDim]}>
                     {t.addActivityNoTimer}
@@ -462,6 +466,11 @@ function makeStyles(C: AppColors) {
       marginTop: Spacing.xl, marginBottom: Spacing.sm,
     },
     durationLabelDim: { color: C.muted },
+    durationHint: {
+      ...Typography.caption,
+      color: C.muted,
+      marginBottom: Spacing.sm,
+    },
     durationChip: {
       backgroundColor: C.primary, borderRadius: Radii.md,
       paddingVertical: 13, paddingHorizontal: 20,
@@ -469,8 +478,21 @@ function makeStyles(C: AppColors) {
     },
     durationChipDim: { backgroundColor: C.line2 },
     durationChipText: { color: C.white, fontSize: 15, fontFamily: FontFamily.bold },
-    noTimerBtn: { alignItems: 'center', paddingVertical: 12 },
-    noTimerText: { ...Typography.bodyStrong, color: C.muted },
+    noTimerBtn: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 13,
+      marginTop: Spacing.sm,
+      borderRadius: Radii.md,
+      borderWidth: 1.5,
+      borderColor: C.line2,
+      backgroundColor: C.surface2,
+    },
+    noTimerBtnDisabled: {
+      backgroundColor: C.surface,
+      borderColor: C.line,
+    },
+    noTimerText: { ...Typography.bodyStrong, color: C.inkDark },
     noTimerTextDim: { color: C.faint },
 
     durationStepTitle: { fontSize: 19, fontFamily: FontFamily.extraBold, color: C.inkDark, marginTop: Spacing.md, marginBottom: 2 },

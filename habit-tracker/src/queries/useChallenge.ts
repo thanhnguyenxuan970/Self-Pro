@@ -38,6 +38,17 @@ interface ChallengeRow {
   after_photo: string | null;
 }
 
+type ChallengeDeleteRow = {
+  status: ChallengeStatus;
+  completed_at: string | null;
+};
+
+type ChallengeRewardRow = {
+  id: number;
+  week_start: string;
+  stars_delta: number;
+};
+
 type FullTierRow = TierRow & { tier_order: number; rank_name: string };
 
 function challengeAchievementKey(targetDays: number): string {
@@ -193,6 +204,63 @@ async function loadChallengeWithLog(db: SQLiteDatabase, row: ChallengeRow, today
     loggedToday: logRows.some(r => r.local_date === today && r.state === 'done'),
     log: logRows.map(r => ({ date: r.local_date, state: r.state })),
   };
+}
+
+export async function deleteChallengeById(
+  db: Pick<SQLiteDatabase, 'getFirstAsync' | 'runAsync'>,
+  userId: number,
+  challengeId: number,
+): Promise<void> {
+  const challenge = await db.getFirstAsync<ChallengeDeleteRow>(
+    `SELECT status, completed_at FROM challenges WHERE id = ? AND user_id = ?`,
+    [challengeId, userId],
+  );
+  if (!challenge) throw new Error('CHALLENGE_NOT_FOUND');
+
+  if (challenge.status === 'done' && challenge.completed_at) {
+    const rewardRow = await db.getFirstAsync<ChallengeRewardRow>(
+      `SELECT id, week_start, stars_delta
+       FROM activity_log
+       WHERE user_id = ? AND source = 'CHALLENGE' AND local_date = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+      [userId, challenge.completed_at],
+    );
+
+    if (rewardRow) {
+      const weeklyRow = await db.getFirstAsync<{ weekly_stars: number }>(
+        `SELECT weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
+        [userId, rewardRow.week_start],
+      );
+      const newWeeklyStars = Math.max(0, (weeklyRow?.weekly_stars ?? 0) - rewardRow.stars_delta);
+
+      await db.runAsync(
+        `UPDATE weekly_summary
+         SET weekly_stars = MAX(0, weekly_stars - ?)
+         WHERE user_id = ? AND week_start = ?`,
+        [rewardRow.stars_delta, userId, rewardRow.week_start],
+      );
+      await db.runAsync(
+        `DELETE FROM reward_unlocks
+         WHERE user_id = ? AND week_start = ? AND claimed = 0
+           AND tier_id IN (SELECT id FROM tiers WHERE stars_required > ?)`,
+        [userId, rewardRow.week_start, newWeeklyStars],
+      );
+      await db.runAsync(
+        `UPDATE users SET treat_stars = MAX(0, treat_stars - ?) WHERE id = ?`,
+        [rewardRow.stars_delta, userId],
+      );
+      await db.runAsync(`DELETE FROM activity_log WHERE id = ? AND user_id = ?`, [rewardRow.id, userId]);
+    }
+  }
+
+  await db.runAsync(
+    `DELETE FROM achievements WHERE user_id = ? AND source_type = 'challenge' AND source_id = ?`,
+    [userId, challengeId],
+  );
+  await db.runAsync(`DELETE FROM challenge_days WHERE challenge_id = ?`, [challengeId]);
+  await db.runAsync(`DELETE FROM challenge_log WHERE challenge_id = ?`, [challengeId]);
+  await db.runAsync(`DELETE FROM challenges WHERE id = ? AND user_id = ?`, [challengeId, userId]);
 }
 
 export function useActiveChallenge(userId: number) {
@@ -443,5 +511,26 @@ export function useRestartChallenge(userId: number) {
       return newId;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['challenge'] }),
+  });
+}
+
+export function useDeleteChallenge(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (challengeId: number): Promise<void> => {
+      const db = await getDb();
+      await db.withExclusiveTransactionAsync(async txn => {
+        await deleteChallengeById(txn as unknown as SQLiteDatabase, userId, challengeId);
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['challenge'] });
+      qc.invalidateQueries({ queryKey: ['progress'] });
+      qc.invalidateQueries({ queryKey: ['week'] });
+      qc.invalidateQueries({ queryKey: ['rank'] });
+      qc.invalidateQueries({ queryKey: ['today'] });
+      qc.invalidateQueries({ queryKey: ['treats'] });
+      qc.invalidateQueries({ queryKey: ['achievements'] });
+    },
   });
 }
