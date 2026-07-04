@@ -20,7 +20,7 @@ npx expo run:android
 Set-Location android; .\gradlew.bat bundleRelease
 ```
 
-Use `EXPO_METRO_MAX_WORKERS=1` for release bundling when Node 24 triggers Metro worker crashes. Android native compilation is intentionally constrained by `android.ndk.maxParallelBuildJobs=1` because parallel Fabric codegen can exhaust memory on Windows.
+Use `EXPO_METRO_MAX_WORKERS=1` for release bundling when Node 24 triggers Metro worker crashes. Android native compilation is intentionally constrained by `android.ndk.maxParallelBuildJobs=1`, and Gradle project parallelism stays off in `android/gradle.properties`, because parallel Expo/React Native release builds can corrupt generated native metadata on Windows.
 
 ## Architecture
 
@@ -81,6 +81,13 @@ Use the `emulator` skill before any adb tap or swipe so coordinates are computed
 - The normal ship gate is TypeScript, Jest, code review, relevant Android/UI verification, documentation updates, then commit.
 - Do not bump Android/app versions for ordinary local changes unless the task is explicitly a release or the repository workflow requires a version bump.
 - Do not claim a release build passed unless `bundleRelease` completed successfully.
+
+## Known Errors & Fixes
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `No implementation class specified for plugin 'com.facebook.react.rootproject'` | Corrupted `@react-native/gradle-plugin` JAR or Gradle transform cache left the plugin descriptor full of NUL bytes | Rebuild `node_modules/@react-native/gradle-plugin` with `gradlew :react-native-gradle-plugin:jar --rerun-tasks`, stop Gradle, then clear the affected transform cache and rerun the build |
+| `MalformedJsonException` during `:expo-modules-core:configureCMakeRelWithDebInfo[arm64-v8a]` or duplicate-class failure in `:expo:bundleLibRuntimeToDirRelease` | Corrupted generated native/build output under `node_modules/expo-modules-core/android/.cxx` or `node_modules/expo/android/build` after interrupted Windows release builds | Delete the affected generated module build directories, keep `org.gradle.parallel=false`, and rerun `bundleRelease` |
 
 ## Shared References
 

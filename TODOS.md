@@ -9,6 +9,9 @@
 
 ## Completed
 
+### Supabase auth sign-in logging + Android release build hardening (2026-07-04)
+Shipped `supabase/migrations/007_log_auth_signins.sql` to mirror Supabase Auth sign-ins into remote `activity_log` as `LOGIN` rows, including a one-pass backfill for users missing their latest sign-in row. Android release bundling on Windows now keeps Gradle project parallelism off by default, and `habit-tracker/AGENTS.md` records the cache-corruption fixes for Expo/React Native native build artifacts during `bundleRelease`.
+
 ### Challenge feature — 7/21/30/66-day habit challenges (2026-07-04)
 Shipped end-to-end: new `challenges` + `challenge_log` SQLite tables (migration v10, partial unique index enforces one active challenge), pure logic in `src/lib/challenge.ts` (ICT-pinned date math, progress/restart/rollover), TanStack Query hooks in `useChallenge.ts`, app-level midnight + foreground rollover trigger in `App.tsx`, challenge cleanup in account reset/delete flows, and ChallengeHub/CreateChallenge/ChallengeDetail screens reachable from the Today entry card. Share uses the existing `react-native-view-shot` + `expo-sharing` path, and the detail screen now uses a fixed 30-cell mini-calendar window. Visual verification passed on Android emulator in both VI and EN for Home entry, Hub, Create, Detail, and Settings language rows. `tsc` clean, `jest` 187/187 green.
 
