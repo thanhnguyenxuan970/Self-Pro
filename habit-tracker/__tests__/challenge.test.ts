@@ -1,4 +1,4 @@
-import { challengeDate, completeChallenge, currentDay, currentDayIndex, computeProgress, computeRollover, dateRange, isComplete, logToday, progress, restart, type Challenge } from '../src/lib/challenge';
+import { challengeDate, challengeStreak, completeChallenge, currentDay, currentDayIndex, computeProgress, computeRollover, dateRange, isComplete, logToday, progress, restart, type Challenge, type DayEntry } from '../src/lib/challenge';
 
 const challenge: Challenge = {
   id: 4, name: 'Read', taskType: null, targetDays: 7, startDate: '2026-06-17',
@@ -62,6 +62,34 @@ describe('isComplete', () => {
   });
   it('false when short', () => {
     expect(isComplete(6, 7)).toBe(false);
+  });
+});
+
+describe('challengeStreak', () => {
+  const day = (date: string, state: DayEntry['state']): DayEntry => ({ date, state });
+
+  it('empty log → 0', () => {
+    expect(challengeStreak([])).toBe(0);
+  });
+  it('all done → streak equals log length', () => {
+    expect(challengeStreak([
+      day('2026-06-17', 'done'), day('2026-06-18', 'done'), day('2026-06-19', 'done'),
+    ])).toBe(3);
+  });
+  it('freeze days count toward the streak like done days', () => {
+    expect(challengeStreak([
+      day('2026-06-17', 'done'), day('2026-06-18', 'freeze'), day('2026-06-19', 'done'),
+    ])).toBe(3);
+  });
+  it('a reset day stops the streak count immediately (not counted itself)', () => {
+    expect(challengeStreak([
+      day('2026-06-17', 'done'), day('2026-06-18', 'reset'), day('2026-06-19', 'done'), day('2026-06-20', 'done'),
+    ])).toBe(2);
+  });
+  it('trailing reset with nothing after it → 0', () => {
+    expect(challengeStreak([
+      day('2026-06-17', 'done'), day('2026-06-18', 'reset'),
+    ])).toBe(0);
   });
 });
 
