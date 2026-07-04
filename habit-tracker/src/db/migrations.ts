@@ -275,7 +275,11 @@ async function v7(db: SQLiteDatabase): Promise<void> {
 
 // v7 -> v8: remove legacy 'Exercise' task type seeded in early builds
 async function v8(db: SQLiteDatabase): Promise<void> {
-  await db.execAsync(`DELETE FROM task_types WHERE name = 'Exercise'`);
+  await db.execAsync(`
+    UPDATE activity_log SET task_type_id = NULL
+      WHERE task_type_id IN (SELECT id FROM task_types WHERE name = 'Exercise');
+    DELETE FROM task_types WHERE name = 'Exercise';
+  `);
 }
 
 // v8 -> v9: backfill support — is_backfill flag + quota index
