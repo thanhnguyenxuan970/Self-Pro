@@ -49,6 +49,8 @@ type ChallengeRewardRow = {
   stars_delta: number;
 };
 
+type ChallengeLogDb = Pick<SQLiteDatabase, 'getFirstAsync' | 'getAllAsync' | 'runAsync'>;
+
 type FullTierRow = TierRow & { tier_order: number; rank_name: string };
 
 function challengeAchievementKey(targetDays: number): string {
@@ -62,7 +64,7 @@ function challengeAchievementRarity(targetDays: number): 'common' | 'rare' | 'le
 }
 
 async function getCarryOverTierId(
-  db: SQLiteDatabase,
+  db: ChallengeLogDb,
   userId: number,
   tiers: FullTierRow[],
   currentWeekStart: string,
@@ -88,7 +90,7 @@ async function getCarryOverTierId(
 }
 
 async function handleTierUnlocks(
-  db: SQLiteDatabase,
+  db: ChallengeLogDb,
   tiers: FullTierRow[],
   userId: number,
   weekStart: string,
@@ -113,7 +115,7 @@ async function handleTierUnlocks(
 }
 
 async function awardChallengeCompletion(
-  db: SQLiteDatabase,
+  db: ChallengeLogDb,
   params: { userId: number; challengeId: number; taskTypeId: number | null; targetDays: number; localDate: string },
 ): Promise<void> {
   const rewardStars = challengeCompletionStars(params.targetDays);
@@ -177,6 +179,69 @@ async function awardChallengeCompletion(
       params.challengeId,
     ],
   );
+}
+
+export async function logActiveChallengeDay(
+  db: ChallengeLogDb,
+  params: { userId: number; localDate: string; taskTypeId?: number | null },
+): Promise<'logged' | 'already_logged' | 'no_active_challenge'> {
+  const row = params.taskTypeId == null
+    ? await db.getFirstAsync<Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days'>>(
+      `SELECT id, task_type_id, target_days FROM challenges WHERE user_id = ? AND status = 'active'`,
+      [params.userId],
+    )
+    : await db.getFirstAsync<Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days'>>(
+      `SELECT id, task_type_id, target_days
+       FROM challenges
+       WHERE user_id = ? AND status = 'active' AND task_type_id = ?`,
+      [params.userId, params.taskTypeId],
+    );
+  if (!row) return 'no_active_challenge';
+
+  const already = await db.getFirstAsync<{ id: number }>(
+    `SELECT id FROM challenge_log WHERE challenge_id = ? AND local_date = ?`,
+    [row.id, params.localDate],
+  );
+  if (already) return 'already_logged';
+
+  await db.runAsync(
+    `INSERT INTO challenge_log (challenge_id, local_date, state) VALUES (?, ?, 'done')`,
+    [row.id, params.localDate],
+  );
+  await db.runAsync(
+    `INSERT INTO challenge_days (challenge_id, local_date, logged_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT(challenge_id, local_date) DO NOTHING`,
+    [row.id, params.localDate, Date.now()],
+  );
+
+  const doneRow = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM challenge_log WHERE challenge_id = ? AND state = 'done'`,
+    [row.id],
+  );
+  const daysDone = doneRow?.n ?? 0;
+  const streakRow = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM challenge_log WHERE challenge_id = ? AND state != 'reset'`,
+    [row.id],
+  );
+  const streakCurrent = streakRow?.n ?? 0;
+  if (isComplete(daysDone, row.target_days)) {
+    await db.runAsync(
+      `UPDATE challenges SET status = 'done', streak_current = ?, completed_at = ? WHERE id = ?`,
+      [streakCurrent, params.localDate, row.id],
+    );
+    await awardChallengeCompletion(db, {
+      userId: params.userId,
+      challengeId: row.id,
+      taskTypeId: row.task_type_id,
+      targetDays: row.target_days,
+      localDate: params.localDate,
+    });
+  } else {
+    await db.runAsync(`UPDATE challenges SET streak_current = ? WHERE id = ?`, [streakCurrent, row.id]);
+  }
+
+  return 'logged';
 }
 
 async function loadChallengeWithLog(db: SQLiteDatabase, row: ChallengeRow, today: string): Promise<ActiveChallenge> {
@@ -383,54 +448,9 @@ export function useLogChallengeDay(userId: number) {
       const db = await getDb();
       const today = challengeDate();
       await db.withExclusiveTransactionAsync(async (txn) => {
-        const row = await txn.getFirstAsync<Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days'>>(
-          `SELECT id, task_type_id, target_days FROM challenges WHERE user_id = ? AND status = 'active'`,
-          [userId],
-        );
-        if (!row) throw new Error('NO_ACTIVE_CHALLENGE');
-
-        const already = await txn.getFirstAsync<{ id: number }>(
-          `SELECT id FROM challenge_log WHERE challenge_id = ? AND local_date = ?`,
-          [row.id, today],
-        );
-        if (already) throw new Error('ALREADY_LOGGED_TODAY');
-
-        await txn.runAsync(
-          `INSERT INTO challenge_log (challenge_id, local_date, state) VALUES (?, ?, 'done')`,
-          [row.id, today],
-        );
-        await txn.runAsync(
-          `INSERT INTO challenge_days (challenge_id, local_date, logged_at)
-           VALUES (?, ?, ?)
-           ON CONFLICT(challenge_id, local_date) DO NOTHING`,
-          [row.id, today, Date.now()],
-        );
-
-        const doneRow = await txn.getFirstAsync<{ n: number }>(
-          `SELECT COUNT(*) AS n FROM challenge_log WHERE challenge_id = ? AND state = 'done'`,
-          [row.id],
-        );
-        const daysDone = doneRow?.n ?? 0;
-        const streakRow = await txn.getFirstAsync<{ n: number }>(
-          `SELECT COUNT(*) AS n FROM challenge_log WHERE challenge_id = ? AND state != 'reset'`,
-          [row.id],
-        );
-        const streakCurrent = streakRow?.n ?? 0;
-        if (isComplete(daysDone, row.target_days)) {
-          await txn.runAsync(
-            `UPDATE challenges SET status = 'done', streak_current = ?, completed_at = ? WHERE id = ?`,
-            [streakCurrent, today, row.id],
-          );
-          await awardChallengeCompletion(txn, {
-            userId,
-            challengeId: row.id,
-            taskTypeId: row.task_type_id,
-            targetDays: row.target_days,
-            localDate: today,
-          });
-        } else {
-          await txn.runAsync(`UPDATE challenges SET streak_current = ? WHERE id = ?`, [streakCurrent, row.id]);
-        }
+        const result = await logActiveChallengeDay(txn, { userId, localDate: today });
+        if (result === 'no_active_challenge') throw new Error('NO_ACTIVE_CHALLENGE');
+        if (result === 'already_logged') throw new Error('ALREADY_LOGGED_TODAY');
       });
     },
     onSuccess: () => {

@@ -4,6 +4,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { getStoredGoogleUserEmail } from '../hooks/useAuth';
 import { syncUserStreak } from '../api/syncService';
+import { logActiveChallengeDay } from './useChallenge';
 import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
 import { computeTierUnlocks, TierRow } from '../game/tierUnlocks';
@@ -399,6 +400,11 @@ export function useLogTask(userId: number) {
         newTier = unlockResult.newTier;
 
         await updateTreatPool(db, userId, params.kind, totalStarsDelta, nowMs);
+        await logActiveChallengeDay(db, {
+          userId,
+          localDate: today,
+          taskTypeId: params.taskTypeId,
+        });
       });
 
       return { ...streakResult, didRankUp, newTier };
@@ -409,6 +415,8 @@ export function useLogTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['treats'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
+      qc.invalidateQueries({ queryKey: ['challenge'] });
+      qc.invalidateQueries({ queryKey: ['achievements'] });
       if (data.didRankUp) rankMascotBridge.ref?.current?.playRankUp();
       if (data.didRankUp && data.newTier) {
         const weekStart = getWeekStart();

@@ -50,6 +50,12 @@
         }
       ],
       "expo-sharing"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d43adc28-702b-4cdd-8219-ab5ab38a3948"
+      }
+    },
+    "owner": "thanhnguyenxuan970"
   }
 }

@@ -1,14 +1,20 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useRankData } from '../queries/useRank';
+import { useAllTimeStats } from '../queries/useProgress';
+import { useChallengeDaysTotal } from '../queries/useAchievements';
 import { useLeaderboard } from '../queries/useLeaderboard';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
+import { Badge } from '../components/Badge';
 import { getRankConfigByTierOrder } from '../config/ranks.config';
+import { ACHIEVEMENTS } from '../config/achievements';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
+import { computeAchievementStatus } from '../lib/achievements';
 import { RankInfoSheet } from '../components/RankInfoSheet';
 import { RankEmptyState } from '../components/RankEmptyState';
 import { SkeletonRow } from '../components/SkeletonRow';
@@ -100,9 +106,12 @@ function LeaderboardSection({ leaderboard, lbLoading, styles, colors, youLabel, 
 
 // fallow-ignore-next-line complexity
 export function RankScreen() {
+  const navigation = useNavigation();
   const { userId, googleUser, colors, t, styles } = useScreenCommons(makeStyles);
   const mascotRef = useRef<RankMascotHandle>(null);
   const { data, isLoading } = useRankData(userId);
+  const { data: allTime, isLoading: trophyAllTimeLoading } = useAllTimeStats(userId);
+  const { data: challengeDaysDone, isLoading: trophyChallengeLoading } = useChallengeDaysTotal(userId);
 
   const reduceMotion = useReduceMotion();
 
@@ -147,6 +156,16 @@ export function RankScreen() {
   const rankAltLabel = rankLabel === cfg.nameVi ? cfg.name : cfg.nameVi;
   const nextRankLabel = nextCfg ? (t.rankNameMap[nextCfg.name] ?? nextCfg.name) : (t.rankNameMap[nextTier?.rank_name ?? ''] ?? nextTier?.rank_name ?? '');
   const nextRankAltLabel = nextCfg ? (nextRankLabel === nextCfg.nameVi ? nextCfg.name : nextCfg.nameVi) : null;
+  const trophyStats = {
+    totalActivities: allTime?.totalActivities ?? 0,
+    bestStreak: allTime?.bestStreak ?? 0,
+    challengeDaysDone: challengeDaysDone ?? 0,
+    rankTierOrder: currentTier?.tier_order ?? 0,
+  };
+  const trophyItems = ACHIEVEMENTS.map(item => ({ ...item, ...computeAchievementStatus(item, trophyStats) }));
+  const earnedTrophyCount = trophyItems.filter(item => item.earned).length;
+  const trophyPreviewItems = (earnedTrophyCount > 0 ? trophyItems.filter(item => item.earned) : trophyItems).slice(0, 3);
+  const trophyLoading = trophyAllTimeLoading || trophyChallengeLoading;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -236,6 +255,44 @@ export function RankScreen() {
             </View>
           </>
         )}
+
+        <TouchableOpacity
+          style={styles.sectionLink}
+          onPress={() => navigation.navigate('TrophyShelf' as never)}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={t.screenTrophyShelf}
+        >
+          <Text style={styles.sectionLabel}>{t.screenTrophyShelf}</Text>
+          <Text style={styles.sectionLinkArrow}>›</Text>
+        </TouchableOpacity>
+        <View style={styles.card}>
+          {trophyLoading ? (
+            <View style={styles.lbEmpty}><ActivityIndicator color={colors.primary} /></View>
+          ) : (
+            <>
+              <View style={styles.trophyPreviewRow}>
+                {trophyPreviewItems.map((item) => (
+                  <View key={item.id} style={styles.trophyPreviewItem}>
+                    <Badge
+                      tier={item.tier}
+                      emblem={item.emblem}
+                      locked={!item.earned}
+                      progress={item.earned ? undefined : item.progress}
+                      label={t[item.labelKey as keyof typeof t] as string}
+                      sub={item.earned ? undefined : `${item.current} / ${item.goal}`}
+                      size={72}
+                      colors={colors}
+                    />
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.trophyPreviewCaption}>
+                {earnedTrophyCount} / {ACHIEVEMENTS.length} {t.trophyUnlockedCount}
+              </Text>
+            </>
+          )}
+        </View>
       </ScrollView>
       <RankInfoSheet
         visible={infoVisible}
@@ -292,10 +349,24 @@ function makeStyles(C: AppColors) {
       fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2,
       marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
     },
+    sectionLink: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
+    },
+    sectionLinkArrow: { fontSize: 20, color: C.faint, fontFamily: FontFamily.bold },
     card: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,
       borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line,
       paddingHorizontal: 15, ...Shadows.light,
+    },
+    trophyPreviewRow: {
+      flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between',
+      gap: 10, paddingVertical: 16,
+    },
+    trophyPreviewItem: { flex: 1, minWidth: 0 },
+    trophyPreviewCaption: {
+      fontSize: 12, color: C.ink2, fontFamily: FontFamily.semiBold,
+      paddingBottom: 16, textAlign: 'center',
     },
     rk: {
       flexDirection: 'row', alignItems: 'center', gap: 12,

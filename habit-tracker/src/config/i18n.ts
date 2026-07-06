@@ -258,7 +258,7 @@ const vi = {
   challengeNameRequired: 'Vui lòng nhập tên thử thách',
 
   // Trophy Shelf / achievements
-  screenTrophyShelf: 'Tủ huy hiệu',
+  screenTrophyShelf: 'Trophy',
   trophyUnlockedCount: 'ĐÃ MỞ HUY HIỆU',
   trophyFilterAll: 'Tất cả',
   trophyFilterStreak: 'Chuỗi ngày',
@@ -789,7 +789,7 @@ const en: typeof vi = {
   challengeNameRequired: 'Please enter a challenge name',
 
   // Trophy Shelf / achievements
-  screenTrophyShelf: 'Trophy Shelf',
+  screenTrophyShelf: 'Trophy',
   trophyUnlockedCount: 'BADGES UNLOCKED',
   trophyFilterAll: 'All',
   trophyFilterStreak: 'Streak',

@@ -25,6 +25,13 @@
         "serviceAccountKeyPath": "./play-store-service-account.json",
         "track": "internal"
       }
+    },
+    "closedTesting": {
+      "android": {
+        "serviceAccountKeyPath": "./play-store-service-account.json",
+        "track": "alpha",
+        "releaseStatus": "completed"
+      }
     }
   }
 }
