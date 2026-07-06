@@ -2,7 +2,7 @@
   "expo": {
     "name": "Habi",
     "slug": "habit-tracker",
-    "version": "1.0.49",
+    "version": "1.1.0.0",
     "scheme": "habittracker",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -32,6 +32,12 @@
             "DEFAULT"
           ]
         }
+      ],
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
     "web": {

@@ -8,7 +8,6 @@ export function parseNotificationTime(input: string): { hours: number; minutes: 
   return { hours, minutes };
 }
 
-
 export async function scheduleAllHabitReminders(times: (string | null)[]): Promise<void> {
   const Notifications = await import('expo-notifications');
   const { status } = await Notifications.requestPermissionsAsync();
@@ -20,7 +19,7 @@ export async function scheduleAllHabitReminders(times: (string | null)[]): Promi
     if (!parsed) continue;
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Habit Tracker 💪',
+        title: 'Habi 💪',
         body: 'Time to log your tasks!',
         sound: true,
       },
