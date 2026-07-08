@@ -426,7 +426,19 @@ async function v13(db: SQLiteDatabase): Promise<void> {
   });
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13];
+// v13 -> v14: per-challenge daily reminder toggle
+async function v14(db: SQLiteDatabase): Promise<void> {
+  for (const sql of [
+    `ALTER TABLE challenges ADD COLUMN notifications_enabled INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE challenges ADD COLUMN notification_id TEXT`,
+  ]) {
+    try { await db.runAsync(sql); } catch (e: any) {
+      if (!e?.message?.includes('duplicate column')) throw e;
+    }
+  }
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

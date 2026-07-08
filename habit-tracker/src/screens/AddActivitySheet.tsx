@@ -454,7 +454,7 @@ function makeStyles(C: AppColors) {
       borderWidth: 1, borderColor: C.line2,
     },
     chipSelected: { borderColor: C.primary, backgroundColor: C.primarySoft },
-    chipName: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
+    chipName: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark, lineHeight: 18 },
     chipNameSelected: { color: C.primary },
     suggestBtn: {
       marginTop: Spacing.md, paddingVertical: 10, alignItems: 'center',

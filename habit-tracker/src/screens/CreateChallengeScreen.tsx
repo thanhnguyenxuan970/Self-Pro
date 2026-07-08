@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -19,6 +19,7 @@ export function CreateChallengeScreen() {
   const [taskTypeId, setTaskTypeId] = useState<number | null>(null);
   const [targetDays, setTargetDays] = useState<number>(CHALLENGE_DURATIONS[0]);
   const [beforePhoto, setBeforePhoto] = useState<string | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   async function pickBeforePhoto() {
@@ -47,6 +48,7 @@ export function CreateChallengeScreen() {
         targetDays,
         freezesLeft: PHAO_COUNT,
         beforePhoto,
+        notificationsEnabled,
       });
       navigation.goBack();
     } catch (e: any) {
@@ -134,6 +136,20 @@ export function CreateChallengeScreen() {
           </Text>
         </TouchableOpacity>
 
+        <View style={styles.notifyRow}>
+          <View style={styles.notifyTextCol}>
+            <Text style={styles.notifyLabel}>{t.challengeNotifyLabel}</Text>
+            <Text style={styles.notifyDesc}>{t.challengeNotifyDesc}</Text>
+          </View>
+          <Switch
+            value={notificationsEnabled}
+            onValueChange={setNotificationsEnabled}
+            thumbColor={notificationsEnabled ? colors.primary : colors.faint}
+            trackColor={{ false: colors.line2, true: colors.primarySoft }}
+            accessibilityLabel={t.challengeNotifyLabel}
+          />
+        </View>
+
         <View style={styles.rulesCard}>
           <Text style={styles.rulesTitle}>{t.challengeRulesTitle}</Text>
           <Text style={styles.rulesBody}>{t.challengeRulesBody(PHAO_COUNT)}</Text>
@@ -184,6 +200,14 @@ function makeStyles(C: AppColors) {
       alignItems: 'center', backgroundColor: C.surface,
     },
     photoBtnText: { ...Typography.bodyStrong, color: C.ink2 },
+    notifyRow: {
+      flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+      backgroundColor: C.surface, borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line,
+      padding: Spacing.md, marginTop: Spacing.lg,
+    },
+    notifyTextCol: { flex: 1 },
+    notifyLabel: { ...Typography.bodyStrong, color: C.inkDark },
+    notifyDesc: { ...Typography.secondary, color: C.ink2, marginTop: 2 },
     rulesCard: { backgroundColor: C.surface2, borderRadius: Radii.lg, padding: Spacing.md, marginTop: Spacing.lg },
     rulesTitle: { ...Typography.bodyStrong, color: C.inkDark, marginBottom: 4 },
     rulesBody: { ...Typography.secondary, color: C.ink2, lineHeight: 19 },

@@ -8,6 +8,39 @@ export function parseNotificationTime(input: string): { hours: number; minutes: 
   return { hours, minutes };
 }
 
+const CHALLENGE_REMINDER_HOUR = 20;
+const CHALLENGE_REMINDER_MINUTE = 0;
+
+export async function scheduleChallengeReminder(challengeName: string): Promise<string | null> {
+  try {
+    const Notifications = await import('expo-notifications');
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== 'granted') return null;
+    return await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Habi 💪',
+        body: `Đừng quên ghi nhận "${challengeName}" hôm nay!`,
+        sound: true,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: CHALLENGE_REMINDER_HOUR,
+        minute: CHALLENGE_REMINDER_MINUTE,
+      },
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function cancelChallengeReminder(notificationId: string | null | undefined): Promise<void> {
+  if (!notificationId) return;
+  const Notifications = await import('expo-notifications');
+  try {
+    await Notifications.cancelScheduledNotificationAsync(notificationId);
+  } catch {}
+}
+
 export async function scheduleAllHabitReminders(times: (string | null)[]): Promise<void> {
   const Notifications = await import('expo-notifications');
   const { status } = await Notifications.requestPermissionsAsync();

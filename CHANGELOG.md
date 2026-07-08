@@ -6,11 +6,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+- **Challenge creation — daily reminder toggle**: `CreateChallengeScreen` now has a "Nhắc nhở hàng ngày" switch (default on) that schedules a local daily notification for the new challenge via `expo-notifications`; the notification is cancelled on delete and the preference/notification carry forward on restart. New `challenges.notifications_enabled`/`notification_id` columns (migration v14)
+
+### Changed
+- **Rank names**: relabeled all 7 base-ladder tiers' Vietnamese display names and quotes (e.g. Delulu → "Nhứt", GOATED → "Vượt Mức Pickleball") in `ranks.config.ts`/`i18n.ts`; the English internal keys used for animation/audio lookups are unchanged
+
 ### Fixed
 - **News screen — duplicate title**: `UpdatesScreen` rendered the same "Có gì mới"/"What's New" title twice (once in the native nav header, once as an in-page heading); removed the redundant in-page title, keeping the unread-count subtitle and mark-all-read button
 - **Rank screen — challenge rules copy**: rewrote the Vietnamese `CHALLENGE_RULE_COPY` string for clearer, more natural grammar (removed an awkward arrow glyph and imprecise phrasing around freeze consumption)
 - **Rank screen — Trophy preview removed**: dropped the Trophy preview card/link from `RankScreen` (redundant with the dedicated Trophy Shelf entry already on `ProfileScreen`), along with its now-unused data hooks, styles, and imports
 - **Accessibility — News mark-all-read button**: now exposes `accessibilityState={{ disabled }}` so screen readers correctly announce the button as inactive when there are no unread items
+- **Text clipping — Add Activity suggestion chips**: `chipName` text (e.g. "Học ngoại ngữ") had no explicit `lineHeight`, causing Vietnamese diacritics to clip on some devices (reported on Xiaomi 14T); added `lineHeight: 18` matching the app's `Typography.secondary` convention
+- **Home screen — task row icon alignment**: `TaskRow` name/meta text lacked explicit `lineHeight`, causing inconsistent row heights and icon placement on devices with different font-scaling behavior; added `lineHeight` to match `Typography` conventions
 
 ## [1.1.0.0] - 2026-07-04
 

@@ -5,6 +5,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { challengeCompletionStars, PHAO_COUNT } from '../config/challenges.config';
 import { computeTierUnlocks, type TierRow } from '../game/tierUnlocks';
 import { getWeekStart } from '../utils/formatters';
+import { scheduleChallengeReminder, cancelChallengeReminder } from '../utils/notifications';
 
 export interface ActiveChallenge {
   id: number;
@@ -41,6 +42,7 @@ interface ChallengeRow {
 type ChallengeDeleteRow = {
   status: ChallengeStatus;
   completed_at: string | null;
+  notification_id: string | null;
 };
 
 type ChallengeRewardRow = {
@@ -277,10 +279,12 @@ export async function deleteChallengeById(
   challengeId: number,
 ): Promise<void> {
   const challenge = await db.getFirstAsync<ChallengeDeleteRow>(
-    `SELECT status, completed_at FROM challenges WHERE id = ? AND user_id = ?`,
+    `SELECT status, completed_at, notification_id FROM challenges WHERE id = ? AND user_id = ?`,
     [challengeId, userId],
   );
   if (!challenge) throw new Error('CHALLENGE_NOT_FOUND');
+
+  await cancelChallengeReminder(challenge.notification_id);
 
   if (challenge.status === 'done' && challenge.completed_at) {
     const rewardRow = await db.getFirstAsync<ChallengeRewardRow>(
@@ -470,6 +474,7 @@ interface CreateChallengeParams {
   targetDays: number;
   freezesLeft: number;
   beforePhoto?: string | null;
+  notificationsEnabled: boolean;
 }
 
 export function useCreateChallenge(userId: number) {
@@ -478,15 +483,23 @@ export function useCreateChallenge(userId: number) {
     mutationFn: async (params: CreateChallengeParams): Promise<void> => {
       const db = await getDb();
       const today = challengeDate();
+      let challengeId: number;
       try {
-        await db.runAsync(
-          `INSERT INTO challenges (user_id, name, task_type_id, target_days, start_date, streak_current, freezes_left, freeze_used, before_photo)
-           VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?)`,
-          [userId, params.name, params.taskTypeId, params.targetDays, today, params.freezesLeft, params.beforePhoto ?? null],
+        const result = await db.runAsync(
+          `INSERT INTO challenges (user_id, name, task_type_id, target_days, start_date, streak_current, freezes_left, freeze_used, before_photo, notifications_enabled)
+           VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, ?)`,
+          [userId, params.name, params.taskTypeId, params.targetDays, today, params.freezesLeft, params.beforePhoto ?? null, params.notificationsEnabled ? 1 : 0],
         );
+        challengeId = Number(result.lastInsertRowId);
       } catch (e: any) {
         if (e?.message?.includes('UNIQUE constraint failed')) throw new Error('ACTIVE_EXISTS');
         throw e;
+      }
+      if (params.notificationsEnabled) {
+        const notificationId = await scheduleChallengeReminder(params.name);
+        if (notificationId) {
+          await db.runAsync(`UPDATE challenges SET notification_id = ? WHERE id = ?`, [notificationId, challengeId]);
+        }
       }
     },
     onSuccess: () => {
@@ -514,20 +527,30 @@ export function useRestartChallenge(userId: number) {
     mutationFn: async (challengeId: number): Promise<number> => {
       const db = await getDb();
       let newId = 0;
+      let notificationsEnabled = false;
+      let challengeName = '';
       await db.withExclusiveTransactionAsync(async txn => {
-        const previous = await txn.getFirstAsync<ChallengeRow>(
-          `SELECT id, name, task_type_id, target_days, start_date, status, streak_current, freezes_left, before_photo, after_photo
+        const previous = await txn.getFirstAsync<ChallengeRow & { notifications_enabled: number }>(
+          `SELECT id, name, task_type_id, target_days, start_date, status, streak_current, freezes_left, before_photo, after_photo, notifications_enabled
            FROM challenges WHERE id = ? AND user_id = ? AND status != 'active'`,
           [challengeId, userId],
         );
         if (!previous) throw new Error('CHALLENGE_NOT_RESTARTABLE');
         const result = await txn.runAsync(
-          `INSERT INTO challenges (user_id, name, task_type_id, target_days, start_date, streak_current, freezes_left, freeze_used, before_photo)
-           VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?)`,
-          [userId, previous.name, previous.task_type_id, previous.target_days, challengeDate(), PHAO_COUNT, previous.before_photo],
+          `INSERT INTO challenges (user_id, name, task_type_id, target_days, start_date, streak_current, freezes_left, freeze_used, before_photo, notifications_enabled)
+           VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, ?)`,
+          [userId, previous.name, previous.task_type_id, previous.target_days, challengeDate(), PHAO_COUNT, previous.before_photo, previous.notifications_enabled],
         );
         newId = Number(result.lastInsertRowId);
+        notificationsEnabled = !!previous.notifications_enabled;
+        challengeName = previous.name;
       });
+      if (notificationsEnabled) {
+        const notificationId = await scheduleChallengeReminder(challengeName);
+        if (notificationId) {
+          await db.runAsync(`UPDATE challenges SET notification_id = ? WHERE id = ?`, [notificationId, newId]);
+        }
+      }
       return newId;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['challenge'] }),

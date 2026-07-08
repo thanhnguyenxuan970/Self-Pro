@@ -62,7 +62,7 @@ export const RANKS: Rank[] = [
   {
     tier: 0,
     name: 'Delulu',
-    nameVi: 'Ảo Tưởng',
+    nameVi: 'Nhứt',
     stars: 5,
     descriptor: 'noodle mode',
     color: '#A78BFA',
@@ -84,7 +84,7 @@ export const RANKS: Rank[] = [
   {
     tier: 1,
     name: 'Mewing',
-    nameVi: 'Chuẩn Hàm',
+    nameVi: 'Chuẩn',
     stars: 10,
     descriptor: 'max send',
     color: '#818CF8',
@@ -106,7 +106,7 @@ export const RANKS: Rank[] = [
   {
     tier: 2,
     name: 'Rizz',
-    nameVi: 'Cuốn Hút',
+    nameVi: 'Hào Quang',
     stars: 20,
     descriptor: 'hit the griddy',
     color: '#60A5FA',
@@ -127,7 +127,7 @@ export const RANKS: Rank[] = [
   {
     tier: 3,
     name: 'Gigachad',
-    nameVi: 'Cơ Bắp',
+    nameVi: 'Nét',
     stars: 40,
     descriptor: 'too swole',
     color: '#2DD4BF',
@@ -150,7 +150,7 @@ export const RANKS: Rank[] = [
   {
     tier: 4,
     name: 'Aura Farmer',
-    nameVi: 'Cày Hào Quang',
+    nameVi: 'Khao Khát Center',
     stars: 80,
     descriptor: 'spin to win',
     color: '#F472B6',
@@ -171,7 +171,7 @@ export const RANKS: Rank[] = [
   {
     tier: 5,
     name: 'Main Character',
-    nameVi: 'Nhân Vật Chính',
+    nameVi: 'Hào Quang Nhân Vật Chính',
     stars: 160,
     descriptor: 'hair flip',
     color: '#FB923C',
@@ -193,7 +193,7 @@ export const RANKS: Rank[] = [
   {
     tier: 6,
     name: 'GOATED',
-    nameVi: 'Vô Đối',
+    nameVi: 'Vượt Mức Pickleball',
     stars: 320,
     descriptor: 'infinite W',
     color: '#F4C842',
