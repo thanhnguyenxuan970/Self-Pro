@@ -24,6 +24,6 @@ export function challengeCompletionStars(targetDays: number): number {
 }
 
 export const CHALLENGE_RULE_COPY = {
-  vi: (freezes: number) => `Ghi nhận mỗi ngày. Bỏ lỡ 1 ngày sẽ dùng ${freezes} lượt phao cứu trợ. Hết phao mà bỏ lỡ → thử thách thất bại.`,
+  vi: (freezes: number) => `Ghi nhận mỗi ngày để giữ chuỗi. Bỏ lỡ 1 ngày sẽ dùng 1 trong ${freezes} phao cứu trợ. Hết phao mà vẫn bỏ lỡ, thử thách thất bại.`,
   en: (freezes: number) => `Log every day. A missed day uses one of your ${freezes} freezes. Missing a day with none left fails the challenge.`,
 };

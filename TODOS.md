@@ -9,6 +9,9 @@
 
 ## Completed
 
+### UI/content fixes — News duplicate title, rank rules copy, Trophy preview removal (2026-07-08)
+User-reported polish pass on three screens: `UpdatesScreen` (News) rendered its "Có gì mới" title twice — once in the native nav header, once as an in-page heading — removed the redundant in-page title. `CHALLENGE_RULE_COPY.vi` rewritten for cleaner grammar (dropped an awkward arrow glyph and imprecise freeze-consumption phrasing). Removed the Trophy preview card/link from `RankScreen` since Trophy Shelf is already reachable from `ProfileScreen`; cleaned up the now-dead hooks (`useAllTimeStats`, `useChallengeDaysTotal`), components (`Badge`), and styles that only that section used. Review board (4 parallel specialist agents) found no P0/P1s; fixed the one trivial P2 (mark-all-read button now exposes `accessibilityState={{ disabled }}`). `tsc` clean, `jest` 216/216 green, visually verified on the Android emulator.
+
 ### Ship pre-landing review fixes (2026-07-04)
 Data-migration specialist review of the full `feature/paywall-screen` diff found two real gaps: v8's `DELETE FROM task_types WHERE name = 'Exercise'` orphaned `activity_log` rows referencing it instead of clearing them first (fixed — nulls `task_type_id` before the delete), and ShareCard's share flow shipped with no Pro-gating despite the sharecard plan's own CEO review deciding a `useProStatus()` stub was required before ship (fixed — added the stub, gated `handleShare` behind it with a "coming soon" message). Also added regression test coverage for `resolveUserRow` (account dedup branching), `deleteAccount`/`resetProgress` (destructive-delete table completeness), and `challengeStreak`. `tsc` clean, `jest` 212/212 green at the time of these fixes.
 

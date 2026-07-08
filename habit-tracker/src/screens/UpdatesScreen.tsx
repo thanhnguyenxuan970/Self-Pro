@@ -75,7 +75,6 @@ export function NewsScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
-          <Text style={styles.title}>{t.newsTitle}</Text>
           <Text style={styles.subtitle}>{t.newsUnreadCount(unreadCount)}</Text>
         </View>
         <TouchableOpacity
@@ -84,6 +83,7 @@ export function NewsScreen() {
           disabled={unreadCount === 0 || markAllRead.isPending}
           activeOpacity={0.8}
           accessibilityRole="button"
+          accessibilityState={{ disabled: unreadCount === 0 || markAllRead.isPending }}
         >
           <Text style={styles.markAllText}>{t.newsMarkAllRead}</Text>
         </TouchableOpacity>
@@ -131,8 +131,7 @@ function makeStyles(C: AppColors) {
       paddingBottom: Spacing.sm,
     },
     headerCopy: { flex: 1 },
-    title: { fontSize: 28, fontFamily: FontFamily.extraBold, color: C.inkDark, letterSpacing: -0.8 },
-    subtitle: { marginTop: 4, fontSize: 13, fontFamily: FontFamily.semiBold, color: C.ink2 },
+    subtitle: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.ink2 },
     markAllBtn: {
       minHeight: 44,
       paddingHorizontal: 14,
