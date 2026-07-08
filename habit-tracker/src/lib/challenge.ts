@@ -1,5 +1,6 @@
 export type DayEntryState = 'done' | 'reset' | 'freeze';
 export type ChallengeStatus = 'active' | 'done' | 'failed';
+export type ChallengeMode = 'streak' | 'weekly';
 
 export type DayEntry = { date: string; state: DayEntryState };
 export type Challenge = {

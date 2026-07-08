@@ -438,7 +438,60 @@ async function v14(db: SQLiteDatabase): Promise<void> {
   }
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14];
+// v14 -> v15: weekly challenge mode. Rebuilds `challenges` (SQLite can't ALTER
+// a CHECK constraint in place) to: (a) widen target_days's CHECK from the
+// fixed (7,21,30,66) set -- which already silently rejected 60/100-day streak
+// challenges wired in via CHALLENGE_DURATIONS, a pre-existing production bug
+// independent of weekly mode -- to a simple positive-integer sanity check, and
+// (b) add mode/weekly_target/total_weeks. Single transaction: a kill mid-copy
+// re-runs cleanly from PRAGMA user_version with the original `challenges`
+// table still intact (DROP only happens after INSERT...SELECT succeeds).
+async function v15(db: SQLiteDatabase): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    await db.execAsync(`
+      CREATE TABLE challenges_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        task_type_id INTEGER,
+        mode TEXT NOT NULL DEFAULT 'streak' CHECK(mode IN ('streak','weekly')),
+        target_days INTEGER NOT NULL CHECK(target_days > 0),
+        weekly_target INTEGER CHECK(weekly_target IS NULL OR weekly_target IN (3,4,5,6)),
+        total_weeks INTEGER CHECK(total_weeks IS NULL OR total_weeks IN (2,4,8,12)),
+        start_date TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','done','failed')),
+        freezes_left INTEGER NOT NULL DEFAULT 1,
+        freeze_used INTEGER NOT NULL DEFAULT 0,
+        streak_current INTEGER NOT NULL DEFAULT 0,
+        completed_at TEXT,
+        before_photo TEXT,
+        after_photo TEXT,
+        notifications_enabled INTEGER NOT NULL DEFAULT 1,
+        notification_id TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      INSERT INTO challenges_new
+        (id, user_id, name, task_type_id, mode, target_days, weekly_target, total_weeks,
+         start_date, status, freezes_left, freeze_used, streak_current, completed_at,
+         before_photo, after_photo, notifications_enabled, notification_id, created_at)
+      SELECT
+        id, user_id, name, task_type_id, 'streak', target_days, NULL, NULL,
+        start_date, status, freezes_left, freeze_used, streak_current, completed_at,
+        before_photo, after_photo, notifications_enabled, notification_id, created_at
+      FROM challenges;
+
+      DROP TABLE challenges;
+      ALTER TABLE challenges_new RENAME TO challenges;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_challenges_one_active
+        ON challenges(user_id) WHERE status='active';
+      CREATE INDEX IF NOT EXISTS idx_challenges_user_status ON challenges(user_id, status);
+    `);
+  });
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

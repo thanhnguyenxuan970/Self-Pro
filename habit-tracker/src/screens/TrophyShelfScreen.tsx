@@ -5,7 +5,7 @@ import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../c
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useAllTimeStats } from '../queries/useProgress';
 import { useRankData } from '../queries/useRank';
-import { useChallengeDaysTotal, useAchievementUnlocks, useRecordAchievementUnlock } from '../queries/useAchievements';
+import { useChallengeDaysTotal, useAchievementUnlocks, useRecordAchievementUnlock, useWeeklyOverachieverCount } from '../queries/useAchievements';
 import { ACHIEVEMENTS, FILTERS, matchesFilter, type AchievementFilter } from '../config/achievements';
 import { computeAchievementStatus, type AchievementStats } from '../lib/achievements';
 import { Badge } from '../components/Badge';
@@ -19,10 +19,11 @@ export function TrophyShelfScreen() {
   const { data: allTime, isLoading: allTimeLoading } = useAllTimeStats(userId);
   const { data: rank, isLoading: rankLoading } = useRankData(userId);
   const { data: challengeDaysDone, isLoading: challengeLoading } = useChallengeDaysTotal(userId);
+  const { data: overachieveWeeks, isLoading: overachieveLoading } = useWeeklyOverachieverCount(userId);
   const { data: unlocks = {}, isLoading: unlocksLoading } = useAchievementUnlocks(userId);
   const recordUnlock = useRecordAchievementUnlock(userId);
 
-  const isLoading = allTimeLoading || rankLoading || challengeLoading || unlocksLoading;
+  const isLoading = allTimeLoading || rankLoading || challengeLoading || overachieveLoading || unlocksLoading;
 
   const stats: AchievementStats = useMemo(() => {
     const tiers = rank?.tiers ?? [];
@@ -33,8 +34,9 @@ export function TrophyShelfScreen() {
       bestStreak: allTime?.bestStreak ?? 0,
       challengeDaysDone: challengeDaysDone ?? 0,
       rankTierOrder,
+      weeklyOverachieveWeeks: overachieveWeeks ?? 0,
     };
-  }, [allTime, rank, challengeDaysDone]);
+  }, [allTime, rank, challengeDaysDone, overachieveWeeks]);
 
   const items = useMemo(
     () => ACHIEVEMENTS.map(a => ({ ...a, ...computeAchievementStatus(a, stats) })),

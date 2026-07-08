@@ -2,6 +2,12 @@
 
 ## Open
 
+### Proactive pace-warning push notification for weekly challenges
+Surfaced during `/plan-ceo-review` of the Challenge Weekly & Share plan (2026-07-08). The weekly-mode pace card (`⚠️ còn N buổi trong M ngày`) is in-app only. Reuse the existing `scheduleChallengeReminder` notification infra to nudge the user once/week when the rollover trigger detects a weekly challenge falling behind pace with few days left in the week. Needs its own frequency/fatigue design pass before building — must cap at once/week max and only fire when genuinely at risk, to avoid notification fatigue. Depends on: the weekly rollover trigger (built as part of the weekly-mode plan) shipping first. Effort: M (human) → S with CC+gstack. Priority: P2.
+
+### Reconcile the three share-card implementations
+Surfaced during `/plan-ceo-review` of the Challenge Weekly & Share plan (2026-07-08). Three divergent "share a result" card implementations exist: `ShareCard.tsx` (400×711, dark-gradient, profile/rank stats share), and the new C1/C2 stats/before-after cards (328×583, challenge-completion share) added by the weekly-mode plan. (A third, the ad hoc 320×320 inline card in `ChallengeDetailScreen.tsx`, is removed by that same plan.) `ShareCard.tsx` serves a different call site (general profile stats, not challenge completion), so true unification may not be a clean 1:1 merge — worth a design pass to decide whether to converge on one card system or keep them intentionally distinct by call site. Effort: M (human) → S with CC+gstack. Priority: P3.
+
 ### Wire PaywallScreen into navigation
 `src/screens/PaywallScreen.tsx` exists and is polished (TouchableOpacity, a11y labels, CTA guard) but is not registered in `RootNavigator.tsx`. Needs: register the screen in the auth stack, decide trigger condition (free-trial expiry? specific SKU?), wire `onSubscribe`/`onRestore`/`onClose` callbacks to a subscription hook.
 

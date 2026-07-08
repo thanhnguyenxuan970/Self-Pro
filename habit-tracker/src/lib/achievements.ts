@@ -5,6 +5,7 @@ export interface AchievementStats {
   bestStreak: number;
   challengeDaysDone: number;
   rankTierOrder: number;
+  weeklyOverachieveWeeks: number;
 }
 
 export interface AchievementStatus {
@@ -19,6 +20,7 @@ export function computeAchievementStatus(a: Achievement, stats: AchievementStats
     challengeDays: stats.challengeDaysDone,
     rankTier: stats.rankTierOrder,
     firstLog: stats.totalActivities > 0 ? 1 : 0,
+    weeklyOverachieve: stats.weeklyOverachieveWeeks,
   }[a.metric];
 
   return {

@@ -3,7 +3,7 @@ export type Emblem =
   | 'sprout' | 'book' | 'flame' | 'flame2' | 'rankup' | 'crown' | 'trophy' | 'calcheck';
 
 /** Metrics are derived live from existing app data — see src/lib/achievements.ts */
-export type Metric = 'streak' | 'challengeDays' | 'rankTier' | 'firstLog';
+export type Metric = 'streak' | 'challengeDays' | 'rankTier' | 'firstLog' | 'weeklyOverachieve';
 
 export interface Achievement {
   id: string;
@@ -29,6 +29,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'challenge66', tier: 'gold', emblem: 'calcheck', labelKey: 'achChallenge66', goal: 66, metric: 'challengeDays' },
   { id: 'streak100', tier: 'platinum', emblem: 'trophy', labelKey: 'achStreak100', goal: 100, metric: 'streak' },
   { id: 'auraFarmer', tier: 'diamond', emblem: 'crown', labelKey: 'achAuraFarmer', goal: 5, metric: 'rankTier' },
+  { id: 'overachiever', tier: 'gold', emblem: 'calcheck', labelKey: 'achOverachiever', goal: 3, metric: 'weeklyOverachieve' },
 ];
 
 export const FILTERS = ['all', 'streak', 'challenge', 'rank'] as const;
@@ -37,6 +38,6 @@ export type AchievementFilter = typeof FILTERS[number];
 export function matchesFilter(a: Achievement, filter: AchievementFilter): boolean {
   if (filter === 'all') return true;
   if (filter === 'streak') return a.metric === 'streak';
-  if (filter === 'challenge') return a.metric === 'challengeDays';
+  if (filter === 'challenge') return a.metric === 'challengeDays' || a.metric === 'weeklyOverachieve';
   return a.metric === 'rankTier';
 }

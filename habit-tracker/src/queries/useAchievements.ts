@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../db/client';
 import { getLocalDate } from '../utils/formatters';
+import { challengeDate } from '../lib/challenge';
+import { weekWindows, weekSessionsDone } from '../lib/challengeWeekly';
 
 /** Total days completed across all challenges (active + past), all-time. */
 export function useChallengeDaysTotal(userId: number) {
@@ -15,6 +17,35 @@ export function useChallengeDaysTotal(userId: number) {
         [userId]
       );
       return row?.n ?? 0;
+    },
+  });
+}
+
+/** Count of weekly-mode weeks (across all of a user's weekly challenges, any
+ *  status) where sessions done exceeded weekly_target -- "Cày vượt chỉ tiêu". */
+export function useWeeklyOverachieverCount(userId: number) {
+  return useQuery({
+    queryKey: ['achievements', 'weekly-overachiever', userId],
+    queryFn: async () => {
+      const db = await getDb();
+      const today = challengeDate();
+      const challenges = await db.getAllAsync<{ id: number; start_date: string; weekly_target: number; total_weeks: number }>(
+        `SELECT id, start_date, weekly_target, total_weeks FROM challenges WHERE user_id = ? AND mode = 'weekly'`,
+        [userId],
+      );
+      let count = 0;
+      for (const c of challenges) {
+        const logRows = await db.getAllAsync<{ local_date: string }>(
+          `SELECT local_date FROM challenge_log WHERE challenge_id = ? AND state = 'done'`,
+          [c.id],
+        );
+        const doneDates = new Set(logRows.map(r => r.local_date));
+        for (const window of weekWindows(c.start_date, c.total_weeks)) {
+          if (window.start > today) break;
+          if (weekSessionsDone(doneDates, window) > c.weekly_target) count++;
+        }
+      }
+      return count;
     },
   });
 }

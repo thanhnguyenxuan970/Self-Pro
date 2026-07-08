@@ -1,8 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../db/client';
-import { challengeDate, challengeStreak, computeRollover, currentDayIndex, computeProgress, isComplete, DayEntryState as ChallengeLogState, ChallengeStatus } from '../lib/challenge';
+import { challengeDate, challengeStreak, computeRollover, currentDayIndex, computeProgress, isComplete, DayEntryState as ChallengeLogState, ChallengeStatus, ChallengeMode } from '../lib/challenge';
+import {
+  weekWindows, currentWeekWindow, weekSessionsDone, computePace, computeWeeklyRollover,
+  perfectWeekCount, isOverachieverWeek, type PaceState,
+} from '../lib/challengeWeekly';
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { challengeCompletionStars, PHAO_COUNT } from '../config/challenges.config';
+import { PHAO_COUNT, computeChallengeReward } from '../config/challenges.config';
 import { computeTierUnlocks, type TierRow } from '../game/tierUnlocks';
 import { getWeekStart } from '../utils/formatters';
 import { scheduleChallengeReminder, cancelChallengeReminder } from '../utils/notifications';
@@ -24,6 +28,18 @@ export interface ActiveChallenge {
   fraction: number;
   loggedToday: boolean;
   log: { date: string; state: ChallengeLogState }[];
+  mode: ChallengeMode;
+  weeklyTarget: number | null;
+  totalWeeks: number | null;
+  weekIndex: number | null;
+  weekStart: string | null;
+  weekEnd: string | null;
+  weekSessionsDone: number | null;
+  weekPaceState: PaceState | null;
+  weekDaysRemaining: number | null;
+  weekSessionsRemaining: number | null;
+  perfectWeeks: number | null;
+  overachieverThisWeek: boolean;
 }
 
 interface ChallengeRow {
@@ -37,7 +53,12 @@ interface ChallengeRow {
   freezes_left: number;
   before_photo: string | null;
   after_photo: string | null;
+  mode: ChallengeMode;
+  weekly_target: number | null;
+  total_weeks: number | null;
 }
+
+const CHALLENGE_COLUMNS = `id, name, task_type_id, target_days, start_date, status, streak_current, freezes_left, before_photo, after_photo, mode, weekly_target, total_weeks`;
 
 type ChallengeDeleteRow = {
   status: ChallengeStatus;
@@ -55,13 +76,20 @@ type ChallengeLogDb = Pick<SQLiteDatabase, 'getFirstAsync' | 'getAllAsync' | 'ru
 
 type FullTierRow = TierRow & { tier_order: number; rank_name: string };
 
-function challengeAchievementKey(targetDays: number): string {
-  return `challenge_complete_${targetDays}`;
+function challengeAchievementKey(params: { mode: ChallengeMode; targetDays: number; weeklyTarget: number | null; totalWeeks: number | null }): string {
+  return params.mode === 'streak'
+    ? `challenge_complete_${params.targetDays}`
+    : `challenge_complete_weekly_${params.weeklyTarget}x${params.totalWeeks}`;
 }
 
-function challengeAchievementRarity(targetDays: number): 'common' | 'rare' | 'legendary' {
-  if (targetDays >= 66) return 'legendary';
-  if (targetDays >= 30) return 'rare';
+function challengeAchievementRarity(params: { mode: ChallengeMode; targetDays: number; totalWeeks: number | null }): 'common' | 'rare' | 'legendary' {
+  if (params.mode === 'weekly') {
+    if ((params.totalWeeks ?? 0) >= 12) return 'legendary';
+    if ((params.totalWeeks ?? 0) >= 8) return 'rare';
+    return 'common';
+  }
+  if (params.targetDays >= 66) return 'legendary';
+  if (params.targetDays >= 30) return 'rare';
   return 'common';
 }
 
@@ -118,9 +146,14 @@ async function handleTierUnlocks(
 
 async function awardChallengeCompletion(
   db: ChallengeLogDb,
-  params: { userId: number; challengeId: number; taskTypeId: number | null; targetDays: number; localDate: string },
+  params: {
+    userId: number; challengeId: number; taskTypeId: number | null; localDate: string;
+    mode: ChallengeMode; targetDays: number; weeklyTarget: number | null; totalWeeks: number | null;
+  },
 ): Promise<void> {
-  const rewardStars = challengeCompletionStars(params.targetDays);
+  const { stars: rewardStars } = params.mode === 'streak'
+    ? computeChallengeReward({ mode: 'streak', targetDays: params.targetDays })
+    : computeChallengeReward({ mode: 'weekly', weeklyTarget: params.weeklyTarget!, totalWeeks: params.totalWeeks! });
   const weekStart = getWeekStart();
   const nowMs = Date.now();
   const tiers = await db.getAllAsync<FullTierRow>(
@@ -175,8 +208,8 @@ async function awardChallengeCompletion(
      VALUES (?, ?, ?, ?, 'challenge', ?)`,
     [
       params.userId,
-      challengeAchievementKey(params.targetDays),
-      challengeAchievementRarity(params.targetDays),
+      challengeAchievementKey(params),
+      challengeAchievementRarity(params),
       params.localDate,
       params.challengeId,
     ],
@@ -188,12 +221,12 @@ export async function logActiveChallengeDay(
   params: { userId: number; localDate: string; taskTypeId?: number | null },
 ): Promise<'logged' | 'already_logged' | 'no_active_challenge'> {
   const row = params.taskTypeId == null
-    ? await db.getFirstAsync<Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days'>>(
-      `SELECT id, task_type_id, target_days FROM challenges WHERE user_id = ? AND status = 'active'`,
+    ? await db.getFirstAsync<Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days' | 'mode' | 'weekly_target' | 'total_weeks'>>(
+      `SELECT id, task_type_id, target_days, mode, weekly_target, total_weeks FROM challenges WHERE user_id = ? AND status = 'active'`,
       [params.userId],
     )
-    : await db.getFirstAsync<Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days'>>(
-      `SELECT id, task_type_id, target_days
+    : await db.getFirstAsync<Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days' | 'mode' | 'weekly_target' | 'total_weeks'>>(
+      `SELECT id, task_type_id, target_days, mode, weekly_target, total_weeks
        FROM challenges
        WHERE user_id = ? AND status = 'active' AND task_type_id = ?`,
       [params.userId, params.taskTypeId],
@@ -227,7 +260,10 @@ export async function logActiveChallengeDay(
     [row.id],
   );
   const streakCurrent = streakRow?.n ?? 0;
-  if (isComplete(daysDone, row.target_days)) {
+  // Weekly-mode completion is rollover-only -- a week (and the challenge as a
+  // whole) can't be judged complete until it has fully elapsed, so only
+  // streak mode can complete inline here on a same-day log.
+  if (row.mode === 'streak' && isComplete(daysDone, row.target_days)) {
     await db.runAsync(
       `UPDATE challenges SET status = 'done', streak_current = ?, completed_at = ? WHERE id = ?`,
       [streakCurrent, params.localDate, row.id],
@@ -236,8 +272,11 @@ export async function logActiveChallengeDay(
       userId: params.userId,
       challengeId: row.id,
       taskTypeId: row.task_type_id,
-      targetDays: row.target_days,
       localDate: params.localDate,
+      mode: row.mode,
+      targetDays: row.target_days,
+      weeklyTarget: row.weekly_target,
+      totalWeeks: row.total_weeks,
     });
   } else {
     await db.runAsync(`UPDATE challenges SET streak_current = ? WHERE id = ?`, [streakCurrent, row.id]);
@@ -253,7 +292,8 @@ async function loadChallengeWithLog(db: SQLiteDatabase, row: ChallengeRow, today
   );
   const daysDone = logRows.filter(r => r.state === 'done').length;
   const { fraction, daysLeft } = computeProgress(daysDone, row.target_days);
-  return {
+
+  const base = {
     id: row.id,
     name: row.name,
     taskTypeId: row.task_type_id,
@@ -270,6 +310,46 @@ async function loadChallengeWithLog(db: SQLiteDatabase, row: ChallengeRow, today
     fraction,
     loggedToday: logRows.some(r => r.local_date === today && r.state === 'done'),
     log: logRows.map(r => ({ date: r.local_date, state: r.state })),
+    mode: row.mode,
+  };
+
+  if (row.mode !== 'weekly' || row.weekly_target == null || row.total_weeks == null) {
+    return {
+      ...base,
+      weeklyTarget: null, totalWeeks: null, weekIndex: null, weekStart: null, weekEnd: null,
+      weekSessionsDone: null, weekPaceState: null, weekDaysRemaining: null, weekSessionsRemaining: null,
+      perfectWeeks: null, overachieverThisWeek: false,
+    };
+  }
+
+  const doneDates = new Set(logRows.filter(r => r.state === 'done').map(r => r.local_date));
+  const windows = weekWindows(row.start_date, row.total_weeks);
+  const activeWindow = currentWeekWindow(row.start_date, row.total_weeks, today)
+    ?? windows[windows.length - 1];
+  const sessionsThisWeek = weekSessionsDone(doneDates, activeWindow);
+  const pace = computePace({
+    weeklyTarget: row.weekly_target,
+    sessionsDone: sessionsThisWeek,
+    today,
+    weekEnd: activeWindow.end,
+  });
+  const elapsedOutcomes = windows
+    .filter(w => w.end < today)
+    .map(w => ({ hit: weekSessionsDone(doneDates, w) >= row.weekly_target! }));
+
+  return {
+    ...base,
+    weeklyTarget: row.weekly_target,
+    totalWeeks: row.total_weeks,
+    weekIndex: activeWindow.weekIndex,
+    weekStart: activeWindow.start,
+    weekEnd: activeWindow.end,
+    weekSessionsDone: sessionsThisWeek,
+    weekPaceState: pace.state,
+    weekDaysRemaining: pace.daysRemaining,
+    weekSessionsRemaining: pace.sessionsRemaining,
+    perfectWeeks: perfectWeekCount(elapsedOutcomes),
+    overachieverThisWeek: isOverachieverWeek(sessionsThisWeek, row.weekly_target),
   };
 }
 
@@ -338,7 +418,7 @@ export function useActiveChallenge(userId: number) {
     queryFn: async (): Promise<ActiveChallenge | null> => {
       const db = await getDb();
       const row = await db.getFirstAsync<ChallengeRow>(
-        `SELECT id, name, task_type_id, target_days, start_date, status, streak_current, freezes_left, before_photo, after_photo
+        `SELECT ${CHALLENGE_COLUMNS}
          FROM challenges WHERE user_id = ? AND status = 'active'`,
         [userId],
       );
@@ -354,7 +434,7 @@ export function useChallengeHistory(userId: number) {
     queryFn: async (): Promise<ChallengeRow[]> => {
       const db = await getDb();
       return db.getAllAsync<ChallengeRow>(
-        `SELECT id, name, task_type_id, target_days, start_date, status, streak_current, freezes_left, before_photo, after_photo
+        `SELECT ${CHALLENGE_COLUMNS}
          FROM challenges WHERE user_id = ? AND status != 'active' ORDER BY created_at DESC`,
         [userId],
       );
@@ -370,7 +450,7 @@ export function useChallengeById(userId: number, challengeId: number | null) {
       if (challengeId == null) return null;
       const db = await getDb();
       const row = await db.getFirstAsync<ChallengeRow>(
-        `SELECT id, name, task_type_id, target_days, start_date, status, streak_current, freezes_left, before_photo, after_photo
+        `SELECT ${CHALLENGE_COLUMNS}
          FROM challenges WHERE id = ? AND user_id = ?`,
         [challengeId, userId],
       );
@@ -399,11 +479,16 @@ export async function rolloverChallenge(userId: number): Promise<void> {
       const today = challengeDate();
       await db.withExclusiveTransactionAsync(async (txn) => {
         const row = await txn.getFirstAsync<ChallengeRow>(
-          `SELECT id, name, task_type_id, target_days, start_date, status, streak_current, freezes_left, before_photo, after_photo
+          `SELECT ${CHALLENGE_COLUMNS}
            FROM challenges WHERE user_id = ? AND status = 'active'`,
           [userId],
         );
         if (!row) return;
+
+        if (row.mode === 'weekly' && row.weekly_target != null && row.total_weeks != null) {
+          await rolloverWeeklyChallenge(txn, userId, row as ChallengeRow & { weekly_target: number; total_weeks: number }, today);
+          return;
+        }
 
         const logRows = await txn.getAllAsync<{ local_date: string }>(
           `SELECT local_date FROM challenge_log WHERE challenge_id = ?`,
@@ -445,6 +530,62 @@ export async function rolloverChallenge(userId: number): Promise<void> {
       });
 }
 
+async function rolloverWeeklyChallenge(
+  txn: ChallengeLogDb,
+  userId: number,
+  row: ChallengeRow & { weekly_target: number; total_weeks: number },
+  today: string,
+): Promise<void> {
+  const logRows = await txn.getAllAsync<{ local_date: string; state: ChallengeLogState }>(
+    `SELECT local_date, state FROM challenge_log WHERE challenge_id = ?`,
+    [row.id],
+  );
+  const doneDates = new Set(logRows.filter(r => r.state === 'done').map(r => r.local_date));
+  // Weekly mode only ever writes a challenge_log row at a week's END date for
+  // a miss (state 'freeze'/'reset') -- any non-'done' row is by construction
+  // an already-processed week marker, never a daily fill.
+  const markedWeekEnds = new Set(logRows.filter(r => r.state !== 'done').map(r => r.local_date));
+
+  const result = computeWeeklyRollover({
+    startDate: row.start_date,
+    totalWeeks: row.total_weeks,
+    weeklyTarget: row.weekly_target,
+    today,
+    doneDates,
+    markedWeekEnds,
+    freezesLeft: row.freezes_left,
+  });
+  if (result.fillWeeks.length === 0 && !result.done) return;
+
+  for (const week of result.fillWeeks) {
+    await txn.runAsync(
+      `INSERT INTO challenge_log (challenge_id, local_date, state) VALUES (?, ?, ?)
+       ON CONFLICT(challenge_id, local_date) DO NOTHING`,
+      [row.id, week.weekEnd, week.state],
+    );
+  }
+  const usedFreeze = result.fillWeeks.some(w => w.state === 'freeze');
+  await txn.runAsync(
+    `UPDATE challenges SET freezes_left = ?, freeze_used = CASE WHEN ? THEN 1 ELSE freeze_used END WHERE id = ?`,
+    [result.freezesLeft, usedFreeze ? 1 : 0, row.id],
+  );
+  if (result.failed) {
+    await txn.runAsync(`UPDATE challenges SET status = 'failed' WHERE id = ?`, [row.id]);
+  } else if (result.done) {
+    await txn.runAsync(`UPDATE challenges SET status = 'done', completed_at = ? WHERE id = ?`, [today, row.id]);
+    await awardChallengeCompletion(txn, {
+      userId,
+      challengeId: row.id,
+      taskTypeId: row.task_type_id,
+      localDate: today,
+      mode: 'weekly',
+      targetDays: row.target_days,
+      weeklyTarget: row.weekly_target,
+      totalWeeks: row.total_weeks,
+    });
+  }
+}
+
 export function useLogChallengeDay(userId: number) {
   const qc = useQueryClient();
   return useMutation({
@@ -468,14 +609,13 @@ export function useLogChallengeDay(userId: number) {
   });
 }
 
-interface CreateChallengeParams {
+type CreateChallengeParams = {
   name: string;
   taskTypeId: number | null;
-  targetDays: number;
   freezesLeft: number;
   beforePhoto?: string | null;
   notificationsEnabled: boolean;
-}
+} & ({ mode: 'streak'; targetDays: number } | { mode: 'weekly'; weeklyTarget: number; totalWeeks: number });
 
 export function useCreateChallenge(userId: number) {
   const qc = useQueryClient();
@@ -483,12 +623,15 @@ export function useCreateChallenge(userId: number) {
     mutationFn: async (params: CreateChallengeParams): Promise<void> => {
       const db = await getDb();
       const today = challengeDate();
+      const targetDays = params.mode === 'streak' ? params.targetDays : params.totalWeeks * 7;
+      const weeklyTarget = params.mode === 'weekly' ? params.weeklyTarget : null;
+      const totalWeeks = params.mode === 'weekly' ? params.totalWeeks : null;
       let challengeId: number;
       try {
         const result = await db.runAsync(
-          `INSERT INTO challenges (user_id, name, task_type_id, target_days, start_date, streak_current, freezes_left, freeze_used, before_photo, notifications_enabled)
-           VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, ?)`,
-          [userId, params.name, params.taskTypeId, params.targetDays, today, params.freezesLeft, params.beforePhoto ?? null, params.notificationsEnabled ? 1 : 0],
+          `INSERT INTO challenges (user_id, name, task_type_id, mode, target_days, weekly_target, total_weeks, start_date, streak_current, freezes_left, freeze_used, before_photo, notifications_enabled)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?)`,
+          [userId, params.name, params.taskTypeId, params.mode, targetDays, weeklyTarget, totalWeeks, today, params.freezesLeft, params.beforePhoto ?? null, params.notificationsEnabled ? 1 : 0],
         );
         challengeId = Number(result.lastInsertRowId);
       } catch (e: any) {
@@ -531,15 +674,15 @@ export function useRestartChallenge(userId: number) {
       let challengeName = '';
       await db.withExclusiveTransactionAsync(async txn => {
         const previous = await txn.getFirstAsync<ChallengeRow & { notifications_enabled: number }>(
-          `SELECT id, name, task_type_id, target_days, start_date, status, streak_current, freezes_left, before_photo, after_photo, notifications_enabled
+          `SELECT ${CHALLENGE_COLUMNS}, notifications_enabled
            FROM challenges WHERE id = ? AND user_id = ? AND status != 'active'`,
           [challengeId, userId],
         );
         if (!previous) throw new Error('CHALLENGE_NOT_RESTARTABLE');
         const result = await txn.runAsync(
-          `INSERT INTO challenges (user_id, name, task_type_id, target_days, start_date, streak_current, freezes_left, freeze_used, before_photo, notifications_enabled)
-           VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, ?)`,
-          [userId, previous.name, previous.task_type_id, previous.target_days, challengeDate(), PHAO_COUNT, previous.before_photo, previous.notifications_enabled],
+          `INSERT INTO challenges (user_id, name, task_type_id, mode, target_days, weekly_target, total_weeks, start_date, streak_current, freezes_left, freeze_used, before_photo, notifications_enabled)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?)`,
+          [userId, previous.name, previous.task_type_id, previous.mode, previous.target_days, previous.weekly_target, previous.total_weeks, challengeDate(), PHAO_COUNT, previous.before_photo, previous.notifications_enabled],
         );
         newId = Number(result.lastInsertRowId);
         notificationsEnabled = !!previous.notifications_enabled;

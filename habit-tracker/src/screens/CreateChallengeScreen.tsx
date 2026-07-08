@@ -7,7 +7,10 @@ import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../c
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useTodayTasks } from '../queries/useToday';
 import { useCreateChallenge } from '../queries/useChallenge';
-import { CHALLENGE_DURATIONS, PHAO_COUNT, CHALLENGE_NAME_MAX_LENGTH } from '../config/challenges.config';
+import {
+  CHALLENGE_DURATIONS, PHAO_COUNT, CHALLENGE_NAME_MAX_LENGTH, WEEKLY_TARGETS, TOTAL_WEEKS_OPTIONS,
+} from '../config/challenges.config';
+import type { ChallengeMode } from '../lib/challenge';
 
 export function CreateChallengeScreen() {
   const { userId, colors, t, styles } = useScreenCommons(makeStyles);
@@ -17,7 +20,10 @@ export function CreateChallengeScreen() {
 
   const [name, setName] = useState('');
   const [taskTypeId, setTaskTypeId] = useState<number | null>(null);
+  const [mode, setMode] = useState<ChallengeMode>('streak');
   const [targetDays, setTargetDays] = useState<number>(CHALLENGE_DURATIONS[0]);
+  const [weeklyTarget, setWeeklyTarget] = useState<number>(WEEKLY_TARGETS[1]);
+  const [totalWeeks, setTotalWeeks] = useState<number>(TOTAL_WEEKS_OPTIONS[1]);
   const [beforePhoto, setBeforePhoto] = useState<string | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -42,10 +48,20 @@ export function CreateChallengeScreen() {
     }
     setSubmitting(true);
     try {
-      await createChallenge.mutateAsync({
+      await createChallenge.mutateAsync(mode === 'streak' ? {
         name: trimmed,
         taskTypeId,
+        mode: 'streak',
         targetDays,
+        freezesLeft: PHAO_COUNT,
+        beforePhoto,
+        notificationsEnabled,
+      } : {
+        name: trimmed,
+        taskTypeId,
+        mode: 'weekly',
+        weeklyTarget,
+        totalWeeks,
         freezesLeft: PHAO_COUNT,
         beforePhoto,
         notificationsEnabled,
@@ -104,24 +120,96 @@ export function CreateChallengeScreen() {
           })}
         </ScrollView>
 
-        <Text style={styles.label}>{t.challengeDurationLabel}</Text>
-        <View style={styles.durationRow}>
-          {CHALLENGE_DURATIONS.map(d => {
-            const on = targetDays === d;
-            return (
-              <TouchableOpacity
-                key={d}
-                style={[styles.durChip, on && styles.durChipOn]}
-                onPress={() => setTargetDays(d)}
-                activeOpacity={0.75}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: on }}
-              >
-                <Text style={[styles.durChipText, on && styles.durChipTextOn]}>{t.challengeDurationDays(d)}</Text>
-              </TouchableOpacity>
-            );
-          })}
+        <Text style={styles.label}>{t.challengeModeLabel}</Text>
+        <View style={styles.modeRow}>
+          <TouchableOpacity
+            style={[styles.modeCard, mode === 'streak' && styles.modeCardOn]}
+            onPress={() => setMode('streak')}
+            activeOpacity={0.75}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: mode === 'streak' }}
+          >
+            {mode === 'streak' && <View style={styles.modeBadge}><Text style={styles.modeBadgeText}>✓</Text></View>}
+            <Text style={styles.modeIcon}>🔥</Text>
+            <Text style={[styles.modeTitle, mode === 'streak' && styles.modeTitleOn]}>{t.challengeModeStreak}</Text>
+            <Text style={styles.modeSub}>{t.challengeModeStreakDesc}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeCard, mode === 'weekly' && styles.modeCardOn]}
+            onPress={() => setMode('weekly')}
+            activeOpacity={0.75}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: mode === 'weekly' }}
+          >
+            {mode === 'weekly' && <View style={styles.modeBadge}><Text style={styles.modeBadgeText}>✓</Text></View>}
+            <Text style={styles.modeIcon}>📅</Text>
+            <Text style={[styles.modeTitle, mode === 'weekly' && styles.modeTitleOn]}>{t.challengeModeWeekly}</Text>
+            <Text style={styles.modeSub}>{t.challengeModeWeeklyDesc}</Text>
+          </TouchableOpacity>
         </View>
+
+        {mode === 'streak' ? (
+          <>
+            <Text style={styles.label}>{t.challengeDurationLabel}</Text>
+            <View style={styles.durationRow}>
+              {CHALLENGE_DURATIONS.map(d => {
+                const on = targetDays === d;
+                return (
+                  <TouchableOpacity
+                    key={d}
+                    style={[styles.durChip, on && styles.durChipOn]}
+                    onPress={() => setTargetDays(d)}
+                    activeOpacity={0.75}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                  >
+                    <Text style={[styles.durChipText, on && styles.durChipTextOn]}>{t.challengeDurationDays(d)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={styles.label}>{t.challengeWeeklyTargetLabel}</Text>
+            <View style={styles.durationRow}>
+              {WEEKLY_TARGETS.map(w => {
+                const on = weeklyTarget === w;
+                return (
+                  <TouchableOpacity
+                    key={w}
+                    style={[styles.durChip, on && styles.durChipOn]}
+                    onPress={() => setWeeklyTarget(w)}
+                    activeOpacity={0.75}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                  >
+                    <Text style={[styles.durChipText, on && styles.durChipTextOn]}>{w}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.label}>{t.challengeTotalWeeksLabel}</Text>
+            <View style={styles.durationRow}>
+              {TOTAL_WEEKS_OPTIONS.map(w => {
+                const on = totalWeeks === w;
+                return (
+                  <TouchableOpacity
+                    key={w}
+                    style={[styles.durChip, on && styles.durChipOn]}
+                    onPress={() => setTotalWeeks(w)}
+                    activeOpacity={0.75}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                  >
+                    <Text style={[styles.durChipText, on && styles.durChipTextOn]}>{w}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
 
         <Text style={styles.label}>{t.challengeBeforePhotoLabel}</Text>
         <TouchableOpacity
@@ -152,7 +240,9 @@ export function CreateChallengeScreen() {
 
         <View style={styles.rulesCard}>
           <Text style={styles.rulesTitle}>{t.challengeRulesTitle}</Text>
-          <Text style={styles.rulesBody}>{t.challengeRulesBody(PHAO_COUNT)}</Text>
+          <Text style={styles.rulesBody}>
+            {mode === 'streak' ? t.challengeRulesBody(PHAO_COUNT) : t.challengeWeeklyRulesBody(weeklyTarget)}
+          </Text>
         </View>
 
         <TouchableOpacity
@@ -161,9 +251,11 @@ export function CreateChallengeScreen() {
           disabled={submitting}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel={t.challengeStartCta}
+          accessibilityLabel={mode === 'streak' ? t.challengeStartCta : t.challengeStartWeeksCta(totalWeeks)}
         >
-          {submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.startBtnText}>{t.challengeStartCta}</Text>}
+          {submitting ? <ActivityIndicator color={colors.white} /> : (
+            <Text style={styles.startBtnText}>{mode === 'streak' ? t.challengeStartCta : t.challengeStartWeeksCta(totalWeeks)}</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -187,6 +279,21 @@ function makeStyles(C: AppColors) {
     habitChipOn: { backgroundColor: C.primarySoft, borderColor: C.primary },
     habitChipText: { ...Typography.body, color: C.ink2 },
     habitChipTextOn: { color: C.primary, fontFamily: FontFamily.semiBold },
+    modeRow: { flexDirection: 'row', gap: Spacing.sm },
+    modeCard: {
+      flex: 1, paddingVertical: Spacing.md, paddingHorizontal: Spacing.sm, borderRadius: Radii.lg,
+      borderWidth: 1.5, borderColor: C.line, backgroundColor: C.surface, alignItems: 'center', gap: 4,
+    },
+    modeCardOn: { backgroundColor: C.primarySoft, borderColor: C.primary },
+    modeBadge: {
+      position: 'absolute', top: 8, right: 8, width: 20, height: 20, borderRadius: 10,
+      backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center',
+    },
+    modeBadgeText: { color: C.white, fontSize: 12, fontFamily: FontFamily.bold },
+    modeIcon: { fontSize: 24, marginBottom: 2 },
+    modeTitle: { ...Typography.bodyStrong, color: C.inkDark },
+    modeTitleOn: { color: C.primary },
+    modeSub: { ...Typography.caption, color: C.ink2 },
     durationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
     durChip: {
       paddingHorizontal: Spacing.lg, paddingVertical: 12, borderRadius: Radii.md,
