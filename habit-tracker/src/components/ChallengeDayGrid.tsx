@@ -8,7 +8,7 @@ import type { DayEntryState as ChallengeLogState } from '../lib/challenge';
 type CellState = ChallengeLogState | 'today' | 'future';
 type Cell = { label: number; state: CellState };
 
-const GRID_CELL_COUNT = 30;
+export const GRID_CELL_COUNT = 30;
 
 type Props = {
   targetDays: number;
@@ -58,9 +58,9 @@ export function ChallengeDayGrid({ targetDays, startDate, log, today }: Props) {
     switch (state) {
       case 'done': return C.primary;
       case 'freeze': return C.starGold;
-      case 'today': return C.primarySoft;
+      case 'today': return C.surface2;
       case 'future': return C.surface2;
-      case 'reset': default: return C.dangerSoft;
+      case 'reset': default: return C.danger;
     }
   }
 
@@ -68,7 +68,8 @@ export function ChallengeDayGrid({ targetDays, startDate, log, today }: Props) {
     switch (state) {
       case 'done': return '✓';
       case 'freeze': return '🧊';
-      case 'reset': return '✕';
+      case 'today': return '🔥';
+      case 'reset': return '💔';
       default: return null;
     }
   }
@@ -77,7 +78,7 @@ export function ChallengeDayGrid({ targetDays, startDate, log, today }: Props) {
     <View style={styles.grid}>
       {cells.map(cell => {
         const glyph = cellGlyph(cell.state);
-        const onTint = cell.state === 'done' || cell.state === 'freeze';
+        const onTint = cell.state === 'done' || cell.state === 'freeze' || cell.state === 'reset';
         return (
           <View
             key={cell.label}
@@ -85,8 +86,9 @@ export function ChallengeDayGrid({ targetDays, startDate, log, today }: Props) {
             accessible
             accessibilityLabel={`${cell.label}: ${cell.state}`}
           >
-            <Text style={[styles.cellText, onTint && { color: C.white }]}>{cell.label}</Text>
-            {glyph ? <Text style={[styles.cellGlyph, onTint && { color: C.white }]}>{glyph}</Text> : null}
+            {glyph
+              ? <Text style={[styles.cellGlyphMain, onTint && { color: C.white }]}>{glyph}</Text>
+              : <Text style={styles.cellText}>{cell.label}</Text>}
           </View>
         );
       })}
@@ -112,6 +114,6 @@ function makeStyles(C: AppColors) {
       position: 'relative',
     },
     cellText: { fontSize: 11, fontFamily: FontFamily.semiBold, color: C.ink2 },
-    cellGlyph: { position: 'absolute', top: 1, right: 2, fontSize: 7, lineHeight: 8, color: C.ink2 },
+    cellGlyphMain: { fontSize: 13, lineHeight: 16, color: C.ink2 },
   });
 }

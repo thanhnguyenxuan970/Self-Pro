@@ -10,7 +10,7 @@ import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useChallengeById, useDeleteChallenge, useLogChallengeDay, useRestartChallenge, useSetChallengeAfterPhoto } from '../queries/useChallenge';
 import { challengeDate } from '../lib/challenge';
 import { ChallengeProgressRing } from '../components/ChallengeProgressRing';
-import { ChallengeDayGrid } from '../components/ChallengeDayGrid';
+import { ChallengeDayGrid, GRID_CELL_COUNT } from '../components/ChallengeDayGrid';
 import { PhotoSlot } from '../components/PhotoSlot';
 
 export function ChallengeDetailScreen() {
@@ -106,7 +106,15 @@ export function ChallengeDetailScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.name}>{challenge.name}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.name} numberOfLines={2}>{challenge.name}</Text>
+          {challenge.status === 'active' && (
+            <View style={styles.runningChip}>
+              <View style={styles.runningDot} />
+              <Text style={styles.runningChipText}>{t.challengeRunningBadge}</Text>
+            </View>
+          )}
+        </View>
 
         {challenge.status === 'done' && <Text style={[styles.statusBanner, { color: colors.primary }]}>{t.challengeCompletedTitle}</Text>}
         {challenge.status === 'failed' && <Text style={[styles.statusBanner, { color: colors.danger }]}>{t.challengeFailedTitle}</Text>}
@@ -118,17 +126,24 @@ export function ChallengeDetailScreen() {
           />
         </View>
 
+        {challenge.status === 'active' && challenge.daysLeft > 0 && (
+          <View style={styles.daysLeftPill}>
+            <Text style={styles.daysLeftText}>⏳ {t.challengeDaysLeft(challenge.daysLeft)}</Text>
+          </View>
+        )}
+
         <View style={styles.statRow}>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{challenge.streak}</Text>
+            <Text style={styles.statValue}>🔥 {challenge.streak}</Text>
             <Text style={styles.statLabel}>{t.challengeStreakLabel}</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{challenge.freezesLeft}</Text>
+            <Text style={styles.statValue}>🛟 {challenge.freezesLeft}</Text>
             <Text style={styles.statLabel}>{t.challengePhaoLabel}</Text>
           </View>
         </View>
 
+        <Text style={styles.sectionLabel}>{t.challengeLogSection(Math.min(challenge.targetDays, GRID_CELL_COUNT))}</Text>
         <ChallengeDayGrid
           targetDays={challenge.targetDays}
           startDate={challenge.startDate}
@@ -159,6 +174,7 @@ export function ChallengeDetailScreen() {
           </TouchableOpacity>
         )}
 
+        <Text style={styles.sectionLabel}>{t.challengeBeforeAfterSection}</Text>
         <View style={styles.photoSection}>
           <PhotoSlot uri={challenge.beforePhoto} label={t.challengeBeforePhotoLabel} actionLabel={t.challengeAddPhoto} />
           <PhotoSlot uri={challenge.afterPhoto} label={t.challengeAfterPhotoLabel}
@@ -213,9 +229,26 @@ function makeStyles(C: AppColors) {
     safe: { flex: 1, backgroundColor: C.bgBase },
     loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     scrollContent: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing.xl, alignItems: 'center' },
-    name: { ...Typography.title, color: C.inkDark, alignSelf: 'flex-start' },
+    titleRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      alignSelf: 'stretch', gap: Spacing.sm,
+    },
+    name: { ...Typography.title, color: C.inkDark, flexShrink: 1 },
+    runningChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      backgroundColor: C.primarySoft, borderRadius: Radii.pill,
+      paddingVertical: 5, paddingHorizontal: 11,
+    },
+    runningDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.primary },
+    runningChipText: { fontSize: 11.5, fontFamily: FontFamily.bold, color: C.primary },
     statusBanner: { ...Typography.bodyStrong, alignSelf: 'flex-start' },
     ringWrap: { paddingVertical: Spacing.md },
+    daysLeftPill: {
+      alignSelf: 'center', backgroundColor: C.surface2, borderRadius: Radii.pill,
+      paddingVertical: 6, paddingHorizontal: 14, marginTop: -Spacing.sm,
+    },
+    daysLeftText: { fontSize: 12.5, fontFamily: FontFamily.semiBold, color: C.ink2 },
+    sectionLabel: { ...Typography.sectionLabel, color: C.ink2, alignSelf: 'flex-start' },
     statRow: { flexDirection: 'row', gap: Spacing.md, alignSelf: 'stretch' },
     statCard: {
       flex: 1, backgroundColor: C.surface, borderRadius: Radii.lg, paddingVertical: Spacing.md,

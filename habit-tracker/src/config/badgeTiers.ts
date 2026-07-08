@@ -1,13 +1,13 @@
 import type { Tier, Emblem } from './achievements';
 
-/** [ringLight, ringMid, ringDark, discLight, discDark, edge] — ported from the Trophy Shelf mock. */
-export const TIER_COINS: Record<Tier, [string, string, string, string, string, string]> = {
-  iron: ['#e4e8ec', '#b6bdc4', '#8a9199', '#f6f8f9', '#e2e7ea', '#cfd5da'],
-  bronze: ['#eabb7e', '#d08b45', '#9d6026', '#fbefda', '#f2ddbb', '#e6c79a'],
-  silver: ['#eef2f5', '#c3ccd4', '#93a0aa', '#ffffff', '#e7ecf0', '#dbe1e6'],
-  gold: ['#fce596', '#f0c231', '#c1901a', '#fef8dc', '#fbeaad', '#f5d871'],
-  platinum: ['#e9f4f8', '#b6d6e0', '#86b0bf', '#ffffff', '#e2f0f5', '#d4e8ef'],
-  diamond: ['#d3f4fb', '#7fd7e8', '#3fb0cb', '#edfdff', '#cdf3fa', '#b6ecf6'],
+/** [hi, light, mid, dark, deep, edge, discHi, discMid, discLo] — metallic coin ramp per tier. */
+export const TIER_COINS: Record<Tier, [string, string, string, string, string, string, string, string, string]> = {
+  iron:     ['#ffffff', '#dfe6eb', '#a9b2bb', '#767f88', '#4c545c', '#cfd6dc', '#fbfdff', '#e4eaef', '#c3ccd3'],
+  bronze:   ['#ffe6cb', '#edc188', '#cf8a44', '#9a5b20', '#6b3d12', '#d9a463', '#fcefd9', '#f0d6ac', '#e0bd87'],
+  silver:   ['#ffffff', '#eef2f6', '#c1cbd4', '#8b96a0', '#5c666f', '#dbe1e7', '#ffffff', '#e9eef2', '#cfd6dd'],
+  gold:     ['#fffdf2', '#fbe38a', '#e6b52e', '#b07d15', '#7f560a', '#f0cf6a', '#fffbe6', '#fbeaad', '#f2d574'],
+  platinum: ['#ffffff', '#eaf6fa', '#bfdae4', '#8aabb8', '#5c7e8b', '#d3e7ee', '#ffffff', '#e6f2f6', '#cfe2e9'],
+  diamond:  ['#f4feff', '#cef3fb', '#7fd6e8', '#37a7c3', '#217f9f', '#aae6f2', '#f0fdff', '#d3f4fb', '#a9e8f4'],
 };
 
 export const EMBLEM_TINT: Record<Emblem, string> = {
