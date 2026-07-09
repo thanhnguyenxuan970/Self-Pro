@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
+import * as Sentry from '@sentry/react-native';
 import {
   useFonts,
   BeVietnamPro_400Regular,
@@ -26,6 +27,42 @@ import { LevelUpCelebrationModal } from './src/components/LevelUpCelebrationModa
 import { PENDING_LEVELUP_KEY } from './src/queries/useToday';
 import { TutorialProvider } from './src/hooks/useTutorial';
 import { rolloverChallenge } from './src/queries/useChallenge';
+
+// Crash reporting: hard no-op until EXPO_PUBLIC_SENTRY_DSN is supplied (no
+// Sentry account/project exists yet -- see TODOS.md). Guarded in try/catch
+// because a monitoring feature must never be able to crash the thing it's
+// monitoring (matches this repo's established pattern of guarding
+// non-critical side-effect calls, e.g. notification scheduling below).
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
+if (SENTRY_DSN) {
+  try {
+    Sentry.init({
+      dsn: SENTRY_DSN,
+      beforeSend: (event) => {
+        if (event.user) {
+          delete event.user.email;
+          delete (event.user as Record<string, unknown>).google_sub;
+        }
+        return event;
+      },
+      // Sentry's default http/fetch breadcrumbs capture the full request URL.
+      // Supabase REST calls filter by email in the query string (e.g.
+      // deleteUserFromSupabase's `?user_email=eq.<email>`), which would ship
+      // a user's plaintext email to Sentry as a breadcrumb attached to
+      // whatever error fires next in the session -- strip query strings
+      // before they're recorded, regardless of which endpoint set them.
+      beforeBreadcrumb: (breadcrumb) => {
+        const url = breadcrumb.data?.url;
+        if (typeof url === 'string' && url.includes('?')) {
+          breadcrumb.data!.url = url.split('?')[0];
+        }
+        return breadcrumb;
+      },
+    });
+  } catch (e) {
+    console.warn('[Sentry] init failed, crash reporting inactive this session:', e);
+  }
+}
 
 const ICT_OFFSET_MS = 7 * 60 * 60 * 1000;
 function msUntilIctMidnight(now = Date.now()): number {
@@ -209,7 +246,7 @@ const appStyles = StyleSheet.create({
   retryTxt: { color: '#fff', fontSize: 15, fontFamily: FontFamily.semiBold },
 });
 
-export default function App() {
+function App() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
@@ -220,3 +257,5 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+
+export default Sentry.wrap(App);

@@ -8,5 +8,6 @@ module.exports = {
   },
   moduleNameMapper: {
     '^expo-secure-store$': '<rootDir>/__mocks__/expo-secure-store.js',
+    '^@sentry/react-native$': '<rootDir>/__mocks__/@sentry/react-native.js',
   },
 };
