@@ -567,6 +567,28 @@ export async function rolloverChallenge(userId: number): Promise<void> {
           return;
         }
 
+        if (row.task_type_id != null) {
+          // Linked streak challenge: no challenge_log to fill -- derive
+          // done-dates and write only the summary columns already on
+          // `challenges` (there is no per-day row to persist for a linked
+          // challenge, so a "gap" here is a live fact re-derived on every
+          // call, never a stored fill).
+          const doneDates = await getDoneDates(txn, userId, row);
+          const result = computeRollover({
+            startDate: row.start_date,
+            today,
+            loggedDates: new Set(doneDates),
+            freezesLeft: row.freezes_left,
+          });
+          if (result.freezesLeft !== row.freezes_left) {
+            await txn.runAsync(`UPDATE challenges SET freezes_left = ? WHERE id = ?`, [result.freezesLeft, row.id]);
+          }
+          if (result.failed) {
+            await txn.runAsync(`UPDATE challenges SET status = 'failed' WHERE id = ?`, [row.id]);
+          }
+          return;
+        }
+
         const logRows = await txn.getAllAsync<{ local_date: string }>(
           `SELECT local_date FROM challenge_log WHERE challenge_id = ?`,
           [row.id],
