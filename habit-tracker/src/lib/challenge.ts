@@ -16,7 +16,7 @@ export type Challenge = {
   afterPhoto?: string | null;
 };
 
-export const CHALLENGE_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+const CHALLENGE_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 
 export function challengeDate(now: Date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-CA', {

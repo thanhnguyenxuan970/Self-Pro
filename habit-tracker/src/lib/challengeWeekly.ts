@@ -15,7 +15,7 @@ function isoWeekday(dateStr: string): number {
   return jsDay === 0 ? 7 : jsDay;
 }
 
-export function weekEndFor(dateStr: string): string {
+function weekEndFor(dateStr: string): string {
   return dateFromDayNumber(dayNumber(dateStr) + (7 - isoWeekday(dateStr)));
 }
 

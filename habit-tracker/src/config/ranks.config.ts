@@ -283,11 +283,11 @@ export function getRankConfigByTierOrder(tierOrder: number): Rank {
   return getRankConfigByTier(tierOrder - 1);
 }
 
-export function getRankConfigByName(name: string): Rank | undefined {
+function getRankConfigByName(name: string): Rank | undefined {
   return RANKS.find(rank => rank.name === name);
 }
 
-export function getRankForStars(total: number): Rank {
+function getRankForStars(total: number): Rank {
   let rank = RANKS[0];
   for (const candidate of RANKS) {
     if (total >= candidate.stars) rank = candidate;

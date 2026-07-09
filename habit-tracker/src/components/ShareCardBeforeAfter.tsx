@@ -3,8 +3,8 @@ import { View, Text, Image, StyleSheet } from 'react-native';
 import { FontFamily } from '../config/theme';
 import { useTranslations } from '../hooks/useSettings';
 
-export const BA_CARD_W = 328;
-export const BA_CARD_H = 583;
+const BA_CARD_W = 328;
+const BA_CARD_H = 583;
 
 const BG = '#0F1410';
 const INK = '#F1F7F3';

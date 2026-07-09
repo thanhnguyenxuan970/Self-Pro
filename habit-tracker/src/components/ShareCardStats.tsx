@@ -3,8 +3,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { FontFamily } from '../config/theme';
 import { useTranslations } from '../hooks/useSettings';
 
-export const STATS_CARD_W = 328;
-export const STATS_CARD_H = 583;
+const STATS_CARD_W = 328;
+const STATS_CARD_H = 583;
 
 const BG = '#1E9E63'; // --primary, solid per C1 spec
 const GLOW = 'rgba(255,255,255,0.10)';
