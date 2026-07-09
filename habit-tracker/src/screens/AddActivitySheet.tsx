@@ -17,7 +17,7 @@ import { Strings } from '../config/i18n';
 import { supabase } from '../api/supabase';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 
-interface Props { visible: boolean; onClose: () => void; onSuggest?: () => void; }
+interface Props { visible: boolean; onClose: () => void; onSuggest?: () => void; presetName?: string | null; }
 
 type SuggestionChipProps = {
   s: TemplateTask;
@@ -145,7 +145,7 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onClose, t, c
 }
 
 // fallow-ignore-next-line complexity
-export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
+export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Props) {
   const userId = useAuthUser();
   const { colors } = useTheme();
   const t = useTranslations();
@@ -180,6 +180,13 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
 
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(300)).current;
+
+  useEffect(() => {
+    if (visible && presetName) {
+      setName(presetName);
+      setSelectedSuggestion(null);
+    }
+  }, [visible, presetName]);
 
   useEffect(() => {
     if (visible) {
@@ -247,7 +254,14 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
       ? selectedSuggestion.name
       : trimmed;
 
-    if (!selectedSuggestion) {
+    // An unedited presetName is already an existing task's exact stored name
+    // (e.g. from a linked-challenge "Ghi ngay" deep-link) -- translating it
+    // would silently create/match a *different* task_type and break the
+    // link. Skip translation only while the text still matches the preset
+    // verbatim; an edited name is freeform again and gets translated as usual.
+    const usingUneditedPreset = !selectedSuggestion && presetName != null && trimmed === presetName;
+
+    if (!selectedSuggestion && !usingUneditedPreset) {
       setTranslating(true);
       try {
         storeName = await translateActivityName(trimmed);
@@ -335,6 +349,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest }: Props) {
                   placeholderTextColor={colors.faint}
                   returnKeyType="done"
                   maxLength={50}
+                  editable={presetName == null}
                 />
 
                 {suggestions.length > 0 && (

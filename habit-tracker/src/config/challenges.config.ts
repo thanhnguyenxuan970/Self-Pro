@@ -7,6 +7,9 @@ export type WeeklyTarget = (typeof WEEKLY_TARGETS)[number];
 export const TOTAL_WEEKS_OPTIONS = [2, 4, 8, 12] as const;
 export type TotalWeeks = (typeof TOTAL_WEEKS_OPTIONS)[number];
 
+export const THRESHOLD_DURATIONS = [15, 30, 45, 60] as const;
+export const THRESHOLD_COUNTS = [1, 2, 3] as const;
+
 export const PHAO_COUNT = 1;
 
 export const CHALLENGE_NAME_MAX_LENGTH = 40;
@@ -64,7 +67,7 @@ export const CHALLENGE_RULE_COPY = {
   en: (freezes: number) => `Do it every day. Miss 1 day = reset. You get ${freezes} rescue float (freeze/catch-up).`,
 };
 
-export const WEEKLY_RULE_COPY = {
+const WEEKLY_RULE_COPY = {
   vi: (weeklyTarget: number) => `Đủ ${weeklyTarget} buổi mỗi tuần, ngày nào tập cũng được. Nghỉ tự do — không tính là lỡ. Tuần tính từ Thứ 2.`,
   en: (weeklyTarget: number) => `Hit ${weeklyTarget} sessions every week, any day works. Rest days are free — they don't count as a miss. Weeks start Monday.`,
 };

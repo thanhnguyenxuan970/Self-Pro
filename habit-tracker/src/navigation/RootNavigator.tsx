@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, TouchableOpacity, StyleSheet, StatusBar, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -24,6 +24,7 @@ import { AddActivitySheet } from '../screens/AddActivitySheet';
 import { SuggestActivitySheet } from '../components/SuggestActivitySheet';
 import { GoogleUser } from '../hooks/useAuth';
 import { useTutorial } from '../hooks/useTutorial';
+import { subscribeAddActivityIntent } from '../hooks/useAddActivityIntent';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -159,8 +160,14 @@ function AppStack({
 }) {
   const [fabVisible, setFabVisible] = useState(false);
   const [suggestVisible, setSuggestVisible] = useState(false);
+  const [presetName, setPresetName] = useState<string | null>(null);
   const { colors } = useTheme();
   const t = useTranslations();
+
+  useEffect(() => subscribeAddActivityIntent(intent => {
+    setPresetName(intent.name);
+    setFabVisible(true);
+  }), []);
 
   const modalHeaderOptions = {
     presentation: 'modal' as const,
@@ -216,8 +223,9 @@ function AppStack({
       </Stack.Navigator>
       <AddActivitySheet
         visible={fabVisible}
-        onClose={() => setFabVisible(false)}
-        onSuggest={() => { setFabVisible(false); setSuggestVisible(true); }}
+        presetName={presetName}
+        onClose={() => { setFabVisible(false); setPresetName(null); }}
+        onSuggest={() => { setFabVisible(false); setPresetName(null); setSuggestVisible(true); }}
       />
       <SuggestActivitySheet visible={suggestVisible} onClose={() => setSuggestVisible(false)} />
     </>

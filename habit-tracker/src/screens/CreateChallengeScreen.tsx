@@ -9,6 +9,7 @@ import { useTodayTasks } from '../queries/useToday';
 import { useCreateChallenge } from '../queries/useChallenge';
 import {
   CHALLENGE_DURATIONS, PHAO_COUNT, CHALLENGE_NAME_MAX_LENGTH, WEEKLY_TARGETS, TOTAL_WEEKS_OPTIONS,
+  THRESHOLD_DURATIONS, THRESHOLD_COUNTS,
 } from '../config/challenges.config';
 import type { ChallengeMode } from '../lib/challenge';
 
@@ -20,6 +21,8 @@ export function CreateChallengeScreen() {
 
   const [name, setName] = useState('');
   const [taskTypeId, setTaskTypeId] = useState<number | null>(null);
+  const [minDuration, setMinDuration] = useState<number | null>(null);
+  const [minCount, setMinCount] = useState<number | null>(null);
   const [mode, setMode] = useState<ChallengeMode>('streak');
   const [targetDays, setTargetDays] = useState<number>(CHALLENGE_DURATIONS[0]);
   const [weeklyTarget, setWeeklyTarget] = useState<number>(WEEKLY_TARGETS[1]);
@@ -56,6 +59,8 @@ export function CreateChallengeScreen() {
         freezesLeft: PHAO_COUNT,
         beforePhoto,
         notificationsEnabled,
+        minDuration,
+        minCount,
       } : {
         name: trimmed,
         taskTypeId,
@@ -65,6 +70,8 @@ export function CreateChallengeScreen() {
         freezesLeft: PHAO_COUNT,
         beforePhoto,
         notificationsEnabled,
+        minDuration,
+        minCount,
       });
       navigation.goBack();
     } catch (e: any) {
@@ -96,7 +103,7 @@ export function CreateChallengeScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.habitRow} contentContainerStyle={{ gap: Spacing.sm }}>
           <TouchableOpacity
             style={[styles.habitChip, taskTypeId === null && styles.habitChipOn]}
-            onPress={() => setTaskTypeId(null)}
+            onPress={() => { setTaskTypeId(null); setMinDuration(null); setMinCount(null); }}
             activeOpacity={0.75}
             accessibilityRole="button"
             accessibilityState={{ selected: taskTypeId === null }}
@@ -109,7 +116,11 @@ export function CreateChallengeScreen() {
               <TouchableOpacity
                 key={task.id}
                 style={[styles.habitChip, on && styles.habitChipOn]}
-                onPress={() => setTaskTypeId(on ? null : task.id)}
+                onPress={() => {
+                  const next = on ? null : task.id;
+                  setTaskTypeId(next);
+                  if (next === null) { setMinDuration(null); setMinCount(null); }
+                }}
                 activeOpacity={0.75}
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
@@ -119,6 +130,49 @@ export function CreateChallengeScreen() {
             );
           })}
         </ScrollView>
+
+        {taskTypeId !== null && (
+          <>
+            <Text style={styles.label}>{t.challengeThresholdLabel}</Text>
+            <Text style={styles.label}>{t.challengeThresholdDurationLabel}</Text>
+            <View style={styles.durationRow}>
+              {([null, ...THRESHOLD_DURATIONS] as (number | null)[]).map(d => {
+                const on = minDuration === d;
+                return (
+                  <TouchableOpacity
+                    key={String(d)}
+                    style={[styles.durChip, on && styles.durChipOn]}
+                    onPress={() => setMinDuration(d)}
+                    activeOpacity={0.75}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                  >
+                    <Text style={[styles.durChipText, on && styles.durChipTextOn]}>{d === null ? t.challengeThresholdAny : d}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.label}>{t.challengeThresholdCountLabel}</Text>
+            <View style={styles.durationRow}>
+              {([null, ...THRESHOLD_COUNTS] as (number | null)[]).map(c => {
+                const on = minCount === c;
+                return (
+                  <TouchableOpacity
+                    key={String(c)}
+                    style={[styles.durChip, on && styles.durChipOn]}
+                    onPress={() => setMinCount(c)}
+                    activeOpacity={0.75}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                  >
+                    <Text style={[styles.durChipText, on && styles.durChipTextOn]}>{c === null ? t.challengeThresholdAny : c}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
 
         <Text style={styles.label}>{t.challengeModeLabel}</Text>
         <View style={styles.modeRow}>

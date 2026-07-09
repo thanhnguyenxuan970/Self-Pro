@@ -232,6 +232,10 @@ const vi = {
   challengeNamePlaceholder: 'Ví dụ: 30 ngày không đường',
   challengeHabitLabel: 'Thói quen (tuỳ chọn)',
   challengeHabitNone: 'Không gắn thói quen',
+  challengeThresholdLabel: 'Ngưỡng hoàn thành',
+  challengeThresholdDurationLabel: 'Số phút tối thiểu / lần',
+  challengeThresholdCountLabel: 'Số lần / ngày',
+  challengeThresholdAny: 'Bất kỳ',
   challengeDurationLabel: 'Thời lượng',
   challengeDurationDays: (n: number) => `${n} ngày`,
   challengeModeLabel: 'Chọn kiểu',
@@ -273,6 +277,14 @@ const vi = {
   challengePhaoLabel: 'Phao cứu còn lại',
   challengeLogTodayCta: 'Ghi nhận hôm nay',
   challengeLoggedToday: 'Đã ghi nhận hôm nay',
+  challengeLogNowCta: 'Ghi ngay',
+  challengeLinkedHint: (taskName: string) => `Thử thách này tự hoàn thành khi bạn ghi "${taskName}".`,
+  challengeLinkedHintThreshold: (minDuration: number | null, minCount: number | null) => {
+    const parts: string[] = [];
+    if (minDuration != null) parts.push(`tối thiểu ${minDuration} phút`);
+    if (minCount != null) parts.push(`${minCount} lần/ngày`);
+    return parts.length ? `(${parts.join(', ')})` : '';
+  },
   challengeShareCta: 'Chia sẻ thành tích ↗',
   challengeShareJourneyCta: 'Chia sẻ hành trình ↗',
   challengeShareWeekCta: (weekIndex: number) => `Chia sẻ tuần ${weekIndex} ↗`,
@@ -832,6 +844,10 @@ const en: typeof vi = {
   challengeNamePlaceholder: 'e.g. 30 days no sugar',
   challengeHabitLabel: 'Habit (optional)',
   challengeHabitNone: 'No linked habit',
+  challengeThresholdLabel: 'Completion threshold',
+  challengeThresholdDurationLabel: 'Min minutes / session',
+  challengeThresholdCountLabel: 'Min sessions / day',
+  challengeThresholdAny: 'Any',
   challengeDurationLabel: 'Duration',
   challengeDurationDays: (n: number) => `${n} days`,
   challengeModeLabel: 'Choose type',
@@ -873,6 +889,14 @@ const en: typeof vi = {
   challengePhaoLabel: 'Freezes left',
   challengeLogTodayCta: 'Log today',
   challengeLoggedToday: 'Logged today',
+  challengeLogNowCta: 'Log now',
+  challengeLinkedHint: (taskName: string) => `This challenge auto-completes when you log "${taskName}".`,
+  challengeLinkedHintThreshold: (minDuration: number | null, minCount: number | null) => {
+    const parts: string[] = [];
+    if (minDuration != null) parts.push(`min ${minDuration} min`);
+    if (minCount != null) parts.push(`${minCount}x/day`);
+    return parts.length ? `(${parts.join(', ')})` : '';
+  },
   challengeShareCta: 'Share progress ↗',
   challengeShareJourneyCta: 'Share journey ↗',
   challengeShareWeekCta: (weekIndex: number) => `Share week ${weekIndex} ↗`,

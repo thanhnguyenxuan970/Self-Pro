@@ -9,6 +9,8 @@ import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../c
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useChallengeById, useDeleteChallenge, useLogChallengeDay, useRestartChallenge, useSetChallengeAfterPhoto } from '../queries/useChallenge';
 import { useRankData } from '../queries/useRank';
+import { useTodayTasks } from '../queries/useToday';
+import { requestAddActivity } from '../hooks/useAddActivityIntent';
 import { challengeDate } from '../lib/challenge';
 import { computeChallengeReward } from '../config/challenges.config';
 import { ChallengeProgressRing } from '../components/ChallengeProgressRing';
@@ -30,6 +32,7 @@ export function ChallengeDetailScreen() {
 
   const { data: challenge, isLoading } = useChallengeById(userId, challengeId);
   const { data: rank } = useRankData(userId);
+  const { data: tasks = [] } = useTodayTasks(userId);
   const logDay = useLogChallengeDay(userId);
   const setAfterPhoto = useSetChallengeAfterPhoto(userId);
   const restartChallenge = useRestartChallenge(userId);
@@ -51,6 +54,10 @@ export function ChallengeDetailScreen() {
     } catch {
       // ALREADY_LOGGED_TODAY / NO_ACTIVE_CHALLENGE — surfaced via button disabled state
     }
+  }
+
+  function handleLogNow(name: string) {
+    requestAddActivity({ name });
   }
 
   async function pickAfterPhoto() {
@@ -120,6 +127,9 @@ export function ChallengeDetailScreen() {
 
   const isWeekly = challenge.mode === 'weekly';
   const canLogToday = challenge.status === 'active' && !challenge.loggedToday;
+  const linkedTaskName = challenge.taskTypeId != null
+    ? tasks.find(task => task.id === challenge.taskTypeId)?.name ?? null
+    : null;
 
   const reward = isWeekly
     ? computeChallengeReward({ mode: 'weekly', weeklyTarget: challenge.weeklyTarget!, totalWeeks: challenge.totalWeeks! })
@@ -300,7 +310,29 @@ export function ChallengeDetailScreen() {
           </>
         )}
 
-        {challenge.status === 'active' && (
+        {challenge.status === 'active' && linkedTaskName != null && (
+          <Text style={styles.linkedHint}>
+            {t.challengeLinkedHint(linkedTaskName)}
+            {(challenge.minDuration != null || challenge.minCount != null) && (
+              ` ${t.challengeLinkedHintThreshold(challenge.minDuration, challenge.minCount)}`
+            )}
+          </Text>
+        )}
+
+        {challenge.status === 'active' && linkedTaskName != null && (
+          <TouchableOpacity
+            style={[styles.logBtn, challenge.loggedToday && styles.logBtnDisabled]}
+            onPress={() => handleLogNow(linkedTaskName)}
+            disabled={challenge.loggedToday}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={challenge.loggedToday ? t.challengeLoggedToday : t.challengeLogNowCta}
+          >
+            <Text style={styles.logBtnText}>{challenge.loggedToday ? `✓ ${t.challengeLoggedToday}` : t.challengeLogNowCta}</Text>
+          </TouchableOpacity>
+        )}
+
+        {challenge.status === 'active' && linkedTaskName == null && (
           <TouchableOpacity
             style={[styles.logBtn, !canLogToday && styles.logBtnDisabled]}
             onPress={handleLogToday}
@@ -439,6 +471,7 @@ function makeStyles(C: AppColors) {
     },
     logBtnDisabled: { opacity: 0.6 },
     logBtnText: { ...Typography.bodyStrong, color: C.white, fontSize: 16 },
+    linkedHint: { ...Typography.secondary, color: C.ink2, marginBottom: Spacing.sm, lineHeight: 19 },
     photoSection: { flexDirection: 'row', gap: Spacing.md, alignSelf: 'stretch' },
     shareBtn: {
       alignSelf: 'stretch', backgroundColor: C.surface, borderWidth: 1, borderColor: C.line,
