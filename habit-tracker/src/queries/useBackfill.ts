@@ -1,19 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../db/client';
-import { canBackfill, computeStreakCounts } from '../game/backfill';
-import { computeLogTaskRows } from '../game/logTask';
+import { canBackfill, computeBackfillSession, computeStreakCounts, type BackfillSessionEntry } from '../game/backfill';
 import { getLocalDate, getLocalDateFor, getWeekStart, getWeekStartFor } from '../utils/formatters';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+export type BackfillEntryParams = BackfillSessionEntry;
+
 type BackfillDayParams = {
   date: string;              // 'YYYY-MM-DD' — the missed day to backfill
-  taskTypeId: number;
-  kind: 'GOOD' | 'BAD';
-  isTimeBased: boolean;
-  basePoints: number;
-  starPenalty: number;
-  durationMin?: number;
-  countTowardRank?: boolean; // default false — anti-gaming
+  entries: BackfillEntryParams[];
 };
 
 /** Generate all YYYY-MM-DD dates from `from` to `to` inclusive. */
@@ -96,7 +91,7 @@ async function insertActivityRows(
 }
 
 async function runBackfillTx(
-  db: SQLiteDatabase, params: BackfillDayParams,
+  db: SQLiteDatabase, entries: BackfillEntryParams[],
   userId: number, backfillDate: string,
   backfillWeekStart: string, currentWeekStart: string, today: string,
 ): Promise<number> {
@@ -130,35 +125,33 @@ async function runBackfillTx(
     `SELECT total_points, bonus_star_awarded FROM daily_summary WHERE user_id = ? AND local_date = ?`,
     [userId, backfillDate],
   );
-  const existingDailyPoints = existingDaily ? existingDaily.total_points : 0;
-  const bonusAlreadyAwarded = existingDaily ? !!existingDaily.bonus_star_awarded : false;
 
-  const { activityRow, bonusRow } = computeLogTaskRows({
-    userId, taskTypeId: params.taskTypeId, kind: params.kind,
-    isTimeBased: params.isTimeBased, basePoints: params.basePoints,
-    starPenalty: params.starPenalty, durationMin: params.durationMin,
-    currentDayPoints: existingDailyPoints, bonusAlreadyAwarded,
-    loggedAt: now, localDate: backfillDate, weekStart: backfillWeekStart,
+  const session = computeBackfillSession(entries, {
+    userId,
+    loggedAt: now,
+    localDate: backfillDate,
+    weekStart: backfillWeekStart,
+    initialDayPoints: existingDaily ? existingDaily.total_points : 0,
+    initialBonusAwarded: existingDaily ? !!existingDaily.bonus_star_awarded : false,
   });
 
-  const totalStarsDelta = activityRow.stars_delta + (bonusRow ? bonusRow.stars_delta : 0);
+  for (const { activityRow, bonusRow } of session.rows) {
+    await insertActivityRows(db, activityRow, bonusRow, nowMs, backfillDate, backfillWeekStart);
+  }
 
-  await insertActivityRows(db, activityRow, bonusRow, nowMs, backfillDate, backfillWeekStart);
-
-  const newDayPoints = existingDailyPoints + activityRow.points_earned;
-  const hasBonus = bonusRow ? 1 : 0;
+  const hasBonus = session.bonusAwarded ? 1 : 0;
   await db.runAsync(
     `INSERT INTO daily_summary (user_id, local_date, total_points, bonus_star_awarded, streak_count)
      VALUES (?, ?, ?, ?, 0)
      ON CONFLICT(user_id, local_date) DO UPDATE SET
        total_points = total_points + ?,
        bonus_star_awarded = CASE WHEN ? THEN 1 ELSE bonus_star_awarded END`,
-    [userId, backfillDate, newDayPoints, hasBonus, activityRow.points_earned, hasBonus],
+    [userId, backfillDate, session.dayPoints, hasBonus, session.sessionPointsDelta, hasBonus],
   );
 
   const newStreak = await recomputeStreakChain(db, userId, backfillDate, today);
 
-  if (params.countTowardRank === true) {
+  if (session.rankPointsDelta !== 0 || session.rankStarsDelta !== 0) {
     await db.runAsync(
       `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars, peak_stars, current_tier_id)
        VALUES (?, ?, ?, ?, ?, (SELECT current_tier_id FROM weekly_summary WHERE user_id = ? AND week_start = ?))
@@ -166,9 +159,9 @@ async function runBackfillTx(
          total_points = total_points + ?,
          weekly_stars = weekly_stars + ?,
          peak_stars = MAX(peak_stars, weekly_stars + ?)`,
-      [userId, currentWeekStart, activityRow.points_earned, totalStarsDelta,
-       Math.max(0, totalStarsDelta), userId, currentWeekStart,
-       activityRow.points_earned, totalStarsDelta, totalStarsDelta],
+      [userId, currentWeekStart, session.rankPointsDelta, session.rankStarsDelta,
+       Math.max(0, session.rankStarsDelta), userId, currentWeekStart,
+       session.rankPointsDelta, session.rankStarsDelta, session.rankStarsDelta],
     );
   }
 
@@ -201,11 +194,12 @@ export function useBackfillDay(userId: number) {
       if (!check.allowed && (check.reason === 'FUTURE' || check.reason === 'TODAY' || check.reason === 'NOT_CURRENT_WEEK')) {
         throw new Error(check.reason);
       }
+      if (params.entries.length === 0) throw new Error('EMPTY_SESSION');
 
       let newStreak = 0;
       await db.withExclusiveTransactionAsync(async (txn) => {
         newStreak = await runBackfillTx(
-          txn, params, userId, backfillDate, backfillWeekStart, currentWeekStart, today,
+          txn, params.entries, userId, backfillDate, backfillWeekStart, currentWeekStart, today,
         );
       });
       return { newStreak };

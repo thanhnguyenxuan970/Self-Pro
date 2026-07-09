@@ -23,7 +23,7 @@ export interface ComputeInput {
   weekStart: string;
 }
 
-interface ActivityRow {
+export interface ActivityRow {
   user_id: number;
   task_type_id: number | null;
   kind: string;
@@ -36,7 +36,7 @@ interface ActivityRow {
   week_start: string;
 }
 
-interface ComputeResult {
+export interface ComputeResult {
   activityRow: ActivityRow;
   bonusRow: ActivityRow | null;
 }

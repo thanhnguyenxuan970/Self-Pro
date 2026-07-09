@@ -1,7 +1,9 @@
 // Hàm THUẦN cho "Điểm danh bù" — không chạm DB, dễ unit-test.
 // Phần ghi DB + cộng weekly_stars để ở tầng gọi (xem backfill-spec.md §4–6).
 
-export const WEEKLY_BACKFILL_QUOTA = 2;
+import { computeLogTaskRows, type ComputeResult } from './logTask';
+
+const WEEKLY_BACKFILL_QUOTA = 2;
 
 export interface BackfillCheckInput {
   date: string;              // 'YYYY-MM-DD' ngày muốn điểm danh bù
@@ -60,4 +62,82 @@ export function computeStreakCounts(days: boolean[], priorStreak = 0): number[] 
     out.push(run);
   }
   return out;
+}
+
+export interface BackfillSessionEntry {
+  taskTypeId: number;
+  kind: 'GOOD' | 'BAD';
+  isTimeBased: boolean;
+  basePoints: number;
+  starPenalty: number;
+  durationMin?: number;
+  countTowardRank?: boolean; // default false — anti-gaming
+}
+
+export interface BackfillSessionContext {
+  userId: number;
+  loggedAt: Date;
+  localDate: string;
+  weekStart: string;
+  initialDayPoints: number;
+  initialBonusAwarded: boolean;
+}
+
+export interface BackfillSessionResult {
+  rows: ComputeResult[];         // one {activityRow, bonusRow} per entry, in order
+  dayPoints: number;             // cumulative daily total_points after the whole session
+  bonusAwarded: boolean;         // daily bonus flag after the whole session
+  sessionPointsDelta: number;    // total points added across all entries
+  sessionStarsDelta: number;     // total stars added across all entries
+  rankPointsDelta: number;       // points from entries with countTowardRank === true
+  rankStarsDelta: number;        // stars from entries with countTowardRank === true
+}
+
+/**
+ * Điểm danh bù NHIỀU hoạt động trong 1 phiên (session), tính tuần tự để
+ * daily-bonus và ngưỡng điểm/ngày cộng dồn đúng qua từng entry. Hàm THUẦN —
+ * không chạm DB; tầng gọi ghi `rows` vào activity_log rồi cập nhật
+ * daily_summary/weekly_summary bằng các delta trả về.
+ */
+export function computeBackfillSession(
+  entries: BackfillSessionEntry[],
+  ctx: BackfillSessionContext,
+): BackfillSessionResult {
+  let dayPoints = ctx.initialDayPoints;
+  let bonusAwarded = ctx.initialBonusAwarded;
+  let sessionPointsDelta = 0;
+  let sessionStarsDelta = 0;
+  let rankPointsDelta = 0;
+  let rankStarsDelta = 0;
+  const rows: ComputeResult[] = [];
+
+  for (const entry of entries) {
+    const result = computeLogTaskRows({
+      userId: ctx.userId,
+      taskTypeId: entry.taskTypeId,
+      kind: entry.kind,
+      isTimeBased: entry.isTimeBased,
+      basePoints: entry.basePoints,
+      starPenalty: entry.starPenalty,
+      durationMin: entry.durationMin,
+      currentDayPoints: dayPoints,
+      bonusAlreadyAwarded: bonusAwarded,
+      loggedAt: ctx.loggedAt,
+      localDate: ctx.localDate,
+      weekStart: ctx.weekStart,
+    });
+    rows.push(result);
+
+    const entryStarsDelta = result.activityRow.stars_delta + (result.bonusRow ? result.bonusRow.stars_delta : 0);
+    dayPoints += result.activityRow.points_earned;
+    if (result.bonusRow) bonusAwarded = true;
+    sessionPointsDelta += result.activityRow.points_earned;
+    sessionStarsDelta += entryStarsDelta;
+    if (entry.countTowardRank === true) {
+      rankPointsDelta += result.activityRow.points_earned;
+      rankStarsDelta += entryStarsDelta;
+    }
+  }
+
+  return { rows, dayPoints, bonusAwarded, sessionPointsDelta, sessionStarsDelta, rankPointsDelta, rankStarsDelta };
 }

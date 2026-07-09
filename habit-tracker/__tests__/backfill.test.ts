@@ -1,4 +1,4 @@
-import { canBackfill, backfillRemaining, computeStreakCounts, BackfillCheckInput } from '../src/game/backfill';
+import { canBackfill, backfillRemaining, computeStreakCounts, computeBackfillSession, BackfillCheckInput, BackfillSessionEntry } from '../src/game/backfill';
 import { getWeekStartFor } from '../src/utils/formatters';
 
 const base: BackfillCheckInput = {
@@ -54,6 +54,69 @@ describe('computeStreakCounts', () => {
     expect(computeStreakCounts([true, false, false, true])).toEqual([1, 0, 0, 1]);
     // sau khi bù T3 & T4 (set true):
     expect(computeStreakCounts([true, true, true, true])).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe('computeBackfillSession', () => {
+  const ctx = {
+    userId: 1,
+    loggedAt: new Date('2026-06-17T12:00:00'),
+    localDate: '2026-06-17',
+    weekStart: '2026-06-15',
+    initialDayPoints: 0,
+    initialBonusAwarded: false,
+  };
+  const entry = (over: Partial<BackfillSessionEntry> = {}): BackfillSessionEntry => ({
+    taskTypeId: 1, kind: 'GOOD', isTimeBased: false, basePoints: 20, starPenalty: 0, ...over,
+  });
+
+  it('cộng dồn điểm/sao qua nhiều hoạt động trong 1 phiên', () => {
+    const result = computeBackfillSession([entry(), entry()], ctx);
+    expect(result.rows).toHaveLength(2);
+    expect(result.dayPoints).toBe(40);
+    expect(result.sessionPointsDelta).toBe(40);
+    expect(result.sessionStarsDelta).toBe(2);
+    expect(result.bonusAwarded).toBe(false);
+  });
+
+  it('chỉ thưởng daily-bonus 1 lần dù vượt ngưỡng nhiều lần trong phiên', () => {
+    const result = computeBackfillSession([entry({ basePoints: 30 }), entry({ basePoints: 30 }), entry({ basePoints: 30 })], ctx);
+    expect(result.dayPoints).toBe(90);
+    expect(result.rows[0].bonusRow).toBeNull();
+    expect(result.rows[1].bonusRow).not.toBeNull(); // crosses 50 threshold here
+    expect(result.rows[2].bonusRow).toBeNull(); // already awarded
+    expect(result.bonusAwarded).toBe(true);
+    expect(result.sessionStarsDelta).toBe(3 + 1); // 3 task stars + 1 daily bonus
+  });
+
+  it('kế thừa điểm/bonus đã có sẵn trong ngày trước khi phiên bắt đầu', () => {
+    const result = computeBackfillSession([entry({ basePoints: 20 })], { ...ctx, initialDayPoints: 40, initialBonusAwarded: false });
+    expect(result.dayPoints).toBe(60);
+    expect(result.rows[0].bonusRow).not.toBeNull();
+    expect(result.bonusAwarded).toBe(true);
+  });
+
+  it('không thưởng lại nếu bonus hôm đó đã được thưởng từ trước', () => {
+    const result = computeBackfillSession([entry({ basePoints: 20 })], { ...ctx, initialDayPoints: 40, initialBonusAwarded: true });
+    expect(result.rows[0].bonusRow).toBeNull();
+    expect(result.sessionStarsDelta).toBe(1);
+  });
+
+  it('hoạt động BAD trừ sao, không cộng điểm', () => {
+    const result = computeBackfillSession([entry({ kind: 'BAD', starPenalty: 3 })], ctx);
+    expect(result.sessionPointsDelta).toBe(0);
+    expect(result.sessionStarsDelta).toBe(-3);
+    expect(result.dayPoints).toBe(0);
+  });
+
+  it('chỉ cộng vào rank những entry có countTowardRank = true', () => {
+    const result = computeBackfillSession(
+      [entry({ basePoints: 20, countTowardRank: true }), entry({ basePoints: 20, countTowardRank: false })],
+      ctx,
+    );
+    expect(result.sessionPointsDelta).toBe(40);
+    expect(result.rankPointsDelta).toBe(20);
+    expect(result.rankStarsDelta).toBe(1);
   });
 });
 
