@@ -192,6 +192,15 @@ export function useArchiveTask(userId: number) {
       const db = await getDb();
 
       await db.withTransactionAsync(async () => {
+        // Archiving hard-deletes this task_type's activity_log rows below --
+        // for a linked+active challenge, those rows are the derivation source
+        // for its completion, so archiving would silently break/reset it.
+        const linkedActive = await db.getFirstAsync<{ id: number }>(
+          `SELECT id FROM challenges WHERE user_id = ? AND task_type_id = ? AND status = 'active'`,
+          [userId, taskId],
+        );
+        if (linkedActive) throw new Error('TASK_TYPE_LINKED_TO_ACTIVE_CHALLENGE');
+
         const allLogs = await db.getAllAsync<ArchiveLogRow>(
           `SELECT id, local_date, week_start, points_earned, stars_delta, kind
            FROM activity_log WHERE user_id = ? AND task_type_id = ? AND source = 'TASK'`,
