@@ -4,7 +4,7 @@ These instructions apply inside `habit-tracker/` and extend the repository-root 
 
 ## Project
 
-Habi is a gamified habit-tracking React Native app. The stack is Expo SDK 56, React Native, TypeScript, expo-sqlite async APIs, raw runtime SQL with drizzle types, TanStack Query v5, React Navigation v6, Jest, and ts-jest.
+Habi is a gamified habit-tracking React Native app. The stack is Expo SDK 56, React Native, TypeScript, expo-sqlite async APIs, raw runtime SQL with drizzle types, TanStack Query v5, React Navigation v6, `@sentry/react-native` for crash reporting, Jest, and ts-jest.
 
 Before changing Expo behavior, consult the exact SDK 56 documentation at `https://docs.expo.dev/versions/v56.0.0/`.
 
@@ -74,6 +74,11 @@ Use the `emulator` skill before any adb tap or swipe so coordinates are computed
 - Treat `google-services.json`, `.env*`, keystores, certificates, OAuth IDs, and API keys as sensitive.
 - Supabase auth is configured with `persistSession: false` and `autoRefreshToken: false`; do not re-enable startup refresh without addressing offline DNS behavior.
 - `ALTER TABLE ADD COLUMN` migrations require try/catch because SQLite lacks `IF NOT EXISTS` for this operation.
+
+## Crash Reporting
+
+- `App.tsx` guards `Sentry.init` behind `EXPO_PUBLIC_SENTRY_DSN`; unset, it is a hard no-op (no account/project exists yet — see TODOS.md). Init failures are caught so a monitoring feature can never crash the thing it monitors.
+- `beforeSend` strips `event.user.email`/`google_sub`; `beforeBreadcrumb` strips query strings off request URLs (Supabase REST calls filter by email in the query string). Preserve both scrubs if you touch this block.
 
 ## Tests And Shipping
 
