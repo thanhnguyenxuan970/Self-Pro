@@ -56,24 +56,24 @@ export function useAchievementUnlocks(userId: number) {
     queryKey: ['achievements', 'unlocks', userId],
     queryFn: async () => {
       const db = await getDb();
-      const rows = await db.getAllAsync<{ achievement_id: string; unlocked_at: string }>(
-        `SELECT achievement_id, unlocked_at FROM achievement_unlocks WHERE user_id = ?`,
+      const rows = await db.getAllAsync<{ key: string; earned_at: string }>(
+        `SELECT key, earned_at FROM achievements WHERE user_id = ? AND source_type = 'record'`,
         [userId]
       );
-      return Object.fromEntries(rows.map(r => [r.achievement_id, r.unlocked_at])) as Record<string, string>;
+      return Object.fromEntries(rows.map(r => [r.key, r.earned_at])) as Record<string, string>;
     },
   });
 }
 
-/** Records the first-seen unlock date for an achievement. No-op if already recorded. */
+/** Records the first-seen unlock date for a Trophy Shelf badge. No-op if already recorded. */
 export function useRecordAchievementUnlock(userId: number) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (achievementId: string) => {
       const db = await getDb();
       await db.runAsync(
-        `INSERT INTO achievement_unlocks (user_id, achievement_id, unlocked_at) VALUES (?, ?, ?)
-         ON CONFLICT(user_id, achievement_id) DO NOTHING`,
+        `INSERT OR IGNORE INTO achievements (user_id, key, rarity, earned_at, source_type, source_id)
+         VALUES (?, ?, 'common', ?, 'record', NULL)`,
         [userId, achievementId, getLocalDate()]
       );
     },

@@ -69,7 +69,7 @@ function tableNameFromDeleteStatement(sql: string): string {
  * in src/hooks/useAuth.ts AND add the table name here.
  */
 const TABLES_WITH_USER_ID_COLUMN = [
-  'achievement_unlocks', 'activity_log', 'achievements', 'categories', 'challenges', 'daily_summary', 'fund_transactions',
+  'activity_log', 'achievements', 'categories', 'challenges', 'daily_summary', 'fund_transactions',
   'reward_unlocks', 'streak_freezes', 'task_types', 'treat_history', 'treats', 'weekly_summary',
 ];
 
@@ -86,7 +86,6 @@ describe('destructive account-delete SQL covers every per-user table', () => {
     expect(resetTables.has('task_types')).toBe(false);
     expect(resetTables.has('treats')).toBe(false);
     // But it must still clear all progress/history tables.
-    expect(resetTables.has('achievement_unlocks')).toBe(true);
     expect(resetTables.has('activity_log')).toBe(true);
     expect(resetTables.has('achievements')).toBe(true);
     expect(resetTables.has('challenges')).toBe(true);

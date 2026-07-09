@@ -491,7 +491,26 @@ async function v15(db: SQLiteDatabase): Promise<void> {
   });
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15];
+// v15 -> v16: achievement unification. `achievement_unlocks` (Trophy Shelf's
+// 9 stat badges) and `achievements` (rarity-tiered, challenge/rank rewards)
+// have tracked overlapping badge unlocks since v12's one-time backfill copy.
+// This closes any drift since then and retires achievement_unlocks --
+// achievements (source_type='record') becomes the single source of truth for
+// both. Transaction-wrapped: a kill mid-migration re-runs cleanly from
+// PRAGMA user_version with achievement_unlocks still intact (DROP is last).
+async function v16(db: SQLiteDatabase): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    await db.execAsync(`
+      INSERT OR IGNORE INTO achievements (user_id, key, rarity, earned_at, source_type, source_id)
+      SELECT user_id, achievement_id, 'common', unlocked_at, 'record', NULL
+      FROM achievement_unlocks;
+
+      DROP TABLE IF EXISTS achievement_unlocks;
+    `);
+  });
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
