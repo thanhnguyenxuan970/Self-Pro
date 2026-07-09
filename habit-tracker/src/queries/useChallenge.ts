@@ -344,13 +344,31 @@ export async function logActiveChallengeDay(
   return 'logged';
 }
 
-async function loadChallengeWithLog(db: SQLiteDatabase, row: ChallengeRow, today: string): Promise<ActiveChallenge> {
-  const logRows = await db.getAllAsync<{ local_date: string; state: ChallengeLogState }>(
-    `SELECT local_date, state FROM challenge_log WHERE challenge_id = ? ORDER BY local_date ASC`,
-    [row.id],
-  );
+async function loadChallengeWithLog(db: SQLiteDatabase, row: ChallengeRow, today: string, userId: number): Promise<ActiveChallenge> {
+  const linked = row.task_type_id != null;
+
+  // Linked challenges derive done-dates query-time from activity_log (no
+  // persisted challenge_log write); manual challenges keep reading
+  // challenge_log 'done' rows exactly as before.
+  const derivedDoneDates = linked ? await getDoneDates(db, userId, row) : null;
+  const logRows = linked
+    ? derivedDoneDates!.map(date => ({ local_date: date, state: 'done' as ChallengeLogState }))
+    : await db.getAllAsync<{ local_date: string; state: ChallengeLogState }>(
+      `SELECT local_date, state FROM challenge_log WHERE challenge_id = ? ORDER BY local_date ASC`,
+      [row.id],
+    );
   const daysDone = logRows.filter(r => r.state === 'done').length;
   const { fraction, daysLeft } = computeProgress(daysDone, row.target_days);
+
+  // Linked-streak challenges have no persisted freeze/reset markers -- derive
+  // the current streak live via the same gap-filling logic manual streak
+  // rollover uses, without writing anything (rolloverChallenge still owns
+  // status/freezes_left transitions for linked challenges).
+  const streak = linked
+    ? (row.mode === 'streak'
+      ? (computeRollover({ startDate: row.start_date, today, loggedDates: new Set(derivedDoneDates!), freezesLeft: row.freezes_left }).failed ? 0 : daysDone)
+      : daysDone)
+    : (row.streak_current || challengeStreak(logRows.map(r => ({ date: r.local_date, state: r.state }))));
 
   const base = {
     id: row.id,
@@ -364,7 +382,7 @@ async function loadChallengeWithLog(db: SQLiteDatabase, row: ChallengeRow, today
     afterPhoto: row.after_photo,
     dayIndex: currentDayIndex(row.start_date, today),
     daysDone,
-    streak: row.streak_current || challengeStreak(logRows.map(r => ({ date: r.local_date, state: r.state }))),
+    streak,
     daysLeft,
     fraction,
     loggedToday: logRows.some(r => r.local_date === today && r.state === 'done'),
@@ -482,7 +500,7 @@ export function useActiveChallenge(userId: number) {
         [userId],
       );
       if (!row) return null;
-      return loadChallengeWithLog(db, row, challengeDate());
+      return loadChallengeWithLog(db, row, challengeDate(), userId);
     },
   });
 }
@@ -514,7 +532,7 @@ export function useChallengeById(userId: number, challengeId: number | null) {
         [challengeId, userId],
       );
       if (!row) return null;
-      return loadChallengeWithLog(db, row, challengeDate());
+      return loadChallengeWithLog(db, row, challengeDate(), userId);
     },
   });
 }
