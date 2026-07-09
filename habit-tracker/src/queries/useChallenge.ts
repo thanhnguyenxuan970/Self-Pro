@@ -5,6 +5,7 @@ import {
   weekWindows, currentWeekWindow, weekSessionsDone, computePace, computeWeeklyRollover,
   perfectWeekCount, isOverachieverWeek, type PaceState,
 } from '../lib/challengeWeekly';
+import { deriveLinkedDoneDates, type ActivityLogRow } from '../lib/challengeLinked';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { PHAO_COUNT, computeChallengeReward } from '../config/challenges.config';
 import { computeTierUnlocks, type TierRow } from '../game/tierUnlocks';
@@ -56,9 +57,11 @@ interface ChallengeRow {
   mode: ChallengeMode;
   weekly_target: number | null;
   total_weeks: number | null;
+  min_duration: number | null;
+  min_count: number | null;
 }
 
-const CHALLENGE_COLUMNS = `id, name, task_type_id, target_days, start_date, status, streak_current, freezes_left, before_photo, after_photo, mode, weekly_target, total_weeks`;
+const CHALLENGE_COLUMNS = `id, name, task_type_id, target_days, start_date, status, streak_current, freezes_left, before_photo, after_photo, mode, weekly_target, total_weeks, min_duration, min_count`;
 
 type ChallengeDeleteRow = {
   status: ChallengeStatus;
@@ -73,6 +76,33 @@ type ChallengeRewardRow = {
 };
 
 type ChallengeLogDb = Pick<SQLiteDatabase, 'getFirstAsync' | 'getAllAsync' | 'runAsync'>;
+
+/**
+ * Query-time done-dates source for a challenge: linked challenges (task_type_id
+ * set) derive from activity_log (no persisted write -- PHẦN 3's "1 nguồn sự
+ * thật"); manual challenges read the existing challenge_log 'done' rows.
+ */
+async function getDoneDates(
+  db: ChallengeLogDb,
+  userId: number,
+  row: Pick<ChallengeRow, 'id' | 'task_type_id' | 'start_date' | 'min_duration' | 'min_count'>,
+): Promise<string[]> {
+  if (row.task_type_id != null) {
+    const rows = await db.getAllAsync<{ local_date: string; duration_min: number | null }>(
+      `SELECT local_date, duration_min FROM activity_log
+       WHERE user_id = ? AND task_type_id = ? AND local_date >= ?
+       ORDER BY local_date ASC`,
+      [userId, row.task_type_id, row.start_date],
+    );
+    const mapped: ActivityLogRow[] = rows.map(r => ({ localDate: r.local_date, durationMin: r.duration_min }));
+    return deriveLinkedDoneDates(mapped, { minDuration: row.min_duration, minCount: row.min_count }, row.start_date);
+  }
+  const logRows = await db.getAllAsync<{ local_date: string }>(
+    `SELECT local_date FROM challenge_log WHERE challenge_id = ? AND state = 'done' ORDER BY local_date ASC`,
+    [row.id],
+  );
+  return logRows.map(r => r.local_date);
+}
 
 type FullTierRow = TierRow & { tier_order: number; rank_name: string };
 
