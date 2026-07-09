@@ -5,7 +5,7 @@ import {
   weekWindows, currentWeekWindow, weekSessionsDone, computePace, computeWeeklyRollover,
   perfectWeekCount, isOverachieverWeek, type PaceState,
 } from '../lib/challengeWeekly';
-import { deriveLinkedDoneDates, type ActivityLogRow } from '../lib/challengeLinked';
+import { deriveLinkedDoneDates, clampThreshold, type ActivityLogRow } from '../lib/challengeLinked';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { PHAO_COUNT, computeChallengeReward } from '../config/challenges.config';
 import { computeTierUnlocks, type TierRow } from '../game/tierUnlocks';
@@ -720,6 +720,9 @@ type CreateChallengeParams = {
   freezesLeft: number;
   beforePhoto?: string | null;
   notificationsEnabled: boolean;
+  /** Only meaningful when taskTypeId is set (linked challenge). */
+  minDuration?: number | null;
+  minCount?: number | null;
 } & ({ mode: 'streak'; targetDays: number } | { mode: 'weekly'; weeklyTarget: number; totalWeeks: number });
 
 export function useCreateChallenge(userId: number) {
@@ -731,12 +734,14 @@ export function useCreateChallenge(userId: number) {
       const targetDays = params.mode === 'streak' ? params.targetDays : params.totalWeeks * 7;
       const weeklyTarget = params.mode === 'weekly' ? params.weeklyTarget : null;
       const totalWeeks = params.mode === 'weekly' ? params.totalWeeks : null;
+      const minDuration = params.taskTypeId != null ? clampThreshold(params.minDuration) : null;
+      const minCount = params.taskTypeId != null ? clampThreshold(params.minCount) : null;
       let challengeId: number;
       try {
         const result = await db.runAsync(
-          `INSERT INTO challenges (user_id, name, task_type_id, mode, target_days, weekly_target, total_weeks, start_date, streak_current, freezes_left, freeze_used, before_photo, notifications_enabled)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?)`,
-          [userId, params.name, params.taskTypeId, params.mode, targetDays, weeklyTarget, totalWeeks, today, params.freezesLeft, params.beforePhoto ?? null, params.notificationsEnabled ? 1 : 0],
+          `INSERT INTO challenges (user_id, name, task_type_id, mode, target_days, weekly_target, total_weeks, start_date, streak_current, freezes_left, freeze_used, before_photo, notifications_enabled, min_duration, min_count)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?, ?, ?)`,
+          [userId, params.name, params.taskTypeId, params.mode, targetDays, weeklyTarget, totalWeeks, today, params.freezesLeft, params.beforePhoto ?? null, params.notificationsEnabled ? 1 : 0, minDuration, minCount],
         );
         challengeId = Number(result.lastInsertRowId);
       } catch (e: any) {
@@ -785,9 +790,9 @@ export function useRestartChallenge(userId: number) {
         );
         if (!previous) throw new Error('CHALLENGE_NOT_RESTARTABLE');
         const result = await txn.runAsync(
-          `INSERT INTO challenges (user_id, name, task_type_id, mode, target_days, weekly_target, total_weeks, start_date, streak_current, freezes_left, freeze_used, before_photo, notifications_enabled)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?)`,
-          [userId, previous.name, previous.task_type_id, previous.mode, previous.target_days, previous.weekly_target, previous.total_weeks, challengeDate(), PHAO_COUNT, previous.before_photo, previous.notifications_enabled],
+          `INSERT INTO challenges (user_id, name, task_type_id, mode, target_days, weekly_target, total_weeks, start_date, streak_current, freezes_left, freeze_used, before_photo, notifications_enabled, min_duration, min_count)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?, ?, ?)`,
+          [userId, previous.name, previous.task_type_id, previous.mode, previous.target_days, previous.weekly_target, previous.total_weeks, challengeDate(), PHAO_COUNT, previous.before_photo, previous.notifications_enabled, previous.min_duration, previous.min_count],
         );
         newId = Number(result.lastInsertRowId);
         notificationsEnabled = !!previous.notifications_enabled;
