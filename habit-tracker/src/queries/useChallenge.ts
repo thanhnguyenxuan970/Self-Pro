@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Sentry from '@sentry/react-native';
 import { getDb } from '../db/client';
 import { challengeDate, challengeStreak, computeRollover, currentDayIndex, computeProgress, isComplete, DayEntryState as ChallengeLogState, ChallengeStatus, ChallengeMode } from '../lib/challenge';
 import {
@@ -41,6 +42,8 @@ export interface ActiveChallenge {
   weekSessionsRemaining: number | null;
   perfectWeeks: number | null;
   overachieverThisWeek: boolean;
+  minDuration: number | null;
+  minCount: number | null;
 }
 
 interface ChallengeRow {
@@ -90,7 +93,7 @@ async function getDoneDates(
   if (row.task_type_id != null) {
     const rows = await db.getAllAsync<{ local_date: string; duration_min: number | null }>(
       `SELECT local_date, duration_min FROM activity_log
-       WHERE user_id = ? AND task_type_id = ? AND local_date >= ?
+       WHERE user_id = ? AND task_type_id = ? AND local_date >= ? AND is_clock_suspect = 0
        ORDER BY local_date ASC`,
       [userId, row.task_type_id, row.start_date],
     );
@@ -387,6 +390,8 @@ async function loadChallengeWithLog(db: SQLiteDatabase, row: ChallengeRow, today
     fraction,
     loggedToday: logRows.some(r => r.local_date === today && r.state === 'done'),
     log: logRows.map(r => ({ date: r.local_date, state: r.state })),
+    minDuration: row.min_duration,
+    minCount: row.min_count,
     mode: row.mode,
   };
 
@@ -749,9 +754,13 @@ export function useCreateChallenge(userId: number) {
         throw e;
       }
       if (params.notificationsEnabled) {
-        const notificationId = await scheduleChallengeReminder(params.name);
-        if (notificationId) {
-          await db.runAsync(`UPDATE challenges SET notification_id = ? WHERE id = ?`, [notificationId, challengeId]);
+        try {
+          const notificationId = await scheduleChallengeReminder(params.name);
+          if (notificationId) {
+            await db.runAsync(`UPDATE challenges SET notification_id = ? WHERE id = ?`, [notificationId, challengeId]);
+          }
+        } catch (e) {
+          Sentry.captureException(e);
         }
       }
     },
@@ -799,9 +808,13 @@ export function useRestartChallenge(userId: number) {
         challengeName = previous.name;
       });
       if (notificationsEnabled) {
-        const notificationId = await scheduleChallengeReminder(challengeName);
-        if (notificationId) {
-          await db.runAsync(`UPDATE challenges SET notification_id = ? WHERE id = ?`, [notificationId, newId]);
+        try {
+          const notificationId = await scheduleChallengeReminder(challengeName);
+          if (notificationId) {
+            await db.runAsync(`UPDATE challenges SET notification_id = ? WHERE id = ?`, [notificationId, newId]);
+          }
+        } catch (e) {
+          Sentry.captureException(e);
         }
       }
       return newId;

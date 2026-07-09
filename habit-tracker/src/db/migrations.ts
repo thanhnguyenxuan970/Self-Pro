@@ -525,7 +525,23 @@ async function v17(db: SQLiteDatabase): Promise<void> {
   }
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17];
+// v17 -> v18: clock-rollback detection. A device with its clock rolled back
+// can log an activity that gets attributed to a past local_date, retroactively
+// completing a linked-challenge day or resurrecting a lapsed streak.
+// syncService.ts flags a row after sync when its client-supplied logged_at is
+// implausibly earlier than Supabase's server-assigned created_at; derivation
+// (getDoneDates/rollover) then excludes flagged rows. Detection net only --
+// does not claw back a reward already granted before the flag arrives (see
+// TODOS.md for the deferred full-clawback follow-up).
+async function v18(db: SQLiteDatabase): Promise<void> {
+  try {
+    await db.runAsync(`ALTER TABLE activity_log ADD COLUMN is_clock_suspect INTEGER DEFAULT 0`);
+  } catch (e: any) {
+    if (!e?.message?.includes('duplicate column')) throw e;
+  }
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

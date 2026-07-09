@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SQLiteDatabase } from 'expo-sqlite';
 import { supabase } from './supabase';
 import { getDb } from '../db/client';
+import { selectClockSuspectLocalIds } from '../lib/clockSuspect';
 
 const KEY_LAST_ACTIVITY = 'habit_sync_last_activity_id';
 const KEY_LAST_FUND = 'habit_sync_last_fund_id';
@@ -59,14 +60,32 @@ async function upsertBatch<T extends { id: number }>(
   rows: T[],
   userEmail: string,
   cursorKey: string,
-): Promise<void> {
-  const { error } = await supabase!.from(table).upsert(
+): Promise<Record<string, unknown>[]> {
+  const { data, error } = await supabase!.from(table).upsert(
     rows.map(({ id, ...r }) => ({ ...r as object, user_email: userEmail, local_id: id })),
     { onConflict: 'user_email,local_id' },
-  );
+  ).select();
   if (error) throw error;
   await AsyncStorage.setItem(cursorKey, String(rows[rows.length - 1].id));
+  return data ?? [];
 }
+
+/** Flags rows whose client-supplied logged_at is implausibly earlier than
+ *  Supabase's server-assigned created_at (clock-rollback detection net).
+ *  Best-effort: only runs when the upsert response actually included a
+ *  created_at column. */
+async function flagClockSuspectRows(db: SQLiteDatabase, upserted: Record<string, unknown>[]): Promise<void> {
+  const suspectLocalIds = selectClockSuspectLocalIds(upserted);
+  if (!suspectLocalIds.length) return;
+  const placeholders = suspectLocalIds.map(() => '?').join(',');
+  await db.runAsync(`UPDATE activity_log SET is_clock_suspect = 1 WHERE id IN (${placeholders})`, suspectLocalIds);
+}
+
+// Explicit column list (not SELECT *) so local-only columns -- e.g.
+// is_clock_suspect, which has no matching column on the Supabase side --
+// never silently leak into the upsert payload and break sync with a
+// PostgREST "unknown column" error.
+const ACTIVITY_SYNC_COLUMNS = 'id, user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note';
 
 async function syncActivity(db: SQLiteDatabase, userId: number, userEmail: string): Promise<void> {
   const key = activityKey(userId);
@@ -74,11 +93,12 @@ async function syncActivity(db: SQLiteDatabase, userId: number, userEmail: strin
   const lastId = raw ? (parseInt(raw, 10) || 0) : 0;
 
   const rows = await db.getAllAsync<ActivityRow>(
-    'SELECT * FROM activity_log WHERE user_id = ? AND id > ? ORDER BY id ASC LIMIT ?',
+    `SELECT ${ACTIVITY_SYNC_COLUMNS} FROM activity_log WHERE user_id = ? AND id > ? ORDER BY id ASC LIMIT ?`,
     [userId, lastId, BATCH]
   );
   if (!rows.length) return;
-  await upsertBatch('activity_log', rows, userEmail, key);
+  const upserted = await upsertBatch('activity_log', rows, userEmail, key);
+  await flagClockSuspectRows(db, upserted);
 }
 
 async function syncFund(db: SQLiteDatabase, userId: number, userEmail: string): Promise<void> {

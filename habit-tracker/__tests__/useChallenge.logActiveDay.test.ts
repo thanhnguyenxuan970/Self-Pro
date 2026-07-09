@@ -120,6 +120,20 @@ describe('logActiveChallengeDay -- linked challenges (task_type_id set)', () => 
     );
   });
 
+  it('excludes clock-suspect rows from the activity_log query used for derivation', async () => {
+    const db = createLinkedLogDayDb({
+      challenge: { id: 11, task_type_id: 42, target_days: 30, mode: 'streak', start_date: '2026-07-06' },
+      activityRows: [{ local_date: '2026-07-06', duration_min: 10 }],
+    });
+
+    await logActiveChallengeDay(db, { userId: 5, localDate: '2026-07-06', taskTypeId: 42 });
+
+    expect(db.getAllAsync).toHaveBeenCalledWith(
+      expect.stringContaining('is_clock_suspect = 0'),
+      expect.anything(),
+    );
+  });
+
   it('weekly-mode linked challenges never complete inline -- completion is rollover-only', async () => {
     const db = createLinkedLogDayDb({
       challenge: { id: 10, task_type_id: 42, target_days: 28, mode: 'weekly', start_date: '2026-07-06' },
