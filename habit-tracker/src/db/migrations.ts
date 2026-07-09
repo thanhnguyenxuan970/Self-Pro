@@ -510,7 +510,22 @@ async function v16(db: SQLiteDatabase): Promise<void> {
   });
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16];
+// v16 -> v17: linked-completion thresholds. A linked challenge (task_type_id
+// set) can require a minimum logged duration and/or a minimum log count per
+// day before that day counts as "done" -- e.g. a 1-minute log shouldn't
+// complete a "gym" challenge day the same as a full session.
+async function v17(db: SQLiteDatabase): Promise<void> {
+  for (const sql of [
+    `ALTER TABLE challenges ADD COLUMN min_duration INTEGER`,
+    `ALTER TABLE challenges ADD COLUMN min_count INTEGER`,
+  ]) {
+    try { await db.runAsync(sql); } catch (e: any) {
+      if (!e?.message?.includes('duplicate column')) throw e;
+    }
+  }
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
