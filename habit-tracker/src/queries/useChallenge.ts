@@ -251,17 +251,46 @@ export async function logActiveChallengeDay(
   params: { userId: number; localDate: string; taskTypeId?: number | null },
 ): Promise<'logged' | 'already_logged' | 'no_active_challenge'> {
   const row = params.taskTypeId == null
-    ? await db.getFirstAsync<Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days' | 'mode' | 'weekly_target' | 'total_weeks'>>(
-      `SELECT id, task_type_id, target_days, mode, weekly_target, total_weeks FROM challenges WHERE user_id = ? AND status = 'active'`,
+    ? await db.getFirstAsync<Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days' | 'mode' | 'weekly_target' | 'total_weeks' | 'start_date' | 'min_duration' | 'min_count'>>(
+      `SELECT id, task_type_id, target_days, mode, weekly_target, total_weeks, start_date, min_duration, min_count FROM challenges WHERE user_id = ? AND status = 'active'`,
       [params.userId],
     )
-    : await db.getFirstAsync<Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days' | 'mode' | 'weekly_target' | 'total_weeks'>>(
-      `SELECT id, task_type_id, target_days, mode, weekly_target, total_weeks
+    : await db.getFirstAsync<Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days' | 'mode' | 'weekly_target' | 'total_weeks' | 'start_date' | 'min_duration' | 'min_count'>>(
+      `SELECT id, task_type_id, target_days, mode, weekly_target, total_weeks, start_date, min_duration, min_count
        FROM challenges
        WHERE user_id = ? AND status = 'active' AND task_type_id = ?`,
       [params.userId, params.taskTypeId],
     );
   if (!row) return 'no_active_challenge';
+
+  // Linked challenges (task_type_id set): completion is derived query-time
+  // from activity_log, no parallel challenge_log/challenge_days write
+  // (PHẦN 3's "1 nguồn sự thật"). Weekly-mode completion is rollover-only --
+  // a week can't be judged complete until it has fully elapsed -- so only
+  // streak mode can complete inline here.
+  if (row.task_type_id != null) {
+    const doneDates = await getDoneDates(db, params.userId, row);
+    const daysDone = doneDates.length;
+    if (row.mode === 'streak' && isComplete(daysDone, row.target_days)) {
+      await db.runAsync(
+        `UPDATE challenges SET status = 'done', streak_current = ?, completed_at = ? WHERE id = ?`,
+        [daysDone, params.localDate, row.id],
+      );
+      await awardChallengeCompletion(db, {
+        userId: params.userId,
+        challengeId: row.id,
+        taskTypeId: row.task_type_id,
+        localDate: params.localDate,
+        mode: row.mode,
+        targetDays: row.target_days,
+        weeklyTarget: row.weekly_target,
+        totalWeeks: row.total_weeks,
+      });
+    } else {
+      await db.runAsync(`UPDATE challenges SET streak_current = ? WHERE id = ?`, [daysDone, row.id]);
+    }
+    return 'logged';
+  }
 
   const already = await db.getFirstAsync<{ id: number }>(
     `SELECT id FROM challenge_log WHERE challenge_id = ? AND local_date = ?`,
