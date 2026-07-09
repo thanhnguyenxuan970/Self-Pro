@@ -639,7 +639,13 @@ async function rolloverWeeklyChallenge(
     `SELECT local_date, state FROM challenge_log WHERE challenge_id = ?`,
     [row.id],
   );
-  const doneDates = new Set(logRows.filter(r => r.state === 'done').map(r => r.local_date));
+  // Linked challenges derive done-dates from activity_log (no persisted
+  // 'done' challenge_log write); challenge_log is still used for the
+  // week-end miss markers below (freeze/reset), which are an outcome
+  // ledger, not raw completion data, for both linked and manual challenges.
+  const doneDates = row.task_type_id != null
+    ? new Set(await getDoneDates(txn, userId, row))
+    : new Set(logRows.filter(r => r.state === 'done').map(r => r.local_date));
   // Weekly mode only ever writes a challenge_log row at a week's END date for
   // a miss (state 'freeze'/'reset') -- any non-'done' row is by construction
   // an already-processed week marker, never a daily fill.
