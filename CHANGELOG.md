@@ -24,6 +24,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **Text clipping — Add Activity suggestion chips**: `chipName` text (e.g. "Học ngoại ngữ") had no explicit `lineHeight`, causing Vietnamese diacritics to clip on some devices (reported on Xiaomi 14T); added `lineHeight: 18` matching the app's `Typography.secondary` convention
 - **Home screen — task row icon alignment**: `TaskRow` name/meta text lacked explicit `lineHeight`, causing inconsistent row heights and icon placement on devices with different font-scaling behavior; added `lineHeight` to match `Typography` conventions
 
+## [1.2.0.0] - 2026-07-09
+
+### Added
+- **Linked-challenge completion thresholds**: `CreateChallengeScreen` now has a "Ngưỡng hoàn thành" section (shown once a habit is picked) to require a minimum logged duration and/or minimum log count per day before a linked challenge counts that day as done — previously any log on the linked habit counted, regardless of length
+- **Linked-challenge "Ghi ngay" CTA**: `ChallengeDetailScreen` now shows a hint explaining which habit auto-completes the challenge (plus its threshold, if set) and a "Ghi ngay" button that opens the log sheet with that habit pre-filled and locked, so tapping it always logs against the right habit — previously the generic log button did nothing for linked challenges, which looked broken
+- **Clock-rollback detection**: activity logs are now flagged if their timestamp is implausibly earlier than when they actually reached the server, and flagged logs are excluded from linked-challenge/streak completion — a best-effort anti-cheat net, not full prevention (see TODOS.md for the known gap)
+- **Crash reporting**: first Sentry integration in the app — inactive until a DSN is configured, silently no-ops if init fails, and scrubs email/URL query strings before anything is sent
+
+### Fixed
+- **Sync payload leak**: a local-only anti-cheat column was being pushed to Supabase on every sync (would have broken sync for everyone); excluded from the sync payload
+- **Account-deletion email in crash reports**: Sentry's automatic network breadcrumbs would have captured the plaintext email used to filter the account-deletion API call; request URLs are now stripped of query strings before capture
+
 ## [1.1.0.0] - 2026-07-04
 
 ### Added
