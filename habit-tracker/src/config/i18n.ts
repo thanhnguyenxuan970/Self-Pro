@@ -447,6 +447,14 @@ const vi = {
   unitHour: 'Giờ',
   validDuration: 'Nhập thời gian hợp lệ (lớn hơn 0)',
   maxDuration: 'Tối đa 24 giờ (1440 phút) mỗi lần',
+  activityPinned: 'Đã ghim',
+  activityRecent: 'Gần đây',
+  activityBrowseAll: 'Xem tất cả',
+  activityHideAll: 'Thu gọn',
+  activitySearch: 'Tìm hoạt động',
+  activityHidden: 'ĐÃ ẨN',
+  activityPinLimit: 'Tối đa 8 hoạt động được ghim',
+  activityDuplicate: 'Hoạt động này đã tồn tại. Hãy dùng mục có sẵn thay vì tạo bản sao.',
 
   // SignInScreen errors
   signInMissingInfo: 'Tài khoản Google thiếu thông tin (email/tên).',
@@ -1036,6 +1044,14 @@ const en: typeof vi = {
   unitHour: 'Hr',
   validDuration: 'Enter valid duration (greater than 0)',
   maxDuration: 'Max 24 hours (1440 min) per session',
+  activityPinned: 'Pinned',
+  activityRecent: 'Recent',
+  activityBrowseAll: 'Browse all',
+  activityHideAll: 'Collapse',
+  activitySearch: 'Search activities',
+  activityHidden: 'HIDDEN',
+  activityPinLimit: 'You can pin up to 8 activities',
+  activityDuplicate: 'This activity already exists. Use the existing activity instead of creating a duplicate.',
 
   // SignInScreen errors
   signInMissingInfo: 'Google account missing info (email/name).',

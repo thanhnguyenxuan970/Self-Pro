@@ -1,7 +1,8 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { DAILY_BONUS_THRESHOLD, DAILY_BONUS_STARS } from '../config/constants';
+import { MAX_PINNED_ACTIVITIES, PickerTask } from '../utils/activityPicker';
 
 interface TaskFormParams {
   name: string;
@@ -35,6 +36,58 @@ export function useCreateTask(userId: number) {
       return row.id;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['today', 'tasks'] }),
+  });
+}
+
+export function useActivityPickerTasks(userId: number) {
+  return useQuery({
+    queryKey: ['activity-picker', userId],
+    queryFn: async (): Promise<PickerTask[]> => {
+      const db = await getDb();
+      return db.getAllAsync<PickerTask>(
+        `SELECT tt.id, tt.name, tt.kind, tt.icon, tt.is_time_based, tt.base_points, tt.star_penalty,
+                tt.archived, tt.is_pinned, MAX(al.local_date) AS last_used_date
+         FROM task_types tt
+         LEFT JOIN activity_log al ON al.task_type_id = tt.id AND al.user_id = tt.user_id AND al.source = 'TASK'
+         WHERE tt.user_id = ? AND tt.kind = 'GOOD'
+         GROUP BY tt.id
+         ORDER BY tt.is_pinned DESC, last_used_date DESC, tt.name COLLATE NOCASE`,
+        [userId],
+      );
+    },
+  });
+}
+
+export function useSetTaskPinned(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ taskId, pinned }: { taskId: number; pinned: boolean }) => {
+      const db = await getDb();
+      await db.withTransactionAsync(async () => {
+        if (pinned) {
+          const row = await db.getFirstAsync<{ count: number }>(
+            'SELECT COUNT(*) AS count FROM task_types WHERE user_id = ? AND archived = 0 AND is_pinned = 1', [userId],
+          );
+          if ((row?.count ?? 0) >= MAX_PINNED_ACTIVITIES) throw new Error('PIN_LIMIT');
+        }
+        await db.runAsync('UPDATE task_types SET is_pinned = ? WHERE id = ? AND user_id = ?', [pinned ? 1 : 0, taskId, userId]);
+      });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['activity-picker', userId] }),
+  });
+}
+
+export function useRestoreTask(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (taskId: number) => {
+      const db = await getDb();
+      await db.runAsync('UPDATE task_types SET archived = 0 WHERE id = ? AND user_id = ?', [taskId, userId]);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['activity-picker', userId] });
+      qc.invalidateQueries({ queryKey: ['today', 'tasks', userId] });
+    },
   });
 }
 

@@ -5,7 +5,7 @@ import {
   KeyboardAvoidingView, Keyboard,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { useCreateTask } from '../queries/useTasks';
+import { useActivityPickerTasks, useCreateTask, useRestoreTask, useSetTaskPinned } from '../queries/useTasks';
 import { useLogTask } from '../queries/useToday';
 import { cueModalOpen, cueModalClose } from '../audio/uiSounds';
 import { useAuthUser } from '../hooks/useAuth';
@@ -16,6 +16,7 @@ import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 import { Strings } from '../config/i18n';
 import { supabase } from '../api/supabase';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
+import { activityGroup, activityMatches, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../utils/activityPicker';
 
 interface Props { visible: boolean; onClose: () => void; onSuggest?: () => void; presetName?: string | null; }
 
@@ -43,6 +44,20 @@ function SuggestionChip({ s, isSelected, onPress, t, styles }: SuggestionChipPro
       </Text>
     </TouchableOpacity>
   );
+}
+
+function PickerTaskRow({ task, onPress, onPin, styles, t }: {
+  task: PickerTask; onPress: () => void; onPin: () => void; styles: ReturnType<typeof makeStyles>; t: Strings;
+}) {
+  return <View style={styles.pickerRow}>
+    <TouchableOpacity style={styles.pickerTask} onPress={onPress} activeOpacity={0.7} accessibilityRole="button">
+      <Text style={styles.pickerTaskName} numberOfLines={1}>{task.icon ? `${task.icon} ` : ''}{task.name}</Text>
+      {task.archived === 1 ? <Text style={styles.hiddenBadge}>{t.activityHidden}</Text> : null}
+    </TouchableOpacity>
+    <TouchableOpacity style={styles.pinButton} onPress={onPin} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.activityPinned}>
+      <Text style={[styles.pinText, task.is_pinned === 1 && styles.pinTextActive]}>{task.is_pinned === 1 ? '★' : '☆'}</Text>
+    </TouchableOpacity>
+  </View>;
 }
 
 type DurationStepProps = {
@@ -163,9 +178,15 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
 
   const createTask = useCreateTask(userId);
   const logTask = useLogTask(userId);
+  const { data: pickerTasks = [] } = useActivityPickerTasks(userId);
+  const setTaskPinned = useSetTaskPinned(userId);
+  const restoreTask = useRestoreTask(userId);
 
   const [name, setName] = useState('');
   const [selectedSuggestion, setSelectedSuggestion] = useState<TemplateTask | null>(null);
+  const [selectedExistingTask, setSelectedExistingTask] = useState<PickerTask | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [translating, setTranslating] = useState(false);
   const submittingRef = useRef(false);
 
@@ -193,6 +214,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
     if (visible && presetName) {
       setName(presetName);
       setSelectedSuggestion(null);
+      setSelectedExistingTask(null);
     }
   }, [visible, presetName]);
 
@@ -219,6 +241,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
       sheetTranslateY.setValue(300);
       setName('');
       setSelectedSuggestion(null);
+      setSelectedExistingTask(null);
       setStep('create');
       setPendingTask(null);
       submittingRef.current = false;
@@ -231,6 +254,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
     ]).start(() => {
       setName('');
       setSelectedSuggestion(null);
+      setSelectedExistingTask(null);
       setStep('create');
       setPendingTask(null);
       submittingRef.current = false;
@@ -243,6 +267,22 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
   function handleSuggestionTap(task: TemplateTask) {
     setName((t as Record<string, unknown>)[task.nameKey] as string ?? task.name);
     setSelectedSuggestion(task);
+    setSelectedExistingTask(null);
+  }
+
+  async function handlePickerTask(task: PickerTask) {
+    if (task.archived === 1) await restoreTask.mutateAsync(task.id);
+    setName(task.name);
+    setSelectedSuggestion(null);
+    setSelectedExistingTask({ ...task, archived: 0 });
+  }
+
+  async function handlePin(task: PickerTask) {
+    try {
+      await setTaskPinned.mutateAsync({ taskId: task.id, pinned: task.is_pinned === 0 });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'PIN_LIMIT') Alert.alert(t.error, t.activityPinLimit);
+    }
   }
 
   // fallow-ignore-next-line complexity
@@ -258,9 +298,9 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
     const currentLabel = selectedSuggestion
       ? ((t as Record<string, unknown>)[selectedSuggestion.nameKey] as string ?? selectedSuggestion.name)
       : null;
-    let storeName = (selectedSuggestion && trimmed === currentLabel)
+    let storeName = selectedExistingTask?.name ?? ((selectedSuggestion && trimmed === currentLabel)
       ? selectedSuggestion.name
-      : trimmed;
+      : trimmed);
 
     // An unedited presetName is already an existing task's exact stored name
     // (e.g. from a linked-challenge "Ghi ngay" deep-link) -- translating it
@@ -269,7 +309,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
     // verbatim; an edited name is freeform again and gets translated as usual.
     const usingUneditedPreset = !selectedSuggestion && presetName != null && trimmed === presetName;
 
-    if (!selectedSuggestion && !usingUneditedPreset) {
+    if (!selectedSuggestion && !usingUneditedPreset && !selectedExistingTask) {
       setTranslating(true);
       try {
         storeName = await translateActivityName(trimmed);
@@ -278,9 +318,16 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
       }
     }
 
+    const duplicate = pickerTasks.find(task => normalizeActivityName(task.name) === normalizeActivityName(storeName));
+    if (duplicate && duplicate.id !== selectedExistingTask?.id) {
+      Alert.alert(t.error, t.activityDuplicate);
+      submittingRef.current = false;
+      return;
+    }
+
     const taskBasePoints = isTimeBased
-      ? (selectedSuggestion?.basePoints ?? 1)
-      : (selectedSuggestion?.basePoints ?? 5);
+      ? (selectedExistingTask?.base_points ?? selectedSuggestion?.basePoints ?? 1)
+      : (selectedExistingTask?.base_points ?? selectedSuggestion?.basePoints ?? 5);
 
     try {
       const taskId = await createTask.mutateAsync({
@@ -289,7 +336,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
         isTimeBased,
         basePoints: taskBasePoints,
         starPenalty: 0,
-        icon: selectedSuggestion?.icon,
+        icon: selectedExistingTask?.icon ?? selectedSuggestion?.icon,
       });
 
       if (isTimeBased) {
@@ -326,6 +373,16 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
   }
 
   const suggestions = useMemo(() => TEMPLATE_CATEGORIES.flatMap(c => c.tasks), []);
+  const query = name.trim();
+  const activePickerTasks = useMemo(() => pickerTasks.filter(task => task.archived === 0), [pickerTasks]);
+  const pinnedTasks = useMemo(() => activePickerTasks.filter(task => task.is_pinned === 1), [activePickerTasks]);
+  const recentTasks = useMemo(() => activePickerTasks.filter(task => task.is_pinned === 0 && task.last_used_date !== null), [activePickerTasks]);
+  const searchTasks = useMemo(() => query ? pickerTasks.filter(task => activityMatches(task, query)) : [], [pickerTasks, query]);
+  const groupedTasks = useMemo(() => activePickerTasks.reduce<Record<string, PickerTask[]>>((groups, task) => {
+    const group = activityGroup(task.name);
+    (groups[group] ??= []).push(task);
+    return groups;
+  }, {}), [activePickerTasks]);
 
   const hasName = name.trim().length > 0;
   const isPending = createTask.isPending || logTask.isPending || translating;
@@ -358,7 +415,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
                 <TextInput
                   style={styles.input}
                   value={name}
-                  onChangeText={setName}
+                  onChangeText={text => { setName(text); setSelectedSuggestion(null); setSelectedExistingTask(null); }}
                   placeholder={t.addActivityNamePlaceholder}
                   placeholderTextColor={colors.faint}
                   returnKeyType="done"
@@ -366,7 +423,39 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
                   editable={presetName == null}
                 />
 
-                {presetName == null && suggestions.length > 0 && (
+                {presetName == null && query.length > 0 && (
+                  <>
+                    <Text style={styles.suggestionsLabel}>{t.activitySearch}</Text>
+                    {searchTasks.map(task => <PickerTaskRow key={task.id} task={task} onPress={() => void handlePickerTask(task)} onPin={() => void handlePin(task)} styles={styles} t={t} />)}
+                    <View style={styles.chipsWrap}>{suggestions.filter(task => activityMatches(task, query)).map(task => <SuggestionChip key={task.nameKey} s={task} isSelected={false} onPress={() => handleSuggestionTap(task)} t={t as Record<string, unknown>} styles={styles} />)}</View>
+                  </>
+                )}
+
+                {presetName == null && query.length === 0 && pinnedTasks.length > 0 && (
+                  <>
+                    <View style={styles.sectionHeader}><Text style={styles.suggestionsLabel}>{t.activityPinned} · {pinnedTasks.length}/{MAX_PINNED_ACTIVITIES}</Text></View>
+                    {pinnedTasks.map(task => <PickerTaskRow key={task.id} task={task} onPress={() => void handlePickerTask(task)} onPin={() => void handlePin(task)} styles={styles} t={t} />)}
+                  </>
+                )}
+
+                {presetName == null && query.length === 0 && recentTasks.length > 0 && (
+                  <>
+                    <Text style={styles.suggestionsLabel}>{t.activityRecent}</Text>
+                    {recentTasks.slice(0, 6).map(task => <PickerTaskRow key={task.id} task={task} onPress={() => void handlePickerTask(task)} onPin={() => void handlePin(task)} styles={styles} t={t} />)}
+                  </>
+                )}
+
+                {presetName == null && query.length === 0 && activePickerTasks.length > 0 && (
+                  <>
+                    <TouchableOpacity style={styles.browseButton} onPress={() => setShowAll(value => !value)} accessibilityRole="button"><Text style={styles.browseText}>{showAll ? t.activityHideAll : t.activityBrowseAll}</Text></TouchableOpacity>
+                    {showAll && Object.entries(groupedTasks).map(([group, tasks]) => <View key={group}>
+                      <TouchableOpacity style={styles.groupHeader} onPress={() => setCollapsedGroups(value => ({ ...value, [group]: !value[group] }))} accessibilityRole="button"><Text style={styles.groupTitle}>{group}</Text><Text style={styles.groupToggle}>{collapsedGroups[group] ? '⌄' : '⌃'}</Text></TouchableOpacity>
+                      {!collapsedGroups[group] && tasks.map(task => <PickerTaskRow key={task.id} task={task} onPress={() => void handlePickerTask(task)} onPin={() => void handlePin(task)} styles={styles} t={t} />)}
+                    </View>)}
+                  </>
+                )}
+
+                {presetName == null && query.length === 0 && activePickerTasks.length === 0 && suggestions.length > 0 && (
                   <>
                     <Text style={styles.suggestionsLabel}>{t.addActivitySuggestionsTitle}</Text>
                     <View style={styles.chipsWrap}>
@@ -481,6 +570,17 @@ function makeStyles(C: AppColors) {
       marginTop: Spacing.xl, marginBottom: 10,
     },
     chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    sectionHeader: { flexDirection: 'row', alignItems: 'center' },
+    pickerRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: C.line },
+    pickerTask: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: Spacing.sm },
+    pickerTaskName: { flexShrink: 1, color: C.inkDark, fontSize: 14, fontFamily: FontFamily.semiBold },
+    hiddenBadge: { color: C.muted, backgroundColor: C.surface2, borderRadius: Radii.pill, overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 3, fontSize: 9, fontFamily: FontFamily.extraBold },
+    pinButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    pinText: { color: C.faint, fontSize: 22 }, pinTextActive: { color: C.starGold },
+    browseButton: { minHeight: 44, justifyContent: 'center', alignItems: 'center', marginTop: Spacing.sm },
+    browseText: { color: C.primary, fontFamily: FontFamily.bold, fontSize: 14 },
+    groupHeader: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.sm },
+    groupTitle: { color: C.ink2, fontFamily: FontFamily.extraBold, fontSize: 12 }, groupToggle: { color: C.muted, fontSize: 16 },
     chip: {
       backgroundColor: C.surface2, borderRadius: Radii.pill,
       paddingVertical: 7, paddingHorizontal: 14,

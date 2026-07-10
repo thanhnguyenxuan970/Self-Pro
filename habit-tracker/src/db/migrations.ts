@@ -541,7 +541,17 @@ async function v18(db: SQLiteDatabase): Promise<void> {
   }
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18];
+// v18 -> v19: stable, user-controlled pins for the activity picker.
+async function v19(db: SQLiteDatabase): Promise<void> {
+  try {
+    await db.runAsync(`ALTER TABLE task_types ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0`);
+  } catch (e: any) {
+    if (!e?.message?.includes('duplicate column')) throw e;
+  }
+  await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_task_types_picker ON task_types(user_id, archived, is_pinned)`);
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
