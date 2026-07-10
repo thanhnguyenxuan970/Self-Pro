@@ -366,7 +366,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
                   editable={presetName == null}
                 />
 
-                {suggestions.length > 0 && (
+                {presetName == null && suggestions.length > 0 && (
                   <>
                     <Text style={styles.suggestionsLabel}>{t.addActivitySuggestionsTitle}</Text>
                     <View style={styles.chipsWrap}>
@@ -387,7 +387,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
                   </>
                 )}
 
-                {onSuggest && (
+                {presetName == null && onSuggest && (
                   <TouchableOpacity style={styles.suggestBtn} onPress={onSuggest} activeOpacity={0.7} accessibilityRole="button">
                     <Text style={styles.suggestBtnText}>{'💡 ' + t.suggestActivity}</Text>
                   </TouchableOpacity>
