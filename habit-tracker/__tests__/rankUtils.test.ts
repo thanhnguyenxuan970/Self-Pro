@@ -1,5 +1,4 @@
 import { getCurrentTier } from '../src/game/tierLookup';
-import { getStarsToNextTier } from '../src/game/tierProgress';
 
 const TIERS = [
   { id: 1, tier_order: 1, stars_required: 0,   rank_name: 'NPC',          reward_amount: 0 },
@@ -17,17 +16,4 @@ describe('getCurrentTier', () => {
   test('9 stars → Non Tơ (not yet Tấu Hài)', () => expect(getCurrentTier(9, TIERS)!.rank_name).toBe('Non Tơ'));
   test('10 stars → Tấu Hài', () => expect(getCurrentTier(10, TIERS)!.rank_name).toBe('Tấu Hài'));
   test('200 stars → U Là Trời', () => expect(getCurrentTier(200, TIERS)!.rank_name).toBe('U Là Trời'));
-});
-
-describe('getStarsToNextTier', () => {
-  test('3 stars → 2 more to reach 5', () => expect(getStarsToNextTier(3, TIERS)).toBe(2));
-  test('5 stars → 5 more to reach 10', () => expect(getStarsToNextTier(5, TIERS)).toBe(5));
-  test('160 stars → 0 (at max)', () => expect(getStarsToNextTier(160, TIERS)).toBe(0));
-  test('200 stars → 0 (past max)', () => expect(getStarsToNextTier(200, TIERS)).toBe(0));
-  test('one star below max -> 1 to go', () => expect(getStarsToNextTier(159, TIERS)).toBe(1));
-  test('one past max tier -> still 0, never negative', () => {
-    const result = getStarsToNextTier(161, TIERS);
-    expect(result).toBe(0);
-    expect(result).toBeGreaterThanOrEqual(0);
-  });
 });

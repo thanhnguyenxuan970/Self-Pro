@@ -282,15 +282,3 @@ export function getRankConfigByTier(tier: number): Rank {
 export function getRankConfigByTierOrder(tierOrder: number): Rank {
   return getRankConfigByTier(tierOrder - 1);
 }
-
-function getRankConfigByName(name: string): Rank | undefined {
-  return RANKS.find(rank => rank.name === name);
-}
-
-function getRankForStars(total: number): Rank {
-  let rank = RANKS[0];
-  for (const candidate of RANKS) {
-    if (total >= candidate.stars) rank = candidate;
-  }
-  return rank;
-}

@@ -590,28 +590,6 @@ const vi = {
   // CalendarScreen DOW (Mon-Sun order)
   calDow: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
 
-  // PaywallScreen
-  paywallHeadline: 'Mở khoá Pro 🔓',
-  paywallSubhead: 'Soi tiến bộ · Leo top',
-  paywallAnalyticsTitle: 'Analytics',
-  paywallAnalyticsDesc: 'Biểu đồ & lịch sử đầy đủ',
-  paywallRankTitle: 'Đua top',
-  paywallRankDesc: 'Bạn đang top mấy %?',
-  paywallMonthlyLabel: 'Tháng',
-  paywallPerMonth: '/ tháng',
-  paywallMonthlyCta: 'Bắt đầu gói tháng',
-  paywallYearlyLabel: 'Năm',
-  paywallPerYear: '/ năm',
-  paywallYearlyMeta: '~20.750đ / tháng',
-  paywallPopularBadge: 'PHỔ BIẾN',
-  paywallYearlySave: '−58%',
-  paywallYearlyCta: 'Dùng thử 7 ngày miễn phí',
-  paywallLifetimeLabel: 'Trọn đời',
-  paywallOneTime: 'một lần',
-  paywallLifetimeCta: 'Mở khoá trọn đời',
-  paywallFinePrint: (store: string) => `Thanh toán qua ${store} · huỷ bất cứ lúc nào · `,
-  paywallRestore: 'Khôi phục mua hàng',
-  paywallRestoreLink: 'Khôi phục',
 };
 
 const en: typeof vi = {
@@ -1203,28 +1181,6 @@ const en: typeof vi = {
   // CalendarScreen DOW (Mon-Sun order)
   calDow: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'],
 
-  // PaywallScreen
-  paywallHeadline: 'Unlock Pro 🔓',
-  paywallSubhead: 'Track progress · Climb ranks',
-  paywallAnalyticsTitle: 'Analytics',
-  paywallAnalyticsDesc: 'Full charts & history',
-  paywallRankTitle: 'Climb ranks',
-  paywallRankDesc: 'What percentile are you in?',
-  paywallMonthlyLabel: 'Monthly',
-  paywallPerMonth: '/ month',
-  paywallMonthlyCta: 'Start monthly plan',
-  paywallYearlyLabel: 'Yearly',
-  paywallPerYear: '/ year',
-  paywallYearlyMeta: '~20,750đ / month',
-  paywallPopularBadge: 'MOST POPULAR',
-  paywallYearlySave: '−58%',
-  paywallYearlyCta: 'Start 7-day free trial',
-  paywallLifetimeLabel: 'Lifetime',
-  paywallOneTime: 'one-time',
-  paywallLifetimeCta: 'Unlock lifetime',
-  paywallFinePrint: (store) => `Billed via ${store} · cancel anytime · `,
-  paywallRestore: 'Restore purchase',
-  paywallRestoreLink: 'Restore',
 };
 
 export type Strings = typeof vi;
