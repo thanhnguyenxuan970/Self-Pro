@@ -546,7 +546,7 @@ export function TodayScreen() {
         </View>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
-        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} />
+        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} />
 
         <Animated.View style={[styles.hero, { backgroundColor: isDebt ? colors.danger : colors.primary, transform: heroOffset.getTranslateTransform() }]}>
           <View style={styles.heroTopRow}>

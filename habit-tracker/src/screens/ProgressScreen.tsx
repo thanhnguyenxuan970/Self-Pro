@@ -14,6 +14,9 @@ import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useSelectionMode } from '../hooks/useSelectionMode';
 import { AddActivitySheet } from './AddActivitySheet';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
+import { useHeatmapData } from '../queries/useCalendar';
+import { HomeHeatmap } from '../components/HomeHeatmap';
+import { DAILY_BONUS_THRESHOLD } from '../config/constants';
 
 type Range = 'W' | 'M' | 'Y';
 
@@ -229,6 +232,7 @@ export function ProgressScreen() {
   const [range, setRange] = useState<Range>('Y');
   const { data: chartData = [], isLoading } = useProgressData(userId, range, 0);
   const { data: streak = 0 } = useStreakCount(userId);
+  const { data: heatmapDays = [] } = useHeatmapData(userId);
   const { data: tierInfo } = useStarsToNextTier(userId);
   const { data: activeDays = 0 } = useWeeklyConsistency(userId);
   const { data: topActivities = [] } = useTopActivities(userId);
@@ -279,6 +283,8 @@ export function ProgressScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
         <Text style={styles.title}>{t.analyticsTitle}</Text>
+
+        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} />
 
         {/* Segmented control */}
         <View style={styles.segbar}>
