@@ -105,6 +105,8 @@ export function FeedbackSheet({ visible, onClose }: Props) {
                 style={[styles.typeChip, type === key && styles.typeChipActive]}
                 onPress={() => setType(key)}
                 activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityState={{ selected: type === key }}
               >
                 <Text style={[styles.typeChipText, type === key && styles.typeChipTextActive]}>
                   {icon} {typeLabel[key]}
@@ -133,7 +135,9 @@ export function FeedbackSheet({ visible, onClose }: Props) {
                   style={styles.imageRemoveBtn}
                   onPress={() => setImageUri(null)}
                   disabled={sending}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.cancel}
                 >
                   <Text style={styles.imageRemoveText}>✕</Text>
                 </TouchableOpacity>
@@ -144,6 +148,8 @@ export function FeedbackSheet({ visible, onClose }: Props) {
                 onPress={handlePickImage}
                 disabled={sending}
                 activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={t.feedbackAttachImage}
               >
                 <Text style={styles.imagePickText}>📎 {t.feedbackAttachImage}</Text>
               </TouchableOpacity>
@@ -155,11 +161,13 @@ export function FeedbackSheet({ visible, onClose }: Props) {
             onPress={handleSend}
             disabled={!canSend}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canSend }}
           >
             <Text style={styles.sendBtnText}>{sending ? '…' : t.feedbackSend}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleClose} disabled={sending}>
+          <TouchableOpacity onPress={handleClose} disabled={sending} accessibilityRole="button" accessibilityLabel={t.cancel}>
             <Text style={styles.cancel}>{t.cancel}</Text>
           </TouchableOpacity>
         </View>

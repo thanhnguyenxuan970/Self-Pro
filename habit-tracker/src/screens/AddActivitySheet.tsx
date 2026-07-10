@@ -35,6 +35,8 @@ function SuggestionChip({ s, isSelected, onPress, t, styles }: SuggestionChipPro
       style={[styles.chip, isSelected && styles.chipSelected]}
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityState={{ selected: isSelected }}
     >
       <Text style={[styles.chipName, isSelected && styles.chipNameSelected]}>
         {s.icon ? `${s.icon} ${label}` : label}
@@ -86,6 +88,7 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onClose, t, c
                 onPress={() => onLogDuration(p.mins)}
                 disabled={isPending}
                 activeOpacity={0.75}
+                accessibilityRole="button"
               >
                 <Text style={styles.presetChipText}>{p.label}</Text>
               </TouchableOpacity>
@@ -94,6 +97,7 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onClose, t, c
               style={[styles.presetChip, styles.presetChipCustom]}
               onPress={() => setCustomDuration(true)}
               activeOpacity={0.75}
+              accessibilityRole="button"
             >
               <Text style={[styles.presetChipText, styles.presetChipCustomText]}>{t.durationCustom}</Text>
             </TouchableOpacity>
@@ -114,18 +118,22 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onClose, t, c
                 <TouchableOpacity
                   style={[styles.unitBtn, durationUnit === 'min' && styles.unitBtnActive]}
                   onPress={() => setDurationUnit('min')}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: durationUnit === 'min' }}
                 >
                   <Text style={[styles.unitBtnText, durationUnit === 'min' && styles.unitBtnTextActive]}>{t.unitMin}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.unitBtn, durationUnit === 'hr' && styles.unitBtnActive]}
                   onPress={() => setDurationUnit('hr')}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: durationUnit === 'hr' }}
                 >
                   <Text style={[styles.unitBtnText, durationUnit === 'hr' && styles.unitBtnTextActive]}>{t.unitHour}</Text>
                 </TouchableOpacity>
               </View>
             </View>
-            <TouchableOpacity style={styles.durationChip} onPress={handleCustomLog} disabled={isPending}>
+            <TouchableOpacity style={styles.durationChip} onPress={handleCustomLog} disabled={isPending} accessibilityRole="button">
               {isPending ? (
                 <ActivityIndicator color={colors.white} />
               ) : (
@@ -135,7 +143,7 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onClose, t, c
           </>
         )}
 
-        <TouchableOpacity style={styles.noTimerBtn} onPress={onClose}>
+        <TouchableOpacity style={styles.noTimerBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel={t.cancel}>
           <Text style={styles.noTimerText}>{t.cancel}</Text>
         </TouchableOpacity>
 
@@ -327,7 +335,13 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
       <KeyboardAvoidingView style={styles.kav} behavior="padding">
       <View style={styles.backdrop}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)', opacity: backdropOpacity }]}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleClose} activeOpacity={1} />
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            onPress={handleClose}
+            activeOpacity={1}
+            accessibilityRole="button"
+            accessibilityLabel={t.cancel}
+          />
         </Animated.View>
 
         <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}>
@@ -374,7 +388,7 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
                 )}
 
                 {onSuggest && (
-                  <TouchableOpacity style={styles.suggestBtn} onPress={onSuggest} activeOpacity={0.7}>
+                  <TouchableOpacity style={styles.suggestBtn} onPress={onSuggest} activeOpacity={0.7} accessibilityRole="button">
                     <Text style={styles.suggestBtnText}>{'💡 ' + t.suggestActivity}</Text>
                   </TouchableOpacity>
                 )}
@@ -391,6 +405,8 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
                   onPress={() => handleCreate(true)}
                   disabled={!hasName || isPending}
                   activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !hasName || isPending }}
                 >
                   {createTask.isPending || translating ? (
                     <ActivityIndicator color={colors.white} />
@@ -404,6 +420,8 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
                   onPress={() => handleCreate(false)}
                   disabled={!hasName || isPending}
                   activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !hasName || isPending }}
                 >
                   <Text style={[styles.noTimerText, !hasName && styles.noTimerTextDim]}>
                     {t.addActivityNoTimer}
