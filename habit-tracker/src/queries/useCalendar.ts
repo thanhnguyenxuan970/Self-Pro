@@ -9,6 +9,8 @@ export type CalendarDay = {
   is_milestone: boolean;
 };
 
+export type HeatmapDay = { local_date: string; total_points: number };
+
 const MILESTONE_STREAKS = [3, 7, 14, 30, 100];
 
 export function useCalendarData(userId: number, yearMonth: string) {
@@ -45,6 +47,20 @@ export function useCalendarData(userId: number, yearMonth: string) {
         is_best_day: maxStars > 0 && r.stars === maxStars,
         is_milestone: MILESTONE_STREAKS.includes(r.streak_count),
       }));
+    },
+  });
+}
+
+export function useHeatmapData(userId: number) {
+  return useQuery({
+    queryKey: ['calendar', 'heatmap', userId],
+    queryFn: async (): Promise<HeatmapDay[]> => {
+      const db = await getDb();
+      return db.getAllAsync<HeatmapDay>(
+        `SELECT local_date, total_points FROM daily_summary
+         WHERE user_id = ? AND local_date >= date('now', '-1 year') ORDER BY local_date`,
+        [userId],
+      );
     },
   });
 }

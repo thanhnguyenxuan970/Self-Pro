@@ -32,6 +32,8 @@ import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 import { useShareCardData, tierPercentile } from '../hooks/useShareCardData';
 import { useNewsFeed } from '../queries/useNews';
 import { getNewsViewerKey } from '../utils/news';
+import { useHeatmapData } from '../queries/useCalendar';
+import { HomeHeatmap } from '../components/HomeHeatmap';
 
 const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑', 8: '👾', 9: '😇' };
 
@@ -268,6 +270,7 @@ export function TodayScreen() {
   const { data: loggedIds } = useTodayLoggedTaskIds(userId);
   const { data: totalDurations } = useTodayTaskTotalDurations(userId);
   const { data: rankData } = useRankData(userId);
+  const { data: heatmapDays = [] } = useHeatmapData(userId);
   const logTask = useLogTask(userId);
   const unlogTask = useUnlogTask(userId);
   const archiveTask = useArchiveTask(userId);
@@ -526,9 +529,9 @@ export function TodayScreen() {
         </View>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
-        <View
-          style={[styles.hero, { backgroundColor: isDebt ? colors.danger : colors.primary }]}
-        >
+        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} />
+
+        <View style={[styles.hero, { backgroundColor: isDebt ? colors.danger : colors.primary }]}>
           <View style={styles.heroTopRow}>
             <Text style={styles.heroLabel}>{t.heroLabel}</Text>
             <Animated.View style={[styles.rankChip, { transform: [{ scale: rankBounceAnim }] }]}>
