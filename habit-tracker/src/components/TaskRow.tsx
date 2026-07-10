@@ -168,7 +168,7 @@ function makeTaskRowStyles(C: AppColors) {
       paddingVertical: 14, borderBottomWidth: 1, borderColor: C.line,
     },
     taskLast: { borderBottomWidth: 0 },
-    taskDone: { backgroundColor: C.primarySoft },
+    taskDone: { backgroundColor: C.primarySoft, marginHorizontal: -15, paddingHorizontal: 15 },
     taskSelected: { backgroundColor: C.primarySoft, marginHorizontal: -15, paddingHorizontal: 15 },
     check: {
       width: 26, height: 26, borderRadius: 13,

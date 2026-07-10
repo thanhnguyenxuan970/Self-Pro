@@ -389,14 +389,12 @@ export function TodayScreen() {
   }
 
   async function handleLog(task: Task) {
-    if (task.is_time_based) {
-      const totalMin = totalDurations?.get(task.id) ?? 0;
-      if (totalMin >= 60) { await tryUnlog(task); return; }
-      setModalTask(task);
-      return;
-    }
     if (loggedIds?.has(task.id)) {
       await tryUnlog(task);
+      return;
+    }
+    if (task.is_time_based) {
+      setModalTask(task);
       return;
     }
     if (justLoggedIds.has(task.id) || pendingLogTaskIds.current.has(task.id)) return;
