@@ -85,18 +85,37 @@ function useProgressBarAnimation(dailyPoints: number): { barWidthAnim: Animated.
   return { barWidthAnim, barGlowOpacity };
 }
 
-function useHeroNumberPop(value: number, reduceMotion: boolean): Animated.Value {
-  const anim = useRef(new Animated.Value(1)).current;
+function useHeroRewardAnimation(value: number, reduceMotion: boolean) {
+  const numberScale = useRef(new Animated.Value(1)).current;
+  const heroOffset = useRef(new Animated.ValueXY()).current;
+  const floatOffset = useRef(new Animated.Value(0)).current;
+  const floatOpacity = useRef(new Animated.Value(0)).current;
   const prevRef = useRef<number | null>(null);
+  const [delta, setDelta] = useState(0);
   useEffect(() => {
     if (prevRef.current === null) { prevRef.current = value; return; }
-    if (value > prevRef.current && !reduceMotion) {
-      anim.setValue(1.22);
-      Animated.spring(anim, { toValue: 1, tension: 180, friction: 7, useNativeDriver: true }).start();
-    }
+    const change = value - prevRef.current;
     prevRef.current = value;
+    if (!change || reduceMotion) return;
+    setDelta(change);
+    const positive = change > 0;
+    numberScale.setValue(positive ? 1.22 : 0.88);
+    heroOffset.setValue({ x: 0, y: 0 });
+    floatOffset.setValue(0);
+    floatOpacity.setValue(1);
+    Animated.parallel([
+      Animated.spring(numberScale, { toValue: 1, tension: 180, friction: 7, useNativeDriver: true }),
+      Animated.sequence(positive
+        ? [Animated.timing(heroOffset.x, { toValue: 6, duration: 45, useNativeDriver: true }), Animated.timing(heroOffset.x, { toValue: -6, duration: 65, useNativeDriver: true }), Animated.timing(heroOffset.x, { toValue: 0, duration: 55, useNativeDriver: true })]
+        : [Animated.timing(heroOffset.y, { toValue: 6, duration: 100, useNativeDriver: true }), Animated.spring(heroOffset.y, { toValue: 0, tension: 180, friction: 10, useNativeDriver: true })]
+      ),
+      Animated.parallel([
+        Animated.timing(floatOffset, { toValue: positive ? -28 : 18, duration: 560, useNativeDriver: true }),
+        Animated.timing(floatOpacity, { toValue: 0, duration: 560, useNativeDriver: true }),
+      ]),
+    ]).start();
   }, [value, reduceMotion]);
-  return anim;
+  return { numberScale, heroOffset, floatOffset, floatOpacity, delta };
 }
 
 function SuggestionEntranceWrapper({ index, reduceMotion, children }: { index: number; reduceMotion: boolean; children: React.ReactNode }) {
@@ -332,7 +351,7 @@ export function TodayScreen() {
   const rankBounceAnim = useRankBounceAnimation(rankName, reduceMotion);
   const streakPulseAnim = useStreakPulseAnimation(hasStreak, reduceMotion);
   const { barWidthAnim, barGlowOpacity } = useProgressBarAnimation(dailyPoints);
-  const starsPopAnim = useHeroNumberPop(weeklyStars, reduceMotion);
+  const { numberScale, heroOffset, floatOffset, floatOpacity, delta } = useHeroRewardAnimation(dailyPoints, reduceMotion);
 
   const avatarInitial = (googleUser?.name?.charAt(0) ?? 'B').toUpperCase();
   const today = new Date();
@@ -531,7 +550,7 @@ export function TodayScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
         <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} />
 
-        <View style={[styles.hero, { backgroundColor: isDebt ? colors.danger : colors.primary }]}>
+        <Animated.View style={[styles.hero, { backgroundColor: isDebt ? colors.danger : colors.primary, transform: heroOffset.getTranslateTransform() }]}>
           <View style={styles.heroTopRow}>
             <Text style={styles.heroLabel}>{t.heroLabel}</Text>
             <Animated.View style={[styles.rankChip, { transform: [{ scale: rankBounceAnim }] }]}>
@@ -540,7 +559,7 @@ export function TodayScreen() {
           </View>
           <View style={styles.heroBal}>
             <Text style={styles.heroStar}>★</Text>
-            <Animated.View style={{ transform: [{ scale: starsPopAnim }] }}>
+            <Animated.View style={{ transform: [{ scale: numberScale }] }}>
               <Text style={styles.heroBalNum}>{weeklyStars}</Text>
             </Animated.View>
           </View>
@@ -552,14 +571,17 @@ export function TodayScreen() {
           <View style={styles.heroDivider} />
           <View style={styles.heroProgRow}>
             <Text style={styles.heroProgLabel}>{t.pointsLabel}</Text>
-            <Text style={styles.heroProgPts}><Text style={styles.heroProgPtsBold}>{dailyPoints}</Text> / {DAILY_BONUS_THRESHOLD}</Text>
+            <View style={styles.heroPointsWrap}>
+              <Animated.Text style={[styles.heroDelta, { opacity: floatOpacity, transform: [{ translateY: floatOffset }] }]}>{delta > 0 ? '+' : '−'}{Math.abs(delta)}</Animated.Text>
+              <Animated.Text style={[styles.heroProgPts, { transform: [{ scale: numberScale }] }]}><Text style={styles.heroProgPtsBold}>{dailyPoints}</Text> / {DAILY_BONUS_THRESHOLD}</Animated.Text>
+            </View>
           </View>
           <View style={styles.heroBar}>
             <Animated.View style={[styles.heroBarFill, { width: barWidthAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) }]} />
             <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.35)', opacity: barGlowOpacity, borderRadius: Radii.pill }]} />
           </View>
-          <Text style={styles.heroProgCap}>{t.streakBonus(DAILY_BONUS_THRESHOLD)}</Text>
-        </View>
+          <Text style={styles.heroProgCap}>{t.dailyGoalProgress(dailyPoints, DAILY_BONUS_THRESHOLD)}</Text>
+        </Animated.View>
 
         <TouchableOpacity
           style={styles.challengeEntryCard}
@@ -724,6 +746,8 @@ function makeStyles(C: AppColors) {
     heroProgLabel: { fontSize: 12, fontFamily: FontFamily.semiBold, color: 'rgba(255,255,255,0.85)' },
     heroProgPts: { fontSize: 12, fontFamily: FontFamily.bold, color: C.white },
     heroProgPtsBold: { fontSize: 15, fontFamily: FontFamily.extraBold, color: C.white },
+    heroPointsWrap: { position: 'relative' },
+    heroDelta: { position: 'absolute', right: -6, top: -19, fontSize: 13, fontFamily: FontFamily.extraBold, color: C.white },
     heroBar: { height: 8, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: Radii.pill, overflow: 'hidden' },
     heroBarFill: { height: '100%', backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: Radii.pill },
     heroProgCap: { fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 6 },

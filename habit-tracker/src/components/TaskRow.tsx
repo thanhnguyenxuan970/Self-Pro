@@ -123,7 +123,7 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
   return (
     <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
       <TouchableOpacity
-        style={[styles.task, isLast && styles.taskLast, isSelected && styles.taskSelected]}
+        style={[styles.task, isLast && styles.taskLast, done && !isBad && styles.taskDone, isSelected && styles.taskSelected]}
         onPress={onPress}
         onLongPress={onLongPress}
         delayLongPress={300}
@@ -168,6 +168,7 @@ function makeTaskRowStyles(C: AppColors) {
       paddingVertical: 14, borderBottomWidth: 1, borderColor: C.line,
     },
     taskLast: { borderBottomWidth: 0 },
+    taskDone: { backgroundColor: C.primarySoft },
     taskSelected: { backgroundColor: C.primarySoft, marginHorizontal: -15, paddingHorizontal: 15 },
     check: {
       width: 26, height: 26, borderRadius: 13,
