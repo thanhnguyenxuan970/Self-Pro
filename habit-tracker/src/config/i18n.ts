@@ -163,8 +163,6 @@ const vi = {
   rankLadder: 'Thang bậc Rank',
   philoQuote: '"Không có bảng xếp hạng người khác. Bạn chỉ đua với chính mình của hôm qua."',
   philoCaption: 'Triết lý: process-focused · zero FOMO · zero so sánh độc hại',
-  weeklyHistory: 'Lịch sử các tuần',
-  weekItem: (start: string) => `Tuần ${start}`,
   // Rank display name (short, fits UI)
   rankNameMap: {
     'Delulu':         'Nhứt',
@@ -756,8 +754,6 @@ const en: typeof vi = {
   rankLadder: 'Rank Ladder',
   philoQuote: '"No leaderboard against others. You only compete with yesterday\'s you."',
   philoCaption: 'Philosophy: process-focused · zero FOMO · zero toxic comparison',
-  weeklyHistory: 'Weekly history',
-  weekItem: (start) => `Week ${start}`,
   rankNameMap: {
     'Delulu':         'Delulu',
     'Mewing':         'Mewing',

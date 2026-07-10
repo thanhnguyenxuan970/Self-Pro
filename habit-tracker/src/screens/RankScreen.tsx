@@ -130,7 +130,7 @@ export function RankScreen() {
     );
   }
 
-  const { currentStars, currentTierId, tiers, history } = data;
+  const { currentStars, currentTierId, tiers } = data;
   // Rank is authoritative from current_tier_id (carry-over + cap system), not derived from star count
   const currentTier = currentTierId ? tiers.find(t => t.id === currentTierId) : undefined;
   const nextTier = currentTier ? tiers.find(t => t.tier_order === currentTier.tier_order + 1) : tiers.find(t => t.stars_required > currentStars);
@@ -205,38 +205,6 @@ export function RankScreen() {
           </>
         )}
 
-        {history.length > 0 && (
-          <>
-            <Text style={styles.sectionLabel}>{t.weeklyHistory}</Text>
-            <View style={styles.card}>
-              {history.map((week, idx) => {
-                const weekTier = week.current_tier_id ? tiers.find((tr) => tr.id === week.current_tier_id) : null;
-                const isLast = idx === history.length - 1;
-                const wrc = weekTier ? getRankConfigByTierOrder(weekTier.tier_order) : null;
-                const weekRankLabel = wrc ? (t.rankNameMap[wrc.name] ?? wrc.name) : '—';
-                const weekRankAltLabel = wrc ? (weekRankLabel === wrc.nameVi ? wrc.name : wrc.nameVi) : '—';
-                return (
-                  <View key={week.week_start} style={[styles.rk, isLast && styles.rkLast]}>
-                    <View style={styles.rkMascot}>
-                      {wrc ? (
-                        <RankMascot tier={weekTier!.tier_order - 1} size={36} loop={false} reduceMotion={reduceMotion} />
-                      ) : (
-                        <Text style={styles.rkEm}>—</Text>
-                      )}
-                    </View>
-                    <View style={styles.rkInfo}>
-                      <Text style={styles.rkA}>{t.weekItem(week.week_start)}</Text>
-                      <Text style={styles.rkB} numberOfLines={1}>{weekRankLabel}</Text>
-                      <Text style={styles.rkC} numberOfLines={1}>{weekRankAltLabel}</Text>
-                    </View>
-                    <Text style={styles.rkThr}>{week.weekly_stars} ★</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </>
-        )}
-
       </ScrollView>
       <RankInfoSheet
         visible={infoVisible}
@@ -298,19 +266,6 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line,
       paddingHorizontal: 15, ...Shadows.light,
     },
-    rk: {
-      flexDirection: 'row', alignItems: 'center', gap: 12,
-      paddingVertical: 10, borderBottomWidth: 1, borderColor: C.line,
-    },
-    rkLast: { borderBottomWidth: 0 },
-    rkMascot: { width: 36, height: 36, flexShrink: 0 },
-    rkEm: { fontSize: 20, width: 36, textAlign: 'center', flexShrink: 0 },
-    rkInfo: { flex: 1 },
-    rkA: { fontSize: 14, fontFamily: FontFamily.extraBold, color: C.inkDark },
-    rkB: { fontSize: 11.5, color: C.ink2, marginTop: 2 },
-    rkC: { fontSize: 11, color: C.muted, marginTop: 1 },
-    rkThr: { fontSize: 11.5, fontFamily: FontFamily.extraBold, color: C.muted },
-
     lbRow: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       paddingVertical: 11, borderBottomWidth: 1, borderColor: C.line,

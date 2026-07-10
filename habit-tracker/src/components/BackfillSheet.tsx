@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Modal, View, Text, TouchableOpacity, ScrollView,
+  Modal, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform,
   StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -28,7 +28,7 @@ interface DraftEntry {
   isTimeBased: boolean;
   basePoints: number;
   starPenalty: number;
-  durationMin?: number;
+  durationMin: number;
 }
 
 function resolveBackfillError(msg: string | undefined, t: BackfillErrorT): string {
@@ -83,7 +83,7 @@ function TaskPickerList({ tasks, selectedTaskId, onSelect, emptyText, colors, st
     );
   }
   return (
-    <ScrollView style={styles.taskList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <View>
       {tasks.map(task => {
         const on = selectedTaskId === task.id;
         return (
@@ -96,7 +96,7 @@ function TaskPickerList({ tasks, selectedTaskId, onSelect, emptyText, colors, st
           </TouchableOpacity>
         );
       })}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -113,9 +113,8 @@ interface EntryListProps {
   formatDuration: (mins: number) => string;
 }
 
-function formatEntryMeta(entry: DraftEntry, formatDuration: (mins: number) => string): string | null {
-  if (entry.isTimeBased && entry.durationMin) return formatDuration(entry.durationMin);
-  return null;
+function formatEntryMeta(entry: DraftEntry, formatDuration: (mins: number) => string): string {
+  return formatDuration(entry.durationMin);
 }
 
 function EntryList({ entries, editingEntryId, locked, onEdit, onRemove, colors, styles, editLabel, removeLabel, formatDuration }: EntryListProps) {
@@ -130,7 +129,7 @@ function EntryList({ entries, editingEntryId, locked, onEdit, onRemove, colors, 
             <Text style={styles.taskIcon}>{entry.icon ?? '⭐'}</Text>
             <View style={styles.entryTextCol}>
               <Text style={[styles.entryName, isEditing && { color: colors.primary, fontFamily: FontFamily.semiBold }]} numberOfLines={1}>{entry.name}</Text>
-              {meta && <Text style={styles.entryMeta}>{meta}</Text>}
+              <Text style={styles.entryMeta}>{meta}</Text>
             </View>
             {!locked && (
               <View style={styles.entryActions}>
@@ -172,16 +171,17 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
 
   const [entries, setEntries] = useState<DraftEntry[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
-  const [durationMin, setDurationMin] = useState<number>(30);
+  const [durationText, setDurationText] = useState('30');
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
   const nextEntryId = useRef(0);
+  const durationInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (visible) {
       setEntries([]);
       setSelectedTaskId(null);
-      setDurationMin(30);
+      setDurationText('30');
       setEditingEntryId(null);
       setLocked(false);
     }
@@ -190,7 +190,6 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   const remaining = backfillRemaining(backfillsUsedThisWeek);
   const quotaExceeded = remaining <= 0;
   const selectedTask = useMemo(() => tasks.find(tk => tk.id === selectedTaskId), [tasks, selectedTaskId]);
-  const needsDuration = !!selectedTask?.is_time_based;
 
   function formatDate(d: string): string {
     const [y, m, day] = d.split('-').map(Number);
@@ -201,11 +200,18 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
 
   function handleSelectTask(id: number | null) {
     setSelectedTaskId(id);
-    setDurationMin(30);
+    setDurationText('30');
+  }
+
+  function setDuration(mins: number) {
+    setDurationText(String(mins));
   }
 
   function handleAddOrUpdate() {
     if (!selectedTask) return;
+    const duration = Number(durationText);
+    if (!Number.isInteger(duration) || duration <= 0) { Alert.alert(t.error, t.validDuration); return; }
+    if (duration > 1440) { Alert.alert(t.error, t.maxDuration); return; }
     const draft: DraftEntry = {
       id: editingEntryId ?? String(nextEntryId.current++),
       taskTypeId: selectedTask.id,
@@ -215,14 +221,15 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
       isTimeBased: !!selectedTask.is_time_based,
       basePoints: selectedTask.base_points,
       starPenalty: selectedTask.star_penalty,
-      durationMin: needsDuration ? durationMin : undefined,
+      durationMin: duration,
     };
     setEntries(prev => {
       if (editingEntryId) return prev.map(e => (e.id === editingEntryId ? draft : e));
       return [...prev, draft];
     });
+    durationInputRef.current?.blur();
     setSelectedTaskId(null);
-    setDurationMin(30);
+    setDurationText('30');
     setEditingEntryId(null);
   }
 
@@ -231,7 +238,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
     if (!entry) return;
     setEditingEntryId(id);
     setSelectedTaskId(entry.taskTypeId);
-    setDurationMin(entry.durationMin ?? 30);
+    setDurationText(String(entry.durationMin));
   }
 
   function handleRemoveEntry(id: string) {
@@ -239,7 +246,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
     if (editingEntryId === id) {
       setEditingEntryId(null);
       setSelectedTaskId(null);
-      setDurationMin(30);
+      setDurationText('30');
     }
   }
 
@@ -274,7 +281,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+      <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel={t.close} />
         <View style={styles.sheet}>
           <View style={styles.grip} />
@@ -296,7 +303,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
               <Text style={styles.quotaExhaustedText}>{t.backfillDenyQuota}</Text>
             </View>
           ) : (
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
               {locked && (
                 <View style={styles.lockedBanner}>
                   <Text style={styles.lockedBannerText}>{t.backfillLocked}</Text>
@@ -333,9 +340,20 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
                     styles={styles}
                   />
 
-                  {needsDuration && (
-                    <DurationPicker durationMin={durationMin} onSelect={setDurationMin} colors={colors} styles={styles} />
-                  )}
+                  <Text style={[styles.sectionLabel, { marginTop: 12 }]}>{t.editDurationLabel}</Text>
+                  <DurationPicker durationMin={Number(durationText)} onSelect={setDuration} colors={colors} styles={styles} />
+                  <TextInput
+                    ref={durationInputRef}
+                    style={styles.durationInput}
+                    value={durationText}
+                    onChangeText={(value) => {
+                      setDurationText(value);
+                    }}
+                    keyboardType="number-pad"
+                    placeholder="30"
+                    placeholderTextColor={colors.muted}
+                    accessibilityLabel={t.editDurationLabel}
+                  />
 
                   <TouchableOpacity
                     style={[styles.addBtn, addDisabled && styles.addBtnDisabled]}
@@ -384,7 +402,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
             </ScrollView>
           )}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -405,6 +423,7 @@ function makeStyles(colors: AppColors) {
       paddingTop: 12,
       maxHeight: '85%',
     },
+    scrollContent: { paddingBottom: Spacing.md },
     grip: {
       width: 36,
       height: 4,
@@ -474,9 +493,6 @@ function makeStyles(colors: AppColors) {
       textAlign: 'center',
       marginTop: 10,
     },
-    taskList: {
-      maxHeight: 240,
-    },
     taskRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -521,6 +537,11 @@ function makeStyles(colors: AppColors) {
       fontSize: 13,
       fontFamily: FontFamily.regular,
       color: colors.ink2,
+    },
+    durationInput: {
+      marginTop: 10, minHeight: 44, paddingHorizontal: 12,
+      borderRadius: Radii.sm, borderWidth: 1, borderColor: colors.line,
+      fontSize: 14, fontFamily: FontFamily.regular, color: colors.inkDark,
     },
     addBtn: {
       marginTop: 14,

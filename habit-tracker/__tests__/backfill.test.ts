@@ -79,6 +79,11 @@ describe('computeBackfillSession', () => {
     expect(result.bonusAwarded).toBe(false);
   });
 
+  it('stores duration for a non-timed backfill', () => {
+    const result = computeBackfillSession([entry({ durationMin: 75 })], ctx);
+    expect(result.rows[0].activityRow.duration_min).toBe(75);
+  });
+
   it('chỉ thưởng daily-bonus 1 lần dù vượt ngưỡng nhiều lần trong phiên', () => {
     const result = computeBackfillSession([entry({ basePoints: 30 }), entry({ basePoints: 30 }), entry({ basePoints: 30 })], ctx);
     expect(result.dayPoints).toBe(90);
