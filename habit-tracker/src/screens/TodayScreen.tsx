@@ -526,8 +526,8 @@ export function TodayScreen() {
           <Text style={styles.avatarText}>{avatarInitial}</Text>
         </TouchableOpacity>
         <View style={styles.greet}>
+          <Text style={styles.date}>{dateStr.toUpperCase()}</Text>
           <Text style={styles.hi}>{t.greeting(googleUser?.name?.split(' ').pop() ?? '')}</Text>
-          <Text style={styles.date}>{dateStr}</Text>
         </View>
         <View style={styles.topbarActions}>
           <TouchableOpacity
@@ -540,13 +540,14 @@ export function TodayScreen() {
             <Text style={styles.iconGlyph}>🔔</Text>
             {unreadNewsCount > 0 ? <View style={styles.newsDot} /> : null}
           </TouchableOpacity>
+          <View style={styles.starChip}><Text style={styles.starChipText}>★ {weeklyStars} ›</Text></View>
           <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('Settings' as never)} activeOpacity={0.7} accessibilityLabel={t.openSettings} accessibilityRole="button">
             <Text style={styles.iconGlyph}>⚙️</Text>
           </TouchableOpacity>
         </View>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
-        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} />
+        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} />
 
         <Animated.View style={[styles.hero, { backgroundColor: isDebt ? colors.danger : colors.primary, transform: heroOffset.getTranslateTransform() }]}>
           <View style={styles.heroTopRow}>
@@ -704,9 +705,11 @@ function makeStyles(C: AppColors) {
     },
     avatarText: { fontFamily: FontFamily.extraBold, color: C.primaryPress, fontSize: 16 },
     greet: { flex: 1 },
-    hi: { fontSize: 15, fontFamily: FontFamily.extraBold, letterSpacing: -0.2, color: C.inkDark },
-    date: { fontSize: 12, color: C.ink2, marginTop: 1 },
+    hi: { fontSize: 25, fontFamily: FontFamily.extraBold, letterSpacing: -0.7, color: C.inkDark },
+    date: { fontSize: 12, fontFamily: FontFamily.bold, color: C.ink2, marginBottom: 1 },
     topbarActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    starChip: { backgroundColor: C.surface2, borderRadius: Radii.pill, paddingHorizontal: 13, paddingVertical: 10 },
+    starChipText: { color: C.starGold, fontSize: 15, fontFamily: FontFamily.extraBold },
     iconBtn: {
       width: 44, height: 44, borderRadius: 22,
       justifyContent: 'center', alignItems: 'center',
@@ -720,6 +723,7 @@ function makeStyles(C: AppColors) {
     },
 
     hero: {
+      display: 'none',
       marginHorizontal: Spacing.lg, marginTop: 14,
       borderRadius: Radii.xl, padding: 20, overflow: 'hidden',
       ...Shadows.hero,

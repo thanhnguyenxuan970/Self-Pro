@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { VictoryChart, VictoryBar, VictoryStack, VictoryAxis } from 'victory-native';
 import {
   useProgressData, useStreakCount, useStarsToNextTier,
-  useRecentActivityLogs, useDeleteActivityLogs, useWeeklyConsistency, useTopActivities,
+  useRecentActivityLogs, useDeleteActivityLogs, useWeeklyConsistency, useTopActivities, useAllTimeStats,
   ActivityLogEntry,
 } from '../queries/useProgress';
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
@@ -154,8 +154,8 @@ function openDateFilter(filterDate: string | null, setFilterDate: (d: string) =>
     mode: 'date',
     value: initial,
     maximumDate: new Date(),
-    onChange: (event, selected) => {
-      if (event.type === 'set' && selected) {
+    onValueChange: (_event, selected) => {
+      if (selected) {
         const y = selected.getFullYear();
         const m = String(selected.getMonth() + 1).padStart(2, '0');
         const d = String(selected.getDate()).padStart(2, '0');
@@ -233,6 +233,7 @@ export function ProgressScreen() {
   const { data: chartData = [], isLoading } = useProgressData(userId, range, 0);
   const { data: streak = 0 } = useStreakCount(userId);
   const { data: heatmapDays = [] } = useHeatmapData(userId);
+  const { data: allTimeStats } = useAllTimeStats(userId);
   const { data: tierInfo } = useStarsToNextTier(userId);
   const { data: activeDays = 0 } = useWeeklyConsistency(userId);
   const { data: topActivities = [] } = useTopActivities(userId);
@@ -278,13 +279,29 @@ export function ProgressScreen() {
   }, [chartData]);
 
   const visibleTicks = useMemo(() => computeVisibleTicks(range, tickValues), [range, tickValues]);
+  const yearStats = useMemo(() => {
+    const now = new Date();
+    const year = String(now.getFullYear());
+    const totalDays = heatmapDays.filter(day => day.total_points > 0).length;
+    const filledThisYear = heatmapDays.filter(day => day.local_date.startsWith(year) && day.total_points > 0).length;
+    const daysElapsed = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 86_400_000) + 1;
+    return { totalDays, peakPoints: Math.max(0, ...heatmapDays.map(day => day.total_points)), completionRate: Math.round((filledThisYear / daysElapsed) * 100) };
+  }, [heatmapDays]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
+        <Text style={styles.eyebrow}>THỐNG KÊ</Text>
         <Text style={styles.title}>{t.analyticsTitle}</Text>
 
         <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} />
+
+        <View style={styles.statGrid}>
+          <View style={styles.stat}><Text style={styles.statL}>TỔNG NGÀY TÔ</Text><Text style={styles.statV}>{yearStats.totalDays}<Text style={styles.statUnit}> ngày</Text></Text></View>
+          <View style={styles.stat}><Text style={styles.statL}>CHUỖI DÀI NHẤT</Text><Text style={styles.statV}>{allTimeStats?.bestStreak ?? 0}<Text style={styles.statUnit}> ngày</Text></Text></View>
+          <View style={styles.stat}><Text style={styles.statL}>ĐỈNH ĐIỂM</Text><Text style={[styles.statV, styles.statVPeak]}>{yearStats.peakPoints}<Text style={styles.statUnit}> điểm</Text></Text></View>
+          <View style={styles.stat}><Text style={styles.statL}>TỶ LỆ LẤP</Text><Text style={styles.statV}>{yearStats.completionRate}%<Text style={styles.statUnit}> năm nay</Text></Text></View>
+        </View>
 
         {/* Segmented control */}
         <View style={styles.segbar}>
@@ -389,7 +406,8 @@ function makeStyles(C: AppColors) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.bgBase },
     container: { flex: 1 },
-    title: { fontSize: 24, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
+    eyebrow: { fontSize: 12, fontFamily: FontFamily.extraBold, letterSpacing: 0.4, color: C.primary, marginHorizontal: Spacing.lg, marginTop: 10 },
+    title: { fontSize: 28, fontFamily: FontFamily.extraBold, letterSpacing: -0.7, color: C.inkDark, marginHorizontal: Spacing.lg, marginBottom: 14 },
 
     segbar: {
       flexDirection: 'row', marginHorizontal: Spacing.lg, marginBottom: 14,
@@ -427,7 +445,8 @@ function makeStyles(C: AppColors) {
       width: '47%', backgroundColor: C.surface,
       borderRadius: Radii.md, padding: 12, borderWidth: 1, borderColor: C.line, ...Shadows.light,
     },
-    statV: { fontSize: 20, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.primary },
+    statV: { fontSize: 28, fontFamily: FontFamily.extraBold, letterSpacing: -0.8, color: C.primary, marginTop: 4 },
+    statVPeak: { color: C.starGold }, statUnit: { fontSize: 12, letterSpacing: 0, color: C.ink2 },
     statL: { fontSize: 11, color: C.ink2, fontFamily: FontFamily.bold, marginTop: 2 },
 
     logHeader: {

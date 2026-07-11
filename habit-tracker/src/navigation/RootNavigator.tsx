@@ -21,7 +21,6 @@ import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { AppColors, Shadows, FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { AddActivitySheet } from '../screens/AddActivitySheet';
-import { SuggestActivitySheet } from '../components/SuggestActivitySheet';
 import { GoogleUser } from '../hooks/useAuth';
 import { useTutorial } from '../hooks/useTutorial';
 import { subscribeAddActivityIntent } from '../hooks/useAddActivityIntent';
@@ -159,7 +158,6 @@ function AppStack({
   onDeleteAccount: (userId: number) => Promise<void>;
 }) {
   const [fabVisible, setFabVisible] = useState(false);
-  const [suggestVisible, setSuggestVisible] = useState(false);
   const [presetName, setPresetName] = useState<string | null>(null);
   const { colors } = useTheme();
   const t = useTranslations();
@@ -225,9 +223,7 @@ function AppStack({
         visible={fabVisible}
         presetName={presetName}
         onClose={() => { setFabVisible(false); setPresetName(null); }}
-        onSuggest={() => { setFabVisible(false); setPresetName(null); setSuggestVisible(true); }}
       />
-      <SuggestActivitySheet visible={suggestVisible} onClose={() => setSuggestVisible(false)} />
     </>
   );
 }

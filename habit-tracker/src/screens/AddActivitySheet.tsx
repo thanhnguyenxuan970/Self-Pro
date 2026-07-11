@@ -18,7 +18,7 @@ import { supabase } from '../api/supabase';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 import { activityGroup, activityMatches, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../utils/activityPicker';
 
-interface Props { visible: boolean; onClose: () => void; onSuggest?: () => void; presetName?: string | null; }
+interface Props { visible: boolean; onClose: () => void; presetName?: string | null; }
 
 type SuggestionChipProps = {
   s: TemplateTask;
@@ -168,7 +168,7 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onClose, t, c
 }
 
 // fallow-ignore-next-line complexity
-export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Props) {
+export function AddActivitySheet({ visible, onClose, presetName }: Props) {
   const userId = useAuthUser();
   const { colors } = useTheme();
   const t = useTranslations();
@@ -476,12 +476,6 @@ export function AddActivitySheet({ visible, onClose, onSuggest, presetName }: Pr
                   </>
                 )}
 
-                {presetName == null && onSuggest && (
-                  <TouchableOpacity style={styles.suggestBtn} onPress={onSuggest} activeOpacity={0.7} accessibilityRole="button">
-                    <Text style={styles.suggestBtnText}>{'💡 ' + t.suggestActivity}</Text>
-                  </TouchableOpacity>
-                )}
-
                 <Text style={[styles.durationLabel, !hasName && styles.durationLabelDim]}>
                   {t.addActivityHowLong}
                 </Text>
@@ -589,11 +583,6 @@ function makeStyles(C: AppColors) {
     chipSelected: { borderColor: C.primary, backgroundColor: C.primarySoft },
     chipName: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark, lineHeight: 18 },
     chipNameSelected: { color: C.primary },
-    suggestBtn: {
-      marginTop: Spacing.md, paddingVertical: 10, alignItems: 'center',
-      borderWidth: 1.5, borderColor: C.line2, borderRadius: Radii.md,
-    },
-    suggestBtnText: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.muted },
     durationLabel: {
       ...Typography.bodyStrong, color: C.inkDark,
       marginTop: Spacing.xl, marginBottom: Spacing.sm,

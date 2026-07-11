@@ -30,8 +30,8 @@ function openTimePicker(currentVal: string | null, onSet: (time: string) => void
     mode: 'time',
     value: date,
     is24Hour: true,
-    onChange: (event, selectedDate) => {
-      if (event.type === 'set' && selectedDate) {
+    onValueChange: (_event, selectedDate) => {
+      if (selectedDate) {
         const hh = String(selectedDate.getHours()).padStart(2, '0');
         const mm = String(selectedDate.getMinutes()).padStart(2, '0');
         onSet(`${hh}:${mm}`);

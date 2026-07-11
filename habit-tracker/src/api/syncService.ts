@@ -150,6 +150,8 @@ export async function resetSyncCursors(): Promise<void> {
  */
 export async function syncUserStreak(userEmail: string, currentStreak: number): Promise<void> {
   if (!supabase) return;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
   const { error } = await supabase
     .from('users')
     .upsert({ user_email: userEmail, current_streak: currentStreak }, { onConflict: 'user_email' });

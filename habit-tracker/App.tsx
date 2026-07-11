@@ -258,4 +258,4 @@ function App() {
   );
 }
 
-export default Sentry.wrap(App);
+export default SENTRY_DSN ? Sentry.wrap(App) : App;
