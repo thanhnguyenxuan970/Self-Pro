@@ -23,20 +23,6 @@ function getNextMonday(): Date {
   return next;
 }
 
-function fmtCountdown(ms: number): string {
-  if (ms <= 0) return '00:00:00';
-  const totalSec = Math.floor(ms / 1000);
-  const d = Math.floor(totalSec / 86400);
-  const h = Math.floor((totalSec % 86400) / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  const hh = String(h).padStart(2, '0');
-  const mm = String(m).padStart(2, '0');
-  const ss = String(s).padStart(2, '0');
-  return d > 0 ? `${d}d ${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`;
-}
-
-
 type LBEntry = NonNullable<ReturnType<typeof useLeaderboard>['data']>[number];
 
 type LeaderboardSectionProps = {
@@ -45,40 +31,33 @@ type LeaderboardSectionProps = {
   styles: ReturnType<typeof makeStyles>;
   colors: AppColors;
   youLabel: string;
-  emptyLabel: string;
+  emptyNote: string;
+  currentUserEntry: LBEntry;
 };
 
-const ResetCountdownChip = React.memo(function ResetCountdownChip({
+function ResetCountdownChip({
   styles,
   label,
 }: {
   styles: ReturnType<typeof makeStyles>;
   label: string;
 }) {
-  const [countdownMs, setCountdownMs] = useState(() => getNextMonday().getTime() - Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setCountdownMs(getNextMonday().getTime() - Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
   return (
     <View style={styles.resetChip}>
       <Text style={styles.resetChipLabel}>{label}</Text>
-      <Text style={styles.resetChipCountdown}>{fmtCountdown(countdownMs)}</Text>
     </View>
   );
-});
+}
 
-function LeaderboardSection({ leaderboard, lbLoading, styles, colors, youLabel, emptyLabel }: LeaderboardSectionProps) {
+function LeaderboardSection({ leaderboard, lbLoading, styles, colors, youLabel, emptyNote, currentUserEntry }: LeaderboardSectionProps) {
   if (lbLoading) {
     return <View style={styles.lbEmpty}><ActivityIndicator color={colors.primary} /></View>;
   }
-  if (leaderboard.length === 0) {
-    return <View style={styles.lbEmpty}><Text style={styles.lbEmptyTxt}>{emptyLabel}</Text></View>;
-  }
+  const entries = leaderboard.length ? leaderboard : [currentUserEntry];
   return (
     <>
-      {leaderboard.map((entry, idx) => {
-        const isLast = idx === leaderboard.length - 1;
+      {entries.map((entry, idx) => {
+        const isLast = idx === entries.length - 1;
         return (
           <View
             key={entry.userEmail}
@@ -94,6 +73,7 @@ function LeaderboardSection({ leaderboard, lbLoading, styles, colors, youLabel, 
           </View>
         );
       })}
+      {leaderboard.length === 0 ? <Text style={styles.lbEmptyTxt}>{emptyNote}</Text> : null}
     </>
   );
 }
@@ -147,6 +127,19 @@ export function RankScreen() {
   const rankAltLabel = rankLabel === cfg.nameVi ? cfg.name : cfg.nameVi;
   const nextRankLabel = nextCfg ? (t.rankNameMap[nextCfg.name] ?? nextCfg.name) : (t.rankNameMap[nextTier?.rank_name ?? ''] ?? nextTier?.rank_name ?? '');
   const nextRankAltLabel = nextCfg ? (nextRankLabel === nextCfg.nameVi ? nextCfg.name : nextCfg.nameVi) : null;
+  const pathTiers = currentTier ? [
+    currentTier,
+    nextTier,
+    nextTier ? tiers.find(tier => tier.tier_order === nextTier.tier_order + 1) : undefined,
+  ].filter((tier): tier is NonNullable<typeof tier> => !!tier) : [];
+  const daysToReset = Math.max(1, Math.ceil((getNextMonday().getTime() - Date.now()) / 86_400_000));
+  const currentUserEntry: LBEntry = {
+    userEmail: googleUser?.email ?? 'current-user',
+    displayName: googleUser?.name ?? t.leaderboardYou,
+    weeklyStars: currentStars,
+    rank: 1,
+    isCurrentUser: true,
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -176,6 +169,22 @@ export function RankScreen() {
             ) : (
               <Text style={styles.nextCap}>{t.maxRank}</Text>
             )}
+            {pathTiers.length > 0 ? (
+              <View style={styles.rankPath}>
+                {pathTiers.map((tier, index) => {
+                  const pathCfg = getRankConfigByTierOrder(tier.tier_order);
+                  const pathLabel = t.rankNameMap[pathCfg.name] ?? pathCfg.name;
+                  return (
+                    <React.Fragment key={tier.id}>
+                      {index > 0 ? <Text style={styles.rankPathArrow}>→</Text> : null}
+                      <Text style={[styles.rankPathTier, index === 0 && styles.rankPathCurrent]} numberOfLines={1}>
+                        {pathLabel}{index === 0 ? ` (${t.rankPathYou})` : index === 1 ? ` (${t.rankPathNext})` : ' 🔒'}
+                      </Text>
+                    </React.Fragment>
+                  );
+                })}
+              </View>
+            ) : null}
           </View>
         ) : (
           <View style={styles.rankEmptyWrap}>
@@ -187,7 +196,7 @@ export function RankScreen() {
           </View>
         )}
 
-        <ResetCountdownChip styles={styles} label={t.resetCountdownLabel} />
+        <ResetCountdownChip styles={styles} label={t.resetCountdownLabel(daysToReset)} />
 
         {currentTierOrder > 0 && (
           <>
@@ -199,7 +208,8 @@ export function RankScreen() {
                 styles={styles}
                 colors={colors}
                 youLabel={t.leaderboardYou}
-                emptyLabel={t.leaderboardEmpty}
+                emptyNote={t.leaderboardEmpty}
+                currentUserEntry={currentUserEntry}
               />
             </View>
           </>
@@ -248,6 +258,10 @@ function makeStyles(C: AppColors) {
     bar: { width: '100%', height: 8, backgroundColor: C.surface2, borderRadius: Radii.pill, marginTop: 14, overflow: 'hidden' },
     barFill: { height: '100%', backgroundColor: C.primary, borderRadius: Radii.pill },
     nextCap: { fontSize: 12, color: C.muted, marginTop: 13, fontFamily: FontFamily.semiBold, textAlign: 'center' },
+    rankPath: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 5, marginTop: 14 },
+    rankPathTier: { color: C.ink2, fontSize: 11, fontFamily: FontFamily.semiBold, maxWidth: 112 },
+    rankPathCurrent: { color: C.primary, fontFamily: FontFamily.extraBold },
+    rankPathArrow: { color: C.muted, fontSize: 12, fontFamily: FontFamily.bold },
 
     resetChip: {
       marginHorizontal: Spacing.lg, marginTop: 12,

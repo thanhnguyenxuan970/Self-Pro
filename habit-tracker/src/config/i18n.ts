@@ -153,11 +153,13 @@ const vi = {
 
   // RankScreen
   rankTitle: 'Bảng Rank',
-  noRankTitle: 'Chưa có rank',
+  noRankTitle: 'Bắt đầu leo hạng!',
   noRankDesc: 'Tích đủ 5 ★ để mở rank đầu tiên',
   noRankRemaining: (n: number, name: string) => `Còn ${parseFloat(n.toFixed(1))} ★ để mở ${name}`,
   weekStars: (n: number) => `★ ${n} · Tuần này`,
-  nextRank: (n: number, name: string) => `Còn ${n} ★ → ${name}`,
+  nextRank: (n: number, name: string) => `Sắp lên hạng ${name} · chỉ còn ${n} ★ nữa!`,
+  rankPathYou: 'bạn ở đây',
+  rankPathNext: 'còn 1 ★',
   maxRank: 'Đã đạt hạng cao nhất 🎉',
   resetChip: '♻  Reset T2 · 00:00 — Sao tuần về ngưỡng sàn hạng (rank retention)',
   rankLadder: 'Thang bậc Rank',
@@ -472,6 +474,9 @@ const vi = {
   calendarBestDay: 'Ngày tốt nhất',
   calendarMilestone: 'Cột mốc streak',
   calendarActive: 'Có hoạt động',
+  calendarBackfill: 'Ghi bù',
+  calendarToday: 'Hôm nay',
+  calendarBackfillHint: (remaining: number) => `Còn ${remaining} ngày có thể ghi bù tuần này — chạm ô có dấu ＋`,
   calendarTotalStars: 'Tổng sao',
   calendarActiveDays: 'Ngày hoạt động',
   calendarBest: 'Ngày cao nhất',
@@ -499,15 +504,15 @@ const vi = {
   clearReminder: 'Xoá nhắc nhở',
 
   // RankScreen countdown
-  resetCountdownLabel: 'Reset T2 · 00:00 — Còn lại',
+  resetCountdownLabel: (days: number) => `♻ Đặt lại sau ${days} ngày`,
 
   // Duration picker
   durationCustom: '1h+',
 
   // Leaderboard
-  leaderboardSection: 'Hạng hiện tại',
+  leaderboardSection: 'NGƯỜI CÙNG HẠNG',
   leaderboardYou: 'Bạn',
-  leaderboardEmpty: 'Chưa có người chơi nào cùng rank tuần này',
+  leaderboardEmpty: 'Bảng mới toanh tuần này — ghi hoạt động mỗi ngày để giữ ngôi đầu và lên hạng.',
   leaderboardNoSync: 'Kết nối mạng để xem bảng xếp hạng',
 
   // AddActivitySheet step 2 — time picker
@@ -751,11 +756,13 @@ const en: typeof vi = {
 
   // RankScreen
   rankTitle: 'Rank Board',
-  noRankTitle: 'No rank yet',
+  noRankTitle: 'Start climbing!',
   noRankDesc: 'Earn 5 ★ to unlock your first rank',
   noRankRemaining: (n: number, name: string) => `${parseFloat(n.toFixed(1))} ★ more to unlock ${name}`,
   weekStars: (n) => `★ ${n} · This week`,
-  nextRank: (n, name) => `${n} ★ more → ${name}`,
+  nextRank: (n, name) => `Almost at ${name} · just ${n} ★ more!`,
+  rankPathYou: 'you are here',
+  rankPathNext: 'next up',
   maxRank: 'Max rank reached 🎉',
   resetChip: '♻  Resets Mon · 00:00 — Weekly stars drop to rank floor (rank retention)',
   rankLadder: 'Rank Ladder',
@@ -1068,6 +1075,9 @@ const en: typeof vi = {
   calendarBestDay: 'Best day',
   calendarMilestone: 'Streak milestone',
   calendarActive: 'Active day',
+  calendarBackfill: 'Backfill',
+  calendarToday: 'Today',
+  calendarBackfillHint: (remaining: number) => `${remaining} backfill day${remaining === 1 ? '' : 's'} left this week — tap a ＋ day`,
   calendarTotalStars: 'Total stars',
   calendarActiveDays: 'Active days',
   calendarBest: 'Best day',
@@ -1095,15 +1105,15 @@ const en: typeof vi = {
   clearReminder: 'Clear reminder',
 
   // RankScreen countdown
-  resetCountdownLabel: 'Reset Mon · 00:00 — Time left',
+  resetCountdownLabel: (days: number) => `♻ Resets in ${days} day${days === 1 ? '' : 's'}`,
 
   // Duration picker
   durationCustom: '1h+',
 
   // Leaderboard
-  leaderboardSection: 'Current Rank',
+  leaderboardSection: 'PEERS IN YOUR RANK',
   leaderboardYou: 'You',
-  leaderboardEmpty: 'No players at your rank this week yet',
+  leaderboardEmpty: 'Fresh board this week — log daily to hold first place and climb higher.',
   leaderboardNoSync: 'Connect to the internet to view the leaderboard',
 
   // AddActivitySheet step 2 — time picker

@@ -12,10 +12,10 @@ import { useCalendarData, CalendarDay } from '../queries/useCalendar';
 import { useBackfillStatus } from '../queries/useBackfillStatus';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
-import { AppColors, Radii, Spacing, FontFamily } from '../config/theme';
+import { AppColors, Radii, Spacing, FontFamily, Shadows } from '../config/theme';
 import { AnimatedFireIcon, AnimatedStarIcon, AnimatedBurningStarIcon } from '../components/CalendarIcons';
 import { BackfillSheet } from '../components/BackfillSheet';
-import { canBackfill } from '../game/backfill';
+import { backfillRemaining, canBackfill } from '../game/backfill';
 import { getLocalDate, getWeekStart, getWeekStartFor } from '../utils/formatters';
 
 
@@ -43,10 +43,9 @@ function firstDowOfMonth(yearMonth: string): number {
 }
 
 function resolveCellColors(
-  isMilestone: boolean, isBest: boolean, hasActivity: boolean,
-  isDark: boolean, colors: AppColors,
+  hasActivity: boolean,
+  colors: AppColors,
 ): { cellBg: string; numColor: string } {
-  if (isMilestone || isBest) return { cellBg: 'transparent', numColor: colors.inkDark };
   if (hasActivity) return { cellBg: colors.primarySoft, numColor: colors.primary };
   return { cellBg: 'transparent', numColor: colors.inkDark };
 }
@@ -63,14 +62,11 @@ function resolveDayCellProps(
   yearMonth: string,
   todayStr: string,
   currentWeekStart: string,
-  isDark: boolean,
   colors: AppColors,
 ): { dateStr: string; isEligible: boolean; cellBg: string; numColor: string; cellIcon: React.ReactNode } {
-  const data = dayMap[day];
-  const isBest = data ? Boolean(data.is_best_day) : false;
-  const isMilestone = data ? Boolean(data.is_milestone) : false;
-  const { cellBg, numColor } = resolveCellColors(isMilestone, isBest, !!data, isDark, colors);
-  const cellIcon = resolveCellIcon(data, isMilestone, isBest, colors.muted);
+  const hasActivity = !!dayMap[day];
+  const { cellBg, numColor } = resolveCellColors(hasActivity, colors);
+  const cellIcon = hasActivity ? <Text style={{ fontSize: 12, fontFamily: FontFamily.extraBold, color: colors.primary }}>✓</Text> : null;
   const dateStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
   const backfillsUsed = backfillInfo ? backfillInfo.backfillsUsedThisWeek : 0;
   const hasFreeze = backfillInfo ? backfillInfo.freezeDates.has(dateStr) : false;
@@ -79,7 +75,7 @@ function resolveDayCellProps(
     today: todayStr,
     weekStartOfDate: getWeekStartFor(new Date(dateStr + 'T12:00:00')),
     currentWeekStart,
-    dayHasActivity: !!data,
+    dayHasActivity: hasActivity,
     backfillsUsedThisWeek: backfillsUsed,
     hasStreakFreeze: hasFreeze,
   }).allowed;
@@ -96,7 +92,7 @@ function resolveCellIcon(data: CalendarDay | undefined, isMilestone: boolean, is
 
 export function CalendarScreen() {
   const userId = useAuthUser();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const t = useTranslations();
   const [lang] = useLanguage();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -187,12 +183,12 @@ export function CalendarScreen() {
         {cells.map((day, idx) => {
           if (!day) return <View key={idx} style={styles.cell} />;
           const { dateStr, isEligible, cellBg, numColor, cellIcon } = resolveDayCellProps(
-            day, dayMap, backfillStatus, yearMonth, todayStr, currentWeekStart, isDark, colors,
+            day, dayMap, backfillStatus, yearMonth, todayStr, currentWeekStart, colors,
           );
           const cellStyle = [
             styles.cell,
             { backgroundColor: cellBg },
-            day === today && { borderWidth: 1.5, borderColor: colors.primary },
+            day === today && styles.cellToday,
             isEligible && styles.cellEligible,
           ];
           const cellContent = (
@@ -217,14 +213,19 @@ export function CalendarScreen() {
       {/* Legend */}
       <View style={styles.legend}>
         <View style={styles.legendItem}>
-          <AnimatedFireIcon size={20} />
-          <Text style={styles.legendLabel}>{t.calendarMilestone}</Text>
+          <Text style={styles.legendCheck}>✓</Text>
+          <Text style={styles.legendLabel}>{t.calendarActive}</Text>
         </View>
         <View style={styles.legendItem}>
-          <AnimatedStarIcon size={20} />
-          <Text style={styles.legendLabel}>{t.calendarBestDay}</Text>
+          <Text style={styles.legendPlus}>＋</Text>
+          <Text style={styles.legendLabel}>{t.calendarBackfill}</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={styles.legendToday} />
+          <Text style={styles.legendLabel}>{t.calendarToday}</Text>
         </View>
       </View>
+      <Text style={styles.backfillNote}>{t.calendarBackfillHint(backfillRemaining(backfillStatus?.backfillsUsedThisWeek ?? 0))}</Text>
 
       {/* Month Summary */}
       <View style={styles.summary}>
@@ -302,9 +303,8 @@ function makeStyles(colors: AppColors) {
       marginVertical: 2,
     },
     dayNum: { fontSize: 15, fontFamily: FontFamily.bold },
-    dayStars: { fontSize: 8, fontFamily: FontFamily.semiBold, marginTop: 1 },
-    dayIcon: { fontSize: 9, marginTop: 1 },
     cellBottom: { alignItems: 'center', height: 16 },
+    cellToday: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft, ...Shadows.light },
     cellEligible: {
       borderWidth: 1,
       borderColor: colors.primary,
@@ -318,14 +318,16 @@ function makeStyles(colors: AppColors) {
     },
     legend: {
       flexDirection: 'row',
-      justifyContent: 'center',
-      gap: 16,
+      justifyContent: 'space-between',
       marginTop: 16,
       marginBottom: 8,
     },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    legendIcon: { fontSize: 14 },
+    legendCheck: { color: colors.primary, fontSize: 14, fontFamily: FontFamily.extraBold },
+    legendPlus: { color: colors.primary, fontSize: 16, fontFamily: FontFamily.extraBold },
+    legendToday: { width: 13, height: 13, borderRadius: 3, borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft },
     legendLabel: { fontSize: 13, color: colors.muted },
+    backfillNote: { color: colors.ink2, fontSize: 12, lineHeight: 18, textAlign: 'center', marginBottom: 8 },
     summary: {
       flexDirection: 'row',
       backgroundColor: colors.surface2,
