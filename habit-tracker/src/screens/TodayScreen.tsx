@@ -540,14 +540,13 @@ export function TodayScreen() {
             <Text style={styles.iconGlyph}>🔔</Text>
             {unreadNewsCount > 0 ? <View style={styles.newsDot} /> : null}
           </TouchableOpacity>
-          <View style={styles.starChip}><Text style={styles.starChipText}>★ {weeklyStars} ›</Text></View>
           <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('Settings' as never)} activeOpacity={0.7} accessibilityLabel={t.openSettings} accessibilityRole="button">
             <Text style={styles.iconGlyph}>⚙️</Text>
           </TouchableOpacity>
         </View>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
-        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} />
+        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} weeklyStars={weeklyStars} rankName={rankDisplayName} />
 
         <Animated.View style={[styles.hero, { backgroundColor: isDebt ? colors.danger : colors.primary, transform: heroOffset.getTranslateTransform() }]}>
           <View style={styles.heroTopRow}>
