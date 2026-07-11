@@ -4,7 +4,7 @@ import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { VictoryChart, VictoryBar, VictoryStack, VictoryAxis } from 'victory-native';
 import {
-  useProgressData, useStreakCount, useStarsToNextTier,
+  useProgressData, useStreakCount,
   useRecentActivityLogs, useDeleteActivityLogs, useWeeklyConsistency, useTopActivities, useAllTimeStats,
   ActivityLogEntry,
 } from '../queries/useProgress';
@@ -17,6 +17,8 @@ import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 import { useHeatmapData } from '../queries/useCalendar';
 import { HomeHeatmap } from '../components/HomeHeatmap';
 import { DAILY_BONUS_THRESHOLD } from '../config/constants';
+import { useRankData } from '../queries/useRank';
+import { getRankConfigByTierOrder } from '../config/ranks.config';
 
 type Range = 'W' | 'M' | 'Y';
 
@@ -229,12 +231,12 @@ export function ProgressScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const chartWidth = windowWidth - 70;
 
-  const [range, setRange] = useState<Range>('Y');
+  const [range, setRange] = useState<Range>('W');
   const { data: chartData = [], isLoading } = useProgressData(userId, range, 0);
   const { data: streak = 0 } = useStreakCount(userId);
   const { data: heatmapDays = [] } = useHeatmapData(userId);
   const { data: allTimeStats } = useAllTimeStats(userId);
-  const { data: tierInfo } = useStarsToNextTier(userId);
+  const { data: rankData } = useRankData(userId);
   const { data: activeDays = 0 } = useWeeklyConsistency(userId);
   const { data: topActivities = [] } = useTopActivities(userId);
   const [filterDate, setFilterDate] = useState<string | null>(null);
@@ -251,8 +253,7 @@ export function ProgressScreen() {
   const RANGES = useMemo(() => [
     { key: 'W' as Range, label: t.rangeWeek },
     { key: 'M' as Range, label: t.rangeMonth },
-    { key: 'Y' as Range, label: t.rangeYear },
-  ], [t.rangeWeek, t.rangeMonth, t.rangeYear]);
+  ], [t.rangeWeek, t.rangeMonth]);
 
   const formatBucket = useCallback(
     (bucket: string, r: Range) => formatBucketLabel(bucket, r, t.dayAbbr),
@@ -282,11 +283,18 @@ export function ProgressScreen() {
   const yearStats = useMemo(() => {
     const now = new Date();
     const year = String(now.getFullYear());
-    const totalDays = heatmapDays.filter(day => day.total_points > 0).length;
-    const filledThisYear = heatmapDays.filter(day => day.local_date.startsWith(year) && day.total_points > 0).length;
-    const daysElapsed = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 86_400_000) + 1;
-    return { totalDays, peakPoints: Math.max(0, ...heatmapDays.map(day => day.total_points)), completionRate: Math.round((filledThisYear / daysElapsed) * 100) };
+    return { peakPoints: Math.max(0, ...heatmapDays.map(day => day.total_points)) };
   }, [heatmapDays]);
+  const currentTier = rankData?.currentTierId ? rankData.tiers.find(tier => tier.id === rankData.currentTierId) : undefined;
+  const nextTier = currentTier
+    ? rankData?.tiers.find(tier => tier.tier_order === currentTier.tier_order + 1)
+    : rankData?.tiers.find(tier => tier.stars_required > (rankData?.currentStars ?? 0));
+  const rankFloor = currentTier?.stars_required ?? 0;
+  const rankProgress = nextTier
+    ? Math.min(1, Math.max(0, ((rankData?.currentStars ?? 0) - rankFloor) / Math.max(1, nextTier.stars_required - rankFloor)))
+    : 1;
+  const rankName = getRankConfigByTierOrder(currentTier?.tier_order ?? 1).nameVi;
+  const isEmpty = allTimeStats?.totalActivities === 0;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -294,13 +302,19 @@ export function ProgressScreen() {
         <Text style={styles.eyebrow}>THỐNG KÊ</Text>
         <Text style={styles.title}>{t.analyticsTitle}</Text>
 
-        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} />
+        <Text style={styles.sectionLabel}>PHONG ĐỘ</Text>
+        <View style={styles.momentumCard}>
+          <View style={styles.momentumHalf}><Text style={styles.momentumValue}>{streak}</Text><Text style={styles.statL}>STREAK HIỆN TẠI</Text></View>
+          <View style={styles.momentumHalf}><Text style={styles.momentumValue}>{allTimeStats?.bestStreak ?? 0}</Text><Text style={styles.statL}>CHUỖI DÀI NHẤT</Text></View>
+        </View>
 
-        <View style={styles.statGrid}>
-          <View style={styles.stat}><Text style={styles.statL}>TỔNG NGÀY TÔ</Text><Text style={styles.statV}>{yearStats.totalDays}<Text style={styles.statUnit}> ngày</Text></Text></View>
-          <View style={styles.stat}><Text style={styles.statL}>CHUỖI DÀI NHẤT</Text><Text style={styles.statV}>{allTimeStats?.bestStreak ?? 0}<Text style={styles.statUnit}> ngày</Text></Text></View>
-          <View style={styles.stat}><Text style={styles.statL}>ĐỈNH ĐIỂM</Text><Text style={[styles.statV, styles.statVPeak]}>{yearStats.peakPoints}<Text style={styles.statUnit}> điểm</Text></Text></View>
-          <View style={styles.stat}><Text style={styles.statL}>TỶ LỆ LẤP</Text><Text style={styles.statV}>{yearStats.completionRate}%<Text style={styles.statUnit}> năm nay</Text></Text></View>
+        <Text style={styles.sectionLabel}>HẠNG TUẦN NÀY</Text>
+        <View style={styles.rankCard}>
+          <View style={styles.rankHeader}>
+            <View><Text style={styles.rankName}>{rankName}</Text><Text style={styles.rankStars}>{rankData?.currentStars ?? 0} ★</Text></View>
+            <Text style={styles.rankNext}>{nextTier ? `${Math.max(0, nextTier.stars_required - (rankData?.currentStars ?? 0))} ★ để lên hạng` : t.rankMaxed}</Text>
+          </View>
+          <View style={styles.rankTrack}><View style={[styles.rankFill, { width: `${Math.round(rankProgress * 100)}%` }]} /></View>
         </View>
 
         {/* Segmented control */}
@@ -322,7 +336,7 @@ export function ProgressScreen() {
         {/* Chart card */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{t.chartTitle}</Text>
+            <Text style={styles.cardTitle}>{range === 'W' ? 'ĐIỂM 7 NGÀY QUA' : t.chartTitle}</Text>
           </View>
           <View style={styles.chartWrap}>
             <ProgressChartContent
@@ -334,22 +348,11 @@ export function ProgressScreen() {
           </View>
         </View>
 
-        {/* Stats */}
-        <Text style={styles.sectionLabel}>{t.statsSection}</Text>
+        <Text style={styles.sectionLabel}>CHỈ SỐ</Text>
         <View style={styles.statGrid}>
           <View style={styles.stat}>
-            <Text style={styles.statV}>{tierInfo?.currentStars ?? 0} ★</Text>
-            <Text style={styles.statL}>{t.starsThisWeek}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statV}>{streak} 🔥</Text>
-            <Text style={styles.statL}>{t.currentStreak}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statV}>
-              {tierInfo?.starsNeeded ? `${Math.ceil(tierInfo.starsNeeded)} ★` : t.rankMaxed}
-            </Text>
-            <Text style={styles.statL}>{t.toNextRank}</Text>
+            <Text style={[styles.statV, styles.statVPeak]}>{yearStats.peakPoints}</Text>
+            <Text style={styles.statL}>ĐỈNH ĐIỂM</Text>
           </View>
           <View style={styles.stat}>
             <Text style={styles.statV}>{activeDays}/7</Text>
@@ -378,7 +381,11 @@ export function ProgressScreen() {
           </>
         )}
 
-        {/* Activity log */}
+        <Text style={styles.sectionLabel}>LỊCH SỬ CẢ NĂM</Text>
+        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} />
+        {isEmpty && <Text style={styles.emptyEncouragement}>Bắt đầu ghi nhận hoạt động đầu tiên để thấy tiến độ của bạn ở đây.</Text>}
+
+        {/* Keep the existing log management surface; this redesign does not replace it. */}
         <ActivityLogSection
           actLogs={actLogs}
           selectionMode={selectionMode}
@@ -438,6 +445,17 @@ function makeStyles(C: AppColors) {
       fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2,
       marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
     },
+    momentumCard: { marginHorizontal: Spacing.lg, flexDirection: 'row', backgroundColor: C.surface, borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line, ...Shadows.light },
+    momentumHalf: { flex: 1, padding: 14 },
+    momentumValue: { color: C.primary, fontSize: 34, fontFamily: FontFamily.extraBold, letterSpacing: -1 },
+    rankCard: { marginHorizontal: Spacing.lg, padding: 14, backgroundColor: C.surface, borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line, ...Shadows.light },
+    rankHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+    rankName: { color: C.inkDark, fontSize: 18, fontFamily: FontFamily.extraBold },
+    rankStars: { color: C.starGold, fontSize: 13, fontFamily: FontFamily.bold, marginTop: 2 },
+    rankNext: { flex: 1, color: C.muted, fontSize: 12, fontFamily: FontFamily.semiBold, textAlign: 'right' },
+    rankTrack: { height: 7, marginTop: 12, backgroundColor: C.surface2, borderRadius: Radii.pill, overflow: 'hidden' },
+    rankFill: { height: '100%', backgroundColor: C.primary, borderRadius: Radii.pill },
+    emptyEncouragement: { marginHorizontal: Spacing.lg, marginTop: 12, color: C.ink2, fontSize: 13, lineHeight: 19, textAlign: 'center' },
     statGrid: {
       marginHorizontal: Spacing.lg, flexDirection: 'row', flexWrap: 'wrap', gap: 10,
     },
