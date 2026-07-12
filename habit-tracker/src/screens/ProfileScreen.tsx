@@ -67,7 +67,7 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
 
         <TouchableOpacity style={ph.trophyRow} onPress={() => (navigation as any).navigate('TrophyShelf')} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={t.screenTrophyShelf}>
           <View style={ph.trophyCopy}><Text style={ph.trophyLabel}>{t.screenTrophyShelf}</Text><Text style={ph.trophyCount}>{earnedTrophies.length} / {trophies.length}</Text></View>
-          <View style={ph.trophyBadges}>{trophies.slice(0, 3).map(trophy => <Badge key={trophy.id} tier={trophy.tier} emblem={trophy.emblem} locked={!trophy.earned} size={34} colors={colors} />)}</View>
+          <View style={ph.trophyBadges}>{trophies.slice(0, 3).map(trophy => <View key={trophy.id} style={ph.trophyBadge}><Badge tier={trophy.tier} emblem={trophy.emblem} locked={!trophy.earned} size={34} colors={colors} /></View>)}</View>
           <Text style={ph.trophyChevron}>{'>'}</Text>
         </TouchableOpacity>
 
@@ -105,6 +105,7 @@ function makePhStyles(C: AppColors) {
     trophyLabel: { fontSize: 15, fontFamily: FontFamily.semiBold, color: C.inkDark },
     trophyCount: { color: C.muted, fontSize: 12, marginTop: 2 },
     trophyBadges: { flexDirection: 'row', gap: 2, marginRight: 5 },
+    trophyBadge: { height: 34, width: 34 },
     trophyChevron: { fontSize: 20, color: C.faint, fontFamily: FontFamily.bold },
   });
 }

@@ -2,12 +2,18 @@ import { useQuery } from '@tanstack/react-query';
 import { getDb } from '../db/client';
 import { getWeekStart } from '../utils/formatters';
 
-type TierRow = {
+export type TierRow = {
   id: number;
   tier_order: number;
   rank_name: string;
   stars_required: number;
 };
+
+export function visibleTierId(currentTierId: number | null, currentStars: number, tiers: TierRow[]): number | null {
+  const tier = tiers.find(item => item.id === currentTierId);
+  return tier && currentStars >= tier.stars_required ? tier.id : null;
+}
+
 export function useRankData(userId: number) {
   const weekStart = getWeekStart();
   return useQuery({
@@ -22,9 +28,10 @@ export function useRankData(userId: number) {
       const tiers = await db.getAllAsync<TierRow>(
         `SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY tier_order`
       );
+      const currentStars = weekly?.weekly_stars ?? 0;
       return {
-        currentStars: weekly?.weekly_stars ?? 0,
-        currentTierId: weekly?.current_tier_id ?? null,
+        currentStars,
+        currentTierId: visibleTierId(weekly?.current_tier_id ?? null, currentStars, tiers),
         tiers,
       };
     },
