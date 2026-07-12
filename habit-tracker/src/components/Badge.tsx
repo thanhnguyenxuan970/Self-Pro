@@ -31,19 +31,40 @@ function desaturate(hex: string): string {
 // conic-gradient + soft-light luster from the mock (react-native-svg has no blend modes).
 const LOBE_COUNT = 8;
 const LOBE_ARC = 360 / LOBE_COUNT;
+const RARITY_GLOW: Record<Tier, [string, number, number]> = {
+  iron: ['transparent', 0, 0],
+  bronze: ['#cf8a44', 0.08, 3],
+  silver: ['#c1cbd4', 0.12, 4],
+  gold: ['#e6b52e', 0.3, 7],
+  platinum: ['#bfdae4', 0.38, 9],
+  diamond: ['#7fd6e8', 0.52, 12],
+};
 
 export function Badge({ tier, emblem, label, sub, progress, locked, size = 96, colors }: Props) {
   const ramp = TIER_COINS[tier];
   const t = useMemo(() => (locked ? (ramp.map(desaturate) as typeof ramp) : ramp), [ramp, locked]);
-  const tint = locked ? colors.faint : EMBLEM_TINT[emblem];
+  const tint = locked ? desaturate(EMBLEM_TINT[emblem]) : EMBLEM_TINT[emblem];
+  const [glowColor, glowOpacity, glowRadius] = RARITY_GLOW[tier];
+  const glowPadding = locked ? 0 : glowRadius;
+  const glowInset = (glowPadding * 100) / size;
+  const svgSize = size + glowPadding * 2;
   const gradId = `${tier}-${emblem}-${locked ? 'l' : 'u'}`;
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
     <View style={styles.wrap}>
       <View style={{ width: size, height: size }}>
-        <Svg width={size} height={size} viewBox="0 0 100 100">
+        <Svg
+          width={svgSize}
+          height={svgSize}
+          viewBox={`${-glowInset} ${-glowInset} ${100 + glowInset * 2} ${100 + glowInset * 2}`}
+          style={{ position: 'absolute', left: -glowPadding, top: -glowPadding }}
+        >
           <Defs>
+            <RadialGradient id={`glow-${gradId}`} cx="50%" cy="50%" r="50%">
+              <Stop offset="0.6" stopColor={glowColor} stopOpacity={glowOpacity} />
+              <Stop offset="1" stopColor={glowColor} stopOpacity={0} />
+            </RadialGradient>
             <RadialGradient id={`ring-${gradId}`} cx="50%" cy="35%" r="68%">
               <Stop offset="0" stopColor={t[0]} />
               <Stop offset="0.3" stopColor={t[1]} />
@@ -66,6 +87,7 @@ export function Badge({ tier, emblem, label, sub, progress, locked, size = 96, c
             </RadialGradient>
           </Defs>
 
+          {!locked && glowOpacity > 0 && <Circle cx="50" cy="50" r={50 + glowInset} fill={`url(#glow-${gradId})`} />}
           {/* 1. Ambient contact shadow */}
           <Ellipse cx="50" cy="88" rx="30" ry="7" fill={`url(#shadow-${gradId})`} />
 
@@ -103,7 +125,7 @@ export function Badge({ tier, emblem, label, sub, progress, locked, size = 96, c
              fill="none" strokeLinecap="round" strokeLinejoin="round">
             <Path d={EMBLEM_PATH[emblem]} />
           </G>
-          <G transform="translate(30,30) scale(1.66)" stroke={tint} strokeWidth={2.05}
+          <G transform="translate(30,30) scale(1.66)" stroke={tint} strokeOpacity={locked ? 0.55 : 1} strokeWidth={2.05}
              fill="none" strokeLinecap="round" strokeLinejoin="round">
             <Path d={EMBLEM_PATH[emblem]} />
           </G>
@@ -116,7 +138,7 @@ export function Badge({ tier, emblem, label, sub, progress, locked, size = 96, c
           <Ellipse cx="50" cy="80" rx="16" ry="4" fill="rgba(255,255,255,0.18)" />
 
           {locked && (
-            <G transform="translate(37,37) scale(1.1)" stroke={colors.ink2} strokeWidth={2.1}
+            <G transform="translate(66,66) scale(0.72)" stroke={colors.ink2} strokeWidth={2.4}
                fill="none" strokeLinecap="round" strokeLinejoin="round">
               <Path d="M4.5 10.5h15v10h-15z M8 10.5V7a4 4 0 0 1 8 0v3.5" />
             </G>
