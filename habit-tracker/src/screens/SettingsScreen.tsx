@@ -5,7 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Radii, Spacing, Shadows, Typography, AppColors, FontFamily } from '../config/theme';
-import { useDarkMode, useLanguage, useAudioEnabled, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
+import { useDarkMode, useLanguage, useAudioEnabled, useAccent, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
 import { useAuthUser } from '../hooks/useAuth';
 import {
   useNotificationTime, useSetNotificationTime,
@@ -14,6 +14,7 @@ import {
 } from '../queries/useSettings';
 import { scheduleAllHabitReminders } from '../utils/notifications';
 import { FeedbackSheet } from './FeedbackSheet';
+import { AccentPicker } from '../components/AccentPicker';
 
 type Props = {
   onDeleteAccount: (userId: number) => Promise<void>;
@@ -50,7 +51,7 @@ function LanguageOption({ lang, l, isLast, onPress, styles }: { lang: string; l:
       accessibilityLabel={l === 'vi' ? 'Tiếng Việt' : 'English'}
       accessibilityState={{ checked: lang === l }}
     >
-      <Text style={styles.rowIc}>{l === 'vi' ? '🇻🇳' : '🇬🇧'}</Text>
+      <Text style={styles.languageChip}>{l.toUpperCase()}</Text>
       <Text style={styles.rowLabel}>{l === 'vi' ? 'Tiếng Việt' : 'English'}</Text>
       {lang === l && <Text style={styles.check}>✓</Text>}
     </TouchableOpacity>
@@ -63,6 +64,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
   const [lang, setLanguage] = useLanguage();
   const [audioEnabled, setAudioEnabled] = useAudioEnabled();
   const { colors } = useTheme();
+  const [accent, setAccent] = useAccent();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [deleting, setDeleting] = useState(false);
@@ -135,7 +137,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
         {/* Appearance */}
         <Text style={styles.sectionLabel}>{t.sectionAppearance}</Text>
         <View style={styles.card}>
-          <View style={[styles.row, styles.rowLast]}>
+          <View style={styles.row}>
             <Text style={styles.rowIc}>🌙</Text>
             <Text style={styles.rowLabel}>{t.darkModeLabel}</Text>
             <Switch
@@ -145,6 +147,13 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
               trackColor={{ false: colors.line2, true: colors.primarySoft }}
               accessibilityLabel={t.darkModeLabel}
             />
+          </View>
+          <View style={[styles.row, styles.rowLast]}>
+            <View style={styles.accentCopy}>
+              <Text style={styles.rowLabel}>{t.accentColorLabel}</Text>
+              <Text style={styles.accentName}>{t[`accent${accent[0].toUpperCase()}${accent.slice(1)}` as keyof typeof t] as string}</Text>
+            </View>
+            <AccentPicker accent={accent} onSelect={setAccent} colors={colors} />
           </View>
         </View>
 
@@ -287,6 +296,7 @@ function makeStyles(C: AppColors) {
     },
     rowLast: { borderBottomWidth: 0 },
     rowIc: { fontSize: 20, width: 28, textAlign: 'center' },
+    languageChip: { width: 28, borderRadius: Radii.sm, backgroundColor: C.surface2, color: C.ink2, fontSize: 11, fontFamily: FontFamily.bold, overflow: 'hidden', paddingVertical: 4, textAlign: 'center' },
     rowLabel: { flex: 1, fontSize: 15, fontFamily: FontFamily.semiBold, color: C.inkDark },
     check: { fontSize: 16, fontFamily: FontFamily.extraBold, color: C.primary },
     chevron: { fontSize: 18, color: C.muted },
@@ -313,5 +323,7 @@ function makeStyles(C: AppColors) {
       color: C.primary,
       fontFamily: FontFamily.bold,
     },
+    accentCopy: { flex: 1 },
+    accentName: { color: C.muted, fontSize: 12, marginTop: 2 },
   });
 }

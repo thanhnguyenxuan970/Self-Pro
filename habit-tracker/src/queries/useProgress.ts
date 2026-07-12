@@ -364,7 +364,7 @@ export function useAllTimeStats(userId: number) {
     queryKey: ['progress', 'alltime', userId],
     queryFn: async () => {
       const db = await getDb();
-      const [acts, stars, bestStreak] = await Promise.all([
+      const [acts, stars, bestStreak, activeDays] = await Promise.all([
         db.getFirstAsync<{ total: number }>(
           `SELECT COUNT(*) AS total FROM activity_log WHERE user_id = ? AND source = 'TASK'`,
           [userId]
@@ -378,11 +378,16 @@ export function useAllTimeStats(userId: number) {
           `SELECT COALESCE(MAX(streak_count), 0) AS best FROM daily_summary WHERE user_id = ?`,
           [userId]
         ),
+        db.getFirstAsync<{ total: number }>(
+          `SELECT COUNT(*) AS total FROM daily_summary WHERE user_id = ?`,
+          [userId]
+        ),
       ]);
       return {
         totalActivities: acts?.total ?? 0,
         totalStars: Math.floor(stars?.total ?? 0),
         bestStreak: bestStreak?.best ?? 0,
+        activeDays: activeDays?.total ?? 0,
       };
     },
   });
