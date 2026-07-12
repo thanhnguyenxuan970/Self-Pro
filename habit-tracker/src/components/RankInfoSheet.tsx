@@ -59,21 +59,23 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
               const cfg = getRankConfigByTierOrder(tier.tier_order);
               const rankLabel = t.rankNameMap[cfg.name] ?? cfg.name;
               const rankAltLabel = rankLabel === cfg.nameVi ? cfg.name : cfg.nameVi;
+              const locked = tier.tier_order === 9 && !cur;
+              const lockedLabel = rankLabel === cfg.name ? '??? · hidden' : '??? · còn giấu';
               return (
                 <View key={tier.id} style={[styles.lrow, cur && styles.lrowCur]}>
                   <View style={[styles.lnum, cur && styles.lnumCur]}>
                     <Text style={[styles.lnumText, cur && styles.lnumTextCur]}>{tier.tier_order}</Text>
                   </View>
                   <View style={styles.lcopy}>
-                    <Text style={styles.lname} numberOfLines={1}>{rankLabel}</Text>
-                    <Text style={styles.lnameVi} numberOfLines={1}>{rankAltLabel}</Text>
+                    <Text style={styles.lname} numberOfLines={1}>{locked ? lockedLabel : rankLabel}</Text>
+                    {!locked && <Text style={styles.lnameVi} numberOfLines={1}>{rankAltLabel}</Text>}
                   </View>
                   {cur ? (
                     <View style={styles.youtag}>
                       <Text style={styles.youtagText}>{t.leaderboardYou}</Text>
                     </View>
                   ) : null}
-                  <Text style={styles.lstar}>{tier.stars_required} ⭐</Text>
+                  {!locked && <Text style={styles.lstar}>{tier.stars_required} ⭐</Text>}
                 </View>
               );
             })}

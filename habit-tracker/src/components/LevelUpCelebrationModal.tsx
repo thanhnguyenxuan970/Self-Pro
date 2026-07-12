@@ -1,264 +1,131 @@
 import React, { useEffect, useRef } from 'react';
-import {
-  Modal, View, Text, TouchableOpacity,
-  Animated, StyleSheet, Dimensions,
-} from 'react-native';
+import { Animated, Easing, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RankMascot } from './RankMascot';
 import { getRankConfigByTierOrder } from '../config/ranks.config';
-import { Radii, Spacing, FontFamily } from '../config/theme';
-import { useTheme, useTranslations } from '../hooks/useSettings';
+import { FontFamily, Radii, Spacing } from '../config/theme';
+import { useTranslations } from '../hooks/useSettings';
 import { useReduceMotion } from '../hooks/useReduceMotion';
-import { getCelebrationGlowColor, shouldRunCelebrationBurst } from '../lib/rankPresentation';
-
-const { width: W, height: H } = Dimensions.get('window');
-
-const PARTICLE_COLORS = [
-  '#A78BFA', '#818CF8', '#60A5FA', '#2DD4BF',
-  '#F472B6', '#FB923C', '#F4C842', '#25B36E', '#E0A93B',
-];
-const N_PARTICLES = 30;
-
-type Particle = {
-  angle: number;
-  dist: number;
-  color: string;
-  size: number;
-  tx: Animated.Value;
-  ty: Animated.Value;
-  opacity: Animated.Value;
-};
+import { shouldRunCelebrationBurst } from '../lib/rankPresentation';
 
 interface Props {
   visible: boolean;
   tierOrder: number;
   tierName: string;
+  weeklyStars?: number;
   onDismiss: () => void;
-  onShare?: () => void;
 }
 
-export function LevelUpCelebrationModal({ visible, tierOrder, tierName, onDismiss, onShare }: Props) {
+export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklyStars, onDismiss }: Props) {
   const t = useTranslations();
-  const { colors: C } = useTheme();
   const reduceMotion = useReduceMotion();
   const cfg = getRankConfigByTierOrder(tierOrder);
-  const rankLabel = t.rankNameMap[cfg.name] ?? cfg.name;
-  const rankAltLabel = rankLabel === cfg.nameVi ? cfg.name : cfg.nameVi;
-
-  const particlesRef = useRef<Particle[] | null>(null);
-  if (!particlesRef.current) {
-    particlesRef.current = Array.from({ length: N_PARTICLES }, (_, i) => ({
-      angle: (i / N_PARTICLES) * Math.PI * 2 + (Math.random() - 0.5) * 0.4,
-      dist: 70 + Math.random() * 130,
-      color: PARTICLE_COLORS[i % PARTICLE_COLORS.length],
-      size: 5 + Math.random() * 8,
-      tx: new Animated.Value(0),
-      ty: new Animated.Value(0),
-      opacity: new Animated.Value(0),
-    }));
-  }
-  const particles = particlesRef.current;
-
-  const runningRef = useRef(false);
-  const burstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rankLabel = t.rankNameMap[cfg.name] ?? tierName;
+  const eyebrow = useRef(new Animated.Value(0)).current;
+  const mascot = useRef(new Animated.Value(0)).current;
+  const title = useRef(new Animated.Value(0)).current;
+  const starChip = useRef(new Animated.Value(0)).current;
+  const cta = useRef(new Animated.Value(0)).current;
+  const waveOne = useRef(new Animated.Value(0)).current;
+  const waveTwo = useRef(new Animated.Value(0)).current;
+  const floatY = useRef(new Animated.Value(0)).current;
+  const floatLoop = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     if (!visible) return;
-    runningRef.current = true;
-    if (!shouldRunCelebrationBurst(visible, reduceMotion)) return;
-
-    function burst() {
-      if (!runningRef.current) return;
-      particles.forEach(p => { p.tx.setValue(0); p.ty.setValue(0); p.opacity.setValue(1); });
-      Animated.stagger(
-        12,
-        particles.map(p =>
-          Animated.parallel([
-            Animated.timing(p.tx, {
-              toValue: Math.cos(p.angle) * p.dist,
-              duration: 850,
-              useNativeDriver: true,
-            }),
-            Animated.timing(p.ty, {
-              toValue: Math.sin(p.angle) * p.dist,
-              duration: 850,
-              useNativeDriver: true,
-            }),
-            Animated.sequence([
-              Animated.delay(280),
-              Animated.timing(p.opacity, {
-                toValue: 0,
-                duration: 570,
-                useNativeDriver: true,
-              }),
-            ]),
-          ])
-        )
-      ).start(({ finished }) => {
-        if (finished && runningRef.current) {
-          burstTimerRef.current = setTimeout(burst, 450);
-        }
-      });
+    const values = [eyebrow, mascot, title, starChip, cta, waveOne, waveTwo, floatY];
+    values.forEach(value => value.setValue(0));
+    if (!shouldRunCelebrationBurst(visible, reduceMotion)) {
+      [eyebrow, mascot, title, starChip, cta].forEach(value => value.setValue(1));
+      return;
     }
 
-    burst();
+    const rise = (value: Animated.Value, delay: number) => Animated.sequence([
+      Animated.delay(delay),
+      Animated.timing(value, { toValue: 1, duration: 360, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]);
+    const wave = (value: Animated.Value, delay: number) => Animated.sequence([
+      Animated.delay(delay),
+      Animated.timing(value, { toValue: 1, duration: 650, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]);
+    const entrance = Animated.parallel([
+      rise(eyebrow, 100),
+      Animated.sequence([
+        Animated.delay(260),
+        Animated.spring(mascot, { toValue: 1, friction: 5, tension: 110, useNativeDriver: true }),
+      ]),
+      wave(waveOne, 380),
+      wave(waveTwo, 600),
+      rise(title, 520),
+      rise(starChip, 760),
+      rise(cta, 900),
+    ]);
+    entrance.start(({ finished }) => {
+      if (!finished) return;
+      floatLoop.current = Animated.loop(Animated.sequence([
+        Animated.timing(floatY, { toValue: -5, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(floatY, { toValue: 5, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ]));
+      floatLoop.current.start();
+    });
     return () => {
-      runningRef.current = false;
-      if (burstTimerRef.current != null) {
-        clearTimeout(burstTimerRef.current);
-        burstTimerRef.current = null;
-      }
-      particles.forEach(p => {
-        p.tx.stopAnimation();
-        p.ty.stopAnimation();
-        p.opacity.stopAnimation();
-      });
+      entrance.stop();
+      floatLoop.current?.stop();
     };
   }, [visible, reduceMotion]);
 
+  const riseStyle = (value: Animated.Value) => ({
+    opacity: value,
+    transform: [{ translateY: value.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+  });
+  const waveStyle = (value: Animated.Value) => ({
+    opacity: value.interpolate({ inputRange: [0, 0.72, 1], outputRange: [0, 0.45, 0] }),
+    transform: [{ scale: value.interpolate({ inputRange: [0, 1], outputRange: [0.5, 3.1] }) }],
+  });
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
-      <TouchableOpacity style={styles.backdrop} onPress={onDismiss} activeOpacity={1}>
-        {/* Firework particles — centered on screen */}
-        {particles.map((p, i) => (
-          <Animated.View
-            key={i}
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              left: W / 2 - p.size / 2,
-              top: H / 2 - p.size / 2,
-              width: p.size,
-              height: p.size,
-              borderRadius: p.size / 2,
-              backgroundColor: p.color,
-              opacity: p.opacity,
-              transform: [{ translateX: p.tx }, { translateY: p.ty }],
-            }}
-          />
-        ))}
-
-        {/* Main celebration card */}
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => {}}
-          style={[styles.card, { borderColor: cfg.color + '99', backgroundColor: C.surface }]}
-        >
-          <View style={[styles.cardGlow, { backgroundColor: getCelebrationGlowColor(tierOrder) }]} pointerEvents="none" />
-          <Text style={styles.fireworksEmoji}>🎉</Text>
-          <Text style={[styles.levelUpTitle, { color: cfg.color }]}>{t.levelUpTitle}</Text>
-
-          <View style={styles.mascotWrap}>
-            <RankMascot tier={tierOrder - 1} size={88} loop reduceMotion={reduceMotion} />
-          </View>
-
-          <Text style={[styles.tierName, { color: C.inkDark }]}>{rankLabel}</Text>
-          <Text style={[styles.tierNameVi, { color: C.ink2 }]}>{rankAltLabel}</Text>
-          <Text style={[styles.descriptor, { color: cfg.color + 'CC' }]}>{cfg.descriptor}</Text>
-
-          <Text style={[styles.subtitle, { color: C.muted }]}>{t.levelUpSubtitle(tierName)}</Text>
-
-          <TouchableOpacity
-            style={[styles.dismissBtn, { backgroundColor: cfg.color }]}
-            onPress={onDismiss}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={t.levelUpDismiss}
-          >
-            <Text style={[styles.dismissBtnText, { color: C.onAccent }]}>{t.levelUpDismiss}</Text>
+    <Modal visible={visible} animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onDismiss}>
+      <View style={styles.screen} accessibilityViewIsModal>
+        <View style={[styles.wash, { backgroundColor: cfg.color }]} pointerEvents="none" />
+        <Animated.View style={[styles.eyebrow, { backgroundColor: `${cfg.color}24` }, riseStyle(eyebrow)]}>
+          <Text style={[styles.eyebrowText, { color: cfg.color }]}>✦ {t.levelUpTitle}</Text>
+        </Animated.View>
+        <View style={styles.mascotStage}>
+          {!reduceMotion && <Animated.View style={[styles.wave, { borderColor: cfg.color }, waveStyle(waveOne)]} />}
+          {!reduceMotion && <Animated.View style={[styles.wave, { borderColor: cfg.color }, waveStyle(waveTwo)]} />}
+          <Animated.View style={{ transform: [{ scale: mascot.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }, { translateY: floatY }] }}>
+            <RankMascot tier={tierOrder - 1} size={168} loop reduceMotion={reduceMotion} />
+          </Animated.View>
+        </View>
+        <Animated.View style={[styles.copy, riseStyle(title)]}>
+          <Text style={styles.rankName} numberOfLines={2}>{rankLabel}</Text>
+          <Text style={[styles.descriptor, { color: cfg.color }]} numberOfLines={2}>{cfg.descriptor}</Text>
+        </Animated.View>
+        <Animated.View style={[styles.starChip, riseStyle(starChip)]}>
+          <Text style={styles.starChipText}>{t.weekStars(weeklyStars ?? cfg.stars)}</Text>
+        </Animated.View>
+        <Animated.View style={[styles.ctaWrap, riseStyle(cta)]}>
+          <TouchableOpacity style={styles.cta} onPress={onDismiss} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Tiếp tục">
+            <Text style={styles.ctaText}>Tiếp tục</Text>
           </TouchableOpacity>
-          {onShare && (
-            <TouchableOpacity
-              style={styles.shareBtn}
-              onPress={() => { onDismiss(); setTimeout(onShare, 300); }}
-              activeOpacity={0.75}
-              accessibilityRole="button"
-              accessibilityLabel={t.shareAchievement}
-            >
-              <Text style={[styles.shareBtnText, { color: C.muted }]}>{t.shareAchievement}</Text>
-            </TouchableOpacity>
-          )}
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </Animated.View>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.82)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  card: {
-    borderRadius: Radii.xl,
-    padding: Spacing.xl,
-    alignItems: 'center',
-    marginHorizontal: 28,
-    borderWidth: 1.5,
-    maxWidth: 320,
-    width: '100%',
-    overflow: 'hidden',
-  },
-  cardGlow: {
-    position: 'absolute',
-    top: -8,
-    left: 24,
-    right: 24,
-    height: 120,
-    borderRadius: 999,
-    opacity: 0.16,
-  },
-  fireworksEmoji: { fontSize: 48, marginBottom: 2 },
-  levelUpTitle: {
-    fontSize: 28,
-    fontFamily: FontFamily.extraBold,
-    letterSpacing: 1.5,
-    marginBottom: Spacing.md,
-  },
-  mascotWrap: { marginVertical: Spacing.sm },
-  tierName: {
-    fontSize: 24,
-    fontFamily: FontFamily.extraBold,
-    marginTop: Spacing.sm,
-    letterSpacing: -0.5,
-  },
-  tierNameVi: {
-    fontSize: 13,
-    fontFamily: FontFamily.semiBold,
-    marginTop: 3,
-  },
-  descriptor: {
-    fontSize: 13,
-    fontStyle: 'italic',
-    marginTop: 4,
-    fontFamily: FontFamily.semiBold,
-  },
-  subtitle: {
-    fontSize: 14,
-    marginTop: Spacing.md,
-    textAlign: 'center',
-    lineHeight: 21,
-    paddingHorizontal: Spacing.sm,
-  },
-  dismissBtn: {
-    marginTop: Spacing.lg,
-    paddingVertical: 14,
-    paddingHorizontal: 40,
-    borderRadius: Radii.pill,
-  },
-  dismissBtnText: {
-    fontSize: 16,
-    fontFamily: FontFamily.extraBold,
-    letterSpacing: 0.3,
-  },
-  shareBtn: {
-    marginTop: Spacing.sm,
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-  },
-  shareBtnText: {
-    fontSize: 14,
-    fontFamily: FontFamily.semiBold,
-  },
+  screen: { flex: 1, backgroundColor: '#0F1410', alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, overflow: 'hidden' },
+  wash: { position: 'absolute', width: 420, height: 420, borderRadius: 210, top: '9%', opacity: 0.2 },
+  eyebrow: { borderRadius: Radii.pill, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 18 },
+  eyebrowText: { fontFamily: FontFamily.extraBold, fontSize: 12, letterSpacing: 0.7 },
+  mascotStage: { width: 220, height: 190, alignItems: 'center', justifyContent: 'center' },
+  wave: { position: 'absolute', width: 84, height: 84, borderRadius: 42, borderWidth: 2 },
+  copy: { alignItems: 'center', maxWidth: '100%' },
+  rankName: { color: '#F5F6F5', fontFamily: FontFamily.extraBold, fontSize: 40, lineHeight: 47, letterSpacing: -1.8, textAlign: 'center' },
+  descriptor: { fontFamily: FontFamily.semiBold, fontSize: 15, fontStyle: 'italic', marginTop: 5, textAlign: 'center' },
+  starChip: { backgroundColor: 'rgba(224,169,59,0.14)', borderWidth: 1, borderColor: 'rgba(224,169,59,0.3)', borderRadius: Radii.pill, marginTop: Spacing.lg, paddingHorizontal: 16, paddingVertical: 8 },
+  starChipText: { color: '#E0A93B', fontFamily: FontFamily.extraBold, fontSize: 13 },
+  ctaWrap: { alignSelf: 'stretch', marginTop: 30 },
+  cta: { minHeight: 54, borderRadius: 16, backgroundColor: '#25B36E', alignItems: 'center', justifyContent: 'center' },
+  ctaText: { color: '#FFFFFF', fontFamily: FontFamily.extraBold, fontSize: 16 },
 });

@@ -142,6 +142,7 @@ export const RankMascot = forwardRef<RankMascotHandle, Props>(
         >
           <Svg width={size} height={size} viewBox="-60 -60 120 120">
             <G>
+              {rank.glow ? <Circle cx={0} cy={0} r={34} fill={rank.glow} opacity={rank.glowOpacity ?? 0.4} /> : null}
               {rank.limbs.map((d, i) => (
                 <Path
                   key={`l${i}`}

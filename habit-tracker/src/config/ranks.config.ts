@@ -44,6 +44,7 @@ export interface Rank {
   color: string;
   edge: string;
   glow?: string;
+  glowOpacity?: number;
   limbs: string[];
   face: SvgEl[];
   anim: RankAnim;
@@ -89,16 +90,15 @@ export const RANKS: Rank[] = [
     descriptor: 'max send',
     color: '#818CF8',
     edge: '#5B61D6',
-    limbs: ['M-13,12 Q-20,20 -14,24', 'M13,12 Q20,20 14,24', 'M-12,0 L-20,-4', 'M12,0 L20,-4'],
+    limbs: ['M-10,14 Q-17,24 -11,28', 'M10,14 Q17,24 11,28', 'M-13,3 Q-23,8 -25,1', 'M13,3 Q23,8 25,1'],
     face: FACE([
-      { t: 'path', d: 'M-9,-7 L-3,-5', stroke: '#2A2A2A', sw: 2, cap: 'round' },
-      { t: 'path', d: 'M9,-7 L3,-5', stroke: '#2A2A2A', sw: 2, cap: 'round' },
-      { t: 'circle', cx: 0, cy: 2, r: 3, fill: '#2A2A2A' },
+      { t: 'path', d: 'M-10,-8 L-4,-6', stroke: '#2A2A2A', sw: 2, cap: 'round' },
+      { t: 'path', d: 'M3,-6 L9,-8', stroke: '#2A2A2A', sw: 2, cap: 'round' },
+      { t: 'path', d: 'M-3,3 q4,2 7,-1', stroke: '#2A2A2A', sw: 2, cap: 'round' },
+      { t: 'path', d: 'M26,-17 h7 M29.5,-20.5 v7', stroke: '#F5EEFF', sw: 2, cap: 'round' },
     ]),
     anim: { duration: 2000, loop: true, channels: {
-      translateY: [[0, 0], [0.5, 4], [0.62, -34], [0.8, 0], [1, 0]],
-      scaleY: [[0, 1], [0.5, 0.6], [0.62, 1.4], [0.8, 0.9], [1, 1]],
-      scaleX: [[0, 1], [0.5, 1.3], [0.62, 0.7], [0.8, 1.1], [1, 1]],
+      rotate: [[0, -14], [0.5, -11], [1, -14]],
     }},
     sfx: 'mewing',
     haptic: 'success',
@@ -111,10 +111,11 @@ export const RANKS: Rank[] = [
     descriptor: 'hit the griddy',
     color: '#60A5FA',
     edge: '#3B82F6',
-    limbs: ['M-6,15 L-16,32', 'M6,15 L16,30', 'M-13,1 Q-24,-6 -28,-14', 'M13,-1 Q24,-8 28,-16'],
+    limbs: ['M-7,14 L-20,32', 'M7,14 L19,29', 'M-12,1 Q-26,0 -25,16', 'M12,0 Q26,8 31,16'],
     face: FACE([
       { t: 'circle', cx: -7, cy: -8, r: 2.2, fill: '#2A2A2A' },
       { t: 'path', d: 'M4,-8 h6', stroke: '#2A2A2A', sw: 2, cap: 'round' },
+      { t: 'path', d: 'M-11,-14 h8', stroke: '#2A2A2A', sw: 3, cap: 'round' },
       { t: 'path', d: 'M-5,-1 q6,4 11,-2', stroke: '#2A2A2A', sw: 2, cap: 'round' },
     ]),
     anim: { duration: 550, loop: true, channels: {
@@ -132,6 +133,8 @@ export const RANKS: Rank[] = [
     descriptor: 'too swole',
     color: '#2DD4BF',
     edge: '#14B8A6',
+    glow: '#2DD4BF',
+    glowOpacity: 0.4,
     limbs: ['M-7,15 L-19,33', 'M7,15 L19,33', 'M-12,-4 Q-26,-6 -22,-20', 'M12,-4 Q26,-6 22,-20'],
     face: FACE([
       { t: 'circle', cx: -23, cy: -19, r: 6, fill: '#14B8A6' },
@@ -155,15 +158,24 @@ export const RANKS: Rank[] = [
     descriptor: 'spin to win',
     color: '#F472B6',
     edge: '#EC4899',
-    limbs: ['M-6,14 Q-16,22 -12,30', 'M6,14 Q16,22 12,30', 'M-12,1 L-24,-6', 'M12,1 L24,-6'],
+    glow: '#F472B6',
+    glowOpacity: 0.4,
+    limbs: ['M-7,14 Q-18,20 -24,15', 'M7,14 Q18,20 24,15', 'M-12,2 Q-25,0 -30,8', 'M12,2 Q25,0 30,8'],
     face: FACE([
       { t: 'circle', cx: -6, cy: -6, r: 2, fill: '#2A2A2A' },
       { t: 'circle', cx: 6, cy: -6, r: 2, fill: '#2A2A2A' },
       { t: 'path', d: 'M-6,1 q6,5 12,0', stroke: '#2A2A2A', sw: 2, cap: 'round' },
+      { t: 'line', x1: -33, y1: 0, x2: -25, y2: 0, stroke: '#F9A8D4', sw: 2, cap: 'round' },
+      { t: 'line', x1: 33, y1: 0, x2: 25, y2: 0, stroke: '#F9A8D4', sw: 2, cap: 'round' },
+      { t: 'line', x1: -24, y1: -24, x2: -18, y2: -18, stroke: '#F9A8D4', sw: 2, cap: 'round' },
+      { t: 'line', x1: 24, y1: -24, x2: 18, y2: -18, stroke: '#F9A8D4', sw: 2, cap: 'round' },
+      { t: 'line', x1: -24, y1: 24, x2: -18, y2: 18, stroke: '#F9A8D4', sw: 2, cap: 'round' },
+      { t: 'line', x1: 24, y1: 24, x2: 18, y2: 18, stroke: '#F9A8D4', sw: 2, cap: 'round' },
+      { t: 'line', x1: 0, y1: -33, x2: 0, y2: -25, stroke: '#F9A8D4', sw: 2, cap: 'round' },
+      { t: 'line', x1: 0, y1: 33, x2: 0, y2: 25, stroke: '#F9A8D4', sw: 2, cap: 'round' },
     ]),
     anim: { duration: 1300, loop: true, channels: {
-      rotate: [[0, 0], [0.45, 180], [0.55, 200], [1, 360]],
-      scaleX: [[0, 1], [0.45, 0.7], [0.55, 0.7], [1, 1]],
+      translateY: [[0, 1], [0.5, -2], [1, 1]],
     }},
     sfx: 'aura-farmer',
     haptic: 'heavy-success',
@@ -176,16 +188,17 @@ export const RANKS: Rank[] = [
     descriptor: 'hair flip',
     color: '#FB923C',
     edge: '#EA7317',
-    limbs: ['M2,15 L13,38', 'M-2,15 L-16,40', 'M11,0 Q24,-2 26,-14', 'M-12,0 Q-22,4 -26,-6'],
+    limbs: ['M2,15 L13,38', 'M-2,15 L-16,40', 'M11,0 L15,-34', 'M-12,0 Q-24,6 -29,-4'],
     face: FACE([
       { t: 'rect', x: -13, y: -10, width: 11, height: 6, fill: '#2A2A2A' },
       { t: 'rect', x: 2, y: -10, width: 11, height: 6, fill: '#2A2A2A' },
       { t: 'line', x1: -2, y1: -7.5, x2: 2, y2: -7.5, stroke: '#2A2A2A', sw: 2 },
       { t: 'path', d: 'M-4,2 q5,3 9,-1', stroke: '#2A2A2A', sw: 2, cap: 'round' },
+      { t: 'path', d: 'M-8,-18 q-8,-9 -14,-7 M-4,-20 q-3,-10 -9,-13', stroke: '#EA7317', sw: 2.5, cap: 'round' },
+      { t: 'circle', cx: 15, cy: -34, r: 5, fill: '#FB923C', stroke: '#EA7317', sw: 1.5 },
     ]),
     anim: { duration: 1800, loop: true, channels: {
-      rotate: [[0, 0], [0.2, -4], [0.4, 28], [0.55, 30], [0.75, -6], [1, 0]],
-      translateX: [[0, 0], [0.4, 8], [0.55, 8], [0.75, 0], [1, 0]],
+      translateY: [[0, 2], [0.5, -3], [1, 2]],
     }},
     sfx: 'main-character',
     haptic: 'heavy-success',
@@ -199,6 +212,7 @@ export const RANKS: Rank[] = [
     color: '#F4C842',
     edge: '#A87B12',
     glow: '#FFE066',
+    glowOpacity: 0.4,
     limbs: ['M-6,14 Q-18,18 -14,28', 'M6,14 Q18,18 14,28', 'M-12,-4 L-26,-16', 'M12,-4 L26,-16'],
     face: FACE([
       { t: 'path', d: 'M-12,-23 L-12,-33 L-4,-27 L0,-36 L4,-27 L12,-33 L12,-23 Z', fill: '#FFE066', stroke: '#A87B12', sw: 1.5 },
@@ -223,6 +237,7 @@ export const RANKS: Rank[] = [
     color: '#8B5CF6',
     edge: '#5B21B6',
     glow: '#8B5CF6',
+    glowOpacity: 0.5,
     limbs: ['M-12,-4 Q-26,-10 -22,-24', 'M12,-4 Q26,-10 22,-24', 'M-7,15 L-17,35', 'M7,15 L17,35'],
     face: FACE([
       { t: 'path', d: 'M-16,-20 Q-25,-29 -20,-38 Q-12,-35 -10,-24 Z', fill: '#5B21B6' },
@@ -250,6 +265,7 @@ export const RANKS: Rank[] = [
     color: '#F5EEFF',
     edge: '#C9A227',
     glow: '#E0A93B',
+    glowOpacity: 0.6,
     limbs: ['M-11,2 Q-25,-1 -27,-9', 'M11,2 Q25,-1 27,-9', 'M-6,15 Q-15,25 -5,27', 'M6,15 Q15,25 5,27'],
     face: FACE([
       { t: 'ellipse', cx: 0, cy: -30.5, rx: 15, ry: 4.6, stroke: '#E0A93B', sw: 2 },
