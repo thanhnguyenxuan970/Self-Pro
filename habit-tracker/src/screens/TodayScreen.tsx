@@ -14,6 +14,7 @@ import {
   useLogTask, useUnlogTask, useTodayLoggedTaskIds, useConsecutiveSuggestions,
   useTodayTaskTotalDurations, PENDING_LEVELUP_KEY,
 } from '../queries/useToday';
+import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { useArchiveTask, useUpdateTaskName } from '../queries/useTasks';
 import { useRankData } from '../queries/useRank';
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
@@ -307,6 +308,11 @@ export function TodayScreen() {
   const { data: shareCardData } = useShareCardData(userId);
 
   useEffect(() => {
+    rankMascotBridge.onRankUp = (rank) => setPendingLevelUp({ tierOrder: rank.tier_order, tierName: rank.rank_name });
+    return () => { rankMascotBridge.onRankUp = null; };
+  }, []);
+
+  useEffect(() => {
     AsyncStorage.getItem(PENDING_LEVELUP_KEY).then(raw => {
       if (raw) {
         try {
@@ -382,12 +388,6 @@ export function TodayScreen() {
     }
   }
 
-  function showRankUp(result: { didRankUp: boolean; newTier: { tier_order: number; rank_name: string } | null }) {
-    if (result.didRankUp && result.newTier) {
-      setPendingLevelUp({ tierOrder: result.newTier.tier_order, tierName: result.newTier.rank_name });
-    }
-  }
-
   async function tryUnlog(task: Task) {
     try {
       await unlogTask.mutateAsync({ taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD' });
@@ -411,7 +411,6 @@ export function TodayScreen() {
         isTimeBased: false, basePoints: task.base_points, starPenalty: task.star_penalty,
       });
       showStreakToast(result.newStreak, result.prevStreak);
-      showRankUp(result);
       setJustLoggedIds(prev => new Set(prev).add(task.id));
       setTimeout(() => setJustLoggedIds(prev => { const n = new Set(prev); n.delete(task.id); return n; }), 1500);
     } catch { Alert.alert(t.error, t.cantLog); }
@@ -427,7 +426,6 @@ export function TodayScreen() {
         starPenalty: modalTask.star_penalty, durationMin: mins,
       });
       showStreakToast(result.newStreak, result.prevStreak);
-      showRankUp(result);
       closeModal();
     } catch { Alert.alert(t.error, t.cantLog); }
   }
@@ -443,7 +441,6 @@ export function TodayScreen() {
         isTimeBased: false, basePoints: task.base_points, starPenalty: task.star_penalty,
       });
       showStreakToast(result.newStreak, result.prevStreak);
-      showRankUp(result);
       setDismissedSuggestions(prev => new Set(prev).add(task.id));
     } catch { Alert.alert(t.error, t.cantLog); }
   }
@@ -482,12 +479,11 @@ export function TodayScreen() {
         if (newDurationMin !== currentMin) {
           await unlogTask.mutateAsync({ taskTypeId: taskId, kind: task.kind as 'GOOD' | 'BAD' });
           if (newDurationMin > 0) {
-            const result = await logTask.mutateAsync({
+            await logTask.mutateAsync({
               taskTypeId: taskId, kind: task.kind as 'GOOD' | 'BAD',
               isTimeBased: true, basePoints: task.base_points,
               starPenalty: task.star_penalty, durationMin: newDurationMin,
             });
-            showRankUp(result);
           }
         }
       }

@@ -419,6 +419,7 @@ export function useLogTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['challenge'] });
       qc.invalidateQueries({ queryKey: ['achievements'] });
       if (data.didRankUp) rankMascotBridge.ref?.current?.playRankUp();
+      if (data.didRankUp && data.newTier) rankMascotBridge.onRankUp?.(data.newTier);
       if (data.didRankUp && data.newTier) {
         const weekStart = getWeekStart();
         AsyncStorage.setItem(PENDING_LEVELUP_KEY, JSON.stringify({
