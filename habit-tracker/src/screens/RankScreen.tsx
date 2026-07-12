@@ -12,16 +12,7 @@ import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { RankInfoSheet } from '../components/RankInfoSheet';
 import { RankEmptyState } from '../components/RankEmptyState';
 import { SkeletonRow } from '../components/SkeletonRow';
-
-function getNextMonday(): Date {
-  const now = new Date();
-  const day = now.getDay();
-  const daysUntilMon = day === 0 ? 1 : day === 1 ? 7 : 8 - day;
-  const next = new Date(now);
-  next.setDate(now.getDate() + daysUntilMon);
-  next.setHours(0, 0, 0, 0);
-  return next;
-}
+import { getTimeUntilWeeklyReset } from '../utils/weekReset';
 
 type LBEntry = NonNullable<ReturnType<typeof useLeaderboard>['data']>[number];
 
@@ -101,6 +92,12 @@ export function RankScreen() {
   );
 
   const [infoVisible, setInfoVisible] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   if (isLoading || !data) {
     return (
@@ -125,12 +122,7 @@ export function RankScreen() {
   const nextCfg = nextTier ? getRankConfigByTierOrder(nextTier.tier_order) : null;
   const rankLabel = t.rankNameMap[cfg.name] ?? cfg.name;
   const nextRankLabel = nextCfg ? (t.rankNameMap[nextCfg.name] ?? nextCfg.name) : (t.rankNameMap[nextTier?.rank_name ?? ''] ?? nextTier?.rank_name ?? '');
-  const pathTiers = currentTier ? [
-    currentTier,
-    nextTier,
-    nextTier ? tiers.find(tier => tier.tier_order === nextTier.tier_order + 1) : undefined,
-  ].filter((tier): tier is NonNullable<typeof tier> => !!tier) : [];
-  const daysToReset = Math.max(1, Math.ceil((getNextMonday().getTime() - Date.now()) / 86_400_000));
+  const resetCountdown = getTimeUntilWeeklyReset(now);
   const currentUserEntry: LBEntry = {
     userEmail: googleUser?.email ?? 'current-user',
     displayName: googleUser?.name ?? t.leaderboardYou,
@@ -166,22 +158,6 @@ export function RankScreen() {
             ) : (
               <Text style={styles.nextCap}>{t.maxRank}</Text>
             )}
-            {pathTiers.length > 0 ? (
-              <View style={styles.rankPath}>
-                {pathTiers.map((tier, index) => {
-                  const pathCfg = getRankConfigByTierOrder(tier.tier_order);
-                  const pathLabel = t.rankNameMap[pathCfg.name] ?? pathCfg.name;
-                  return (
-                    <React.Fragment key={tier.id}>
-                      {index > 0 ? <Text style={styles.rankPathArrow}>→</Text> : null}
-                      <Text style={[styles.rankPathTier, index === 0 && styles.rankPathCurrent]} numberOfLines={1}>
-                        {pathLabel}{index === 0 ? ` (${t.rankPathYou})` : index === 1 ? ` (${t.rankPathNext(starsToNext)})` : ' 🔒'}
-                      </Text>
-                    </React.Fragment>
-                  );
-                })}
-              </View>
-            ) : null}
           </View>
         ) : (
           <View style={styles.rankEmptyWrap}>
@@ -193,7 +169,7 @@ export function RankScreen() {
           </View>
         )}
 
-        <ResetCountdownChip styles={styles} label={t.resetCountdownLabel(daysToReset)} />
+        <ResetCountdownChip styles={styles} label={t.resetCountdownLabel(resetCountdown.days, resetCountdown.hours, resetCountdown.minutes)} />
 
         {currentTierOrder > 0 && (
           <>
@@ -254,11 +230,6 @@ function makeStyles(C: AppColors) {
     bar: { width: '100%', height: 8, backgroundColor: C.surface2, borderRadius: Radii.pill, marginTop: 14, overflow: 'hidden' },
     barFill: { height: '100%', backgroundColor: C.primary, borderRadius: Radii.pill },
     nextCap: { fontSize: 12, color: C.muted, marginTop: 13, fontFamily: FontFamily.semiBold, textAlign: 'center' },
-    rankPath: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 5, marginTop: 14 },
-    rankPathTier: { color: C.ink2, fontSize: 11, fontFamily: FontFamily.semiBold, maxWidth: 112 },
-    rankPathCurrent: { color: C.primary, fontFamily: FontFamily.extraBold },
-    rankPathArrow: { color: C.muted, fontSize: 12, fontFamily: FontFamily.bold },
-
     resetChip: {
       marginHorizontal: Spacing.lg, marginTop: 12,
       alignItems: 'center', justifyContent: 'center',
