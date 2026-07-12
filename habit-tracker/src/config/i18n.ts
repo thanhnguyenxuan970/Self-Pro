@@ -513,7 +513,7 @@ const vi = {
   clearReminder: 'Xoá nhắc nhở',
 
   // RankScreen countdown
-  resetCountdownLabel: (days: number, hours: number, minutes: number) => `♻ Đặt lại sau ${days ? `${days} ngày ` : ''}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`,
+  resetCountdownLabel: (days: number, hours: number, minutes: number) => `♻ Còn ${days ? `${days} ngày ` : ''}${hours} giờ ${minutes} phút`,
 
   // Duration picker
   durationCustom: '1h+',
@@ -1123,7 +1123,7 @@ const en: typeof vi = {
   clearReminder: 'Clear reminder',
 
   // RankScreen countdown
-  resetCountdownLabel: (days: number, hours: number, minutes: number) => `♻ Resets in ${days ? `${days} day${days === 1 ? '' : 's'} ` : ''}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`,
+  resetCountdownLabel: (days: number, hours: number, minutes: number) => `♻ ${days ? `${days} day${days === 1 ? '' : 's'} ` : ''}${hours}h ${minutes}m remaining`,
 
   // Duration picker
   durationCustom: '1h+',
