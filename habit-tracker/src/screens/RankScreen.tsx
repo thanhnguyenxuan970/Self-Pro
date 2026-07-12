@@ -124,9 +124,7 @@ export function RankScreen() {
   const cfg = getRankConfigByTierOrder(currentTier?.tier_order ?? 1);
   const nextCfg = nextTier ? getRankConfigByTierOrder(nextTier.tier_order) : null;
   const rankLabel = t.rankNameMap[cfg.name] ?? cfg.name;
-  const rankAltLabel = rankLabel === cfg.nameVi ? cfg.name : cfg.nameVi;
   const nextRankLabel = nextCfg ? (t.rankNameMap[nextCfg.name] ?? nextCfg.name) : (t.rankNameMap[nextTier?.rank_name ?? ''] ?? nextTier?.rank_name ?? '');
-  const nextRankAltLabel = nextCfg ? (nextRankLabel === nextCfg.nameVi ? nextCfg.name : nextCfg.nameVi) : null;
   const pathTiers = currentTier ? [
     currentTier,
     nextTier,
@@ -156,7 +154,6 @@ export function RankScreen() {
             <View style={[styles.rankheroGlow, { backgroundColor: cfg.glow ?? cfg.color }]} importantForAccessibility="no" />
             <RankMascot ref={mascotRef} tier={(currentTier?.tier_order ?? 1) - 1} size={100} loop reduceMotion={reduceMotion} />
             <Text style={styles.rankNm} numberOfLines={2}>{rankLabel}</Text>
-            <Text style={styles.rankVi} numberOfLines={2}>{rankAltLabel}</Text>
             <Text style={styles.rankEn} numberOfLines={2}>{t.rankQuoteMap[currentTier?.rank_name ?? ''] ?? cfg.descriptor}</Text>
             <View style={styles.rankWk}>
               <Text style={styles.rankWkTxt}>{t.weekStars(currentStars)}</Text>
@@ -165,7 +162,7 @@ export function RankScreen() {
               <View style={[styles.barFill, { width: `${Math.round(progressPct * 100)}%` as `${number}%` }]} />
             </View>
             {starsToNext > 0 ? (
-              <Text style={styles.nextCap}>{t.nextRank(starsToNext, nextRankAltLabel ? `${nextRankLabel} · ${nextRankAltLabel}` : nextRankLabel)}</Text>
+              <Text style={styles.nextCap}>{t.nextRank(starsToNext, nextRankLabel)}</Text>
             ) : (
               <Text style={styles.nextCap}>{t.maxRank}</Text>
             )}
@@ -178,7 +175,7 @@ export function RankScreen() {
                     <React.Fragment key={tier.id}>
                       {index > 0 ? <Text style={styles.rankPathArrow}>→</Text> : null}
                       <Text style={[styles.rankPathTier, index === 0 && styles.rankPathCurrent]} numberOfLines={1}>
-                        {pathLabel}{index === 0 ? ` (${t.rankPathYou})` : index === 1 ? ` (${t.rankPathNext})` : ' 🔒'}
+                        {pathLabel}{index === 0 ? ` (${t.rankPathYou})` : index === 1 ? ` (${t.rankPathNext(starsToNext)})` : ' 🔒'}
                       </Text>
                     </React.Fragment>
                   );
@@ -191,7 +188,7 @@ export function RankScreen() {
             <RankEmptyState
               currentStars={currentStars}
               unlockStars={firstTierStars}
-              nextRankName={nextRankAltLabel ? `${nextRankLabel} · ${nextRankAltLabel}` : nextRankLabel}
+              nextRankName={nextRankLabel}
             />
           </View>
         )}
@@ -248,7 +245,6 @@ function makeStyles(C: AppColors) {
     },
     rankEm: { fontSize: 54, marginBottom: 2 },
     rankNm: { fontSize: 25, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, marginTop: 8 },
-    rankVi: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.ink2, marginTop: 3, textAlign: 'center' },
     rankEn: { fontSize: 12.5, color: C.muted, marginTop: 2, fontStyle: 'italic' },
     rankWk: {
       marginTop: 12, backgroundColor: C.starSoft,
@@ -292,6 +288,6 @@ function makeStyles(C: AppColors) {
     lbName: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
     lbStars: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primary },
     lbEmpty: { paddingVertical: 20, alignItems: 'center' },
-    lbEmptyTxt: { fontSize: 13, color: C.muted },
+    lbEmptyTxt: { fontSize: 13, color: C.muted, textAlign: 'center', paddingVertical: 12 },
   });
 }
