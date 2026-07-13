@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -22,6 +22,7 @@ function formatNewsDate(value: string, locale: string): string {
 
 export function NewsScreen() {
   const { googleUser, colors, t, styles } = useScreenCommons(makeStyles);
+  const [expandedNewsId, setExpandedNewsId] = useState<number | null>(null);
   const viewerKey = getNewsViewerKey(googleUser?.sub);
   const {
     news,
@@ -43,7 +44,14 @@ export function NewsScreen() {
     const read = isNewsRead(item.id, lastSeenNewsId);
     const tagLabel = item.tag?.trim() || item.version;
     return (
-      <View style={[styles.card, !read && styles.cardUnread]}>
+      <TouchableOpacity
+        style={[styles.card, !read && styles.cardUnread]}
+        onPress={() => setExpandedNewsId((id) => id === item.id ? null : item.id)}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: expandedNewsId === item.id }}
+        accessibilityLabel={item.title}
+      >
         <View style={styles.cardMetaRow}>
           <View style={styles.versionBadge}>
             <Text style={styles.versionText}>{item.version}</Text>
@@ -66,10 +74,10 @@ export function NewsScreen() {
           {read ? <Text style={styles.readBadge}>{t.newsReadBadge}</Text> : null}
         </View>
 
-        <Text style={styles.cardBodyText} numberOfLines={3}>{item.body}</Text>
-      </View>
+        <Text style={styles.cardBodyText} numberOfLines={expandedNewsId === item.id ? undefined : 3}>{item.body}</Text>
+      </TouchableOpacity>
     );
-  }, [lastSeenNewsId, styles, t]);
+  }, [expandedNewsId, lastSeenNewsId, styles, t]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
