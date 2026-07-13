@@ -148,10 +148,9 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
               accessibilityLabel={t.darkModeLabel}
             />
           </View>
-          <View style={[styles.row, styles.rowLast]}>
+          <View style={[styles.accentRow, styles.rowLast]}>
             <View style={styles.accentCopy}>
               <Text style={styles.rowLabel}>{t.accentColorLabel}</Text>
-              <Text style={styles.accentName}>{t[`accent${accent[0].toUpperCase()}${accent.slice(1)}` as keyof typeof t] as string}</Text>
             </View>
             <AccentPicker accent={accent} onSelect={setAccent} colors={colors} />
           </View>
@@ -295,6 +294,11 @@ function makeStyles(C: AppColors) {
       gap: 13,
     },
     rowLast: { borderBottomWidth: 0 },
+    accentRow: {
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderColor: C.line,
+    },
     rowIc: { fontSize: 20, width: 28, textAlign: 'center' },
     languageChip: { width: 28, borderRadius: Radii.sm, backgroundColor: C.surface2, color: C.ink2, fontSize: 11, fontFamily: FontFamily.bold, overflow: 'hidden', paddingVertical: 4, textAlign: 'center' },
     rowLabel: { flex: 1, fontSize: 15, fontFamily: FontFamily.semiBold, color: C.inkDark },
@@ -323,7 +327,6 @@ function makeStyles(C: AppColors) {
       color: C.primary,
       fontFamily: FontFamily.bold,
     },
-    accentCopy: { flex: 1 },
-    accentName: { color: C.muted, fontSize: 12, marginTop: 2 },
+    accentCopy: { marginBottom: 8 },
   });
 }

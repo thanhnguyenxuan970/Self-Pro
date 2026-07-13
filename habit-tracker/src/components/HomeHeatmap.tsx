@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { AppColors, FontFamily, Radii, Shadows, Spacing } from '../config/theme';
-import { HeatmapDay, buildHeatmapWeeks } from '../utils/heatmap';
+import { HeatmapDay, buildHeatmapWeeks, heatmapShades } from '../utils/heatmap';
 
 type Props = {
   days: HeatmapDay[]; streak: number; goal: number; colors: AppColors; todayPoints?: number;
@@ -32,9 +32,7 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
   const weeks = useMemo(() => buildHeatmapWeeks(days, goal), [days, goal]);
   const activeDays = days.filter(day => day.total_points > 0).length;
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const shades = colors.bgBase === '#0F1410'
-    ? ['#1A1F1C', '#0E4429', '#006D32', '#00A34A', '#39D36E']
-    : ['#EBEDF0', '#9BE9A8', '#40C463', '#30A14E', '#216E39'];
+  const shades = heatmapShades(colors);
   const pointsByDate = useMemo(() => new Map(days.map(day => [day.local_date, day.total_points])), [days]);
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;

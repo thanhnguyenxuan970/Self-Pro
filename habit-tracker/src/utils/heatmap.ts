@@ -1,6 +1,12 @@
+import type { AppColors } from '../config/theme';
+
 export type HeatmapDay = { local_date: string; total_points: number };
 
 export type HeatmapCell = { date: string; level: number; month?: string };
+
+export function heatmapShades(colors: AppColors) {
+  return [colors.surface3, colors.primarySoft, colors.primary, colors.primaryHover, colors.primaryPress];
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
