@@ -10,6 +10,8 @@ import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useGoogleUser } from '../hooks/useAuth';
 import { submitFeedback } from '../api/feedbackService';
 import { FeedbackType, FEEDBACK_MAX_LENGTH, validateFeedbackMessage } from '../utils/feedbackLogic';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
 
 interface Props { visible: boolean; onClose: () => void; }
 
@@ -23,7 +25,8 @@ export function FeedbackSheet({ visible, onClose }: Props) {
   const googleUser = useGoogleUser();
   const { colors } = useTheme();
   const t = useTranslations();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { bottom } = useSafeAreaInsets();
+  const styles = useMemo(() => makeStyles(colors, bottom), [colors, bottom]);
 
   const [type, setType] = useState<FeedbackType>('BUG');
   const [message, setMessage] = useState('');
@@ -177,11 +180,12 @@ export function FeedbackSheet({ visible, onClose }: Props) {
   );
 }
 
-function makeStyles(C: AppColors) {
+function makeStyles(C: AppColors, bottomInset: number) {
   return StyleSheet.create({
     backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
     sheet: {
-      backgroundColor: C.surface, padding: Spacing.xl,
+      backgroundColor: C.surface, paddingTop: Spacing.xl, paddingHorizontal: Spacing.xl,
+      paddingBottom: Spacing.xl + BOTTOM_TAB_BAR_HEIGHT + bottomInset,
       borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl,
     },
     handle: {

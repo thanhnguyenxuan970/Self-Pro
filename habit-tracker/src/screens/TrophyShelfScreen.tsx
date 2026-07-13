@@ -73,6 +73,7 @@ export function TrophyShelfScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.title}>{t.screenTrophyShelf}</Text>
         <View style={styles.counterCard}>
           <View style={styles.counterRow}>
             <Text style={styles.counterLabel}>{t.trophyUnlockedCount}</Text>
@@ -85,7 +86,7 @@ export function TrophyShelfScreen() {
           </View>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
+        <View style={styles.filterRow}>
           {FILTERS.map(f => (
             <TouchableOpacity
               key={f}
@@ -98,7 +99,7 @@ export function TrophyShelfScreen() {
               <Text style={[styles.chipText, filter === f && styles.chipTextSelected]}>{filterLabels[f]}</Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
 
         <View style={styles.grid}>
           {items.filter(i => matchesFilter(i, filter)).map(i => (
@@ -139,25 +140,26 @@ function makeStyles(C: AppColors) {
     safe: { flex: 1, backgroundColor: C.bgBase },
     loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     scrollContent: { padding: Spacing.lg, paddingBottom: Spacing.xl },
+    title: { color: C.inkDark, fontFamily: FontFamily.extraBold, fontSize: 24, letterSpacing: -0.5, marginBottom: Spacing.md },
     counterCard: {
       backgroundColor: C.surface, borderRadius: Radii.lg, padding: Spacing.md,
-      marginBottom: Spacing.lg, ...Shadows.light,
+      borderWidth: 1, borderColor: C.line, marginBottom: Spacing.lg, ...Shadows.light,
     },
     counterRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 11 },
     counterLabel: { ...Typography.sectionLabel, color: C.ink2 },
     counterValue: { fontSize: 20, fontFamily: FontFamily.extraBold, color: C.inkDark },
     track: { height: 9, borderRadius: Radii.pill, overflow: 'hidden', backgroundColor: C.surface2 },
     trackFill: { height: '100%', borderRadius: Radii.pill, backgroundColor: C.primary },
-    filterRow: { marginBottom: Spacing.lg },
+    filterRow: { flexDirection: 'row', gap: 4, backgroundColor: C.surface, borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line, marginBottom: Spacing.lg, padding: 4 },
     chip: {
-      backgroundColor: C.surface2, borderRadius: Radii.pill,
-      paddingVertical: 7, paddingHorizontal: 14, marginRight: 8, minHeight: 44,
-      borderWidth: 1, borderColor: C.line2, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: 'transparent', borderRadius: Radii.md,
+      flex: 1, paddingVertical: 7, paddingHorizontal: 6, minHeight: 44,
+      alignItems: 'center', justifyContent: 'center',
     },
-    chipSelected: { borderColor: C.primary, backgroundColor: C.primarySoft },
-    chipText: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
+    chipSelected: { backgroundColor: C.primarySoft },
+    chipText: { fontSize: 11, fontFamily: FontFamily.semiBold, color: C.inkDark },
     chipTextSelected: { color: C.primary },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: '3.5%' },
     cell: { width: '31%', marginBottom: Spacing.lg, minHeight: 44 },
   });
 }

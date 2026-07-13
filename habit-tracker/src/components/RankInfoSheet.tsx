@@ -2,7 +2,9 @@ import React from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getRankConfigByTierOrder } from '../config/ranks.config';
+import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
 
 interface RankTier {
   id: number;
@@ -21,7 +23,8 @@ interface Props {
 export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
-  const styles = makeStyles(C);
+  const { bottom } = useSafeAreaInsets();
+  const styles = makeStyles(C, bottom);
   const sorted = [...tiers].sort((a, b) => a.tier_order - b.tier_order);
   const points: { e: string; t: string; s: string }[] = [
     { e: '⭐', t: t.rankInfoPoint1Title, s: t.rankInfoPoint1Sub },
@@ -87,10 +90,10 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
   );
 }
 
-function makeStyles(C: AppColors) {
+function makeStyles(C: AppColors, bottomInset: number) {
   return StyleSheet.create({
     wrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-    sheet: { backgroundColor: C.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: Spacing.lg, paddingBottom: Spacing.md, maxHeight: '86%' },
+    sheet: { backgroundColor: C.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: Spacing.lg, paddingBottom: Spacing.md + BOTTOM_TAB_BAR_HEIGHT + bottomInset, maxHeight: '86%' },
     grip: { width: 38, height: 4, borderRadius: 2, backgroundColor: C.line2, alignSelf: 'center', marginBottom: 12 },
     head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
     title: { fontSize: 18, fontFamily: FontFamily.bold, color: C.inkDark },

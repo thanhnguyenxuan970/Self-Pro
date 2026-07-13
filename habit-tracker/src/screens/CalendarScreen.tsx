@@ -15,7 +15,7 @@ import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
 import { AppColors, Radii, Spacing, FontFamily, Shadows } from '../config/theme';
 import { AnimatedFireIcon, AnimatedStarIcon, AnimatedBurningStarIcon } from '../components/CalendarIcons';
 import { BackfillSheet } from '../components/BackfillSheet';
-import { backfillRemaining, canBackfill } from '../game/backfill';
+import { canBackfill } from '../game/backfill';
 import { getLocalDate, getWeekStart, getWeekStartFor } from '../utils/formatters';
 
 
@@ -225,7 +225,6 @@ export function CalendarScreen() {
           <Text style={styles.legendLabel}>{t.calendarToday}</Text>
         </View>
       </View>
-      <Text style={styles.backfillNote}>{t.calendarBackfillHint(backfillRemaining(backfillStatus?.backfillsUsedThisWeek ?? 0))}</Text>
 
       {/* Month Summary */}
       <View style={styles.summary}>
@@ -318,16 +317,20 @@ function makeStyles(colors: AppColors) {
     },
     legend: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
+      alignSelf: 'center',
+      backgroundColor: colors.surface2,
+      borderRadius: Radii.pill,
+      gap: 14,
       marginTop: 16,
-      marginBottom: 8,
+      marginBottom: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
     },
-    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     legendCheck: { color: colors.primary, fontSize: 14, fontFamily: FontFamily.extraBold },
     legendPlus: { color: colors.primary, fontSize: 16, fontFamily: FontFamily.extraBold },
     legendToday: { width: 13, height: 13, borderRadius: 3, borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft },
-    legendLabel: { fontSize: 13, color: colors.muted },
-    backfillNote: { color: colors.ink2, fontSize: 12, lineHeight: 18, textAlign: 'center', marginBottom: 8 },
+    legendLabel: { fontSize: 11, fontFamily: FontFamily.semiBold, color: colors.ink2 },
     summary: {
       flexDirection: 'row',
       backgroundColor: colors.surface2,

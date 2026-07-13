@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
 import { useTodayTasks } from '../queries/useToday';
 import { useBackfillDay, type BackfillEntryParams } from '../queries/useBackfill';
 import { backfillRemaining } from '../game/backfill';
@@ -164,7 +166,8 @@ interface Props {
 export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, onClose }: Props) {
   const { colors } = useTheme();
   const t = useTranslations();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { bottom } = useSafeAreaInsets();
+  const styles = useMemo(() => makeStyles(colors, bottom), [colors, bottom]);
 
   const { data: tasks = [] } = useTodayTasks(userId);
   const { mutateAsync, isPending } = useBackfillDay(userId);
@@ -407,7 +410,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   );
 }
 
-function makeStyles(colors: AppColors) {
+function makeStyles(colors: AppColors, bottomInset: number) {
   return StyleSheet.create({
     backdrop: {
       flex: 1,
@@ -419,7 +422,7 @@ function makeStyles(colors: AppColors) {
       borderTopLeftRadius: Radii.xl,
       borderTopRightRadius: Radii.xl,
       paddingHorizontal: Spacing.lg,
-      paddingBottom: 36,
+      paddingBottom: 36 + BOTTOM_TAB_BAR_HEIGHT + bottomInset,
       paddingTop: 12,
       maxHeight: '85%',
     },

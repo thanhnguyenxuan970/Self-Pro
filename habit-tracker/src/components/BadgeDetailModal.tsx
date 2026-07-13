@@ -4,9 +4,11 @@ import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
 import { AppColors, FontFamily, Radii, Spacing, Typography } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Badge } from './Badge';
 import type { Achievement, Tier } from '../config/achievements';
 import type { Strings } from '../config/i18n';
+import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
 
 const TIER_NAME_KEY: Record<Tier, keyof Strings> = {
   iron: 'trophyTierIron',
@@ -27,7 +29,8 @@ interface Props {
 export function BadgeDetailModal({ visible, achievement, earnedDate, onClose }: Props) {
   const { colors } = useTheme();
   const t = useTranslations();
-  const styles = React.useMemo(() => makeStyles(colors), [colors]);
+  const { bottom } = useSafeAreaInsets();
+  const styles = React.useMemo(() => makeStyles(colors, bottom), [colors, bottom]);
   const [sharing, setSharing] = useState(false);
   const cardRef = useRef<View>(null);
 
@@ -89,12 +92,12 @@ export function BadgeDetailModal({ visible, achievement, earnedDate, onClose }: 
   );
 }
 
-function makeStyles(C: AppColors) {
+function makeStyles(C: AppColors, bottomInset: number) {
   return StyleSheet.create({
     backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
     sheet: {
       backgroundColor: C.surface, borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl,
-      paddingHorizontal: Spacing.xl, paddingTop: 12, paddingBottom: Spacing.xl, alignItems: 'center',
+      paddingHorizontal: Spacing.xl, paddingTop: 12, paddingBottom: Spacing.xl + BOTTOM_TAB_BAR_HEIGHT + bottomInset, alignItems: 'center',
     },
     grip: { width: 40, height: 5, borderRadius: Radii.pill, backgroundColor: C.line2, marginBottom: Spacing.lg },
     captureArea: { alignItems: 'center', backgroundColor: C.surface },

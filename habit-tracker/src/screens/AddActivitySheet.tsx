@@ -64,13 +64,14 @@ type DurationStepProps = {
   pendingTaskName: string;
   isPending: boolean;
   onLogDuration: (mins: number) => void;
+  onBack: () => void;
   onClose: () => void;
   t: Strings;
   colors: AppColors;
   styles: ReturnType<typeof makeStyles>;
 };
 
-function DurationStep({ pendingTaskName, isPending, onLogDuration, onClose, t, colors, styles }: DurationStepProps) {
+function DurationStep({ pendingTaskName, isPending, onLogDuration, onBack, onClose, t, colors, styles }: DurationStepProps) {
   const [duration, setDuration] = useState('');
   const [durationUnit, setDurationUnit] = useState<'min' | 'hr'>('min');
   const [customDuration, setCustomDuration] = useState(false);
@@ -91,6 +92,9 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onClose, t, c
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
+        <TouchableOpacity style={styles.backButton} onPress={onBack} accessibilityRole="button" accessibilityLabel={t.back}>
+          <Text style={styles.backText}>{t.back}</Text>
+        </TouchableOpacity>
         <Text style={styles.durationStepTitle}>{displayName}</Text>
         <Text style={[styles.durationLabel, { marginTop: 4 }]}>{t.addActivityHowLong}</Text>
 
@@ -309,7 +313,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
     // verbatim; an edited name is freeform again and gets translated as usual.
     const usingUneditedPreset = !selectedSuggestion && presetName != null && trimmed === presetName;
 
-    if (!selectedSuggestion && !usingUneditedPreset && !selectedExistingTask) {
+    if (lang !== 'vi' && !selectedSuggestion && !usingUneditedPreset && !selectedExistingTask) {
       setTranslating(true);
       try {
         storeName = await translateActivityName(trimmed);
@@ -372,6 +376,12 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
     }
   }
 
+  function handleBackToCreate() {
+    Keyboard.dismiss();
+    setPendingTask(null);
+    setStep('create');
+  }
+
   const suggestions = useMemo(() => TEMPLATE_CATEGORIES.flatMap(c => c.tasks), []);
   const query = name.trim();
   const activePickerTasks = useMemo(() => pickerTasks.filter(task => task.archived === 0), [pickerTasks]);
@@ -388,7 +398,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
   const isPending = createTask.isPending || logTask.isPending || translating;
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView style={styles.kav} behavior="padding">
       <View style={styles.backdrop}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)', opacity: backdropOpacity }]}>
@@ -519,6 +529,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
               pendingTaskName={pendingTask?.name ?? ''}
               isPending={isPending}
               onLogDuration={handleLogDuration}
+              onBack={handleBackToCreate}
               onClose={handleClose}
               t={t}
               colors={colors}
@@ -535,11 +546,10 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
     kav: { flex: 1 },
-    backdrop: { flex: 1, justifyContent: 'flex-end' },
+    backdrop: { flex: 1, justifyContent: 'center', padding: Spacing.lg },
     sheet: {
       backgroundColor: C.surface,
-      borderTopLeftRadius: Radii.xxl,
-      borderTopRightRadius: Radii.xxl,
+      borderRadius: Radii.xxl,
       maxHeight: '80%',
       ...Shadows.hero,
     },
@@ -617,7 +627,9 @@ function makeStyles(C: AppColors) {
     noTimerText: { ...Typography.bodyStrong, color: C.inkDark },
     noTimerTextDim: { color: C.faint },
 
-    durationStepTitle: { fontSize: 19, fontFamily: FontFamily.extraBold, color: C.inkDark, marginTop: Spacing.md, marginBottom: 2 },
+    backButton: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', marginTop: Spacing.xs },
+    backText: { color: C.primary, fontSize: 14, fontFamily: FontFamily.bold },
+    durationStepTitle: { fontSize: 19, fontFamily: FontFamily.extraBold, color: C.inkDark, marginBottom: 2 },
     presetChipsRow: { flexDirection: 'row', gap: 10, marginTop: Spacing.md, marginBottom: Spacing.md, flexWrap: 'wrap' },
     presetChip: {
       flex: 1, minWidth: 60, backgroundColor: C.primary,

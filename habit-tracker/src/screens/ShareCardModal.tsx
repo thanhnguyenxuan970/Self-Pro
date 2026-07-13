@@ -10,6 +10,8 @@ import { ShareCard, CARD_W, CARD_H } from '../components/ShareCard';
 import { FontFamily, Radii, Spacing } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useProStatus } from '../hooks/useProStatus';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const PREVIEW_SCALE = (SCREEN_W - 48) / CARD_W;
@@ -33,6 +35,7 @@ export function ShareCardModal({
 }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
+  const { bottom } = useSafeAreaInsets();
   const { isPro } = useProStatus();
   const [beforeUri, setBeforeUri] = useState<string | undefined>();
   const [afterUri, setAfterUri] = useState<string | undefined>();
@@ -80,7 +83,7 @@ export function ShareCardModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
       <View style={styles.backdrop}>
-        <View style={[styles.sheet, { backgroundColor: C.surface }]}>
+        <View style={[styles.sheet, { backgroundColor: C.surface, paddingBottom: Spacing.xl + BOTTOM_TAB_BAR_HEIGHT + bottom }]}>
           {/* Header */}
           <View style={styles.header}>
             <Text style={[styles.title, { color: C.inkDark }]}>{t.shareTitle}</Text>

@@ -24,6 +24,7 @@ import { AddActivitySheet } from '../screens/AddActivitySheet';
 import { GoogleUser } from '../hooks/useAuth';
 import { useTutorial } from '../hooks/useTutorial';
 import { subscribeAddActivityIntent } from '../hooks/useAddActivityIntent';
+import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -98,7 +99,7 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
   const { colors } = useTheme();
   const t = useTranslations();
   const insets = useSafeAreaInsets();
-  const tabBarHeight = 64 + insets.bottom;
+  const tabBarHeight = BOTTOM_TAB_BAR_HEIGHT + insets.bottom;
   return (
     <Tab.Navigator
       screenOptions={{
