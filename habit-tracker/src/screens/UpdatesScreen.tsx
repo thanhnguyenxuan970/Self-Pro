@@ -43,7 +43,7 @@ export function NewsScreen() {
     const tagLabel = (language === 'en' ? item.tag_en : item.tag)?.trim() || item.version;
     return (
       <TouchableOpacity
-        style={[styles.card, !read && styles.cardUnread]}
+        style={styles.card}
         onPress={() => {
           setExpandedNewsId((id) => id === item.id ? null : item.id);
           if (!read) markAllRead.mutate();
@@ -187,7 +187,6 @@ function makeStyles(C: AppColors) {
       padding: 16,
       ...Shadows.light,
     },
-    cardUnread: { backgroundColor: C.primarySoft + '66', borderColor: C.primary + '33' },
     cardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
     versionBadge: {
       paddingHorizontal: 10,
