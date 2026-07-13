@@ -54,9 +54,9 @@ export function NewsScreen() {
         accessibilityLabel={title}
       >
         <View style={styles.cardMetaRow}>
-          <View style={styles.versionBadge}>
+          {item.version ? <View style={styles.versionBadge}>
             <Text style={styles.versionText}>{item.version}</Text>
-          </View>
+          </View> : null}
           <View style={styles.tagBadge}>
             <Text style={styles.tagText}>{tagLabel}</Text>
           </View>
