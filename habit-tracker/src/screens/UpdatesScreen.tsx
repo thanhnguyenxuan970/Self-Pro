@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -27,7 +27,6 @@ export function NewsScreen() {
   const {
     news,
     lastSeenNewsId,
-    latestNewsId,
     unreadCount,
     isLoading,
     error,
@@ -35,18 +34,16 @@ export function NewsScreen() {
     markAllRead,
   } = useNewsFeed(viewerKey);
 
-  useEffect(() => {
-    if (latestNewsId == null || unreadCount === 0 || markAllRead.isPending) return;
-    markAllRead.mutate();
-  }, [latestNewsId, unreadCount, markAllRead]);
-
   const renderItem = useCallback(({ item }: { item: (typeof news)[number] }) => {
     const read = isNewsRead(item.id, lastSeenNewsId);
     const tagLabel = item.tag?.trim() || item.version;
     return (
       <TouchableOpacity
         style={[styles.card, !read && styles.cardUnread]}
-        onPress={() => setExpandedNewsId((id) => id === item.id ? null : item.id)}
+        onPress={() => {
+          setExpandedNewsId((id) => id === item.id ? null : item.id);
+          if (!read) markAllRead.mutate();
+        }}
         activeOpacity={0.8}
         accessibilityRole="button"
         accessibilityState={{ expanded: expandedNewsId === item.id }}
@@ -77,7 +74,7 @@ export function NewsScreen() {
         <Text style={styles.cardBodyText} numberOfLines={expandedNewsId === item.id ? undefined : 3}>{item.body}</Text>
       </TouchableOpacity>
     );
-  }, [expandedNewsId, lastSeenNewsId, styles, t]);
+  }, [expandedNewsId, lastSeenNewsId, markAllRead, styles, t]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
