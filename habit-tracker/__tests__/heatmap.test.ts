@@ -8,6 +8,7 @@ test('maps points to the five heatmap levels and pads Monday-based weeks', () =>
   const weeks = buildHeatmapWeeks([{ local_date: '2026-07-10', total_points: 100 }], 50, new Date(2026, 6, 10));
   expect(weeks.every(week => week.length === 7)).toBe(true);
   expect(weeks.flat().find(cell => cell.date === '2026-07-10')?.level).toBe(4);
+  expect(weeks.flat().find(cell => cell.date === '2026-07-01')?.month).toBe('Jul');
 });
 
 test.each([false, true])('uses the selected accent for every heatmap level in %s mode', (isDark) => {

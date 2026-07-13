@@ -9,6 +9,7 @@ export function heatmapShades(colors: AppColors) {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function toLocalDate(date: Date): string {
   const y = date.getFullYear();
@@ -33,7 +34,7 @@ export function buildHeatmapWeeks(days: HeatmapDay[], goal: number, today = new 
   const cells: HeatmapCell[] = Array.from({ length: Math.ceil((end.getTime() - start.getTime()) / DAY_MS) + 1 }, (_, i) => {
     const date = new Date(start.getTime() + i * DAY_MS);
     const key = toLocalDate(date);
-    return { date: key, level: levels.get(key) ?? 0, month: date.getDate() === 1 ? `Th${date.getMonth() + 1}` : undefined };
+    return { date: key, level: levels.get(key) ?? 0, month: date.getDate() === 1 ? MONTH_LABELS[date.getMonth()] : undefined };
   });
   while (cells.length % 7) cells.push({ date: '', level: 0 });
   return Array.from({ length: cells.length / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7));
