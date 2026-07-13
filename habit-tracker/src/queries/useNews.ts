@@ -12,8 +12,11 @@ export type NewsItem = {
   id: number;
   version: string;
   title: string;
+  title_en: string | null;
   body: string;
+  body_en: string | null;
   tag: string | null;
+  tag_en: string | null;
   image: string | null;
   published_at: string;
 };
@@ -22,8 +25,11 @@ type NewsRow = {
   id: number;
   version: string;
   title: string;
+  title_en: string | null;
   body: string;
+  body_en: string | null;
   tag: string | null;
+  tag_en: string | null;
   image: string | null;
   published_at: string;
 };
@@ -34,7 +40,7 @@ async function fetchNews(): Promise<NewsItem[]> {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from('news')
-    .select('id, version, title, body, tag, image, published_at')
+    .select('id, version, title, title_en, body, body_en, tag, tag_en, image, published_at')
     .order('published_at', { ascending: false })
     .order('id', { ascending: false });
   if (error) throw error;
@@ -43,8 +49,11 @@ async function fetchNews(): Promise<NewsItem[]> {
     id: row.id,
     version: row.version,
     title: row.title,
+    title_en: row.title_en,
     body: row.body,
+    body_en: row.body_en,
     tag: row.tag,
+    tag_en: row.tag_en,
     image: row.image,
     published_at: row.published_at,
   }));

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useScreenCommons } from '../hooks/useScreenCommons';
+import { useLanguage } from '../hooks/useSettings';
 import { FontFamily, Radii, Shadows, Spacing, AppColors } from '../config/theme';
 import { useNewsFeed } from '../queries/useNews';
 import { getNewsViewerKey, isNewsRead } from '../utils/news';
@@ -22,6 +23,7 @@ function formatNewsDate(value: string, locale: string): string {
 
 export function NewsScreen() {
   const { googleUser, colors, t, styles } = useScreenCommons(makeStyles);
+  const [language] = useLanguage();
   const [expandedNewsId, setExpandedNewsId] = useState<number | null>(null);
   const viewerKey = getNewsViewerKey(googleUser?.sub);
   const {
@@ -36,7 +38,9 @@ export function NewsScreen() {
 
   const renderItem = useCallback(({ item }: { item: (typeof news)[number] }) => {
     const read = isNewsRead(item.id, lastSeenNewsId);
-    const tagLabel = item.tag?.trim() || item.version;
+    const title = language === 'en' ? item.title_en ?? item.title : item.title;
+    const body = language === 'en' ? item.body_en ?? item.body : item.body;
+    const tagLabel = (language === 'en' ? item.tag_en : item.tag)?.trim() || item.version;
     return (
       <TouchableOpacity
         style={[styles.card, !read && styles.cardUnread]}
@@ -47,7 +51,7 @@ export function NewsScreen() {
         activeOpacity={0.8}
         accessibilityRole="button"
         accessibilityState={{ expanded: expandedNewsId === item.id }}
-        accessibilityLabel={item.title}
+        accessibilityLabel={title}
       >
         <View style={styles.cardMetaRow}>
           <View style={styles.versionBadge}>
@@ -64,17 +68,17 @@ export function NewsScreen() {
           <View style={styles.cardCopy}>
             <View style={styles.cardTitleRow}>
               {!read ? <View style={styles.cardUnreadDot} /> : null}
-              <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+              <Text style={styles.cardTitle} numberOfLines={2}>{title}</Text>
             </View>
             <Text style={styles.cardDate}>{formatNewsDate(item.published_at, t.timeLocale)}</Text>
           </View>
           {read ? <Text style={styles.readBadge}>{t.newsReadBadge}</Text> : null}
         </View>
 
-        <Text style={styles.cardBodyText} numberOfLines={expandedNewsId === item.id ? undefined : 3}>{item.body}</Text>
+        <Text style={styles.cardBodyText} numberOfLines={expandedNewsId === item.id ? undefined : 3}>{body}</Text>
       </TouchableOpacity>
     );
-  }, [expandedNewsId, lastSeenNewsId, markAllRead, styles, t]);
+  }, [expandedNewsId, language, lastSeenNewsId, markAllRead, styles, t]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
