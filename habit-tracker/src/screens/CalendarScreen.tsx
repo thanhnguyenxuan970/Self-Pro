@@ -6,7 +6,7 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useCalendarData, CalendarDay } from '../queries/useCalendar';
 import { useBackfillStatus } from '../queries/useBackfillStatus';
@@ -104,7 +104,8 @@ export function CalendarScreen() {
   const { colors } = useTheme();
   const t = useTranslations();
   const [lang] = useLanguage();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { bottom: bottomInset } = useSafeAreaInsets();
+  const styles = useMemo(() => makeStyles(colors, bottomInset), [colors, bottomInset]);
 
   const [yearMonth, setYearMonth] = useState(() => toYearMonth(new Date()));
   const [backfillDate, setBackfillDate] = useState<string | null>(null);
@@ -265,11 +266,11 @@ export function CalendarScreen() {
   );
 }
 
-function makeStyles(colors: AppColors) {
+function makeStyles(colors: AppColors, bottomInset: number) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: colors.surface },
     container: { flex: 1 },
-    content: { paddingHorizontal: Spacing.md, paddingBottom: 40, paddingTop: 16 },
+    content: { paddingHorizontal: Spacing.md, paddingBottom: 40 + bottomInset, paddingTop: 16 },
     header: { marginBottom: 12, marginTop: 8 },
     title: { fontSize: 28, fontFamily: FontFamily.extraBold, color: colors.inkDark },
     monthNav: {

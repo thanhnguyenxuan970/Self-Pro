@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
+import { PhotoSlot } from '../components/PhotoSlot';
 import { useTodayTasks } from '../queries/useToday';
 import { useCreateChallenge } from '../queries/useChallenge';
 import {
@@ -265,18 +266,9 @@ export function CreateChallengeScreen() {
           </>
         )}
 
-        <Text style={styles.label}>{t.challengeBeforePhotoLabel}</Text>
-        <TouchableOpacity
-          style={[styles.photoBtn, beforePhoto && { borderColor: colors.primary }]}
-          onPress={pickBeforePhoto}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel={t.challengeAddPhoto}
-        >
-          <Text style={[styles.photoBtnText, beforePhoto && { color: colors.primary }]}>
-            {beforePhoto ? '✓' : '📷'} {t.challengeAddPhoto}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.photoPreviewWrap}>
+          <PhotoSlot uri={beforePhoto} label={t.challengeBeforePhotoLabel} actionLabel={t.challengeAddPhoto} onPress={pickBeforePhoto} />
+        </View>
 
         <View style={styles.notifyRow}>
           <View style={styles.notifyTextCol}>
@@ -356,11 +348,7 @@ function makeStyles(C: AppColors) {
     durChipOn: { backgroundColor: C.primarySoft, borderColor: C.primary },
     durChipText: { ...Typography.bodyStrong, color: C.ink2 },
     durChipTextOn: { color: C.primary },
-    photoBtn: {
-      paddingVertical: 14, borderRadius: Radii.lg, borderWidth: 1.5, borderColor: C.line,
-      alignItems: 'center', backgroundColor: C.surface,
-    },
-    photoBtnText: { ...Typography.bodyStrong, color: C.ink2 },
+    photoPreviewWrap: { width: 140, alignSelf: 'flex-start' },
     notifyRow: {
       flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
       backgroundColor: C.surface, borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line,

@@ -46,7 +46,7 @@ export function ShareCardModal({
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') return;
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.9,
       allowsEditing: true,
       aspect: [1, 1],
@@ -82,14 +82,14 @@ export function ShareCardModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <View style={styles.backdrop}>
+      <View style={[styles.backdrop, { backgroundColor: C.scrim }]}>
         <View style={[styles.sheet, { backgroundColor: C.surface, paddingBottom: Spacing.xl + BOTTOM_TAB_BAR_HEIGHT + bottom }]}>
           {/* Header */}
           <View style={styles.header}>
             <Text style={[styles.title, { color: C.inkDark }]}>{t.shareTitle}</Text>
             <TouchableOpacity
+              style={styles.closeBtn}
               onPress={handleClose}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               accessibilityRole="button"
               accessibilityLabel={t.close}
             >
@@ -163,7 +163,7 @@ export function ShareCardModal({
             disabled={capturing}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel={t.shareBtn}
+            accessibilityLabel={isPro ? t.shareBtn : t.shareBtnLocked}
           >
             {capturing ? (
               <ActivityIndicator color={C.white} />
@@ -183,7 +183,6 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.55)',
   },
   sheet: {
     borderTopLeftRadius: Radii.xxl,
@@ -202,6 +201,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontFamily: FontFamily.bold,
+  },
+  closeBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeIcon: {
     fontSize: 18,

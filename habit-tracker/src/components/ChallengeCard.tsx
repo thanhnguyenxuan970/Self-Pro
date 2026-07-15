@@ -68,7 +68,7 @@ function makeStyles(C: AppColors) {
     strictBadge: {
       backgroundColor: C.starSoft, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radii.pill,
     },
-    strictBadgeText: { ...Typography.caption, color: C.starGold, fontFamily: FontFamily.bold },
+    strictBadgeText: { ...Typography.caption, color: C.starGoldText, fontFamily: FontFamily.bold },
     ruleTooltip: { alignSelf: 'flex-start', maxWidth: 280, marginTop: Spacing.sm, backgroundColor: C.surface, borderColor: C.line, borderWidth: StyleSheet.hairlineWidth, borderRadius: Radii.md, padding: Spacing.sm, gap: 4, ...Shadows.medium },
     ruleText: { ...Typography.caption, color: C.inkDark, fontFamily: FontFamily.medium },
     streak: {

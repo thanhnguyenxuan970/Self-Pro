@@ -138,7 +138,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
         <Text style={styles.sectionLabel}>{t.sectionAppearance}</Text>
         <View style={styles.card}>
           <View style={styles.row}>
-            <Text style={styles.rowIc}>🌙</Text>
+            <Text style={styles.rowIc} importantForAccessibility="no">🌙</Text>
             <Text style={styles.rowLabel}>{t.darkModeLabel}</Text>
             <Switch
               value={isDark}
@@ -160,7 +160,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
         <Text style={styles.sectionLabel}>{t.sectionSound}</Text>
         <View style={styles.card}>
           <View style={[styles.row, styles.rowLast]}>
-            <Text style={styles.rowIc}>🔊</Text>
+            <Text style={styles.rowIc} importantForAccessibility="no">🔊</Text>
             <Text style={styles.rowLabel}>{t.soundEnabledLabel}</Text>
             <Switch
               value={audioEnabled}
@@ -203,7 +203,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
                   accessibilityRole="button"
                   accessibilityLabel={time}
                 >
-                  <Text style={styles.rowIc}>🔔</Text>
+                  <Text style={styles.rowIc} importantForAccessibility="no">🔔</Text>
                   <Text style={[styles.rowLabel, styles.reminderTime]}>{time}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -237,8 +237,10 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
             style={[styles.row, styles.rowLast]}
             onPress={() => setFeedbackVisible(true)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t.reportBugLabel}
           >
-            <Text style={styles.rowIc}>📬</Text>
+            <Text style={styles.rowIc} importantForAccessibility="no">📬</Text>
             <Text style={styles.rowLabel}>{t.reportBugLabel}</Text>
             <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
@@ -252,8 +254,10 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
             onPress={handleDeleteAccount}
             disabled={deleting}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t.deleteAccountLabel}
           >
-            <Text style={styles.rowIc}>🗑️</Text>
+            <Text style={styles.rowIc} importantForAccessibility="no">🗑️</Text>
             <Text style={[styles.rowLabel, { color: colors.danger }]}>{t.deleteAccountLabel}</Text>
             <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>

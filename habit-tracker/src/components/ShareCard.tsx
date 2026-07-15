@@ -40,7 +40,7 @@ export const ShareCard = React.forwardRef<View, ShareCardProps>(function ShareCa
       <View style={styles.header}>
         <Text style={styles.wordmark}>habi</Text>
         <View style={styles.rankBadge}>
-          <Text style={styles.rankBadgeText}>{tierName}</Text>
+          <Text style={styles.rankBadgeText} numberOfLines={1}>{tierName}</Text>
         </View>
       </View>
 
@@ -93,7 +93,7 @@ export const ShareCard = React.forwardRef<View, ShareCardProps>(function ShareCa
 
       {/* Percentile */}
       <View style={styles.percentileChip}>
-        <Text style={styles.percentileText}>🏆 {t.sharePercentileLabel(percentile)}</Text>
+        <Text style={styles.percentileText} numberOfLines={1}>🏆 {t.sharePercentileLabel(percentile)}</Text>
       </View>
 
       {/* Watermark */}
@@ -119,14 +119,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 10,
   },
   wordmark: {
     fontSize: 26,
     color: ACCENT,
     fontFamily: FontFamily.extraBold,
     letterSpacing: -0.5,
+    flexShrink: 0,
   },
   rankBadge: {
+    flexShrink: 1,
     backgroundColor: 'rgba(53,214,139,0.15)',
     borderRadius: 20,
     paddingHorizontal: 14,
@@ -228,6 +231,7 @@ const styles = StyleSheet.create({
   },
   percentileChip: {
     alignSelf: 'flex-start',
+    maxWidth: '100%',
     backgroundColor: 'rgba(241,247,243,0.08)',
     borderRadius: 20,
     paddingHorizontal: 16,

@@ -524,7 +524,7 @@ export function useChallengeHistory(userId: number) {
           (SELECT CAST(julianday(MIN(local_date)) - julianday(challenges.start_date) + 1 AS INTEGER)
            FROM challenge_log
            WHERE challenge_id = challenges.id AND state = 'reset') AS reset_day
-         FROM challenges WHERE user_id = ? AND status != 'active' ORDER BY created_at DESC`,
+         FROM challenges WHERE user_id = ? AND status != 'active' ORDER BY created_at DESC LIMIT 50`,
         [userId],
       );
     },

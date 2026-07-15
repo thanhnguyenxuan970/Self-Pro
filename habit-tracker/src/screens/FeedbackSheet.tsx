@@ -94,7 +94,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose} statusBarTranslucent>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
@@ -170,7 +170,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
             <Text style={styles.sendBtnText}>{sending ? '…' : t.feedbackSend}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleClose} disabled={sending} accessibilityRole="button" accessibilityLabel={t.cancel}>
+          <TouchableOpacity style={styles.cancelBtn} onPress={handleClose} disabled={sending} accessibilityRole="button" accessibilityLabel={t.cancel}>
             <Text style={styles.cancel}>{t.cancel}</Text>
           </TouchableOpacity>
         </View>
@@ -182,7 +182,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
 
 function makeStyles(C: AppColors, bottomInset: number) {
   return StyleSheet.create({
-    backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+    backdrop: { flex: 1, backgroundColor: C.scrim, justifyContent: 'flex-end' },
     sheet: {
       backgroundColor: C.surface, paddingTop: Spacing.xl, paddingHorizontal: Spacing.xl,
       paddingBottom: Spacing.xl + BOTTOM_TAB_BAR_HEIGHT + bottomInset,
@@ -195,7 +195,7 @@ function makeStyles(C: AppColors, bottomInset: number) {
     title: { ...Typography.bodyStrong, fontSize: 18, color: C.inkDark, marginBottom: Spacing.md },
     typeRow: { flexDirection: 'row', gap: 8, marginBottom: Spacing.md },
     typeChip: {
-      flex: 1, paddingVertical: 10, borderRadius: Radii.md,
+      flex: 1, minHeight: 44, justifyContent: 'center', paddingVertical: 10, borderRadius: Radii.md,
       backgroundColor: C.surface2, borderWidth: 1.5, borderColor: C.line2,
       alignItems: 'center',
     },
@@ -233,6 +233,7 @@ function makeStyles(C: AppColors, bottomInset: number) {
     },
     sendBtnDisabled: { backgroundColor: C.line2 },
     sendBtnText: { color: C.white, fontSize: 15, fontFamily: FontFamily.bold },
+    cancelBtn: { minHeight: 44, justifyContent: 'center' },
     cancel: { textAlign: 'center', color: C.muted, padding: 8 },
   });
 }

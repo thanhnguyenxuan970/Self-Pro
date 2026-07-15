@@ -8,7 +8,7 @@ import { formatDayDetailDate } from '../utils/formatters';
 
 type Props = {
   days: HeatmapDay[]; streak: number; goal: number; colors: AppColors; todayPoints?: number;
-  rankEmoji?: string; weeklyStars?: number; rankName?: string;
+  rankEmoji?: string; weeklyStars?: number; rankName?: string; streakRef?: (node: View | null) => void;
 };
 
 function ProgressRing({ progress, colors }: { progress: number; colors: AppColors }) {
@@ -28,7 +28,7 @@ function ProgressRing({ progress, colors }: { progress: number; colors: AppColor
   </View>;
 }
 
-export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji, weeklyStars, rankName }: Props) {
+export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji, weeklyStars, rankName, streakRef }: Props) {
   const scrollRef = useRef<ScrollView>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const t = useTranslations();
@@ -54,19 +54,19 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
       <Text style={styles.yearText}>{now.getFullYear()} ▾</Text>
     </View>
     <View style={styles.rewardRow}>
-      <View style={styles.rewardPill}>
+      <View ref={streakRef} style={styles.rewardPill}>
         <Text style={styles.rewardText}>{rankName ? `🔥 ${streak} · ★ ${weeklyStars ?? 0} › ${rankEmoji} ${rankName}` : `🔥 ${streak}`}</Text>
       </View>
     </View>
     <View style={styles.gridRow}>
-      <View style={styles.rail}>{['Mon', '', 'Wed', '', 'Fri', '', ''].map((label, i) => <Text key={i} style={styles.dayLabel}>{label}</Text>)}</View>
+      <View style={styles.rail}>{t.calDow.map((label, i) => <Text key={i} style={styles.dayLabel}>{[0, 2, 4].includes(i) ? label : ''}</Text>)}</View>
       <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={false} onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}>
         <View>
           <View style={styles.months}>{weeks.map((week, i) => {
             const month = week.find(cell => cell.month)?.month;
             return month ? <Text key={i} style={[styles.month, { left: i * 16 }]}>{month}</Text> : null;
           })}</View>
-          <View style={styles.weeks}>{weeks.map((week, i) => <View key={i} style={styles.week}>{week.map((cell, j) => cell.date ? <TouchableOpacity key={cell.date} style={[styles.cell, { backgroundColor: shades[cell.level] }, cell.date === today && styles.todayCell]} onPress={() => setSelectedDate(cell.date)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`${cell.date}: ${pointsByDate.get(cell.date) ?? 0} points`} /> : <View key={`${cell.date}-${j}`} style={styles.cell} />)}</View>)}</View>
+          <View style={styles.weeks}>{weeks.map((week, i) => <View key={i} style={styles.week}>{week.map((cell, j) => cell.date ? <TouchableOpacity key={cell.date} style={[styles.cell, { backgroundColor: shades[cell.level] }, cell.date === today && styles.todayCell]} onPress={() => setSelectedDate(cell.date)} hitSlop={1} accessibilityRole="button" accessibilityLabel={`${cell.date}: ${pointsByDate.get(cell.date) ?? 0} points`} /> : <View key={`${cell.date}-${j}`} style={styles.cell} />)}</View>)}</View>
         </View>
       </ScrollView>
     </View>

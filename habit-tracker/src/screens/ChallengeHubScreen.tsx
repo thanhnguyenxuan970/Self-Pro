@@ -170,7 +170,7 @@ function makeStyles(C: AppColors) {
     emptyCta: { backgroundColor: C.primary, paddingVertical: 14, paddingHorizontal: Spacing.xl, borderRadius: Radii.pill },
     emptyCtaText: { ...Typography.bodyStrong, color: C.white },
     section: { gap: Spacing.sm },
-    sectionLabel: { ...Typography.sectionLabel, color: C.ink2, fontFamily: FontFamily.bold, letterSpacing: 0.3 },
+    sectionLabel: { ...Typography.sectionLabel, color: C.ink2 },
     pastCard: { backgroundColor: C.surface, borderRadius: Radii.lg, ...Shadows.light },
     pastRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.md },
     pastRowBorder: { borderBottomWidth: 1, borderBottomColor: C.line },

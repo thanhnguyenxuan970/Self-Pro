@@ -51,14 +51,14 @@ export function NewsScreen() {
         activeOpacity={0.8}
         accessibilityRole="button"
         accessibilityState={{ expanded: expandedNewsId === item.id }}
-        accessibilityLabel={title}
+        accessibilityLabel={read ? title : `${t.newsUnreadBadge}. ${title}`}
       >
         <View style={styles.cardMetaRow}>
           {item.version ? <View style={styles.versionBadge}>
-            <Text style={styles.versionText}>{item.version}</Text>
+            <Text style={styles.versionText} numberOfLines={1}>{item.version}</Text>
           </View> : null}
           <View style={styles.tagBadge}>
-            <Text style={styles.tagText}>{tagLabel}</Text>
+            <Text style={styles.tagText} numberOfLines={1}>{tagLabel}</Text>
           </View>
         </View>
 
@@ -187,8 +187,10 @@ function makeStyles(C: AppColors) {
       padding: 16,
       ...Shadows.light,
     },
-    cardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+    cardMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
     versionBadge: {
+      flexShrink: 1,
+      maxWidth: '100%',
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderRadius: Radii.pill,
@@ -196,6 +198,8 @@ function makeStyles(C: AppColors) {
     },
     versionText: { fontSize: 12, fontFamily: FontFamily.bold, color: C.inkDark },
     tagBadge: {
+      flexShrink: 1,
+      maxWidth: '100%',
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderRadius: Radii.pill,

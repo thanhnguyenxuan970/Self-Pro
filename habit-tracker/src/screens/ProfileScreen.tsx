@@ -32,7 +32,7 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
   const { data: overachieveWeeks } = useWeeklyOverachieverCount(userId);
   const currentTier = rank?.tiers.find(tier => tier.id === rank.currentTierId);
   const nextTier = rank?.tiers.find(tier => tier.stars_required > (rank?.currentStars ?? 0));
-  const trophies = ACHIEVEMENTS.map(achievement => ({
+  const trophies = useMemo(() => ACHIEVEMENTS.map(achievement => ({
     ...achievement,
     ...computeAchievementStatus(achievement, {
       totalActivities: allTime?.totalActivities ?? 0,
@@ -41,8 +41,8 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
       rankTierOrder: currentTier?.tier_order ?? 0,
       weeklyOverachieveWeeks: overachieveWeeks ?? 0,
     }),
-  }));
-  const earnedTrophies = trophies.filter(trophy => trophy.earned);
+  })), [allTime?.totalActivities, allTime?.bestStreak, challengeDaysDone, currentTier?.tier_order, overachieveWeeks]);
+  const earnedTrophies = useMemo(() => trophies.filter(trophy => trophy.earned), [trophies]);
   const rankProgress = nextTier
     ? t.rankProgress(rank?.currentStars ?? 0, nextTier.stars_required, nextTier.rank_name)
     : t.rankMaxed;

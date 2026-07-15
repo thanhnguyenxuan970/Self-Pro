@@ -1,9 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RankMascot } from './RankMascot';
 import { getRankConfigByTierOrder } from '../config/ranks.config';
-import { FontFamily, Radii, Spacing } from '../config/theme';
-import { useTranslations } from '../hooks/useSettings';
+import { AppColors, FontFamily, Radii, Spacing } from '../config/theme';
+import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { shouldRunCelebrationBurst } from '../lib/rankPresentation';
 
@@ -17,6 +17,8 @@ interface Props {
 
 export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklyStars, onDismiss }: Props) {
   const t = useTranslations();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const reduceMotion = useReduceMotion();
   const cfg = getRankConfigByTierOrder(tierOrder);
   const rankLabel = t.rankNameMap[cfg.name] ?? tierName;
@@ -104,8 +106,8 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklySt
           <Text style={styles.starChipText}>{t.weekStars(weeklyStars ?? cfg.stars)}</Text>
         </Animated.View>
         <Animated.View style={[styles.ctaWrap, riseStyle(cta)]}>
-          <TouchableOpacity style={styles.cta} onPress={onDismiss} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Tiếp tục">
-            <Text style={styles.ctaText}>Tiếp tục</Text>
+          <TouchableOpacity style={styles.cta} onPress={onDismiss} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={t.levelUpContinueCta}>
+            <Text style={styles.ctaText}>{t.levelUpContinueCta}</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -113,19 +115,21 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklySt
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#0F1410', alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, overflow: 'hidden' },
-  wash: { position: 'absolute', width: 420, height: 420, borderRadius: 210, top: '9%', opacity: 0.2 },
-  eyebrow: { borderRadius: Radii.pill, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 18 },
-  eyebrowText: { fontFamily: FontFamily.extraBold, fontSize: 12, letterSpacing: 0.7 },
-  mascotStage: { width: 220, height: 190, alignItems: 'center', justifyContent: 'center' },
-  wave: { position: 'absolute', width: 84, height: 84, borderRadius: 42, borderWidth: 2 },
-  copy: { alignItems: 'center', maxWidth: '100%' },
-  rankName: { color: '#F5F6F5', fontFamily: FontFamily.extraBold, fontSize: 40, lineHeight: 47, letterSpacing: -1.8, textAlign: 'center' },
-  descriptor: { fontFamily: FontFamily.semiBold, fontSize: 15, fontStyle: 'italic', marginTop: 5, textAlign: 'center' },
-  starChip: { backgroundColor: 'rgba(224,169,59,0.14)', borderWidth: 1, borderColor: 'rgba(224,169,59,0.3)', borderRadius: Radii.pill, marginTop: Spacing.lg, paddingHorizontal: 16, paddingVertical: 8 },
-  starChipText: { color: '#E0A93B', fontFamily: FontFamily.extraBold, fontSize: 13 },
-  ctaWrap: { alignSelf: 'stretch', marginTop: 30 },
-  cta: { minHeight: 54, borderRadius: 16, backgroundColor: '#25B36E', alignItems: 'center', justifyContent: 'center' },
-  ctaText: { color: '#FFFFFF', fontFamily: FontFamily.extraBold, fontSize: 16 },
-});
+function makeStyles(C: AppColors) {
+  return StyleSheet.create({
+    screen: { flex: 1, backgroundColor: '#0F1410', alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, overflow: 'hidden' },
+    wash: { position: 'absolute', width: 420, height: 420, borderRadius: 210, top: '9%', opacity: 0.2 },
+    eyebrow: { borderRadius: Radii.pill, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 18 },
+    eyebrowText: { fontFamily: FontFamily.extraBold, fontSize: 12, letterSpacing: 0.7 },
+    mascotStage: { width: 220, height: 190, alignItems: 'center', justifyContent: 'center' },
+    wave: { position: 'absolute', width: 84, height: 84, borderRadius: 42, borderWidth: 2 },
+    copy: { alignItems: 'center', maxWidth: '100%' },
+    rankName: { color: '#F5F6F5', fontFamily: FontFamily.extraBold, fontSize: 40, lineHeight: 47, letterSpacing: -1.8, textAlign: 'center' },
+    descriptor: { fontFamily: FontFamily.semiBold, fontSize: 15, fontStyle: 'italic', marginTop: 5, textAlign: 'center' },
+    starChip: { backgroundColor: `${C.starGold}24`, borderWidth: 1, borderColor: `${C.starGold}4D`, borderRadius: Radii.pill, marginTop: Spacing.lg, paddingHorizontal: 16, paddingVertical: 8 },
+    starChipText: { color: C.starGold, fontFamily: FontFamily.extraBold, fontSize: 13 },
+    ctaWrap: { alignSelf: 'stretch', marginTop: 30 },
+    cta: { minHeight: 54, borderRadius: 16, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+    ctaText: { color: C.onAccent, fontFamily: FontFamily.extraBold, fontSize: 16 },
+  });
+}

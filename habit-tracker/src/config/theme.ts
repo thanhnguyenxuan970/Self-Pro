@@ -15,6 +15,7 @@ const Colors = {
   muted: '#6E7672',
   faint: '#A5ABA7',
   starGold: '#E0A93B',
+  starGoldText: '#8A6110',
   rewardCta: '#FFD54F',
   starSoft: '#FBEFD3',
   chartBar: '#E57D00',
@@ -43,6 +44,7 @@ const DarkColors = {
   muted: '#8A9490',
   faint: '#5A6560',
   starGold: '#E0A93B',
+  starGoldText: '#E0A93B',
   rewardCta: '#FFD54F',
   starSoft: '#3D2E0F',
   chartBar: '#E57D00',
@@ -57,13 +59,17 @@ const DarkColors = {
   white: '#FFFFFF',
 };
 
-export type AppColors = typeof Colors;
+export type AppColors = typeof Colors & { primaryLine: string };
+
+function withAlpha(hex: string, alphaHex: string): string {
+  return `${hex}${alphaHex}`;
+}
 
 export function getColors(isDark: boolean, accent: AccentKey = DEFAULT_ACCENT): AppColors {
   const base = isDark ? DarkColors : Colors;
   const palette = ACCENTS[accent];
   const p = isDark ? palette.dark : palette.light;
-  return { ...base, ...p, onAccent: palette.onAccent };
+  return { ...base, ...p, onAccent: palette.onAccent, primaryLine: withAlpha(p.primary, '55') };
 }
 
 export const Radii = {

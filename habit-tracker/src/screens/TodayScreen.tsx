@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Animated,
-  KeyboardAvoidingView,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -38,87 +38,6 @@ import { useHeatmapData } from '../queries/useCalendar';
 import { HomeHeatmap } from '../components/HomeHeatmap';
 
 const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑', 8: '👾', 9: '😇' };
-
-function useRankBounceAnimation(rankName: string, reduceMotion: boolean): Animated.Value {
-  const anim = useRef(new Animated.Value(1)).current;
-  const prevRef = useRef(rankName);
-  useEffect(() => {
-    if (reduceMotion || prevRef.current === rankName) return;
-    prevRef.current = rankName;
-    Animated.sequence([
-      Animated.spring(anim, { toValue: 1.25, tension: 120, friction: 6, useNativeDriver: true }),
-      Animated.spring(anim, { toValue: 1, tension: 120, friction: 6, useNativeDriver: true }),
-    ]).start();
-  }, [rankName, reduceMotion]);
-  return anim;
-}
-
-function useStreakPulseAnimation(hasStreak: boolean, reduceMotion: boolean): Animated.Value {
-  const anim = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    if (!hasStreak || reduceMotion) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(anim, { toValue: 1.08, duration: 400, useNativeDriver: true }),
-        Animated.timing(anim, { toValue: 1, duration: 400, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [hasStreak, reduceMotion]);
-  return anim;
-}
-
-function useProgressBarAnimation(dailyPoints: number): { barWidthAnim: Animated.Value; barGlowOpacity: Animated.Value } {
-  const barWidthAnim = useRef(new Animated.Value(Math.min(dailyPoints / DAILY_BONUS_THRESHOLD, 1) * 100)).current;
-  const barGlowOpacity = useRef(new Animated.Value(0)).current;
-  const prevRef = useRef(dailyPoints);
-  useEffect(() => {
-    const targetPct = Math.min(dailyPoints / DAILY_BONUS_THRESHOLD, 1) * 100;
-    Animated.spring(barWidthAnim, { toValue: targetPct, tension: 100, friction: 8, useNativeDriver: false }).start();
-    const prev = prevRef.current;
-    const h = DAILY_BONUS_THRESHOLD;
-    if ((prev < h / 2 && dailyPoints >= h / 2) || (prev < h && dailyPoints >= h)) {
-      barGlowOpacity.setValue(0.7);
-      Animated.timing(barGlowOpacity, { toValue: 0, duration: 700, useNativeDriver: true }).start();
-    }
-    prevRef.current = dailyPoints;
-  }, [dailyPoints]);
-  return { barWidthAnim, barGlowOpacity };
-}
-
-function useHeroRewardAnimation(value: number, reduceMotion: boolean) {
-  const numberScale = useRef(new Animated.Value(1)).current;
-  const heroOffset = useRef(new Animated.ValueXY()).current;
-  const floatOffset = useRef(new Animated.Value(0)).current;
-  const floatOpacity = useRef(new Animated.Value(0)).current;
-  const prevRef = useRef<number | null>(null);
-  const [delta, setDelta] = useState(0);
-  useEffect(() => {
-    if (prevRef.current === null) { prevRef.current = value; return; }
-    const change = value - prevRef.current;
-    prevRef.current = value;
-    if (!change || reduceMotion) return;
-    setDelta(change);
-    const positive = change > 0;
-    numberScale.setValue(positive ? 1.22 : 0.88);
-    heroOffset.setValue({ x: 0, y: 0 });
-    floatOffset.setValue(0);
-    floatOpacity.setValue(1);
-    Animated.parallel([
-      Animated.spring(numberScale, { toValue: 1, tension: 180, friction: 7, useNativeDriver: true }),
-      Animated.sequence(positive
-        ? [Animated.timing(heroOffset.x, { toValue: 6, duration: 45, useNativeDriver: true }), Animated.timing(heroOffset.x, { toValue: -6, duration: 65, useNativeDriver: true }), Animated.timing(heroOffset.x, { toValue: 0, duration: 55, useNativeDriver: true })]
-        : [Animated.timing(heroOffset.y, { toValue: 6, duration: 100, useNativeDriver: true }), Animated.spring(heroOffset.y, { toValue: 0, tension: 180, friction: 10, useNativeDriver: true })]
-      ),
-      Animated.parallel([
-        Animated.timing(floatOffset, { toValue: positive ? -28 : 18, duration: 560, useNativeDriver: true }),
-        Animated.timing(floatOpacity, { toValue: 0, duration: 560, useNativeDriver: true }),
-      ]),
-    ]).start();
-  }, [value, reduceMotion]);
-  return { numberScale, heroOffset, floatOffset, floatOpacity, delta };
-}
 
 function SuggestionEntranceWrapper({ index, reduceMotion, children }: { index: number; reduceMotion: boolean; children: React.ReactNode }) {
   const fadeAnim = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
@@ -200,7 +119,7 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
 
   return (
     <Modal visible={!!task} transparent animationType="fade">
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.modalBg}>
         <Animated.View style={[styles.modalBox, { opacity: boxFadeAnim, transform: [{ scale: boxScaleAnim }] }]}>
           <Text style={styles.modalTitle}>{labels.taskDisplayName}</Text>
@@ -208,11 +127,11 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
           {!customDuration ? (
             <View style={styles.presetChipsRow}>
               {([{ label: '30m', mins: 30 }, { label: '45m', mins: 45 }, { label: '1h', mins: 60 }] as const).map(p => (
-                <TouchableOpacity key={p.label} style={styles.presetChip} onPress={() => onLog(p.mins)} disabled={logPending} activeOpacity={0.75}>
+                <TouchableOpacity key={p.label} style={styles.presetChip} onPress={() => onLog(p.mins)} disabled={logPending} activeOpacity={0.75} accessibilityRole="button">
                   <Text style={styles.presetChipText}>{p.label}</Text>
                 </TouchableOpacity>
               ))}
-              <TouchableOpacity style={[styles.presetChip, styles.presetChipCustom]} onPress={() => setCustomDuration(true)} activeOpacity={0.75}>
+              <TouchableOpacity style={[styles.presetChip, styles.presetChipCustom]} onPress={() => setCustomDuration(true)} activeOpacity={0.75} accessibilityRole="button">
                 <Text style={[styles.presetChipText, styles.presetChipCustomText]}>{labels.durationCustom}</Text>
               </TouchableOpacity>
             </View>
@@ -341,7 +260,6 @@ export function TodayScreen() {
   const weeklyStars = weekly?.weekly_stars ?? 0;
   const dailyPoints = daily?.total_points ?? 0;
   const streak = daily?.streak_count ?? 0;
-  const isDebt = weeklyStars < 0;
   const currentTier = rankData?.currentTierId
     ? rankData.tiers.find(t => t.id === rankData.currentTierId) ?? null
     : null;
@@ -353,11 +271,6 @@ export function TodayScreen() {
   const { unreadCount: unreadNewsCount } = useNewsFeed(newsViewerKey);
 
   const reduceMotion = useReduceMotion();
-  const hasStreak = streak > 0;
-  const rankBounceAnim = useRankBounceAnimation(rankName, reduceMotion);
-  const streakPulseAnim = useStreakPulseAnimation(hasStreak, reduceMotion);
-  const { barWidthAnim, barGlowOpacity } = useProgressBarAnimation(dailyPoints);
-  const { numberScale, heroOffset, floatOffset, floatOpacity, delta } = useHeroRewardAnimation(dailyPoints, reduceMotion);
 
   const avatarInitial = (googleUser?.name?.charAt(0) ?? 'B').toUpperCase();
   const today = new Date();
@@ -552,40 +465,7 @@ export function TodayScreen() {
         </View>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
-        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} weeklyStars={weeklyStars} rankName={rankDisplayName} />
-
-        <Animated.View style={[styles.hero, { backgroundColor: isDebt ? colors.danger : colors.primary, transform: heroOffset.getTranslateTransform() }]}>
-          <View style={styles.heroTopRow}>
-            <Text style={styles.heroLabel}>{t.heroLabel}</Text>
-            <Animated.View style={[styles.rankChip, { transform: [{ scale: rankBounceAnim }] }]}>
-              <Text style={styles.rankChipText}>{rankEmoji} {rankDisplayName}</Text>
-            </Animated.View>
-          </View>
-          <View style={styles.heroBal}>
-            <Text style={styles.heroStar}>★</Text>
-            <Animated.View style={{ transform: [{ scale: numberScale }] }}>
-              <Text style={styles.heroBalNum}>{weeklyStars}</Text>
-            </Animated.View>
-          </View>
-          {streak > 0 && (
-            <Animated.View ref={streakTutorialRef} style={{ alignSelf: 'center', transform: [{ scale: streakPulseAnim }] }}>
-              <Text style={styles.heroStreak}>{t.streakChip(streak)}</Text>
-            </Animated.View>
-          )}
-          <View style={styles.heroDivider} />
-          <View style={styles.heroProgRow}>
-            <Text style={styles.heroProgLabel}>{t.pointsLabel}</Text>
-            <View style={styles.heroPointsWrap}>
-              <Animated.Text style={[styles.heroDelta, { opacity: floatOpacity, transform: [{ translateY: floatOffset }] }]}>{delta > 0 ? '+' : '−'}{Math.abs(delta)}</Animated.Text>
-              <Animated.Text style={[styles.heroProgPts, { transform: [{ scale: numberScale }] }]}><Text style={styles.heroProgPtsBold}>{dailyPoints}</Text> / {DAILY_BONUS_THRESHOLD}</Animated.Text>
-            </View>
-          </View>
-          <View style={styles.heroBar}>
-            <Animated.View style={[styles.heroBarFill, { width: barWidthAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) }]} />
-            <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.35)', opacity: barGlowOpacity, borderRadius: Radii.pill }]} />
-          </View>
-          <Text style={styles.heroProgCap}>{t.dailyGoalProgress(dailyPoints, DAILY_BONUS_THRESHOLD)}</Text>
-        </Animated.View>
+        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} weeklyStars={weeklyStars} rankName={rankDisplayName} streakRef={streakTutorialRef} />
 
         <TouchableOpacity
           style={styles.challengeEntryCard}
@@ -729,38 +609,6 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.danger, borderWidth: 2, borderColor: C.bgBase,
     },
 
-    hero: {
-      display: 'none',
-      marginHorizontal: Spacing.lg, marginTop: 14,
-      borderRadius: Radii.xl, padding: 20, overflow: 'hidden',
-      ...Shadows.hero,
-    },
-    heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    heroLabel: { fontSize: 12, opacity: 0.85, fontFamily: FontFamily.semiBold, letterSpacing: 0.3, color: C.white },
-    heroBal: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
-    heroStar: { fontSize: 32, color: C.starGold },
-    heroBalNum: { fontSize: 40, fontFamily: FontFamily.extraBold, letterSpacing: -1.2, color: C.white, lineHeight: 44 },
-    rankChip: {
-      flexDirection: 'row', alignItems: 'center', gap: 6,
-      backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 12, paddingVertical: 6,
-      borderRadius: Radii.pill,
-    },
-    rankChipText: { fontSize: 12.5, fontFamily: FontFamily.extraBold, color: C.white },
-    heroStreak: {
-      color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: FontFamily.semiBold,
-      marginTop: 8, alignSelf: 'center', letterSpacing: 0.3,
-    },
-    heroDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginTop: 14, marginBottom: 12 },
-    heroProgRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-    heroProgLabel: { fontSize: 12, fontFamily: FontFamily.semiBold, color: 'rgba(255,255,255,0.85)' },
-    heroProgPts: { fontSize: 12, fontFamily: FontFamily.bold, color: C.white },
-    heroProgPtsBold: { fontSize: 15, fontFamily: FontFamily.extraBold, color: C.white },
-    heroPointsWrap: { position: 'relative' },
-    heroDelta: { position: 'absolute', right: -6, top: -19, fontSize: 13, fontFamily: FontFamily.extraBold, color: C.white },
-    heroBar: { height: 8, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: Radii.pill, overflow: 'hidden' },
-    heroBarFill: { height: '100%', backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: Radii.pill },
-    heroProgCap: { fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 6 },
-
     challengeEntryCard: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       marginHorizontal: Spacing.lg, marginTop: 12,
@@ -797,7 +645,7 @@ function makeStyles(C: AppColors) {
     suggestionRow: {
       flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: 6,
       backgroundColor: C.surface, borderRadius: Radii.pill,
-      borderWidth: 1, borderColor: C.primary + '55', ...Shadows.light,
+      borderWidth: 1, borderColor: C.primaryLine, ...Shadows.light,
     },
     suggestionRowFirst: { marginTop: Spacing.sm },
     suggestionChip: {
@@ -814,7 +662,7 @@ function makeStyles(C: AppColors) {
     emptyCtaPill: { marginTop: 12, backgroundColor: C.primarySoft, borderRadius: Radii.pill, paddingHorizontal: 16, paddingVertical: 8 },
     emptyCtaText: { fontSize: 13, color: C.primary, fontFamily: FontFamily.semiBold },
 
-    modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', paddingHorizontal: Spacing.lg },
+    modalBg: { flex: 1, backgroundColor: C.scrim, justifyContent: 'center', paddingHorizontal: Spacing.lg },
     modalBox: {
       backgroundColor: C.surface, padding: Spacing.xl,
       borderRadius: Radii.xl,

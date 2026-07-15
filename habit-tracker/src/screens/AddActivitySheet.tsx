@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity,
   Alert, StyleSheet, ActivityIndicator, Animated, ScrollView,
-  KeyboardAvoidingView, Keyboard,
+  KeyboardAvoidingView, Keyboard, Platform,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useActivityPickerTasks, useCreateTask, useRestoreTask, useSetTaskPinned } from '../queries/useTasks';
@@ -368,9 +368,9 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose} statusBarTranslucent navigationBarTranslucent>
-      <KeyboardAvoidingView style={styles.kav} behavior="padding">
+      <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.backdrop}>
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)', opacity: backdropOpacity }]}>
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim, opacity: backdropOpacity }]}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             onPress={handleClose}

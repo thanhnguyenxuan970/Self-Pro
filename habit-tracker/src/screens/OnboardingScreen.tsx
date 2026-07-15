@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Animated,
+  BackHandler,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
@@ -62,6 +64,17 @@ export function OnboardingScreen({ onComplete }: Props) {
     return () => loop.stop();
   }, []);
 
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (step === 1) {
+        setStep(0);
+        return true;
+      }
+      return false;
+    });
+    return () => subscription.remove();
+  }, [step]);
+
   const handleStart = async () => {
     setLoading(true);
     try {
@@ -86,7 +99,7 @@ export function OnboardingScreen({ onComplete }: Props) {
   const benefits = [t.onboardHeroBenefit1, t.onboardHeroBenefit2, t.onboardHeroBenefit3];
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bgBase }} behavior="padding">
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bgBase }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.scroll}
@@ -217,6 +230,10 @@ function makeStyles(C: AppColors) {
       marginBottom: Spacing.lg,
     },
     langBtn: {
+      minWidth: 44,
+      minHeight: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
       paddingHorizontal: 10,
       paddingVertical: 6,
       borderRadius: Radii.sm,
@@ -274,7 +291,7 @@ function makeStyles(C: AppColors) {
       paddingHorizontal: Spacing.lg,
       paddingTop: 56,
     },
-    backBtn: { marginBottom: Spacing.lg },
+    backBtn: { minHeight: 44, justifyContent: 'center', marginBottom: Spacing.lg },
     backText: { fontSize: 15, fontFamily: FontFamily.semiBold },
     setupTitle: {
       ...Typography.title,
@@ -294,6 +311,8 @@ function makeStyles(C: AppColors) {
     },
     optionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     optionBtn: {
+      minHeight: 44,
+      justifyContent: 'center',
       paddingVertical: 10,
       paddingHorizontal: 16,
       borderRadius: Radii.pill,

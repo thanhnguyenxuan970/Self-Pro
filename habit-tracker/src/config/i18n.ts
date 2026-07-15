@@ -111,6 +111,9 @@ const vi = {
   noActivityYet: 'Chưa có hoạt động nào',
   progressEmptyMsg: 'Ghi thói quen đầu tiên để xem tiến độ ở đây',
   progressEmptyCta: 'Ghi hoạt động',
+  progressEmptyEncouragement: 'Bắt đầu ghi nhận hoạt động đầu tiên để thấy tiến độ của bạn ở đây.',
+  peakPointsLabel: 'Điểm đỉnh',
+  rankStarsToNext: (n: number) => `${n} ★ để lên hạng`,
   statsSection: 'Thống kê',
   starsThisWeek: 'Sao hiện tại',
   activities: 'Hoạt động',
@@ -418,6 +421,7 @@ const vi = {
   newsTypeFeature: 'Mới',
   newsTypeFix: 'Sửa lỗi',
   newsReadBadge: 'ĐÃ ĐỌC',
+  newsUnreadBadge: 'CHƯA ĐỌC',
   newsEmptyTitle: 'Chưa có bản tin nào',
   newsEmptyBody: 'Khi có cập nhật mới, chúng sẽ xuất hiện ở đây.',
   newsLoadFailed: 'Không tải được bản tin.',
@@ -557,6 +561,7 @@ const vi = {
   // Level-up celebration
   levelUpTitle: 'THĂNG HẠNG!',
   levelUpSubtitle: (name: string) => `Tuần trước bạn đã đạt hạng ${name}!\nTiếp tục chinh phục! 💪`,
+  levelUpContinueCta: 'Tiếp tục',
   levelUpDismiss: 'Tuyệt! 🚀',
 
   // Template task names
@@ -608,6 +613,7 @@ const vi = {
   // Share card
   shareTitle: 'Chia sẻ thành tích',
   shareBtn: 'Chia sẻ lên story ↗',
+  shareBtnLocked: 'Chia sẻ lên story — cần Pro',
   shareBefore: 'Ảnh trước',
   shareAfter: 'Ảnh sau',
   sharePhotoHint: 'Tuỳ chọn — thêm ảnh trước & sau để card đẹp hơn',
@@ -750,6 +756,9 @@ const en: typeof vi = {
   noActivityYet: 'No activity yet',
   progressEmptyMsg: 'Log your first habit to see progress here',
   progressEmptyCta: 'Log activity',
+  progressEmptyEncouragement: 'Log your first activity to start seeing your progress here.',
+  peakPointsLabel: 'Peak points',
+  rankStarsToNext: (n) => `${n} ★ to rank up`,
   statsSection: 'Stats',
   starsThisWeek: 'Current stars',
   activities: 'Activities',
@@ -1055,6 +1064,7 @@ const en: typeof vi = {
   newsTypeFeature: 'New',
   newsTypeFix: 'Fix',
   newsReadBadge: 'READ',
+  newsUnreadBadge: 'UNREAD',
   newsEmptyTitle: 'No updates yet',
   newsEmptyBody: 'New product updates will show up here.',
   newsLoadFailed: 'Could not load updates.',
@@ -1194,6 +1204,7 @@ const en: typeof vi = {
   // Level-up celebration
   levelUpTitle: 'LEVEL UP!',
   levelUpSubtitle: (name: string) => `Last week you reached ${name}!\nKeep pushing! 💪`,
+  levelUpContinueCta: 'Continue',
   levelUpDismiss: "Let's go! 🚀",
 
   // Template task names
@@ -1245,6 +1256,7 @@ const en: typeof vi = {
   // Share card
   shareTitle: 'Share your achievement',
   shareBtn: 'Share to story ↗',
+  shareBtnLocked: 'Share to story — Pro required',
   shareBefore: 'Before photo',
   shareAfter: 'After photo',
   sharePhotoHint: 'Optional — add before & after photos to make it pop',

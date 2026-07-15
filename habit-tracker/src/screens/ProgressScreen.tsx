@@ -267,7 +267,6 @@ export function ProgressScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
-        <Text style={styles.eyebrow}>{t.analyticsEyebrow}</Text>
         <Text style={styles.title}>{t.analyticsTitle}</Text>
 
         <Text style={styles.sectionLabel}>{t.analyticsMomentum}</Text>
@@ -280,7 +279,7 @@ export function ProgressScreen() {
         <View style={styles.rankCard}>
           <View style={styles.rankHeader}>
             <View><Text style={styles.rankName}>{rankName}</Text><Text style={styles.rankStars}>{rankData?.currentStars ?? 0} ★</Text></View>
-            <Text style={styles.rankNext}>{nextTier ? `${Math.max(0, nextTier.stars_required - (rankData?.currentStars ?? 0))} ★ để lên hạng` : t.rankMaxed}</Text>
+            <Text style={styles.rankNext}>{nextTier ? t.rankStarsToNext(Math.max(0, nextTier.stars_required - (rankData?.currentStars ?? 0))) : t.rankMaxed}</Text>
           </View>
           <View style={styles.rankTrack}><View style={[styles.rankFill, { width: `${Math.round(rankProgress * 100)}%` }]} /></View>
         </View>
@@ -318,7 +317,7 @@ export function ProgressScreen() {
         <View style={styles.statGrid}>
           <View style={styles.stat}>
             <Text style={[styles.statV, styles.statVPeak]}>{yearStats.peakPoints}</Text>
-            <Text style={styles.statL}>ĐỈNH ĐIỂM</Text>
+            <Text style={styles.statL}>{t.peakPointsLabel}</Text>
           </View>
           <View style={styles.stat}>
             <Text style={styles.statV}>{activeDays}/7</Text>
@@ -347,7 +346,7 @@ export function ProgressScreen() {
           </>
         )}
 
-        {isEmpty && <Text style={styles.emptyEncouragement}>Bắt đầu ghi nhận hoạt động đầu tiên để thấy tiến độ của bạn ở đây.</Text>}
+        {isEmpty && <Text style={styles.emptyEncouragement}>{t.progressEmptyEncouragement}</Text>}
 
         {/* Keep the existing log management surface; this redesign does not replace it. */}
         <ActivityLogSection
@@ -377,8 +376,7 @@ function makeStyles(C: AppColors) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.bgBase },
     container: { flex: 1 },
-    eyebrow: { fontSize: 12, fontFamily: FontFamily.extraBold, letterSpacing: 0.4, color: C.primary, marginHorizontal: Spacing.lg, marginTop: 10 },
-    title: { fontSize: 28, fontFamily: FontFamily.extraBold, letterSpacing: -0.7, color: C.inkDark, marginHorizontal: Spacing.lg, marginBottom: 14 },
+    title: { fontSize: 28, fontFamily: FontFamily.extraBold, letterSpacing: -0.7, color: C.inkDark, marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
 
     segbar: { flexDirection: 'row', marginHorizontal: Spacing.lg, marginBottom: 14 },
     segBtn: {
@@ -449,7 +447,7 @@ function makeStyles(C: AppColors) {
       marginHorizontal: Spacing.lg, marginBottom: 9,
     },
     filterChip: {
-      flexDirection: 'row', alignItems: 'center',
+      flexDirection: 'row', alignItems: 'center', minHeight: 44,
       backgroundColor: C.surface2, borderRadius: Radii.pill,
       paddingHorizontal: 12, paddingVertical: 5,
       borderWidth: 1, borderColor: C.line2,
@@ -458,6 +456,7 @@ function makeStyles(C: AppColors) {
     filterClearText: { fontSize: 14, color: C.muted, fontFamily: FontFamily.bold, paddingHorizontal: 4 },
     logActions: { flexDirection: 'row', gap: 8 },
     logActionBtn: {
+      minHeight: 44, justifyContent: 'center',
       paddingHorizontal: 10, paddingVertical: 5,
       backgroundColor: C.surface2, borderRadius: Radii.sm,
       borderWidth: 1, borderColor: C.line2,

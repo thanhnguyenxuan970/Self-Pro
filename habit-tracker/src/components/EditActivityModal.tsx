@@ -99,7 +99,7 @@ function makeStyles(C: AppColors) {
   return StyleSheet.create({
     backdrop: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.5)',
+      backgroundColor: C.scrim,
       justifyContent: 'center',
       paddingHorizontal: Spacing.lg,
     },

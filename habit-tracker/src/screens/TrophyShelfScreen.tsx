@@ -153,7 +153,7 @@ function makeStyles(C: AppColors) {
     filterRow: { flexDirection: 'row', gap: 8, marginBottom: Spacing.lg },
     chip: {
       backgroundColor: C.surface, borderRadius: Radii.pill, borderWidth: 1, borderColor: C.line,
-      flex: 1, paddingVertical: 7, paddingHorizontal: 5, minHeight: 36,
+      flex: 1, paddingVertical: 7, paddingHorizontal: 5, minHeight: 44,
       alignItems: 'center', justifyContent: 'center',
     },
     chipSelected: { backgroundColor: C.primary, borderColor: C.primary },
