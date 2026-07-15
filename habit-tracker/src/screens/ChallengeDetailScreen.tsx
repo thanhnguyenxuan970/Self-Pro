@@ -172,6 +172,7 @@ export function ChallengeDetailScreen() {
   const failed = !completed && challenge.status === 'failed';
   const active = !completed && !failed;
   const canLogToday = active && !challenge.loggedToday;
+  const calendarDaysLeft = Math.max(0, challenge.targetDays - (challenge.dayIndex + 1));
   const linkedTaskName = challenge.taskTypeId != null
     ? tasks.find(task => task.id === challenge.taskTypeId)?.name ?? null
     : null;
@@ -222,9 +223,9 @@ export function ChallengeDetailScreen() {
           </View>
         )}
 
-        {active && !isWeekly && challenge.daysLeft > 0 && (
+        {active && !isWeekly && calendarDaysLeft > 0 && (
           <View style={styles.daysLeftPill}>
-            <Text style={styles.daysLeftText}>⏳ {t.challengeDaysLeft(challenge.daysLeft)}</Text>
+            <Text style={styles.daysLeftText}>⏳ {t.challengeDaysLeft(calendarDaysLeft)}</Text>
           </View>
         )}
 
@@ -382,22 +383,31 @@ export function ChallengeDetailScreen() {
         )}
 
       </ScrollView>
-      {menuVisible && active && (
-        <View style={styles.menu}>
-          <TouchableOpacity style={styles.menuRow} onPress={openNameEditor} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.editActivity}>
-            <Text style={styles.menuEdit}>🖊️ {t.editActivity}</Text>
-          </TouchableOpacity>
+      <Modal visible={menuVisible && active} transparent animationType="none" onRequestClose={() => setMenuVisible(false)}>
+        <View style={styles.menuModalRoot}>
           <TouchableOpacity
-            style={styles.menuRow}
-            onPress={() => { setMenuVisible(false); handleDelete(); }}
-            activeOpacity={0.7}
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setMenuVisible(false)}
             accessibilityRole="button"
-            accessibilityLabel={t.challengeDeleteCta}
-          >
-            <Text style={styles.menuDelete}>🗑 {t.challengeDeleteCta}</Text>
-          </TouchableOpacity>
+            accessibilityLabel={t.cancel}
+          />
+          <View style={styles.menu} accessibilityViewIsModal>
+            <TouchableOpacity style={styles.menuRow} onPress={openNameEditor} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.editActivity}>
+              <Text style={styles.menuEdit}>🖊️ {t.editActivity}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuRow}
+              onPress={() => { setMenuVisible(false); handleDelete(); }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t.challengeDeleteCta}
+            >
+              <Text style={styles.menuDelete}>🗑 {t.challengeDeleteCta}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      )}
+      </Modal>
       {active && (
         <View style={styles.stickyCta}>
           <TouchableOpacity
@@ -439,7 +449,7 @@ export function ChallengeDetailScreen() {
         <View style={styles.editOverlay}>
           <View style={styles.editCard}>
             <Text style={styles.editTitle}>{t.editActivity}</Text>
-            <TextInput value={nameDraft} onChangeText={setNameDraft} style={styles.editInput} autoFocus maxLength={80} selectTextOnFocus />
+            <TextInput value={nameDraft} onChangeText={setNameDraft} style={styles.editInput} autoFocus maxLength={80} selectTextOnFocus accessibilityLabel={t.editActivity} />
             <View style={styles.editActions}>
               <TouchableOpacity style={styles.editAction} onPress={() => setEditingName(false)}><Text style={styles.editCancel}>{t.cancel}</Text></TouchableOpacity>
               <TouchableOpacity style={styles.editAction} onPress={saveName} disabled={updateChallengeName.isPending}><Text style={styles.editSave}>{t.editSave}</Text></TouchableOpacity>
@@ -459,14 +469,15 @@ function makeStyles(C: AppColors) {
     stickyCta: { alignSelf: 'stretch', backgroundColor: C.bgBase, borderTopWidth: 1, borderTopColor: C.line, padding: Spacing.md },
     headerMenuButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     headerMenuText: { ...Typography.title, color: C.inkDark, fontFamily: FontFamily.bold, lineHeight: 24 },
+    menuModalRoot: { flex: 1 },
     menu: {
-      position: 'absolute', top: Spacing.sm, right: Spacing.lg, zIndex: 10, width: 190,
+      position: 'absolute', top: Spacing.sm, right: Spacing.lg, width: 190,
       backgroundColor: C.surface, borderRadius: Radii.lg, paddingVertical: Spacing.xs, ...Shadows.medium,
     },
     menuRow: { minHeight: 48, justifyContent: 'center', paddingHorizontal: Spacing.md },
     menuEdit: { ...Typography.bodyStrong, color: C.inkDark },
     menuDelete: { ...Typography.bodyStrong, color: C.danger },
-    editOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', padding: Spacing.lg },
+    editOverlay: { flex: 1, backgroundColor: C.scrim, justifyContent: 'center', padding: Spacing.lg },
     editCard: { backgroundColor: C.surface, borderRadius: Radii.lg, padding: Spacing.lg, gap: Spacing.md },
     editTitle: { ...Typography.subheading, color: C.inkDark },
     editInput: { ...Typography.body, color: C.inkDark, borderWidth: 1, borderColor: C.line, borderRadius: Radii.md, minHeight: 48, paddingHorizontal: Spacing.md },
@@ -483,14 +494,14 @@ function makeStyles(C: AppColors) {
     },
     mutedChip: { backgroundColor: C.surface2 },
     runningDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.primary },
-    runningChipText: { fontSize: 11.5, fontFamily: FontFamily.bold, color: C.primary },
+    runningChipText: { ...Typography.caption, fontFamily: FontFamily.bold, color: C.primary },
     ringWrap: { paddingVertical: Spacing.md, alignItems: 'center' },
     weekSubLabel: { ...Typography.caption, color: C.ink2, marginTop: 4 },
     daysLeftPill: {
       alignSelf: 'center', backgroundColor: C.surface2, borderRadius: Radii.pill,
       paddingVertical: 6, paddingHorizontal: 14, marginTop: -Spacing.sm,
     },
-    daysLeftText: { fontSize: 12.5, fontFamily: FontFamily.semiBold, color: C.ink2 },
+    daysLeftText: { ...Typography.caption, fontFamily: FontFamily.semiBold, color: C.ink2 },
     sectionLabel: { ...Typography.sectionLabel, color: C.ink2, alignSelf: 'flex-start' },
     statRow: { flexDirection: 'row', gap: Spacing.md, alignSelf: 'stretch' },
     statCard: {
@@ -511,16 +522,7 @@ function makeStyles(C: AppColors) {
     logBtnText: { ...Typography.bodyStrong, color: C.white, fontSize: 16 },
     linkedHint: { ...Typography.secondary, color: C.ink2, marginBottom: Spacing.sm, lineHeight: 19 },
     photoSection: { flexDirection: 'row', gap: Spacing.md, alignSelf: 'stretch' },
-    // A6 — done + reward
-    doneHero: { alignItems: 'center', gap: 6, alignSelf: 'stretch' },
-    trophyCircle: {
-      width: 88, height: 88, borderRadius: 44, backgroundColor: C.starSoft,
-      alignItems: 'center', justifyContent: 'center', marginBottom: 4,
-    },
-    trophyEmoji: { fontSize: 44 },
-    doneEyebrow: { fontSize: 12, fontFamily: FontFamily.bold, color: C.primary, letterSpacing: 0.6 },
     doneTitle: { ...Typography.title, color: C.inkDark, textAlign: 'center' },
-    doneSub: { ...Typography.secondary, color: C.ink2, textAlign: 'center' },
     outcomeCopy: { alignSelf: 'stretch', alignItems: 'center', gap: Spacing.xs },
     outcomeBody: { ...Typography.secondary, color: C.ink2, textAlign: 'center', paddingHorizontal: Spacing.md },
     encouragement: { alignSelf: 'stretch', backgroundColor: C.starSoft, borderRadius: Radii.lg, padding: Spacing.md },
@@ -541,17 +543,7 @@ function makeStyles(C: AppColors) {
     rewardLabel: { ...Typography.secondary, color: C.ink2 },
     rewardDivider: { height: 1, backgroundColor: C.line, marginVertical: 4 },
 
-    // A7 — failed (kind)
-    failedHero: { alignItems: 'center', gap: 8, alignSelf: 'stretch' },
-    mutedCircle: {
-      width: 76, height: 76, borderRadius: 38, backgroundColor: C.surface2,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    mutedEmoji: { fontSize: 36 },
     failedTitle: { ...Typography.title, color: C.inkDark, textAlign: 'center' },
-    failedBody: { ...Typography.secondary, color: C.ink2, textAlign: 'center', paddingHorizontal: Spacing.md },
-    freezeNote: { alignSelf: 'stretch', backgroundColor: C.surface2, borderRadius: Radii.lg, padding: Spacing.md },
-    freezeNoteText: { ...Typography.secondary, color: C.ink2 },
     secondaryCta: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: Spacing.xs },
     secondaryCtaText: { ...Typography.bodyStrong, color: C.ink2 },
   });
