@@ -1,78 +1,91 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 
 type Props = {
   name: string;
-  dayIndex: number;
   targetDays: number;
+  dayIndex: number;
+  daysDone: number;
   fraction: number;
   streak: number;
-  status: 'active' | 'done' | 'failed';
   onPress: () => void;
 };
 
-export function ChallengeCard({ name, dayIndex, targetDays, fraction, streak, status, onPress }: Props) {
+export function ChallengeCard({ name, targetDays, dayIndex, daysDone, fraction, streak, onPress }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(C), [C]);
-
-  const dayLabel = t.challengeDayOf(Math.min(dayIndex + 1, targetDays), targetDays);
-  const badgeColor = status === 'done' ? C.primary : status === 'failed' ? C.danger : undefined;
-  const badgeText = status === 'done' ? t.challengeStatusDone : status === 'failed' ? t.challengeStatusFailed : dayLabel;
+  const [showRule, setShowRule] = useState(false);
+  const percent = Math.round(fraction * 100);
+  const dayNumber = Math.min(dayIndex + 1, targetDays);
 
   return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={onPress}
-      activeOpacity={0.8}
-      accessibilityRole="button"
-      accessibilityLabel={`${name}, ${badgeText}`}
-    >
-      <View style={styles.row}>
-        <Text style={styles.name} numberOfLines={1}>{name}</Text>
-        <Text style={[styles.badge, badgeColor && { color: badgeColor }]}>{badgeText}</Text>
-      </View>
-      {status === 'active' && (
-        <View style={styles.track}>
-          <View style={[styles.fill, { width: `${Math.round(fraction * 100)}%`, backgroundColor: C.primary }]} />
+    <View style={styles.card}>
+      <View style={styles.topRow}>
+        <View>
+          <TouchableOpacity
+            style={styles.strictBadge}
+            onPress={() => setShowRule(open => !open)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t.challengeStrictBadge}
+            accessibilityState={{ expanded: showRule }}
+          >
+            <Text style={styles.strictBadgeText}>🔒 {t.challengeStrictBadge} ⓘ</Text>
+          </TouchableOpacity>
+          {showRule && (
+            <View style={styles.ruleTooltip}>
+              <Text style={styles.ruleText}>✅ {t.challengeRuleDaily}</Text>
+              <Text style={styles.ruleText}>⛔ {t.challengeRuleReset}</Text>
+            </View>
+          )}
         </View>
-      )}
-      <View style={styles.footerRow}>
         <Text style={styles.streak}>🔥 {streak}</Text>
-        <Text style={styles.viewCta}>{t.challengeViewCta} →</Text>
       </View>
-    </TouchableOpacity>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={`${name}, ${t.challengeDayOf(dayNumber, targetDays)}`}>
+        <Text style={styles.name} numberOfLines={2}>{name}</Text>
+        <View style={styles.progressRow}>
+          <Text style={styles.dayLabel}>{t.challengeProgressLabel}</Text>
+          <Text style={styles.dayValue}>{dayNumber}</Text>
+          <Text style={styles.dayTotal}> / {targetDays}</Text>
+        </View>
+        <View style={styles.track}>
+          <View style={[styles.fill, { width: `${percent}%`, backgroundColor: C.primary }]} />
+        </View>
+        <View style={styles.footerRow}>
+          <Text style={styles.meta}>{t.challengeProgressMeta(targetDays - daysDone)}</Text>
+          <Text style={styles.viewCta}>{t.challengeViewCta} →</Text>
+        </View>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
-    card: {
-      backgroundColor: C.surface,
-      borderRadius: Radii.lg,
-      padding: Spacing.md,
-      ...Shadows.light,
+    card: { backgroundColor: C.surface, borderRadius: Radii.lg, padding: Spacing.md, ...Shadows.light },
+    topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.xs },
+    strictBadge: {
+      backgroundColor: C.starSoft, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radii.pill,
     },
-    row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: Spacing.sm,
+    strictBadgeText: { ...Typography.caption, color: C.starGold, fontFamily: FontFamily.bold },
+    ruleTooltip: { position: 'absolute', top: 34, left: 0, zIndex: 1, maxWidth: 280, backgroundColor: C.surface, borderColor: C.line, borderWidth: StyleSheet.hairlineWidth, borderRadius: Radii.md, padding: Spacing.sm, gap: 4, ...Shadows.medium },
+    ruleText: { ...Typography.caption, color: C.inkDark, fontFamily: FontFamily.medium },
+    streak: {
+      ...Typography.caption, color: C.inkDark, fontFamily: FontFamily.semiBold,
+      backgroundColor: C.surface2, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radii.pill,
     },
-    name: { ...Typography.bodyStrong, color: C.inkDark, flex: 1 },
-    badge: { ...Typography.caption, color: C.ink2, fontFamily: FontFamily.semiBold },
-    track: {
-      height: 8,
-      borderRadius: Radii.pill,
-      backgroundColor: C.surface2,
-      marginTop: Spacing.sm,
-      overflow: 'hidden',
-    },
+    name: { ...Typography.subheading, color: C.inkDark, marginTop: Spacing.md },
+    progressRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: Spacing.xs },
+    dayLabel: { ...Typography.secondary, color: C.muted, fontFamily: FontFamily.semiBold },
+    dayValue: { fontSize: 38, lineHeight: 42, letterSpacing: -1, fontFamily: FontFamily.extraBold, color: C.primary, marginLeft: Spacing.sm },
+    dayTotal: { ...Typography.subheading, color: C.muted, fontFamily: FontFamily.bold },
+    track: { height: 8, borderRadius: Radii.pill, backgroundColor: C.surface2, marginTop: Spacing.xs, overflow: 'hidden' },
     fill: { height: '100%', borderRadius: Radii.pill },
     footerRow: { marginTop: Spacing.sm, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    streak: { ...Typography.caption, color: C.ink2, fontFamily: FontFamily.semiBold },
-    viewCta: { ...Typography.caption, color: C.primary, fontFamily: FontFamily.semiBold },
+    meta: { ...Typography.caption, color: C.muted, fontFamily: FontFamily.semiBold, flexShrink: 1 },
+    viewCta: { ...Typography.caption, color: C.primary, fontFamily: FontFamily.semiBold, marginLeft: Spacing.sm },
   });
 }

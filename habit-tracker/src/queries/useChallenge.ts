@@ -64,6 +64,10 @@ interface ChallengeRow {
   min_count: number | null;
 }
 
+interface ChallengeHistoryRow extends ChallengeRow {
+  reset_day: number | null;
+}
+
 const CHALLENGE_COLUMNS = `id, name, task_type_id, target_days, start_date, status, streak_current, freezes_left, before_photo, after_photo, mode, weekly_target, total_weeks, min_duration, min_count`;
 
 type ChallengeDeleteRow = {
