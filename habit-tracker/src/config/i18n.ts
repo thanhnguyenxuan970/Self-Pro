@@ -488,6 +488,12 @@ const vi = {
   calendarTotalStars: 'Tổng sao',
   calendarActiveDays: 'Ngày hoạt động',
   calendarBest: 'Ngày cao nhất',
+  dayDetailEyebrow: 'CHI TIẾT NGÀY',
+  dayDetailPoints: 'ĐIỂM GHI ĐƯỢC',
+  dayDetailStars: 'SAO NHẬN ĐƯỢC',
+  dayDetailEmpty: 'Chưa ghi gì ngày này',
+  dayDetailEmptyHint: 'Đừng để chuỗi bị đứt — ghi hoạt động nhé.',
+  dayDetailOpenCalendar: 'Mở Lịch hoạt động →',
 
   // Feedback
   sectionFeedback: 'Phản hồi',
@@ -1097,6 +1103,12 @@ const en: typeof vi = {
   calendarTotalStars: 'Total stars',
   calendarActiveDays: 'Active days',
   calendarBest: 'Best day',
+  dayDetailEyebrow: 'DAY DETAILS',
+  dayDetailPoints: 'POINTS LOGGED',
+  dayDetailStars: 'STARS EARNED',
+  dayDetailEmpty: 'Nothing logged on this day',
+  dayDetailEmptyHint: 'Log an activity so your streak keeps going.',
+  dayDetailOpenCalendar: 'Open Activity Calendar →',
 
   // Feedback
   sectionFeedback: 'Feedback',

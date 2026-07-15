@@ -20,6 +20,11 @@ export function getLocalDateFor(date: Date): string {
   return toYMD(date);
 }
 
+export function formatDayDetailDate(date: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    .format(new Date(`${date}T12:00:00`));
+}
+
 export function getWeekStart(): string {
   const d = new Date();
   const dow = d.getDay();
