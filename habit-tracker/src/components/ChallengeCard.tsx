@@ -7,13 +7,12 @@ type Props = {
   name: string;
   targetDays: number;
   dayIndex: number;
-  daysDone: number;
   fraction: number;
   streak: number;
   onPress: () => void;
 };
 
-export function ChallengeCard({ name, targetDays, dayIndex, daysDone, fraction, streak, onPress }: Props) {
+export function ChallengeCard({ name, targetDays, dayIndex, fraction, streak, onPress }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -35,15 +34,15 @@ export function ChallengeCard({ name, targetDays, dayIndex, daysDone, fraction, 
           >
             <Text style={styles.strictBadgeText}>🔒 {t.challengeStrictBadge} ⓘ</Text>
           </TouchableOpacity>
-          {showRule && (
-            <View style={styles.ruleTooltip}>
-              <Text style={styles.ruleText}>✅ {t.challengeRuleDaily}</Text>
-              <Text style={styles.ruleText}>⛔ {t.challengeRuleReset}</Text>
-            </View>
-          )}
         </View>
         <Text style={styles.streak}>🔥 {streak}</Text>
       </View>
+      {showRule && (
+        <View style={styles.ruleTooltip}>
+          <Text style={styles.ruleText}>✅ {t.challengeRuleDaily}</Text>
+          <Text style={styles.ruleText}>⛔ {t.challengeRuleReset}</Text>
+        </View>
+      )}
       <TouchableOpacity onPress={onPress} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={`${name}, ${t.challengeDayOf(dayNumber, targetDays)}`}>
         <Text style={styles.name} numberOfLines={2}>{name}</Text>
         <View style={styles.progressRow}>
@@ -55,7 +54,6 @@ export function ChallengeCard({ name, targetDays, dayIndex, daysDone, fraction, 
           <View style={[styles.fill, { width: `${percent}%`, backgroundColor: C.primary }]} />
         </View>
         <View style={styles.footerRow}>
-          <Text style={styles.meta}>{t.challengeProgressMeta(targetDays - daysDone)}</Text>
           <Text style={styles.viewCta}>{t.challengeViewCta} →</Text>
         </View>
       </TouchableOpacity>
@@ -71,7 +69,7 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.starSoft, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radii.pill,
     },
     strictBadgeText: { ...Typography.caption, color: C.starGold, fontFamily: FontFamily.bold },
-    ruleTooltip: { position: 'absolute', top: 34, left: 0, zIndex: 1, maxWidth: 280, backgroundColor: C.surface, borderColor: C.line, borderWidth: StyleSheet.hairlineWidth, borderRadius: Radii.md, padding: Spacing.sm, gap: 4, ...Shadows.medium },
+    ruleTooltip: { alignSelf: 'flex-start', maxWidth: 280, marginTop: Spacing.sm, backgroundColor: C.surface, borderColor: C.line, borderWidth: StyleSheet.hairlineWidth, borderRadius: Radii.md, padding: Spacing.sm, gap: 4, ...Shadows.medium },
     ruleText: { ...Typography.caption, color: C.inkDark, fontFamily: FontFamily.medium },
     streak: {
       ...Typography.caption, color: C.inkDark, fontFamily: FontFamily.semiBold,
@@ -84,8 +82,7 @@ function makeStyles(C: AppColors) {
     dayTotal: { ...Typography.subheading, color: C.muted, fontFamily: FontFamily.bold },
     track: { height: 8, borderRadius: Radii.pill, backgroundColor: C.surface2, marginTop: Spacing.xs, overflow: 'hidden' },
     fill: { height: '100%', borderRadius: Radii.pill },
-    footerRow: { marginTop: Spacing.sm, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    meta: { ...Typography.caption, color: C.muted, fontFamily: FontFamily.semiBold, flexShrink: 1 },
+    footerRow: { marginTop: Spacing.sm, alignItems: 'flex-end' },
     viewCta: { ...Typography.caption, color: C.primary, fontFamily: FontFamily.semiBold, marginLeft: Spacing.sm },
   });
 }

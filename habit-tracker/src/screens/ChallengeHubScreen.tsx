@@ -85,7 +85,6 @@ export function ChallengeHubScreen() {
                   name={active.name}
                   targetDays={active.targetDays}
                   dayIndex={active.dayIndex}
-                  daysDone={active.daysDone}
                   fraction={active.fraction}
                   streak={active.streak}
                   onPress={() => (navigation as any).navigate('ChallengeDetail', { challengeId: active.id })}
@@ -146,10 +145,6 @@ export function ChallengeHubScreen() {
                 </View>
               </View>
             )}
-            <View style={styles.hintRow}>
-              <Text style={styles.hintIcon}>📜</Text>
-              <Text style={styles.hint}>“{t.challengeHubHint}”</Text>
-            </View>
           </>
         )}
       </ScrollView>
@@ -189,8 +184,5 @@ function makeStyles(C: AppColors) {
     pastStatus: { ...Typography.caption, fontFamily: FontFamily.semiBold },
     retryButton: { minHeight: 44, justifyContent: 'center' },
     retryDisabled: { opacity: 0.55 },
-    hintRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: Spacing.xs, paddingHorizontal: 12 },
-    hintIcon: { fontSize: 16, lineHeight: 20, marginRight: 12 },
-    hint: { ...Typography.secondary, color: C.muted, fontStyle: 'italic', flex: 1, lineHeight: 20 },
   });
 }

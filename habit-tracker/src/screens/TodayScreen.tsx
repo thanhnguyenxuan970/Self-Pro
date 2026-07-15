@@ -33,6 +33,7 @@ import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 import { useShareCardData, tierPercentile } from '../hooks/useShareCardData';
 import { useNewsFeed } from '../queries/useNews';
 import { getNewsViewerKey } from '../utils/news';
+import { parseDurationMinutes } from '../utils/duration';
 import { useHeatmapData } from '../queries/useCalendar';
 import { HomeHeatmap } from '../components/HomeHeatmap';
 
@@ -140,9 +141,8 @@ function SuggestionEntranceWrapper({ index, reduceMotion, children }: { index: n
 }
 
 function parseLogDuration(duration: string, durationUnit: 'min' | 'hr', errorTitle: string, validDurationMsg: string, maxDurationMsg: string): number | null {
-  const parsed = parseInt(duration, 10);
-  if (isNaN(parsed) || parsed <= 0) { Alert.alert(errorTitle, validDurationMsg); return null; }
-  const mins = durationUnit === 'hr' ? parsed * 60 : parsed;
+  const mins = parseDurationMinutes(duration, durationUnit);
+  if (mins === null) { Alert.alert(errorTitle, validDurationMsg); return null; }
   if (mins > 1440) { Alert.alert(errorTitle, maxDurationMsg); return null; }
   return mins;
 }
@@ -221,7 +221,7 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
               <View style={styles.durationRow}>
                 <TextInput
                   style={[styles.input, styles.durationInput]}
-                  keyboardType="number-pad"
+                  keyboardType="decimal-pad"
                   value={duration}
                   onChangeText={setDuration}
                   placeholder="0"
@@ -432,7 +432,7 @@ export function TodayScreen() {
 
   async function handleSuggestionLog(task: { id: number; name: string; kind: string; is_time_based: number; base_points: number; star_penalty: number; icon: string | null }) {
     if (task.is_time_based) {
-      setModalTask({ ...task, category_id: null, sort_order: 0 });
+      setModalTask({ ...task, category_id: null, sort_order: 0, is_template: 0 });
       return;
     }
     try {
@@ -475,7 +475,7 @@ export function TodayScreen() {
     try {
       await updateTaskName.mutateAsync({ taskId, name });
       if (newDurationMin !== null && task?.is_time_based) {
-        const currentMin = totalDurations?.get(taskId) ?? 0;
+        const currentMin = totalDurations?.get(taskId)?.duration ?? 0;
         if (newDurationMin !== currentMin) {
           await unlogTask.mutateAsync({ taskTypeId: taskId, kind: task.kind as 'GOOD' | 'BAD' });
           if (newDurationMin > 0) {
@@ -503,7 +503,7 @@ export function TodayScreen() {
       <EditActivityModal
         visible={editTask !== null}
         task={editTask}
-        totalDurationMin={editTask ? totalDurations?.get(editTask.id) : undefined}
+        totalDurationMin={editTask ? totalDurations?.get(editTask.id)?.duration : undefined}
         onSave={handleEditSave}
         onClose={() => setEditTask(null)}
       />
@@ -603,9 +603,10 @@ export function TodayScreen() {
           .filter(s => !dismissedSuggestions.has(s.id) && !(loggedIds?.has(s.id)))
           .map((s, index) => (
             <SuggestionEntranceWrapper key={s.id} index={index} reduceMotion={reduceMotion}>
-              <View style={styles.suggestionRow}>
+              <View style={[styles.suggestionRow, index === 0 && styles.suggestionRowFirst]}>
                 <TouchableOpacity style={styles.suggestionChip} onPress={() => handleSuggestionLog(s)} disabled={logTask.isPending} activeOpacity={0.75} accessibilityRole="button">
-                  <Text style={styles.suggestionChipText} numberOfLines={1}>🔄 {t.suggestionPrompt(resolveTaskDisplayName(s.name, t))}</Text>
+                  <Text style={styles.suggestionIcon}>🔄</Text>
+                  <Text style={styles.suggestionChipText} numberOfLines={1}>{t.suggestionPrompt(resolveTaskDisplayName(s.name, t))}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.suggestionDismiss} onPress={() => dismissSuggestion(s.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel={t.dismissSuggestion} accessibilityRole="button">
                   <Text style={styles.suggestionDismissText}>✕</Text>
@@ -657,7 +658,8 @@ export function TodayScreen() {
                   isSelected={isSelected}
                   selectionMode={selectionMode}
                   justLogged={justLoggedIds.has(item.id)}
-                  totalDurationMin={totalDurations?.get(item.id)}
+                  totalDurationMin={totalDurations?.get(item.id)?.duration}
+                  starsEarned={totalDurations?.get(item.id)?.stars}
                   onPress={() => selectionMode ? toggleSelect(item.id) : handleLog(item)}
                   onLongPress={() => enterSelection(item.id)}
                   onEdit={() => setEditTask(item)}
@@ -793,16 +795,17 @@ function makeStyles(C: AppColors) {
       paddingHorizontal: 15,
     },
     suggestionRow: {
-      flexDirection: 'row', alignItems: 'center',
-      marginHorizontal: Spacing.lg, marginBottom: 6,
-    },
-    suggestionChip: {
-      flex: 1, backgroundColor: C.surface, borderRadius: Radii.pill,
-      paddingVertical: 8, paddingHorizontal: 14,
+      flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: 6,
+      backgroundColor: C.surface, borderRadius: Radii.pill,
       borderWidth: 1, borderColor: C.primary + '55', ...Shadows.light,
     },
-    suggestionChipText: { color: C.primary, fontSize: 13, fontFamily: FontFamily.semiBold },
-    suggestionDismiss: { marginLeft: 8, padding: 4 },
+    suggestionRowFirst: { marginTop: Spacing.sm },
+    suggestionChip: {
+      flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14,
+    },
+    suggestionIcon: { marginRight: 10, fontSize: 13 },
+    suggestionChipText: { flex: 1, color: C.primary, fontSize: 13, fontFamily: FontFamily.semiBold },
+    suggestionDismiss: { width: 48, height: 44, alignItems: 'center', justifyContent: 'center' },
     suggestionDismissText: { color: C.muted, fontSize: 14, fontFamily: FontFamily.bold },
 
     empty: { padding: 36, paddingHorizontal: 12, alignItems: 'center' },

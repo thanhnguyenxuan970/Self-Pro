@@ -190,9 +190,9 @@ export function useTodayTasks(userId: number) {
       return db.getAllAsync<{
         id: number; name: string; kind: string; is_time_based: number;
         base_points: number; star_penalty: number; icon: string | null;
-        category_id: number | null; sort_order: number;
+        category_id: number | null; sort_order: number; is_template: number;
       }>(
-        `SELECT id, name, kind, is_time_based, base_points, star_penalty, icon, category_id, sort_order
+        `SELECT id, name, kind, is_time_based, base_points, star_penalty, icon, category_id, sort_order, is_template
          FROM task_types WHERE user_id = ? AND archived = 0 ORDER BY sort_order ASC, kind, name`,
         [userId]
       );
@@ -442,14 +442,14 @@ export function useTodayTaskTotalDurations(userId: number) {
     queryKey: ['today', 'durations', userId, today],
     queryFn: async () => {
       const db = await getDb();
-      const rows = await db.getAllAsync<{ task_type_id: number; total_min: number }>(
-        `SELECT task_type_id, SUM(duration_min) AS total_min
+      const rows = await db.getAllAsync<{ task_type_id: number; total_min: number; total_stars: number }>(
+        `SELECT task_type_id, SUM(duration_min) AS total_min, SUM(stars_delta) AS total_stars
          FROM activity_log
          WHERE user_id = ? AND local_date = ? AND task_type_id IS NOT NULL AND source = 'TASK'
          GROUP BY task_type_id`,
         [userId, today]
       );
-      return new Map(rows.map(r => [r.task_type_id, r.total_min ?? 0]));
+      return new Map(rows.map(r => [r.task_type_id, { duration: r.total_min ?? 0, stars: r.total_stars ?? 0 }]));
     },
   });
 }

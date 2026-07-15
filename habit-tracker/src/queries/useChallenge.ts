@@ -517,10 +517,13 @@ export function useActiveChallenge(userId: number) {
 export function useChallengeHistory(userId: number) {
   return useQuery({
     queryKey: ['challenge', 'history', userId],
-    queryFn: async (): Promise<ChallengeRow[]> => {
+    queryFn: async (): Promise<ChallengeHistoryRow[]> => {
       const db = await getDb();
-      return db.getAllAsync<ChallengeRow>(
-        `SELECT ${CHALLENGE_COLUMNS}
+      return db.getAllAsync<ChallengeHistoryRow>(
+        `SELECT ${CHALLENGE_COLUMNS},
+          (SELECT CAST(julianday(MIN(local_date)) - julianday(challenges.start_date) + 1 AS INTEGER)
+           FROM challenge_log
+           WHERE challenge_id = challenges.id AND state = 'reset') AS reset_day
          FROM challenges WHERE user_id = ? AND status != 'active' ORDER BY created_at DESC`,
         [userId],
       );
@@ -784,6 +787,34 @@ export function useSetChallengeAfterPhoto(userId: number) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
     },
+  });
+}
+
+export function useSetChallengeBeforePhoto(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ challengeId, uri }: { challengeId: number; uri: string }): Promise<void> => {
+      const db = await getDb();
+      await db.runAsync(`UPDATE challenges SET before_photo = ? WHERE id = ? AND user_id = ?`, [uri, challengeId, userId]);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['challenge'] }),
+  });
+}
+
+export async function updateChallengeNameById(db: SQLiteDatabase, userId: number, challengeId: number, name: string): Promise<void> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('CHALLENGE_NAME_REQUIRED');
+  await db.runAsync(`UPDATE challenges SET name = ? WHERE id = ? AND user_id = ?`, [trimmed, challengeId, userId]);
+}
+
+export function useUpdateChallengeName(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ challengeId, name }: { challengeId: number; name: string }): Promise<void> => {
+      const db = await getDb();
+      await updateChallengeNameById(db, userId, challengeId, name);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['challenge'] }),
   });
 }
 

@@ -1,6 +1,6 @@
 import type { AppColors } from '../config/theme';
 
-export type HeatmapDay = { local_date: string; total_points: number };
+export type HeatmapDay = { local_date: string; total_points: number; stars?: number };
 
 export type HeatmapCell = { date: string; level: number; month?: string };
 

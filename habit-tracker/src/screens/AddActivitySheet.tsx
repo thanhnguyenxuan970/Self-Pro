@@ -10,13 +10,13 @@ import { useLogTask } from '../queries/useToday';
 import { cueModalOpen, cueModalClose } from '../audio/uiSounds';
 import { useAuthUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
-import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
+import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 import { Strings } from '../config/i18n';
-import { supabase } from '../api/supabase';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 import { activityGroup, activityMatches, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../utils/activityPicker';
+import { parseDurationMinutes } from '../utils/duration';
 
 interface Props { visible: boolean; onClose: () => void; presetName?: string | null; }
 
@@ -51,7 +51,7 @@ function PickerTaskRow({ task, onPress, onPin, styles, t }: {
 }) {
   return <View style={styles.pickerRow}>
     <TouchableOpacity style={styles.pickerTask} onPress={onPress} activeOpacity={0.7} accessibilityRole="button">
-      <Text style={styles.pickerTaskName} numberOfLines={1}>{task.icon ? `${task.icon} ` : ''}{task.name}</Text>
+      <Text style={styles.pickerTaskName} numberOfLines={1}>{task.icon ? `${task.icon} ` : ''}{resolveTaskDisplayName(task.name, t, task.is_template === 1)}</Text>
       {task.archived === 1 ? <Text style={styles.hiddenBadge}>{t.activityHidden}</Text> : null}
     </TouchableOpacity>
     <TouchableOpacity style={styles.pinButton} onPress={onPin} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.activityPinned}>
@@ -77,9 +77,8 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onBack, onClo
   const [customDuration, setCustomDuration] = useState(false);
 
   function handleCustomLog() {
-    const parsed = parseInt(duration, 10);
-    if (isNaN(parsed) || parsed <= 0) { Alert.alert(t.error, t.validDuration); return; }
-    const mins = durationUnit === 'hr' ? parsed * 60 : parsed;
+    const mins = parseDurationMinutes(duration, durationUnit);
+    if (mins === null) { Alert.alert(t.error, t.validDuration); return; }
     if (mins > 1440) { Alert.alert(t.error, t.maxDuration); return; }
     onLogDuration(mins);
   }
@@ -126,7 +125,7 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onBack, onClo
             <View style={styles.durationRow}>
               <TextInput
                 style={[styles.input, styles.durationInput]}
-                keyboardType="number-pad"
+                keyboardType="decimal-pad"
                 value={duration}
                 onChangeText={setDuration}
                 placeholder="0"
@@ -176,7 +175,6 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
   const userId = useAuthUser();
   const { colors } = useTheme();
   const t = useTranslations();
-  const [lang] = useLanguage();
   const reduceMotion = useReduceMotion();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -191,23 +189,9 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
   const [selectedExistingTask, setSelectedExistingTask] = useState<PickerTask | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  const [translating, setTranslating] = useState(false);
   const submittingRef = useRef(false);
 
-  async function translateActivityName(rawName: string): Promise<string> {
-    if (!supabase) return rawName;
-    try {
-      const { data, error } = await supabase.functions.invoke('translate-name', {
-        body: { name: rawName, targetLanguage: lang },
-      });
-      if (error || !data?.translated) return rawName;
-      return (data.translated as string).trim() || rawName;
-    } catch {
-      return rawName;
-    }
-  }
-
-  type PendingTask = { id: number; name: string; basePoints: number; starPenalty: number };
+  type PendingTask = { id: number; name: string; basePoints: number; starPenalty: number; isTemplate: boolean };
   const [step, setStep] = useState<'create' | 'duration'>('create');
   const [pendingTask, setPendingTask] = useState<PendingTask | null>(null);
 
@@ -306,22 +290,6 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
       ? selectedSuggestion.name
       : trimmed);
 
-    // An unedited presetName is already an existing task's exact stored name
-    // (e.g. from a linked-challenge "Ghi ngay" deep-link) -- translating it
-    // would silently create/match a *different* task_type and break the
-    // link. Skip translation only while the text still matches the preset
-    // verbatim; an edited name is freeform again and gets translated as usual.
-    const usingUneditedPreset = !selectedSuggestion && presetName != null && trimmed === presetName;
-
-    if (lang !== 'vi' && !selectedSuggestion && !usingUneditedPreset && !selectedExistingTask) {
-      setTranslating(true);
-      try {
-        storeName = await translateActivityName(trimmed);
-      } finally {
-        setTranslating(false);
-      }
-    }
-
     const duplicate = pickerTasks.find(task => normalizeActivityName(task.name) === normalizeActivityName(storeName));
     if (duplicate && duplicate.id !== selectedExistingTask?.id) {
       Alert.alert(t.error, t.activityDuplicate);
@@ -341,15 +309,16 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
         basePoints: taskBasePoints,
         starPenalty: 0,
         icon: selectedExistingTask?.icon ?? selectedSuggestion?.icon,
+        isTemplate: !!selectedSuggestion,
       });
 
       if (isTimeBased) {
         Keyboard.dismiss();
-        setPendingTask({ id: taskId, name: storeName, basePoints: taskBasePoints, starPenalty: 0 });
+        setPendingTask({ id: taskId, name: storeName, basePoints: taskBasePoints, starPenalty: 0, isTemplate: !!selectedSuggestion });
         setStep('duration');
         submittingRef.current = false;
       } else {
-        Toast.show({ type: 'success', text1: t.taskAdded, text2: resolveTaskDisplayName(storeName, t), visibilityTime: 2000 });
+        Toast.show({ type: 'success', text1: t.taskAdded, text2: resolveTaskDisplayName(storeName, t, !!selectedSuggestion), visibilityTime: 2000 });
         handleClose();
       }
     } catch {
@@ -369,7 +338,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
         starPenalty: pendingTask.starPenalty,
         durationMin: mins,
       });
-      Toast.show({ type: 'success', text1: t.taskAdded, text2: resolveTaskDisplayName(pendingTask.name, t), visibilityTime: 2000 });
+      Toast.show({ type: 'success', text1: t.taskAdded, text2: resolveTaskDisplayName(pendingTask.name, t, pendingTask.isTemplate), visibilityTime: 2000 });
       handleClose();
     } catch {
       Alert.alert(t.error, t.cantLog);
@@ -395,7 +364,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
   }, {}), [activePickerTasks]);
 
   const hasName = name.trim().length > 0;
-  const isPending = createTask.isPending || logTask.isPending || translating;
+  const isPending = createTask.isPending || logTask.isPending;
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose} statusBarTranslucent navigationBarTranslucent>
@@ -501,7 +470,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
                   accessibilityRole="button"
                   accessibilityState={{ disabled: !hasName || isPending }}
                 >
-                  {createTask.isPending || translating ? (
+                  {createTask.isPending ? (
                     <ActivityIndicator color={colors.white} />
                   ) : (
                     <Text style={styles.durationChipText}>{t.addActivityTimedBtn}</Text>

@@ -1,45 +1,44 @@
-import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Alert } from 'react-native';
+import React, { useLayoutEffect, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, TextInput, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import * as Sharing from 'expo-sharing';
-import { captureRef } from 'react-native-view-shot';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
-import { useChallengeById, useDeleteChallenge, useLogChallengeDay, useRestartChallenge, useSetChallengeAfterPhoto } from '../queries/useChallenge';
-import { useRankData } from '../queries/useRank';
+import { useReduceMotion } from '../hooks/useReduceMotion';
+import { useChallengeById, useDeleteChallenge, useLogChallengeDay, useRestartChallenge, useSetChallengeAfterPhoto, useSetChallengeBeforePhoto, useUpdateChallengeName } from '../queries/useChallenge';
 import { useTodayTasks } from '../queries/useToday';
 import { requestAddActivity } from '../hooks/useAddActivityIntent';
-import { challengeDate } from '../lib/challenge';
+import { challengeDate, isComplete } from '../lib/challenge';
 import { computeChallengeReward } from '../config/challenges.config';
 import { ChallengeProgressRing } from '../components/ChallengeProgressRing';
 import { ChallengeDayGrid, GRID_CELL_COUNT } from '../components/ChallengeDayGrid';
 import { WeekStrip } from '../components/WeekStrip';
 import { WeeklyPaceCard } from '../components/WeeklyPaceCard';
 import { ConfettiBurst } from '../components/ConfettiBurst';
-import { ShareCardStats } from '../components/ShareCardStats';
-import { ShareCardBeforeAfter } from '../components/ShareCardBeforeAfter';
 import { PhotoSlot } from '../components/PhotoSlot';
-
-const STREAK_MILESTONES = [7, 14, 21];
 
 export function ChallengeDetailScreen() {
   const { userId, colors, t, styles } = useScreenCommons(makeStyles);
+  const reduceMotion = useReduceMotion();
   const navigation = useNavigation();
   const route = useRoute();
   const challengeId = (route.params as { challengeId: number } | undefined)?.challengeId ?? null;
 
   const { data: challenge, isLoading } = useChallengeById(userId, challengeId);
-  const { data: rank } = useRankData(userId);
   const { data: tasks = [] } = useTodayTasks(userId);
   const logDay = useLogChallengeDay(userId);
   const setAfterPhoto = useSetChallengeAfterPhoto(userId);
+  const setBeforePhoto = useSetChallengeBeforePhoto(userId);
   const restartChallenge = useRestartChallenge(userId);
   const deleteChallenge = useDeleteChallenge(userId);
-  const [capturing, setCapturing] = useState(false);
-  const statsShareRef = useRef<View>(null);
-  const beforeAfterShareRef = useRef<View>(null);
+  const updateChallengeName = useUpdateChallengeName(userId);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const completedBeforeRender = challenge != null && (
+    challenge.status === 'done' || (challenge.mode === 'streak' && isComplete(challenge.daysDone, challenge.targetDays))
+  );
 
   const today = challengeDate();
 
@@ -75,20 +74,6 @@ export function ChallengeDetailScreen() {
     }
   }
 
-  async function handleShare(useBeforeAfter: boolean) {
-    const ref = useBeforeAfter ? beforeAfterShareRef : statsShareRef;
-    if (!ref.current) return;
-    setCapturing(true);
-    try {
-      const uri = await captureRef(ref, { format: 'png', quality: 1, result: 'tmpfile' });
-      await Sharing.shareAsync(uri, { mimeType: 'image/png', UTI: 'public.png' });
-    } catch {
-      // share cancelled or failed — no-op, matches the existing app-wide pattern
-    } finally {
-      setCapturing(false);
-    }
-  }
-
   function handleDelete() {
     if (challengeId == null) return;
     Alert.alert(
@@ -112,16 +97,55 @@ export function ChallengeDetailScreen() {
     );
   }
 
+  async function handleShare() {
+    if (!challenge) return;
+    try {
+      await Share.share({
+        message: challenge.status === 'done'
+          ? `${challenge.name}\n${t.challengeCompletedBody(challenge.daysDone)}`
+          : `${challenge.name}\n${t.challengeFailedBody(challenge.daysDone)}`,
+      });
+    } catch {
+      // Sharing is optional; a cancelled or unavailable system sheet is a no-op.
+    }
+  }
+
+  async function pickBeforePhoto() {
+    if (!challenge) return;
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'], quality: 0.9, allowsEditing: true, aspect: [1, 1],
+    });
+    if (!result.canceled && result.assets[0]) {
+      setBeforePhoto.mutate({ challengeId: challenge.id, uri: result.assets[0].uri });
+    }
+  }
+
   function handleMenu() {
-    Alert.alert(challenge?.name ?? t.screenChallengeDetail, undefined, [
-      { text: t.cancel, style: 'cancel' },
-      { text: t.challengeDeleteCta, style: 'destructive', onPress: handleDelete },
-    ]);
+    setMenuVisible(visible => !visible);
+  }
+
+  function openNameEditor() {
+    if (!challenge) return;
+    setMenuVisible(false);
+    setNameDraft(challenge.name);
+    setEditingName(true);
+  }
+
+  async function saveName() {
+    if (challengeId == null) return;
+    try {
+      await updateChallengeName.mutateAsync({ challengeId, name: nameDraft });
+      setEditingName(false);
+    } catch {
+      Alert.alert(t.error, t.editNameLabel);
+    }
   }
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: challenge?.status !== 'active' ? undefined : () => (
+      headerRight: challenge?.status !== 'active' || completedBeforeRender ? undefined : () => (
         <TouchableOpacity
           onPress={handleMenu}
           disabled={deleteChallenge.isPending || challengeId == null}
@@ -133,12 +157,7 @@ export function ChallengeDetailScreen() {
         </TouchableOpacity>
       ),
     });
-  }, [challenge?.name, challenge?.status, challengeId, deleteChallenge.isPending, navigation, styles, t]);
-
-  const rankName = useMemo(() => {
-    const tiers = rank?.tiers ?? [];
-    return tiers.find(tr => tr.id === rank?.currentTierId)?.rank_name ?? '—';
-  }, [rank]);
+  }, [challenge?.name, challenge?.status, challengeId, completedBeforeRender, deleteChallenge.isPending, navigation, styles, t]);
 
   if (isLoading || !challenge) {
     return (
@@ -149,7 +168,10 @@ export function ChallengeDetailScreen() {
   }
 
   const isWeekly = challenge.mode === 'weekly';
-  const canLogToday = challenge.status === 'active' && !challenge.loggedToday;
+  const completed = challenge.status === 'done' || (!isWeekly && isComplete(challenge.daysDone, challenge.targetDays));
+  const failed = !completed && challenge.status === 'failed';
+  const active = !completed && !failed;
+  const canLogToday = active && !challenge.loggedToday;
   const linkedTaskName = challenge.taskTypeId != null
     ? tasks.find(task => task.id === challenge.taskTypeId)?.name ?? null
     : null;
@@ -158,36 +180,14 @@ export function ChallengeDetailScreen() {
     ? computeChallengeReward({ mode: 'weekly', weeklyTarget: challenge.weeklyTarget!, totalWeeks: challenge.totalWeeks! })
     : computeChallengeReward({ mode: 'streak', targetDays: challenge.targetDays });
 
-  // What the share card + button should reflect right now: the challenge's
-  // final result once done/failed, or -- while active -- whichever milestone
-  // (streak day 7/14/21, or "this week is already perfect") just landed, so
-  // the same button/card doubles as the milestone-share surface without a
-  // separate banner.
-  const shareNumerator = isWeekly ? (challenge.weekSessionsDone ?? 0) : challenge.daysDone;
-  const shareDenominator = isWeekly ? (challenge.weeklyTarget ?? 0) : challenge.targetDays;
-  const isStreakMilestone = !isWeekly && challenge.status === 'active' && STREAK_MILESTONES.includes(challenge.daysDone);
-  const isWeeklyPerfectSoFar = isWeekly && challenge.status === 'active' && (challenge.weekSessionsDone ?? 0) >= (challenge.weeklyTarget ?? Infinity);
-  const shareCta = challenge.status === 'done'
-    ? t.challengeShareJourneyCta
-    : challenge.status === 'failed'
-    ? t.challengeShareCta
-    : isWeeklyPerfectSoFar
-    ? t.challengeShareWeekCta(challenge.weekIndex ?? 0)
-    : isStreakMilestone
-    ? t.challengeMilestoneShareCta(t.challengeMilestoneStreakLabel(challenge.daysDone))
-    : t.challengeShareCta;
-
-  const hasBothPhotos = !!(challenge.beforePhoto && challenge.afterPhoto);
-  const useBeforeAfterCard = challenge.status === 'done' && hasBothPhotos;
-
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {challenge.status === 'done' && <ConfettiBurst />}
+        {completed && <ConfettiBurst />}
 
         <View style={styles.titleRow}>
-          <Text style={styles.name} numberOfLines={2}>{challenge.name}</Text>
-          {challenge.status === 'active' && (
+          <Text style={styles.name} numberOfLines={3}>{challenge.name}</Text>
+          {active && (
             <View style={styles.runningChip}>
               <View style={styles.runningDot} />
               <Text style={styles.runningChipText}>
@@ -195,53 +195,50 @@ export function ChallengeDetailScreen() {
               </Text>
             </View>
           )}
-          {challenge.status === 'failed' && (
+          {failed && (
             <View style={[styles.runningChip, styles.mutedChip]}>
-              <Text style={[styles.runningChipText, { color: colors.ink2 }]}>{t.challengeStatusEnded}</Text>
+              <Text style={[styles.runningChipText, { color: colors.ink2 }]}>{t.challengeResetBadge(challenge.daysDone)}</Text>
             </View>
           )}
         </View>
 
-        {challenge.status === 'done' ? (
-          <View style={styles.doneHero}>
-            <View style={styles.trophyCircle}><Text style={styles.trophyEmoji}>🏆</Text></View>
-            <Text style={styles.doneEyebrow}>{t.challengeDoneEyebrow}</Text>
-            <Text style={styles.doneTitle}>{challenge.name}</Text>
-            <Text style={styles.doneSub}>
-              {isWeekly
-                ? t.challengeDoneSubWeekly(challenge.perfectWeeks ?? 0, challenge.totalWeeks ?? 0)
-                : t.challengeDoneSubStreak(challenge.targetDays)}
-            </Text>
-          </View>
-        ) : challenge.status === 'failed' ? (
-          <View style={styles.failedHero}>
-            <View style={styles.mutedCircle}><Text style={styles.mutedEmoji}>🌱</Text></View>
-            <Text style={styles.failedTitle}>{isWeekly ? t.challengeFailedWeeklyTitle : t.challengeFailedKindTitle}</Text>
-            <Text style={styles.failedBody}>{isWeekly ? t.challengeFailedWeeklyBody : t.challengeFailedKindBody}</Text>
-          </View>
-        ) : (
+        {!isWeekly && (
           <View style={styles.ringWrap}>
             <ChallengeProgressRing
-              fraction={isWeekly ? (challenge.weekSessionsDone ?? 0) / Math.max(1, challenge.weeklyTarget ?? 1) : challenge.fraction}
-              label={isWeekly
-                ? t.challengeSessionsThisWeek(challenge.weekSessionsDone ?? 0, challenge.weeklyTarget ?? 0)
-                : t.challengeDayOf(Math.min(challenge.dayIndex + 1, challenge.targetDays), challenge.targetDays)}
+              fraction={challenge.fraction}
+              label={`${challenge.daysDone}/${challenge.targetDays} ${t.challengeProgressLabel.toLowerCase()}`}
+              muted={failed}
+              glowing={completed}
             />
-            {isWeekly && (
-              <Text style={styles.weekSubLabel}>{t.challengeWeekOf(challenge.weekIndex ?? 0, challenge.totalWeeks ?? 0)}</Text>
-            )}
+          </View>
+        )}
+        {isWeekly && active && (
+          <View style={styles.ringWrap}>
+            <ChallengeProgressRing
+              fraction={(challenge.weekSessionsDone ?? 0) / Math.max(1, challenge.weeklyTarget ?? 1)}
+              label={t.challengeSessionsThisWeek(challenge.weekSessionsDone ?? 0, challenge.weeklyTarget ?? 0)}
+            />
+            <Text style={styles.weekSubLabel}>{t.challengeWeekOf(challenge.weekIndex ?? 0, challenge.totalWeeks ?? 0)}</Text>
           </View>
         )}
 
-        {challenge.status === 'active' && !isWeekly && challenge.daysLeft > 0 && (
+        {active && !isWeekly && challenge.daysLeft > 0 && (
           <View style={styles.daysLeftPill}>
             <Text style={styles.daysLeftText}>⏳ {t.challengeDaysLeft(challenge.daysLeft)}</Text>
           </View>
         )}
 
-        {challenge.status === 'done' && (
-          <View style={styles.rewardCard}>
-            <Text style={styles.rewardTitle}>{t.challengeRewardTitle}</Text>
+        {completed && (
+          <>
+            <View style={styles.outcomeCopy}>
+              <Text style={styles.doneTitle}>{t.challengeCompletedHeadline}</Text>
+              <Text style={styles.outcomeBody}>{t.challengeCompletedBody(challenge.daysDone)}</Text>
+            </View>
+            <View style={[styles.rewardCard, styles.rewardClaimed]}>
+              <View style={styles.rewardHeader}>
+                <Text style={styles.rewardTitle}>{t.challengeRewardTitle}</Text>
+                <Text style={styles.claimedChip}>{t.challengeRewardClaimed}</Text>
+              </View>
             <View style={styles.rewardRow}>
               <Text style={styles.rewardIcon}>★</Text>
               <View style={styles.rewardTextCol}>
@@ -254,10 +251,11 @@ export function ChallengeDetailScreen() {
               <Text style={styles.rewardIcon}>🏅</Text>
               <Text style={styles.rewardLabel}>{t.challengeRewardBadgeLabel}</Text>
             </View>
-          </View>
+            </View>
+          </>
         )}
 
-        {challenge.status === 'active' && isWeekly && challenge.weeklyTarget != null && (
+        {active && isWeekly && challenge.weeklyTarget != null && (
           <>
             <WeeklyPaceCard
               weeklyTarget={challenge.weeklyTarget}
@@ -293,7 +291,7 @@ export function ChallengeDetailScreen() {
           </>
         )}
 
-        {challenge.status === 'active' && !isWeekly && (
+        {active && !isWeekly && (
           <View style={styles.statRow}>
             <View style={styles.statCard}>
               <Text style={styles.statValue}>🔥 {challenge.streak}</Text>
@@ -306,22 +304,34 @@ export function ChallengeDetailScreen() {
           </View>
         )}
 
-        {challenge.status === 'failed' && (
+        {failed && (
           <>
-            <Text style={styles.sectionLabel}>{t.challengeEarnedSoFarTitle}</Text>
-            <View style={styles.statRow}>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{isWeekly ? (challenge.perfectWeeks ?? 0) : challenge.streak}</Text>
-                <Text style={styles.statLabel}>{isWeekly ? t.challengePerfectWeeksLabel : t.challengeStreakLabel}</Text>
-              </View>
+            <View style={styles.outcomeCopy}>
+              <Text style={styles.failedTitle}>{t.challengeFailedHeadline}</Text>
+              <Text style={styles.outcomeBody}>{t.challengeFailedBody(challenge.daysDone)}</Text>
             </View>
-            <View style={styles.freezeNote}>
-              <Text style={styles.freezeNoteText}>{t.challengeFreezeNoteBody}</Text>
+            <View style={styles.encouragement}>
+              <Text style={styles.encouragementText}>{t.challengeFailedEncouragement}</Text>
+            </View>
+            <View style={[styles.rewardCard, styles.rewardLocked]}>
+              <View style={styles.rewardHeader}>
+                <Text style={styles.rewardTitle}>{t.challengeRewardTitle}</Text>
+                <Text style={styles.lockedChip}>{t.challengeRewardLocked}</Text>
+              </View>
+              <View style={styles.rewardRow}>
+                <Text style={styles.rewardIcon}>★</Text>
+                <Text style={styles.rewardLabel}>+{reward.stars} {t.challengeRewardStarsLabel} 🔒</Text>
+              </View>
+              <View style={styles.rewardDivider} />
+              <View style={styles.rewardRow}>
+                <Text style={styles.rewardIcon}>🏅</Text>
+                <Text style={styles.rewardLabel}>{t.challengeRewardBadgeLabel} 🔒</Text>
+              </View>
             </View>
           </>
         )}
 
-        {challenge.status === 'active' && !isWeekly && (
+        {active && !isWeekly && (
           <>
             <Text style={styles.sectionLabel}>{t.challengeLogSection(Math.min(challenge.targetDays, GRID_CELL_COUNT))}</Text>
             <ChallengeDayGrid
@@ -333,7 +343,7 @@ export function ChallengeDetailScreen() {
           </>
         )}
 
-        {challenge.status === 'active' && linkedTaskName != null && (
+        {active && linkedTaskName != null && (
           <Text style={styles.linkedHint}>
             {t.challengeLinkedHint(linkedTaskName)}
             {(challenge.minDuration != null || challenge.minCount != null) && (
@@ -342,69 +352,53 @@ export function ChallengeDetailScreen() {
           </Text>
         )}
 
-        {challenge.status !== 'active' && (
-          <TouchableOpacity style={styles.logBtn} onPress={handleRestart} disabled={restartChallenge.isPending} accessibilityRole="button">
-            <Text style={styles.logBtnText}>{challenge.status === 'failed' ? t.challengeRestartCta : t.challengeRestartCta}</Text>
-          </TouchableOpacity>
-        )}
-
-        {challenge.status === 'done' && (
+        {completed && (
           <>
             <Text style={styles.sectionLabel}>{t.challengeJourneyTitle}</Text>
             <View style={styles.photoSection}>
-              <PhotoSlot uri={challenge.beforePhoto} label={t.challengeBeforePhotoLabel} actionLabel={t.challengeAddPhoto} />
+              <PhotoSlot uri={challenge.beforePhoto} label={t.challengeBeforePhotoLabel} actionLabel={t.challengeAddPhoto} onPress={pickBeforePhoto} />
               <PhotoSlot uri={challenge.afterPhoto} label={t.challengeAfterPhotoLabel}
                 actionLabel={t.challengeAddPhoto}
                 onPress={pickAfterPhoto} />
             </View>
           </>
         )}
-        {challenge.status === 'active' && !isWeekly && (
+        {failed && (
+          <>
+            <Text style={styles.sectionLabel}>{t.challengeJourneyTitle}</Text>
+            <View style={styles.photoSection}>
+              <PhotoSlot uri={challenge.beforePhoto} label={t.challengeBeforePhotoLabel} actionLabel={t.challengeAddPhoto} />
+              <PhotoSlot uri={challenge.afterPhoto} label={t.challengeAfterPhotoLabel} locked actionLabel={t.challengeAfterPhotoLocked} />
+            </View>
+          </>
+        )}
+        {active && !isWeekly && (
           <View style={styles.photoSection}>
-            <PhotoSlot uri={challenge.beforePhoto} label={t.challengeBeforePhotoLabel} actionLabel={t.challengeAddPhoto} />
+            <PhotoSlot uri={challenge.beforePhoto} label={t.challengeBeforePhotoLabel} actionLabel={t.challengeAddPhoto} onPress={pickBeforePhoto} />
             <PhotoSlot uri={challenge.afterPhoto} label={t.challengeAfterPhotoLabel}
               locked
               actionLabel={t.challengeAfterPhotoLocked} />
           </View>
         )}
 
-        <TouchableOpacity
-          style={[styles.shareBtn, capturing && styles.logBtnDisabled]}
-          onPress={() => handleShare(useBeforeAfterCard)}
-          disabled={capturing}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={shareCta}
-        >
-          {capturing ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.shareBtnText}>{shareCta}</Text>}
-        </TouchableOpacity>
-
-        {/* Off-screen share cards, captured on demand */}
-        <View style={styles.offscreen} pointerEvents="none">
-          <ShareCardStats
-            ref={statsShareRef}
-            challengeTitle={challenge.name}
-            numerator={shareNumerator}
-            denominator={shareDenominator}
-            variant={isWeekly ? 'weekly' : 'streak'}
-            weekIndex={challenge.weekIndex ?? undefined}
-            rewardStars={reward.stars}
-            rankName={rankName}
-          />
-          {hasBothPhotos && (
-            <ShareCardBeforeAfter
-              ref={beforeAfterShareRef}
-              challengeTitle={challenge.name}
-              beforeUri={challenge.beforePhoto!}
-              afterUri={challenge.afterPhoto!}
-              rewardStars={reward.stars}
-              numerator={shareNumerator}
-              denominator={shareDenominator}
-            />
-          )}
-        </View>
       </ScrollView>
-      {challenge.status === 'active' && (
+      {menuVisible && active && (
+        <View style={styles.menu}>
+          <TouchableOpacity style={styles.menuRow} onPress={openNameEditor} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.editActivity}>
+            <Text style={styles.menuEdit}>🖊️ {t.editActivity}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={() => { setMenuVisible(false); handleDelete(); }}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t.challengeDeleteCta}
+          >
+            <Text style={styles.menuDelete}>🗑 {t.challengeDeleteCta}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {active && (
         <View style={styles.stickyCta}>
           <TouchableOpacity
             style={[styles.logBtn, (!canLogToday || logDay.isPending) && styles.logBtnDisabled]}
@@ -420,6 +414,39 @@ export function ChallengeDetailScreen() {
           </TouchableOpacity>
         </View>
       )}
+      {!active && (
+        <View style={styles.stickyCta}>
+          <TouchableOpacity
+            style={[styles.logBtn, restartChallenge.isPending && styles.logBtnDisabled]}
+            onPress={completed ? handleShare : handleRestart}
+            disabled={restartChallenge.isPending}
+            accessibilityRole="button"
+            accessibilityLabel={completed ? t.challengeShareJourneyCta : t.challengeRestartCta}
+          >
+            <Text style={styles.logBtnText}>{completed ? t.challengeShareJourneyCta : t.challengeRestartCta}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.secondaryCta}
+            onPress={completed ? () => (navigation as any).navigate('ChallengeHub') : handleShare}
+            accessibilityRole="button"
+            accessibilityLabel={completed ? t.challengeHarderCta : t.challengeShareEffortCta}
+          >
+            <Text style={styles.secondaryCtaText}>{completed ? t.challengeHarderCta : t.challengeShareEffortCta}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      <Modal visible={editingName} transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={() => setEditingName(false)}>
+        <View style={styles.editOverlay}>
+          <View style={styles.editCard}>
+            <Text style={styles.editTitle}>{t.editActivity}</Text>
+            <TextInput value={nameDraft} onChangeText={setNameDraft} style={styles.editInput} autoFocus maxLength={80} selectTextOnFocus />
+            <View style={styles.editActions}>
+              <TouchableOpacity style={styles.editAction} onPress={() => setEditingName(false)}><Text style={styles.editCancel}>{t.cancel}</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.editAction} onPress={saveName} disabled={updateChallengeName.isPending}><Text style={styles.editSave}>{t.editSave}</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -432,10 +459,22 @@ function makeStyles(C: AppColors) {
     stickyCta: { alignSelf: 'stretch', backgroundColor: C.bgBase, borderTopWidth: 1, borderTopColor: C.line, padding: Spacing.md },
     headerMenuButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     headerMenuText: { ...Typography.title, color: C.inkDark, fontFamily: FontFamily.bold, lineHeight: 24 },
-    titleRow: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      alignSelf: 'stretch', gap: Spacing.sm,
+    menu: {
+      position: 'absolute', top: Spacing.sm, right: Spacing.lg, zIndex: 10, width: 190,
+      backgroundColor: C.surface, borderRadius: Radii.lg, paddingVertical: Spacing.xs, ...Shadows.medium,
     },
+    menuRow: { minHeight: 48, justifyContent: 'center', paddingHorizontal: Spacing.md },
+    menuEdit: { ...Typography.bodyStrong, color: C.inkDark },
+    menuDelete: { ...Typography.bodyStrong, color: C.danger },
+    editOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', padding: Spacing.lg },
+    editCard: { backgroundColor: C.surface, borderRadius: Radii.lg, padding: Spacing.lg, gap: Spacing.md },
+    editTitle: { ...Typography.subheading, color: C.inkDark },
+    editInput: { ...Typography.body, color: C.inkDark, borderWidth: 1, borderColor: C.line, borderRadius: Radii.md, minHeight: 48, paddingHorizontal: Spacing.md },
+    editActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm },
+    editAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.sm },
+    editCancel: { ...Typography.bodyStrong, color: C.ink2 },
+    editSave: { ...Typography.bodyStrong, color: C.primary },
+    titleRow: { alignSelf: 'stretch', gap: Spacing.xs },
     name: { ...Typography.title, color: C.inkDark, flexShrink: 1 },
     runningChip: {
       flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -472,13 +511,6 @@ function makeStyles(C: AppColors) {
     logBtnText: { ...Typography.bodyStrong, color: C.white, fontSize: 16 },
     linkedHint: { ...Typography.secondary, color: C.ink2, marginBottom: Spacing.sm, lineHeight: 19 },
     photoSection: { flexDirection: 'row', gap: Spacing.md, alignSelf: 'stretch' },
-    shareBtn: {
-      alignSelf: 'stretch', backgroundColor: C.surface, borderWidth: 1, borderColor: C.line,
-      paddingVertical: 14, borderRadius: Radii.pill, alignItems: 'center',
-    },
-    shareBtnText: { ...Typography.bodyStrong, color: C.primary },
-    offscreen: { position: 'absolute', top: -9999, left: -9999 },
-
     // A6 — done + reward
     doneHero: { alignItems: 'center', gap: 6, alignSelf: 'stretch' },
     trophyCircle: {
@@ -489,10 +521,19 @@ function makeStyles(C: AppColors) {
     doneEyebrow: { fontSize: 12, fontFamily: FontFamily.bold, color: C.primary, letterSpacing: 0.6 },
     doneTitle: { ...Typography.title, color: C.inkDark, textAlign: 'center' },
     doneSub: { ...Typography.secondary, color: C.ink2, textAlign: 'center' },
+    outcomeCopy: { alignSelf: 'stretch', alignItems: 'center', gap: Spacing.xs },
+    outcomeBody: { ...Typography.secondary, color: C.ink2, textAlign: 'center', paddingHorizontal: Spacing.md },
+    encouragement: { alignSelf: 'stretch', backgroundColor: C.starSoft, borderRadius: Radii.lg, padding: Spacing.md },
+    encouragementText: { ...Typography.bodyStrong, color: C.inkDark, textAlign: 'center' },
     rewardCard: {
       alignSelf: 'stretch', backgroundColor: C.surface, borderRadius: Radii.lg, padding: Spacing.md, ...Shadows.light,
     },
-    rewardTitle: { ...Typography.sectionLabel, color: C.ink2, marginBottom: Spacing.sm },
+    rewardClaimed: { borderWidth: 1, borderColor: C.primary },
+    rewardLocked: { borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, opacity: 0.72 },
+    rewardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
+    rewardTitle: { ...Typography.sectionLabel, color: C.ink2 },
+    claimedChip: { ...Typography.caption, color: C.primary, backgroundColor: C.primarySoft, borderRadius: Radii.pill, paddingHorizontal: Spacing.sm, paddingVertical: 2, fontFamily: FontFamily.semiBold },
+    lockedChip: { ...Typography.caption, color: C.muted, backgroundColor: C.surface2, borderRadius: Radii.pill, paddingHorizontal: Spacing.sm, paddingVertical: 2, fontFamily: FontFamily.semiBold },
     rewardRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 6 },
     rewardIcon: { fontSize: 22, color: C.starGold },
     rewardTextCol: { flex: 1 },
@@ -511,5 +552,7 @@ function makeStyles(C: AppColors) {
     failedBody: { ...Typography.secondary, color: C.ink2, textAlign: 'center', paddingHorizontal: Spacing.md },
     freezeNote: { alignSelf: 'stretch', backgroundColor: C.surface2, borderRadius: Radii.lg, padding: Spacing.md },
     freezeNoteText: { ...Typography.secondary, color: C.ink2 },
+    secondaryCta: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: Spacing.xs },
+    secondaryCtaText: { ...Typography.bodyStrong, color: C.ink2 },
   });
 }

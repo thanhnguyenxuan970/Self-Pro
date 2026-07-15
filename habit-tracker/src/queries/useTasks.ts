@@ -12,6 +12,7 @@ interface TaskFormParams {
   starPenalty: number;
   icon?: string;
   categoryId?: number | null;
+  isTemplate?: boolean;
 }
 
 export function useCreateTask(userId: number) {
@@ -21,12 +22,12 @@ export function useCreateTask(userId: number) {
       const db = await getDb();
       await db.runAsync(
         `INSERT INTO task_types
-         (user_id, name, kind, is_time_based, base_points, star_penalty, icon, category_id, archived)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-         ON CONFLICT(user_id, name) DO UPDATE SET archived = 0, is_time_based = excluded.is_time_based`,
+         (user_id, name, kind, is_time_based, base_points, star_penalty, icon, category_id, archived, is_template)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+         ON CONFLICT(user_id, name) DO UPDATE SET archived = 0, is_time_based = excluded.is_time_based, is_template = MAX(is_template, excluded.is_template)`,
         [userId, params.name, params.kind, params.isTimeBased ? 1 : 0,
          params.basePoints, params.starPenalty, params.icon ?? null,
-         params.categoryId ?? null]
+         params.categoryId ?? null, params.isTemplate ? 1 : 0]
       );
       const row = await db.getFirstAsync<{ id: number }>(
         'SELECT id FROM task_types WHERE user_id = ? AND name = ? AND archived = 0',
@@ -46,7 +47,7 @@ export function useActivityPickerTasks(userId: number) {
       const db = await getDb();
       return db.getAllAsync<PickerTask>(
         `SELECT tt.id, tt.name, tt.kind, tt.icon, tt.is_time_based, tt.base_points, tt.star_penalty,
-                tt.archived, tt.is_pinned, MAX(al.local_date) AS last_used_date
+                tt.archived, tt.is_pinned, tt.is_template, MAX(al.local_date) AS last_used_date
          FROM task_types tt
          LEFT JOIN activity_log al ON al.task_type_id = tt.id AND al.user_id = tt.user_id AND al.source = 'TASK'
          WHERE tt.user_id = ? AND tt.kind = 'GOOD'

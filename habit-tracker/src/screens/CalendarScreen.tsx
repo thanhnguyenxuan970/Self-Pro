@@ -63,8 +63,10 @@ function resolveDayCellProps(
   todayStr: string,
   currentWeekStart: string,
   colors: AppColors,
-): { dateStr: string; isEligible: boolean; cellBg: string; numColor: string; cellIcon: React.ReactNode } {
-  const hasActivity = !!dayMap[day];
+): { dateStr: string; isEligible: boolean; isBackfilled: boolean; cellBg: string; numColor: string; cellIcon: React.ReactNode } {
+  const data = dayMap[day];
+  const hasActivity = !!data;
+  const isBackfilled = !!data?.is_backfill;
   const { cellBg, numColor } = resolveCellColors(hasActivity, colors);
   const cellIcon = hasActivity ? <Text style={{ fontSize: 12, fontFamily: FontFamily.extraBold, color: colors.primary }}>✓</Text> : null;
   const dateStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
@@ -79,7 +81,14 @@ function resolveDayCellProps(
     backfillsUsedThisWeek: backfillsUsed,
     hasStreakFreeze: hasFreeze,
   }).allowed;
-  return { dateStr, isEligible, cellBg, numColor, cellIcon };
+  return {
+    dateStr,
+    isEligible,
+    isBackfilled,
+    cellBg: isBackfilled ? 'transparent' : cellBg,
+    numColor,
+    cellIcon: isBackfilled ? null : cellIcon,
+  };
 }
 
 function resolveCellIcon(data: CalendarDay | undefined, isMilestone: boolean, isBest: boolean, muteColor: string) {
@@ -182,20 +191,20 @@ export function CalendarScreen() {
       <View style={styles.grid}>
         {cells.map((day, idx) => {
           if (!day) return <View key={idx} style={styles.cell} />;
-          const { dateStr, isEligible, cellBg, numColor, cellIcon } = resolveDayCellProps(
+          const { dateStr, isEligible, isBackfilled, cellBg, numColor, cellIcon } = resolveDayCellProps(
             day, dayMap, backfillStatus, yearMonth, todayStr, currentWeekStart, colors,
           );
           const cellStyle = [
             styles.cell,
             { backgroundColor: cellBg },
             day === today && styles.cellToday,
-            isEligible && styles.cellEligible,
+            (isEligible || isBackfilled) && styles.cellEligible,
           ];
           const cellContent = (
             <>
               <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
               <View style={styles.cellBottom}>
-                {cellIcon ?? (isEligible ? <Text style={styles.backfillHint}>+</Text> : null)}
+                {cellIcon ?? (isEligible || isBackfilled ? <Text style={styles.backfillHint}>+</Text> : null)}
               </View>
             </>
           );
@@ -260,9 +269,9 @@ function makeStyles(colors: AppColors) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: colors.surface },
     container: { flex: 1 },
-    content: { paddingHorizontal: Spacing.lg, paddingBottom: 40, paddingTop: 16 },
-    header: { marginBottom: 16, marginTop: 8 },
-    title: { fontSize: 22, fontFamily: FontFamily.extraBold, color: colors.inkDark },
+    content: { paddingHorizontal: Spacing.md, paddingBottom: 40, paddingTop: 16 },
+    header: { marginBottom: 12, marginTop: 8 },
+    title: { fontSize: 28, fontFamily: FontFamily.extraBold, color: colors.inkDark },
     monthNav: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -274,8 +283,7 @@ function makeStyles(colors: AppColors) {
     dowRow: {
       flexDirection: 'row',
       marginBottom: 4,
-      marginHorizontal: -Spacing.lg,
-      paddingHorizontal: 4,
+      paddingHorizontal: 1,
     },
     dowLabel: {
       flex: 1,
@@ -288,17 +296,17 @@ function makeStyles(colors: AppColors) {
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      marginHorizontal: -Spacing.lg,
-      paddingHorizontal: 4,
+      paddingHorizontal: 1,
     },
     cell: {
-      width: '14.285%',
+      width: '13.5%',
       aspectRatio: 1,
       justifyContent: 'space-between',
       paddingTop: 6,
       paddingBottom: 5,
       alignItems: 'center',
       borderRadius: Radii.sm,
+      marginHorizontal: '0.39%',
       marginVertical: 2,
     },
     dayNum: { fontSize: 15, fontFamily: FontFamily.bold },
@@ -318,13 +326,9 @@ function makeStyles(colors: AppColors) {
     legend: {
       flexDirection: 'row',
       alignSelf: 'center',
-      backgroundColor: colors.surface2,
-      borderRadius: Radii.pill,
-      gap: 14,
+      gap: 12,
       marginTop: 16,
-      marginBottom: 16,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
+      marginBottom: 10,
     },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     legendCheck: { color: colors.primary, fontSize: 14, fontFamily: FontFamily.extraBold },
@@ -333,10 +337,13 @@ function makeStyles(colors: AppColors) {
     legendLabel: { fontSize: 11, fontFamily: FontFamily.semiBold, color: colors.ink2 },
     summary: {
       flexDirection: 'row',
-      backgroundColor: colors.surface2,
+      backgroundColor: colors.white,
       borderRadius: Radii.md,
+      borderWidth: 1,
+      borderColor: colors.line,
       paddingVertical: 16,
       marginTop: 8,
+      ...Shadows.light,
     },
     summaryCell: { flex: 1, alignItems: 'center' },
     summarySep: { width: 1, backgroundColor: colors.line },

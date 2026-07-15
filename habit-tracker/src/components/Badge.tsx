@@ -27,10 +27,6 @@ function desaturate(hex: string): string {
   return `#${hex2(mix(r))}${hex2(mix(g))}${hex2(mix(b))}`;
 }
 
-// 8 alternating light/dark lobes baked around the ring — a static approximation of the
-// conic-gradient + soft-light luster from the mock (react-native-svg has no blend modes).
-const LOBE_COUNT = 8;
-const LOBE_ARC = 360 / LOBE_COUNT;
 const RARITY_GLOW: Record<Tier, [string, number, number]> = {
   iron: ['transparent', 0, 0],
   bronze: ['#cf8a44', 0.08, 3],
@@ -46,8 +42,10 @@ export function Badge({ tier, emblem, label, sub, progress, locked, size = 96, c
   const tint = locked ? desaturate(EMBLEM_TINT[emblem]) : EMBLEM_TINT[emblem];
   const [glowColor, glowOpacity, glowRadius] = RARITY_GLOW[tier];
   const glowPadding = locked ? 0 : glowRadius;
+  const outerPadding = Math.max(6, glowPadding);
   const glowInset = (glowPadding * 100) / size;
-  const svgSize = size + glowPadding * 2;
+  const outerInset = (outerPadding * 100) / size;
+  const svgSize = size + outerPadding * 2;
   const gradId = `${tier}-${emblem}-${locked ? 'l' : 'u'}`;
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -57,15 +55,15 @@ export function Badge({ tier, emblem, label, sub, progress, locked, size = 96, c
         <Svg
           width={svgSize}
           height={svgSize}
-          viewBox={`${-glowInset} ${-glowInset} ${100 + glowInset * 2} ${100 + glowInset * 2}`}
-          style={{ position: 'absolute', left: -glowPadding, top: -glowPadding }}
+          viewBox={`${-outerInset} ${-outerInset} ${100 + outerInset * 2} ${100 + outerInset * 2}`}
+          style={{ position: 'absolute', left: -outerPadding, top: -outerPadding }}
         >
           <Defs>
             <RadialGradient id={`glow-${gradId}`} cx="50%" cy="50%" r="50%">
               <Stop offset="0.6" stopColor={glowColor} stopOpacity={glowOpacity} />
               <Stop offset="1" stopColor={glowColor} stopOpacity={0} />
             </RadialGradient>
-            <RadialGradient id={`ring-${gradId}`} cx="50%" cy="35%" r="68%">
+            <RadialGradient id={`ring-${gradId}`} cx="35%" cy="24%" r="76%">
               <Stop offset="0" stopColor={t[0]} />
               <Stop offset="0.3" stopColor={t[1]} />
               <Stop offset="0.55" stopColor={t[2]} />
@@ -85,28 +83,23 @@ export function Badge({ tier, emblem, label, sub, progress, locked, size = 96, c
               <Stop offset="0" stopColor={tint} stopOpacity={0.22} />
               <Stop offset="1" stopColor={tint} stopOpacity={0} />
             </RadialGradient>
+            <RadialGradient id={`gloss-${gradId}`} cx="35%" cy="25%" r="65%">
+              <Stop offset="0" stopColor="#ffffff" stopOpacity={0.72} />
+              <Stop offset="0.26" stopColor="#ffffff" stopOpacity={0.32} />
+              <Stop offset="0.7" stopColor="#ffffff" stopOpacity={0.06} />
+              <Stop offset="1" stopColor="#ffffff" stopOpacity={0} />
+            </RadialGradient>
           </Defs>
 
           {!locked && glowOpacity > 0 && <Circle cx="50" cy="50" r={50 + glowInset} fill={`url(#glow-${gradId})`} />}
-          {/* 1. Ambient contact shadow */}
+          {/* 1. Soft cast shadow */}
+          <Circle cx="52" cy="54" r="51" fill="rgba(27,31,29,0.18)" />
           <Ellipse cx="50" cy="88" rx="30" ry="7" fill={`url(#shadow-${gradId})`} />
 
           {/* 2. Ring: 5-stop radial gradient */}
           <Circle cx="50" cy="50" r="50" fill={`url(#ring-${gradId})`} />
 
-          {/* 3. Ring luster: 8 baked lobes (light/dark) standing in for the conic sweep */}
-          {Array.from({ length: LOBE_COUNT }).map((_, i) => (
-            <Path
-              key={i}
-              d={ringLobeArc(50, 50, 46, i * LOBE_ARC, (i + 1) * LOBE_ARC)}
-              stroke={i % 2 === 0 ? 'rgba(255,255,255,0.32)' : 'rgba(0,0,0,0.16)'}
-              strokeWidth={7}
-              fill="none"
-              strokeLinecap="round"
-            />
-          ))}
-
-          {/* 4. Bevel edge */}
+          {/* 3. Smooth bevel edge */}
           <Circle cx="50" cy="50" r="41" fill={t[5]} />
 
           {/* 5. Recessed disc + inset ring for a pressed-in feel */}
@@ -130,10 +123,10 @@ export function Badge({ tier, emblem, label, sub, progress, locked, size = 96, c
             <Path d={EMBLEM_PATH[emblem]} />
           </G>
 
-          {/* 8. Broad gloss */}
-          <Circle cx="42" cy="26" r="14" fill="rgba(255,255,255,0.28)" />
+          {/* 8. Broad upper-left reflection */}
+          <Circle cx="37" cy="25" r="24" fill={`url(#gloss-${gradId})`} />
           {/* 9. Crisp hotspot */}
-          <Circle cx="35" cy="17" r="3" fill="rgba(255,255,255,0.85)" />
+          <Circle cx="33" cy="18" r="3.5" fill="rgba(255,255,255,0.9)" />
           {/* 10. Lower reflected rim light */}
           <Ellipse cx="50" cy="80" rx="16" ry="4" fill="rgba(255,255,255,0.18)" />
 
@@ -156,16 +149,6 @@ export function Badge({ tier, emblem, label, sub, progress, locked, size = 96, c
       {!!sub && <Text style={styles.sub} numberOfLines={1}>{sub}</Text>}
     </View>
   );
-}
-
-/** SVG arc path for a ring-hugging stroke segment between two angles (degrees, 0 = up). */
-function ringLobeArc(cx: number, cy: number, r: number, fromDeg: number, toDeg: number): string {
-  const toRad = (d: number) => ((d - 90) * Math.PI) / 180;
-  const x1 = cx + r * Math.cos(toRad(fromDeg));
-  const y1 = cy + r * Math.sin(toRad(fromDeg));
-  const x2 = cx + r * Math.cos(toRad(toDeg));
-  const y2 = cy + r * Math.sin(toRad(toDeg));
-  return `M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`;
 }
 
 function makeStyles(colors: AppColors) {

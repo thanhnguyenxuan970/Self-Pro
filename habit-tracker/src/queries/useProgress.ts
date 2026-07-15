@@ -6,6 +6,7 @@ import { getLocalDate, getWeekStart, getLocalDateOffset, getWeekStartOffset, get
 export type ActivityLogEntry = {
   id: number;
   task_name: string | null;
+  is_template: number | null;
   kind: string;
   stars_delta: number;
   local_date: string;
@@ -74,6 +75,31 @@ export function useProgressData(userId: number, range: 'D' | 'W' | 'M' | 'Y', of
 
       const rows = await db.getAllAsync<ChartBucket>(sql, params);
       return padBuckets(rows, range, { effectiveWeekStart, effectiveMonth, effectiveYear, offset });
+    },
+  });
+}
+
+export type PointChartBucket = { bucket: string; points: number };
+
+/** Returns non-zero daily point totals for the selected analytics range. */
+export function useAnalyticsPointsData(userId: number, range: 'W' | 'M') {
+  const weekStart = getLocalDateOffset(-6);
+  const today = getLocalDate();
+  const month = getMonthOffset(0);
+
+  return useQuery({
+    queryKey: ['progress', 'points-chart', userId, range, weekStart, month],
+    queryFn: async (): Promise<PointChartBucket[]> => {
+      const db = await getDb();
+      const where = range === 'W'
+        ? ['local_date >= ? AND local_date <= ?', [weekStart, today]]
+        : ["substr(local_date, 1, 7) = ?", [month]];
+      return db.getAllAsync<PointChartBucket>(
+        `SELECT local_date AS bucket, total_points AS points FROM daily_summary
+         WHERE user_id = ? AND ${where[0]} AND total_points > 0
+         ORDER BY local_date`,
+        [userId, ...where[1]],
+      );
     },
   });
 }
@@ -184,7 +210,7 @@ export function useRecentActivityLogs(userId: number, limit = 50, fromDate?: str
     queryFn: async (): Promise<ActivityLogEntry[]> => {
       const db = await getDb();
       const rows = await db.getAllAsync<ActivityLogEntry>(
-        `SELECT a.id, tt.name AS task_name, a.kind, a.stars_delta, a.local_date,
+        `SELECT a.id, tt.name AS task_name, tt.is_template, a.kind, a.stars_delta, a.local_date,
                 a.logged_at, a.source
          FROM activity_log a
          LEFT JOIN task_types tt ON tt.id = a.task_type_id

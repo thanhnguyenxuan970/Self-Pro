@@ -33,6 +33,18 @@ test('GOOD time-based task 60min: points=2', () => {
     durationMin: 60,
   });
   expect(result.activityRow.points_earned).toBe(2);
+  expect(result.activityRow.stars_delta).toBe(2);
+});
+
+test('time-based stars round fractional hours by the product rule', () => {
+  const starsFor = (durationMin: number) => computeLogTaskRows({
+    ...baseGoodTask, isTimeBased: true, durationMin,
+  }).activityRow.stars_delta;
+
+  expect(starsFor(78)).toBe(3); // 1.3h
+  expect(starsFor(90)).toBe(3); // 1.5h
+  expect(starsFor(96)).toBe(4); // 1.6h
+  expect(starsFor(156)).toBe(6); // 2.6h
 });
 
 test('GOOD time-based task 15min: min 1 point', () => {

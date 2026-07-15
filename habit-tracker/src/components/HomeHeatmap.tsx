@@ -49,7 +49,7 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
   return <View style={styles.card}>
     <View style={styles.header}>
       <View style={styles.headerTitle}>
-        <View style={styles.totalRow}><Text style={styles.total}>{activeDays}</Text><Text style={styles.totalLabel}>ngày{`\n`}đã tô</Text></View>
+        <View style={styles.totalRow}><Text style={styles.total}>{activeDays}</Text><Text style={styles.totalLabel}>{t.heatmapActiveDays}</Text></View>
       </View>
       <Text style={styles.yearText}>{now.getFullYear()} ▾</Text>
     </View>
@@ -70,12 +70,12 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
         </View>
       </ScrollView>
     </View>
-    <View style={styles.legend}><Text style={styles.legendLabel}>Ít</Text>{shades.map((color, i) => <View key={i} style={[styles.legendCell, { backgroundColor: color }]} />)}<Text style={styles.legendLabel}>Nhiều</Text></View>
+    <View style={styles.legend}><Text style={styles.legendLabel}>{t.heatmapLess}</Text>{shades.map((color, i) => <View key={i} style={[styles.legendCell, { backgroundColor: color }]} />)}<Text style={styles.legendLabel}>{t.heatmapMore}</Text></View>
     {progress !== null && <View style={styles.today}>
       <ProgressRing progress={progress} colors={colors} />
       <View style={styles.todayCopy}>
         <Text style={styles.todayValue}>{todayPoints} / {goal}</Text>
-        <Text style={styles.todayLabel}>ĐIỂM HÔM NAY</Text>
+        <Text style={styles.todayLabel}>{t.pointsLabel}</Text>
       </View>
     </View>}
     <Modal visible={selectedDate !== null} transparent animationType="fade" onRequestClose={() => setSelectedDate(null)}>

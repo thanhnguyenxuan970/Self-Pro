@@ -55,6 +55,18 @@ describe('computeProgress', () => {
   it('computes partial progress', () => {
     expect(computeProgress(3, 21)).toEqual({ fraction: 3 / 21, daysLeft: 18 });
   });
+
+  it.each([
+    [180, 180, 1, 0],
+    [179, 180, 179 / 180, 1],
+    [30, 30, 1, 0],
+    [364, 365, 364 / 365, 1],
+    [7, 7, 1, 0],
+    [2, 30, 2 / 30, 28],
+  ])('keeps end-state boundary %i/%i exact', (done, target, fraction, daysLeft) => {
+    expect(computeProgress(done, target)).toEqual({ fraction, daysLeft });
+    expect(isComplete(done, target)).toBe(done >= target);
+  });
 });
 
 describe('challengeCompletionStars', () => {

@@ -1,10 +1,9 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert, Platform } from 'react-native';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { VictoryChart, VictoryBar, VictoryStack, VictoryAxis } from 'victory-native';
 import {
-  useProgressData, useStreakCount,
+  useAnalyticsPointsData, useStreakCount,
   useRecentActivityLogs, useDeleteActivityLogs, useWeeklyConsistency, useTopActivities, useAllTimeStats,
   ActivityLogEntry,
 } from '../queries/useProgress';
@@ -15,12 +14,10 @@ import { useSelectionMode } from '../hooks/useSelectionMode';
 import { AddActivitySheet } from './AddActivitySheet';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 import { useHeatmapData } from '../queries/useCalendar';
-import { HomeHeatmap } from '../components/HomeHeatmap';
-import { DAILY_BONUS_THRESHOLD } from '../config/constants';
 import { useRankData } from '../queries/useRank';
 import { getRankConfigByTierOrder } from '../config/ranks.config';
 
-type Range = 'W' | 'M' | 'Y';
+type Range = 'W' | 'M';
 
 type ProgStyles = ReturnType<typeof makeStyles>;
 type ProgTranslations = ReturnType<typeof useTranslations>;
@@ -47,12 +44,12 @@ function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, e
       )}
       <View style={styles.logBody}>
         <Text style={styles.logName} numberOfLines={1}>
-          {item.task_name != null ? resolveTaskDisplayName(item.task_name, t) : (item.source === 'BONUS' ? bonusDay : item.source)}
+          {item.task_name != null ? resolveTaskDisplayName(item.task_name, t, item.is_template === 1) : (item.source === 'BONUS' ? bonusDay : item.source)}
         </Text>
         <Text style={styles.logDate}>{item.local_date} · {timeStr}</Text>
       </View>
       <Text style={[styles.logStars, item.stars_delta < 0 && styles.logStarsBad]}>
-        {item.stars_delta >= 0 ? '+' : ''}{item.stars_delta.toFixed(1)} ★
+        {item.stars_delta >= 0 ? '+' : ''}{Math.trunc(item.stars_delta)} ★
       </Text>
     </TouchableOpacity>
   );
@@ -141,14 +138,6 @@ function formatBucketLabel(bucket: string, r: Range, dayAbbr: string[]): string 
   return bucket;
 }
 
-function computeVisibleTicks(range: Range, tickValues: number[]): number[] {
-  if (range !== 'M') return tickValues;
-  const step = tickValues.length <= 10 ? 3 : 5;
-  const sparse = tickValues.filter((_, i) => i % step === 0);
-  const last = tickValues[tickValues.length - 1];
-  return last - sparse[sparse.length - 1] > step / 2 ? [...sparse, last] : sparse;
-}
-
 function openDateFilter(filterDate: string | null, setFilterDate: (d: string) => void) {
   if (Platform.OS !== 'android') return;
   const initial = filterDate ? new Date(filterDate + 'T00:00:00') : new Date();
@@ -190,34 +179,36 @@ function confirmDeleteSelected(
   );
 }
 
-type ChartData = { bucket: string; goodStars: number; badStars: number };
-type XY = { x: number; y: number };
+type ChartData = { bucket: string; points: number };
 
-function ProgressChartContent({ isLoading, chartData, totalSum, goodData, badData, chartWidth, visibleTicks, tickFormat, colors, styles, t }: {
-  isLoading: boolean; chartData: ChartData[]; totalSum: number;
-  goodData: XY[]; badData: XY[]; chartWidth: number; visibleTicks: number[];
-  tickFormat: (tv: number) => string; colors: AppColors; styles: ProgStyles; t: ProgTranslations;
+function ProgressChartContent({ isLoading, chartData, range, formatBucket, colors, styles, t }: {
+  isLoading: boolean; chartData: ChartData[]; range: Range;
+  formatBucket: (bucket: string, range: Range) => string; colors: AppColors; styles: ProgStyles; t: ProgTranslations;
 }) {
   if (isLoading) return <ActivityIndicator color={colors.primary} />;
-  if (chartData.length === 0 || totalSum === 0) {
+  if (chartData.length === 0) {
     return (
       <View style={styles.emptyChart}>
         <Text style={styles.emptyText}>{t.noActivityYet}</Text>
       </View>
     );
   }
-  const goodSum = goodData.reduce((sum, p) => sum + p.y, 0);
-  const badSum = badData.reduce((sum, p) => sum + p.y, 0);
+  const maxPoints = Math.max(...chartData.map(day => day.points));
+  const totalPoints = chartData.reduce((sum, day) => sum + day.points, 0);
   return (
-    <View accessible accessibilityLabel={t.chartSummary(goodSum, badSum)}>
-      <VictoryChart width={chartWidth} height={190} padding={{ top: 10, bottom: 36, left: 36, right: 12 }} domainPadding={{ x: [20, 10] }} animate={false}>
-        <VictoryAxis tickValues={visibleTicks} tickFormat={tickFormat} style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.ink2, fontSize: 11, fontFamily: FontFamily.semiBold } }} />
-        <VictoryAxis dependentAxis style={{ axis: { stroke: colors.line2 }, tickLabels: { fill: colors.ink2, fontSize: 11 } }} />
-        <VictoryStack colorScale={[colors.primary, colors.danger]}>
-          <VictoryBar data={goodData} />
-          <VictoryBar data={badData} />
-        </VictoryStack>
-      </VictoryChart>
+    <View style={[styles.barChart, chartData.length > 10 && styles.barChartDense]} accessible accessibilityLabel={t.chartSummary(totalPoints)}>
+      {chartData.map(day => {
+        const isPeak = day.points === maxPoints;
+        return (
+          <View key={day.bucket} style={styles.barColumn}>
+            <Text style={[styles.barValue, isPeak && styles.barValuePeak, chartData.length > 10 && styles.barValueDense]}>{day.points}</Text>
+            <View style={styles.barArea}>
+              <View style={[styles.bar, { height: `${Math.max(14, Math.round((day.points / maxPoints) * 100))}%` }, isPeak ? styles.barPeak : styles.barRegular]} />
+            </View>
+            <Text style={[styles.barLabel, chartData.length > 10 && styles.barLabelDense]}>{formatBucket(day.bucket, range)}</Text>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -228,11 +219,8 @@ export function ProgressScreen() {
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const { width: windowWidth } = useWindowDimensions();
-  const chartWidth = windowWidth - 70;
-
   const [range, setRange] = useState<Range>('W');
-  const { data: chartData = [], isLoading } = useProgressData(userId, range, 0);
+  const { data: chartData = [], isLoading } = useAnalyticsPointsData(userId, range);
   const { data: streak = 0 } = useStreakCount(userId);
   const { data: heatmapDays = [] } = useHeatmapData(userId);
   const { data: allTimeStats } = useAllTimeStats(userId);
@@ -260,31 +248,11 @@ export function ProgressScreen() {
     [t.dayAbbr],
   );
 
-  const tickFormat = useCallback(
-    (tv: number) => formatBucket(chartData[tv - 1]?.bucket ?? '', range),
-    [chartData, range, formatBucket],
+  const yearStats = useMemo(
+    () => ({ peakPoints: Math.max(0, ...heatmapDays.map(day => day.total_points)) }),
+    [heatmapDays],
   );
 
-  const { totalSum, goodData, badData, tickValues } = useMemo(() => {
-    let sum = 0;
-    const good: { x: number; y: number }[] = [];
-    const bad: { x: number; y: number }[] = [];
-    const ticks: number[] = [];
-    chartData.forEach((r, i) => {
-      sum += r.goodStars + r.badStars;
-      good.push({ x: i + 1, y: r.goodStars });
-      bad.push({ x: i + 1, y: r.badStars });
-      ticks.push(i + 1);
-    });
-    return { totalSum: sum, goodData: good, badData: bad, tickValues: ticks };
-  }, [chartData]);
-
-  const visibleTicks = useMemo(() => computeVisibleTicks(range, tickValues), [range, tickValues]);
-  const yearStats = useMemo(() => {
-    const now = new Date();
-    const year = String(now.getFullYear());
-    return { peakPoints: Math.max(0, ...heatmapDays.map(day => day.total_points)) };
-  }, [heatmapDays]);
   const currentTier = rankData?.currentTierId ? rankData.tiers.find(tier => tier.id === rankData.currentTierId) : undefined;
   const nextTier = currentTier
     ? rankData?.tiers.find(tier => tier.tier_order === currentTier.tier_order + 1)
@@ -299,16 +267,16 @@ export function ProgressScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
-        <Text style={styles.eyebrow}>THỐNG KÊ</Text>
+        <Text style={styles.eyebrow}>{t.analyticsEyebrow}</Text>
         <Text style={styles.title}>{t.analyticsTitle}</Text>
 
-        <Text style={styles.sectionLabel}>PHONG ĐỘ</Text>
+        <Text style={styles.sectionLabel}>{t.analyticsMomentum}</Text>
         <View style={styles.momentumCard}>
-          <View style={styles.momentumHalf}><Text style={styles.momentumValue}>{streak}</Text><Text style={styles.statL}>STREAK HIỆN TẠI</Text></View>
-          <View style={styles.momentumHalf}><Text style={styles.momentumValue}>{allTimeStats?.bestStreak ?? 0}</Text><Text style={styles.statL}>CHUỖI DÀI NHẤT</Text></View>
+          <View style={styles.momentumHalf}><Text style={styles.momentumValue}>{streak}</Text><Text style={styles.statL}>{t.currentStreak}</Text></View>
+          <View style={styles.momentumHalf}><Text style={styles.momentumValue}>{allTimeStats?.bestStreak ?? 0}</Text><Text style={styles.statL}>{t.bestStreak}</Text></View>
         </View>
 
-        <Text style={styles.sectionLabel}>HẠNG TUẦN NÀY</Text>
+        <Text style={styles.sectionLabel}>{t.analyticsWeeklyRank}</Text>
         <View style={styles.rankCard}>
           <View style={styles.rankHeader}>
             <View><Text style={styles.rankName}>{rankName}</Text><Text style={styles.rankStars}>{rankData?.currentStars ?? 0} ★</Text></View>
@@ -336,19 +304,17 @@ export function ProgressScreen() {
         {/* Chart card */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{range === 'W' ? 'ĐIỂM 7 NGÀY QUA' : t.chartTitle}</Text>
+            <Text style={styles.cardTitle}>{range === 'W' ? t.chartLast7Days : t.chartPointsThisMonth}</Text>
           </View>
           <View style={styles.chartWrap}>
             <ProgressChartContent
-              isLoading={isLoading} chartData={chartData} totalSum={totalSum}
-              goodData={goodData} badData={badData} chartWidth={chartWidth}
-              visibleTicks={visibleTicks} tickFormat={tickFormat}
-              colors={colors} styles={styles} t={t}
+              isLoading={isLoading} chartData={chartData} range={range}
+              formatBucket={formatBucket} colors={colors} styles={styles} t={t}
             />
           </View>
         </View>
 
-        <Text style={styles.sectionLabel}>CHỈ SỐ</Text>
+        <Text style={styles.sectionLabel}>{t.analyticsMetrics}</Text>
         <View style={styles.statGrid}>
           <View style={styles.stat}>
             <Text style={[styles.statV, styles.statVPeak]}>{yearStats.peakPoints}</Text>
@@ -381,8 +347,6 @@ export function ProgressScreen() {
           </>
         )}
 
-        <Text style={styles.sectionLabel}>LỊCH SỬ CẢ NĂM</Text>
-        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} />
         {isEmpty && <Text style={styles.emptyEncouragement}>Bắt đầu ghi nhận hoạt động đầu tiên để thấy tiến độ của bạn ở đây.</Text>}
 
         {/* Keep the existing log management surface; this redesign does not replace it. */}
@@ -416,12 +380,9 @@ function makeStyles(C: AppColors) {
     eyebrow: { fontSize: 12, fontFamily: FontFamily.extraBold, letterSpacing: 0.4, color: C.primary, marginHorizontal: Spacing.lg, marginTop: 10 },
     title: { fontSize: 28, fontFamily: FontFamily.extraBold, letterSpacing: -0.7, color: C.inkDark, marginHorizontal: Spacing.lg, marginBottom: 14 },
 
-    segbar: {
-      flexDirection: 'row', marginHorizontal: Spacing.lg, marginBottom: 14,
-      backgroundColor: C.surface2, borderRadius: Radii.md, padding: 3,
-    },
+    segbar: { flexDirection: 'row', marginHorizontal: Spacing.lg, marginBottom: 14 },
     segBtn: {
-      flex: 1, paddingVertical: 9, borderRadius: Radii.sm, alignItems: 'center',
+      flex: 1, minHeight: 38, justifyContent: 'center', borderRadius: Radii.pill, alignItems: 'center',
     },
     segBtnActive: {
       backgroundColor: C.surface,
@@ -437,7 +398,19 @@ function makeStyles(C: AppColors) {
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     cardTitle: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.inkDark },
     chartSum: { fontSize: 11, color: C.ink2 },
-    chartWrap: { marginTop: 4 },
+    chartWrap: { marginTop: 8 },
+    barChart: { height: 148, flexDirection: 'row', gap: 8, alignItems: 'flex-end', paddingHorizontal: 3 },
+    barChartDense: { gap: 2 },
+    barColumn: { flex: 1, height: '100%', alignItems: 'center', minWidth: 0 },
+    barValue: { color: C.muted, fontSize: 11, fontFamily: FontFamily.extraBold, lineHeight: 16 },
+    barValuePeak: { color: C.chartBar },
+    barValueDense: { fontSize: 9 },
+    barArea: { flex: 1, width: '100%', justifyContent: 'flex-end', paddingTop: 4 },
+    bar: { width: '100%', borderRadius: Radii.xs },
+    barRegular: { backgroundColor: C.chartBarSoft },
+    barPeak: { backgroundColor: C.chartBar },
+    barLabel: { color: C.ink2, fontSize: 11, fontFamily: FontFamily.semiBold, lineHeight: 16, marginTop: 4 },
+    barLabelDense: { fontSize: 9 },
     emptyChart: { height: 148, justifyContent: 'center', alignItems: 'center' },
     emptyText: { color: C.muted, fontSize: 14 },
 

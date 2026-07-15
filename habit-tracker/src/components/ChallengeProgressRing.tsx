@@ -7,11 +7,13 @@ import { useTheme } from '../hooks/useSettings';
 type Props = {
   fraction: number; // 0..1
   size?: number;
+  muted?: boolean;
   strokeWidth?: number;
   label: string;    // e.g. "Ngày 5/21"
+  glowing?: boolean;
 };
 
-export function ChallengeProgressRing({ fraction, size = 140, strokeWidth = 12, label }: Props) {
+export function ChallengeProgressRing({ fraction, size = 184, strokeWidth = 16, label, muted = false, glowing = false }: Props) {
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
@@ -31,11 +33,22 @@ export function ChallengeProgressRing({ fraction, size = 140, strokeWidth = 12, 
           strokeWidth={strokeWidth}
           fill="none"
         />
+        {glowing && (
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={C.primary}
+            strokeWidth={strokeWidth + 8}
+            opacity={0.16}
+            fill="none"
+          />
+        )}
         <Circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={C.primary}
+          stroke={muted ? C.faint : C.primary}
           strokeWidth={strokeWidth}
           strokeDasharray={`${circumference} ${circumference}`}
           strokeDashoffset={dashOffset}
@@ -45,8 +58,8 @@ export function ChallengeProgressRing({ fraction, size = 140, strokeWidth = 12, 
           origin={`${size / 2}, ${size / 2}`}
         />
       </Svg>
-      <View style={styles.center}>
-        <Text style={styles.percent}>{Math.round(clamped * 100)}%</Text>
+      <View style={[styles.center, muted && styles.muted]}>
+        <Text style={[styles.percent, muted && styles.mutedText]}>{Math.round(clamped * 100)}%</Text>
         <Text style={styles.label} numberOfLines={1}>{label}</Text>
       </View>
     </View>
@@ -56,7 +69,9 @@ export function ChallengeProgressRing({ fraction, size = 140, strokeWidth = 12, 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
     center: { position: 'absolute', alignItems: 'center' },
-    percent: { ...Typography.title, color: C.inkDark },
-    label: { ...Typography.caption, color: C.ink2, fontFamily: FontFamily.medium, marginTop: 2 },
+    muted: { opacity: 0.72 },
+    percent: { ...Typography.display, color: C.inkDark },
+    mutedText: { color: C.faint },
+    label: { ...Typography.bodyStrong, color: C.ink2, marginTop: 2 },
   });
 }

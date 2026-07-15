@@ -57,10 +57,10 @@ export function ChallengeDayGrid({ targetDays, startDate, log, today }: Props) {
   function cellColor(state: CellState): string {
     switch (state) {
       case 'done': return C.primary;
-      case 'freeze': return C.starGold;
-      case 'today': return C.surface2;
-      case 'future': return C.surface2;
-      case 'reset': default: return C.danger;
+      case 'freeze': return C.primarySoft;
+      case 'today': return 'transparent';
+      case 'future': return 'transparent';
+      case 'reset': default: return C.dangerSoft;
     }
   }
 
@@ -78,7 +78,7 @@ export function ChallengeDayGrid({ targetDays, startDate, log, today }: Props) {
     <View style={styles.grid}>
       {cells.map(cell => {
         const glyph = cellGlyph(cell.state);
-        const onTint = cell.state === 'done' || cell.state === 'freeze' || cell.state === 'reset';
+        const onTint = cell.state === 'done';
         return (
           <View
             key={cell.label}
@@ -103,17 +103,17 @@ function makeStyles(C: AppColors) {
       flexWrap: 'wrap',
       alignSelf: 'stretch',
       justifyContent: 'space-between',
-      rowGap: 6,
+      rowGap: 8,
     },
     cell: {
-      width: '15.5%',
+      width: '14.6%',
       aspectRatio: 1,
-      borderRadius: Radii.xs,
+      borderRadius: Radii.sm,
       alignItems: 'center',
       justifyContent: 'center',
       position: 'relative',
     },
-    cellText: { fontSize: 11, fontFamily: FontFamily.semiBold, color: C.ink2 },
-    cellGlyphMain: { fontSize: 13, lineHeight: 16, color: C.ink2 },
+    cellText: { fontSize: 14, fontFamily: FontFamily.bold, color: C.faint },
+    cellGlyphMain: { fontSize: 18, lineHeight: 22, color: C.primary },
   });
 }

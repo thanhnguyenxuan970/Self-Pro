@@ -202,7 +202,7 @@ function AppStack({
         <Stack.Screen
           name="ChallengeHub"
           component={ChallengeHubScreen}
-          options={{ ...modalHeaderOptions, title: t.screenChallengeHub }}
+          options={{ presentation: 'modal', headerShown: false }}
         />
         <Stack.Screen
           name="CreateChallenge"

@@ -8,7 +8,7 @@ import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 export type Task = {
   id: number; name: string; kind: string; is_time_based: number;
   base_points: number; star_penalty: number; icon: string | null;
-  category_id: number | null; sort_order: number;
+  category_id: number | null; sort_order: number; is_template: number;
 };
 
 function fmtDuration(mins: number): string {
@@ -81,28 +81,19 @@ function resolvePtsStyle(styles: Styles, done: boolean, isBad: boolean) {
 }
 
 type MetaProps = {
-  item: Task; done: boolean; isBad: boolean;
+  item: Task; done: boolean;
   totalDurationMin: number | undefined;
-  timedMeta: string; badHabitMeta: string; ptsLabel: (n: number) => string;
   styles: Styles;
 };
 
 // fallow-ignore-next-line complexity
-function TaskMetaRow({ item, done, isBad, totalDurationMin, timedMeta, badHabitMeta, ptsLabel, styles }: MetaProps) {
-  const showDot1 = item.icon != null && !!item.is_time_based;
+function TaskMetaRow({ item, done, totalDurationMin, styles }: MetaProps) {
   const showDuration = done && !!item.is_time_based && (totalDurationMin ?? 0) > 0;
+  if (!item.icon && !showDuration) return null;
   return (
     <View style={styles.tMeta}>
       {item.icon ? <Text style={styles.tMetaText}>{item.icon}</Text> : null}
-      {showDot1 ? <View style={styles.dot} /> : null}
-      {item.is_time_based ? <Text style={styles.tMetaText}>{timedMeta}</Text> : null}
-      {(item.icon || item.is_time_based) ? <View style={styles.dot} /> : null}
-      <Text style={styles.tMetaText}>
-        {isBad ? badHabitMeta : (item.is_time_based ? '1pt/30m' : ptsLabel(item.base_points))}
-      </Text>
-      {showDuration ? (
-        <><View style={styles.dot} /><Text style={[styles.tMetaText, styles.tMetaDuration]}>{fmtDuration(totalDurationMin!)}</Text></>
-      ) : null}
+      {showDuration ? <><View style={styles.dot} /><Text style={[styles.tMetaText, styles.tMetaDuration]}>{fmtDuration(totalDurationMin!)}</Text></> : null}
     </View>
   );
 }
@@ -110,12 +101,12 @@ function TaskMetaRow({ item, done, isBad, totalDurationMin, timedMeta, badHabitM
 type Props = {
   item: Task; done: boolean; isBad: boolean; isLast: boolean;
   isSelected: boolean; selectionMode: boolean; justLogged: boolean;
-  totalDurationMin?: number; logPending: boolean;
+  totalDurationMin?: number; starsEarned?: number; logPending: boolean;
   colors: AppColors;
   onPress: () => void; onLongPress: () => void; onEdit?: () => void;
 };
 
-export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, onPress, onLongPress, onEdit, logPending, colors }: Props) {
+export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, starsEarned, onPress, onLongPress, onEdit, logPending, colors }: Props) {
   const t = useTranslations();
   const styles = useMemo(() => makeTaskRowStyles(colors), [colors]);
   const { fadeAnim, scaleAnim, checkScaleAnim } = useTaskRowAnimation(justLogged, done);
@@ -129,7 +120,7 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
         delayLongPress={300}
         disabled={!selectionMode && logPending}
         activeOpacity={0.7}
-        accessibilityLabel={resolveTaskDisplayName(item.name, t)}
+        accessibilityLabel={resolveTaskDisplayName(item.name, t, item.is_template === 1)}
         accessibilityRole="button"
         accessibilityState={{ checked: done, selected: selectionMode ? isSelected : undefined }}
       >
@@ -137,9 +128,9 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
           <Text style={styles.checkMark}>{resolveCheckMark(selectionMode, isSelected, done, isBad)}</Text>
         </Animated.View>
         <View style={styles.tBody}>
-          <Text style={[styles.tName, done && styles.tNameDone]} numberOfLines={1}>{resolveTaskDisplayName(item.name, t)}</Text>
-          <TaskMetaRow item={item} done={done} isBad={isBad} totalDurationMin={totalDurationMin}
-            timedMeta={t.timedMeta} badHabitMeta={t.badHabitMeta} ptsLabel={t.ptsLabel} styles={styles} />
+          <Text style={[styles.tName, done && styles.tNameDone]} numberOfLines={1}>{resolveTaskDisplayName(item.name, t, item.is_template === 1)}</Text>
+          <TaskMetaRow item={item} done={done} totalDurationMin={totalDurationMin}
+            styles={styles} />
         </View>
         <View style={styles.rightCol}>
           {!selectionMode && onEdit ? (
@@ -153,7 +144,7 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
             </TouchableOpacity>
           ) : null}
           <Text style={[styles.tPts, resolvePtsStyle(styles, done, isBad)]}>
-            {isBad ? `−${item.star_penalty} ★` : '+1 ★'}
+            {isBad ? `−${item.star_penalty} ★` : `+${done ? (starsEarned ?? 1) : 1} ★`}
           </Text>
         </View>
       </TouchableOpacity>

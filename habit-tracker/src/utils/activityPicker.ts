@@ -10,6 +10,7 @@ export type PickerTask = {
   star_penalty: number;
   archived: number;
   is_pinned: number;
+  is_template: number;
   last_used_date: string | null;
 };
 

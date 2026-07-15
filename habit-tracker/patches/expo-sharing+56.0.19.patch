@@ -1,0 +1,13 @@
+diff --git a/node_modules/expo-sharing/android/src/main/java/expo/modules/sharing/SharingModule.kt b/node_modules/expo-sharing/android/src/main/java/expo/modules/sharing/SharingModule.kt
+index 69ccba6..e962830 100644
+--- a/node_modules/expo-sharing/android/src/main/java/expo/modules/sharing/SharingModule.kt
++++ b/node_modules/expo-sharing/android/src/main/java/expo/modules/sharing/SharingModule.kt
+@@ -46,7 +46,7 @@ class SharingModule : Module() {
+         )
+         resInfoList.forEach {
+           val packageName = it.activityInfo.packageName
+-          context.grantUriPermission(packageName, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
++          context.grantUriPermission(packageName, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+         }
+         pendingPromise = promise
+         appContext.throwingActivity.startActivityForResult(intent, REQUEST_CODE)

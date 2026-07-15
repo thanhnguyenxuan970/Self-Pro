@@ -27,8 +27,8 @@ export function useShareCardData(userId: number) {
       );
 
       const weekStart = getWeekStart();
-      const topHabitRow = await db.getFirstAsync<{ name: string }>(
-        `SELECT tt.name
+      const topHabitRow = await db.getFirstAsync<{ name: string; is_template: number }>(
+        `SELECT tt.name, tt.is_template
          FROM activity_log al
          JOIN task_types tt ON al.task_type_id = tt.id
          WHERE al.user_id = ? AND al.week_start = ? AND al.source = 'TASK' AND al.kind = 'GOOD'
@@ -40,7 +40,7 @@ export function useShareCardData(userId: number) {
 
       return {
         daysDone: daysDoneRow?.count ?? 0,
-        topHabitName: topHabitRow ? resolveTaskDisplayName(topHabitRow.name, t) : '',
+        topHabitName: topHabitRow ? resolveTaskDisplayName(topHabitRow.name, t, topHabitRow.is_template === 1) : '',
       };
     },
     staleTime: 60_000,

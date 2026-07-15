@@ -551,7 +551,17 @@ async function v19(db: SQLiteDatabase): Promise<void> {
   await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_task_types_picker ON task_types(user_id, archived, is_pinned)`);
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19];
+// v19 -> v20: translate only activities created from built-in templates.
+async function v20(db: SQLiteDatabase): Promise<void> {
+  try {
+    await db.runAsync(`ALTER TABLE task_types ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0`);
+  } catch (e: any) {
+    if (!e?.message?.includes('duplicate column')) throw e;
+  }
+  await db.runAsync(`UPDATE task_types SET is_template = 1 WHERE name IN ('Running', 'Gym', 'Reading', 'Language Learning', 'Homework', 'Studying', 'Cleaning', 'Cooking', 'Work', 'Study', 'Family', 'Relationship', 'Sports', 'Chạy bộ', 'Đọc sách', 'Học ngoại ngữ', 'Làm bài tập', 'Ôn bài', 'Dọn dẹp', 'Nấu ăn')`);
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
