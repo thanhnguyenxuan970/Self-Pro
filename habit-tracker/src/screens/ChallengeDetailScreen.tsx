@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -111,6 +111,29 @@ export function ChallengeDetailScreen() {
       ],
     );
   }
+
+  function handleMenu() {
+    Alert.alert(challenge?.name ?? t.screenChallengeDetail, undefined, [
+      { text: t.cancel, style: 'cancel' },
+      { text: t.challengeDeleteCta, style: 'destructive', onPress: handleDelete },
+    ]);
+  }
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: challenge?.status !== 'active' ? undefined : () => (
+        <TouchableOpacity
+          onPress={handleMenu}
+          disabled={deleteChallenge.isPending || challengeId == null}
+          accessibilityRole="button"
+          accessibilityLabel={t.screenChallengeDetail}
+          style={styles.headerMenuButton}
+        >
+          <Text style={styles.headerMenuText}>⋯</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [challenge?.name, challenge?.status, challengeId, deleteChallenge.isPending, navigation, styles, t]);
 
   const rankName = useMemo(() => {
     const tiers = rank?.tiers ?? [];
@@ -319,36 +342,6 @@ export function ChallengeDetailScreen() {
           </Text>
         )}
 
-        {challenge.status === 'active' && linkedTaskName != null && (
-          <TouchableOpacity
-            style={[styles.logBtn, challenge.loggedToday && styles.logBtnDisabled]}
-            onPress={() => handleLogNow(linkedTaskName)}
-            disabled={challenge.loggedToday}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={challenge.loggedToday ? t.challengeLoggedToday : t.challengeLogNowCta}
-          >
-            <Text style={styles.logBtnText}>{challenge.loggedToday ? `✓ ${t.challengeLoggedToday}` : t.challengeLogNowCta}</Text>
-          </TouchableOpacity>
-        )}
-
-        {challenge.status === 'active' && linkedTaskName == null && (
-          <TouchableOpacity
-            style={[styles.logBtn, !canLogToday && styles.logBtnDisabled]}
-            onPress={handleLogToday}
-            disabled={!canLogToday || logDay.isPending}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={challenge.loggedToday ? t.challengeLoggedToday : t.challengeLogTodayCta}
-          >
-            {logDay.isPending ? (
-              <ActivityIndicator color={colors.white} />
-            ) : (
-              <Text style={styles.logBtnText}>{challenge.loggedToday ? `✓ ${t.challengeLoggedToday}` : t.challengeLogTodayCta}</Text>
-            )}
-          </TouchableOpacity>
-        )}
-
         {challenge.status !== 'active' && (
           <TouchableOpacity style={styles.logBtn} onPress={handleRestart} disabled={restartChallenge.isPending} accessibilityRole="button">
             <Text style={styles.logBtnText}>{challenge.status === 'failed' ? t.challengeRestartCta : t.challengeRestartCta}</Text>
@@ -386,19 +379,6 @@ export function ChallengeDetailScreen() {
           {capturing ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.shareBtnText}>{shareCta}</Text>}
         </TouchableOpacity>
 
-        {challenge.status === 'active' && (
-          <TouchableOpacity
-            style={[styles.deleteBtn, deleteChallenge.isPending && styles.logBtnDisabled]}
-            onPress={handleDelete}
-            disabled={deleteChallenge.isPending}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={t.challengeDeleteCta}
-          >
-            {deleteChallenge.isPending ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.deleteBtnText}>{t.challengeDeleteCta}</Text>}
-          </TouchableOpacity>
-        )}
-
         {/* Off-screen share cards, captured on demand */}
         <View style={styles.offscreen} pointerEvents="none">
           <ShareCardStats
@@ -424,6 +404,22 @@ export function ChallengeDetailScreen() {
           )}
         </View>
       </ScrollView>
+      {challenge.status === 'active' && (
+        <View style={styles.stickyCta}>
+          <TouchableOpacity
+            style={[styles.logBtn, (!canLogToday || logDay.isPending) && styles.logBtnDisabled]}
+            onPress={linkedTaskName == null ? handleLogToday : () => handleLogNow(linkedTaskName)}
+            disabled={!canLogToday || logDay.isPending}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={challenge.loggedToday ? t.challengeLoggedToday : linkedTaskName == null ? t.challengeLogTodayCta : t.challengeLogNowCta}
+          >
+            {logDay.isPending ? <ActivityIndicator color={colors.white} /> : (
+              <Text style={styles.logBtnText}>{challenge.loggedToday ? `✓ ${t.challengeLoggedToday}` : linkedTaskName == null ? t.challengeLogTodayCta : t.challengeLogNowCta}</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -433,6 +429,9 @@ function makeStyles(C: AppColors) {
     safe: { flex: 1, backgroundColor: C.bgBase },
     loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     scrollContent: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing.xl, alignItems: 'center' },
+    stickyCta: { alignSelf: 'stretch', backgroundColor: C.bgBase, borderTopWidth: 1, borderTopColor: C.line, padding: Spacing.md },
+    headerMenuButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    headerMenuText: { ...Typography.title, color: C.inkDark, fontFamily: FontFamily.bold, lineHeight: 24 },
     titleRow: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       alignSelf: 'stretch', gap: Spacing.sm,
@@ -478,11 +477,6 @@ function makeStyles(C: AppColors) {
       paddingVertical: 14, borderRadius: Radii.pill, alignItems: 'center',
     },
     shareBtnText: { ...Typography.bodyStrong, color: C.primary },
-    deleteBtn: {
-      alignSelf: 'stretch', backgroundColor: C.dangerSoft, borderWidth: 1, borderColor: C.danger,
-      paddingVertical: 14, borderRadius: Radii.pill, alignItems: 'center',
-    },
-    deleteBtnText: { ...Typography.bodyStrong, color: C.danger },
     offscreen: { position: 'absolute', top: -9999, left: -9999 },
 
     // A6 — done + reward
