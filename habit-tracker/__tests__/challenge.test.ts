@@ -1,5 +1,5 @@
 import { challengeDate, challengeStreak, completeChallenge, currentDay, currentDayIndex, computeProgress, computeRollover, dateRange, isComplete, logToday, progress, restart, type Challenge, type DayEntry } from '../src/lib/challenge';
-import { challengeCompletionStars } from '../src/config/challenges.config';
+import { CHALLENGE_DURATIONS, CHALLENGE_NAME_MAX_LENGTH, challengeCompletionStars, isValidCustomChallengeValue } from '../src/config/challenges.config';
 
 const challenge: Challenge = {
   id: 4, name: 'Read', taskType: null, targetDays: 7, startDate: '2026-06-17',
@@ -70,6 +70,11 @@ describe('computeProgress', () => {
 });
 
 describe('challengeCompletionStars', () => {
+  it('keeps the create-form boundaries aligned with the supported short challenge', () => {
+    expect(CHALLENGE_DURATIONS).toEqual([7, 30, 60, 100]);
+    expect(CHALLENGE_NAME_MAX_LENGTH).toBe(72);
+  });
+
   it('uses the new fixed reward tiers for 30, 60, and 100-day challenges', () => {
     expect(challengeCompletionStars(30)).toBe(30);
     expect(challengeCompletionStars(60)).toBe(120);
@@ -80,6 +85,17 @@ describe('challengeCompletionStars', () => {
     expect(challengeCompletionStars(7)).toBe(1);
     expect(challengeCompletionStars(21)).toBe(3);
     expect(challengeCompletionStars(66)).toBe(9);
+  });
+
+  it('calculates a preview reward for a custom long duration', () => {
+    expect(challengeCompletionStars(365)).toBe(1460);
+  });
+
+  it.each([
+    [7, 'days', true], [365, 'days', true], [6, 'days', false], [366, 'days', false],
+    [2, 'weeks', true], [52, 'weeks', true], [1, 'weeks', false], [53, 'weeks', false],
+  ] as const)('validates custom %s %s: %s', (value, field, expected) => {
+    expect(isValidCustomChallengeValue(value, field)).toBe(expected);
   });
 });
 

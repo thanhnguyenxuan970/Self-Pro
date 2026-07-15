@@ -1,4 +1,4 @@
-export const CHALLENGE_DURATIONS = [30, 60, 100] as const;
+export const CHALLENGE_DURATIONS = [7, 30, 60, 100] as const;
 export type ChallengeDuration = (typeof CHALLENGE_DURATIONS)[number];
 
 export const WEEKLY_TARGETS = [3, 4, 5, 6] as const;
@@ -12,7 +12,11 @@ export const THRESHOLD_COUNTS = [1, 2, 3] as const;
 
 export const PHAO_COUNT = 1;
 
-export const CHALLENGE_NAME_MAX_LENGTH = 40;
+export const CHALLENGE_NAME_MAX_LENGTH = 72;
+
+export function isValidCustomChallengeValue(value: number, field: 'days' | 'weeks'): boolean {
+  return Number.isInteger(value) && (field === 'days' ? value >= 7 && value <= 365 : value >= 2 && value <= 52);
+}
 
 const LEGACY_CHALLENGE_REWARDS: Record<number, number> = {
   7: 1,
@@ -21,13 +25,17 @@ const LEGACY_CHALLENGE_REWARDS: Record<number, number> = {
 };
 
 const CHALLENGE_REWARDS: Record<ChallengeDuration, number> = {
+  7: 1,
   30: 30,
   60: 120,
   100: 300,
 };
 
+const CUSTOM_CHALLENGE_REWARDS: Record<number, number> = { 365: 1460 };
+
 export function challengeCompletionStars(targetDays: number): number {
   return CHALLENGE_REWARDS[targetDays as ChallengeDuration]
+    ?? CUSTOM_CHALLENGE_REWARDS[targetDays]
     ?? LEGACY_CHALLENGE_REWARDS[targetDays]
     ?? Math.max(1, Math.floor(targetDays / 7));
 }
@@ -63,8 +71,8 @@ export function computeChallengeReward(
 }
 
 export const CHALLENGE_RULE_COPY = {
-  vi: (freezes: number) => `Làm liên tục mỗi ngày. Lỡ 1 ngày = reset. Bạn có ${freezes} phao cứu (freeze/bù).`,
-  en: (freezes: number) => `Do it every day. Miss 1 day = reset. You get ${freezes} rescue float (freeze/catch-up).`,
+  vi: (freezes: number) => `Ghi lại mỗi ngày không nghỉ. Lỡ 1 ngày là chuỗi reset — nhưng có ${freezes} rescue (freeze) bù đúng một lần lỡ.`,
+  en: (freezes: number) => `Log every day in a row. Miss a day and the streak resets — but you get ${freezes} rescue (freeze) to cover one miss.`,
 };
 
 const WEEKLY_RULE_COPY = {

@@ -762,7 +762,7 @@ export function useCreateChallenge(userId: number) {
       }
       if (params.notificationsEnabled) {
         try {
-          const notificationId = await scheduleChallengeReminder(params.name);
+          const notificationId = await scheduleChallengeReminder(params.name, params.mode);
           if (notificationId) {
             await db.runAsync(`UPDATE challenges SET notification_id = ? WHERE id = ?`, [notificationId, challengeId]);
           }
@@ -826,6 +826,7 @@ export function useRestartChallenge(userId: number) {
       let newId = 0;
       let notificationsEnabled = false;
       let challengeName = '';
+      let challengeMode: ChallengeMode = 'streak';
       await db.withExclusiveTransactionAsync(async txn => {
         const previous = await txn.getFirstAsync<ChallengeRow & { notifications_enabled: number }>(
           `SELECT ${CHALLENGE_COLUMNS}, notifications_enabled
@@ -836,15 +837,16 @@ export function useRestartChallenge(userId: number) {
         const result = await txn.runAsync(
           `INSERT INTO challenges (user_id, name, task_type_id, mode, target_days, weekly_target, total_weeks, start_date, streak_current, freezes_left, freeze_used, before_photo, notifications_enabled, min_duration, min_count)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?, ?, ?)`,
-          [userId, previous.name, previous.task_type_id, previous.mode, previous.target_days, previous.weekly_target, previous.total_weeks, challengeDate(), PHAO_COUNT, previous.before_photo, previous.notifications_enabled, previous.min_duration, previous.min_count],
+          [userId, previous.name, previous.task_type_id, previous.mode, previous.target_days, previous.weekly_target, previous.total_weeks, challengeDate(), previous.mode === 'streak' ? PHAO_COUNT : 0, previous.before_photo, previous.notifications_enabled, previous.min_duration, previous.min_count],
         );
         newId = Number(result.lastInsertRowId);
         notificationsEnabled = !!previous.notifications_enabled;
         challengeName = previous.name;
+        challengeMode = previous.mode;
       });
       if (notificationsEnabled) {
         try {
-          const notificationId = await scheduleChallengeReminder(challengeName);
+          const notificationId = await scheduleChallengeReminder(challengeName, challengeMode);
           if (notificationId) {
             await db.runAsync(`UPDATE challenges SET notification_id = ? WHERE id = ?`, [notificationId, newId]);
           }
