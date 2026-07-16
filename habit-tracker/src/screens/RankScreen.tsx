@@ -7,7 +7,7 @@ import { useLeaderboard } from '../queries/useLeaderboard';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
-import { getRankConfigByTierOrder } from '../config/ranks.config';
+import { getRankConfigByTierOrder, RANKS } from '../config/ranks.config';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { RankInfoSheet } from '../components/RankInfoSheet';
 import { RankEmptyState } from '../components/RankEmptyState';
@@ -171,6 +171,20 @@ export function RankScreen() {
           </View>
         )}
 
+        {__DEV__ && (
+          <View style={styles.preview}>
+            <Text style={styles.previewTitle}>Bộ sưu tập · animation test</Text>
+            <View style={styles.previewGrid}>
+              {RANKS.map(rank => (
+                <View key={rank.tier} style={[styles.previewTier, { borderColor: rank.edge }]}>
+                  <RankMascot tier={rank.tier} size={76} loop reduceMotion={false} />
+                  <Text style={[styles.previewTierText, { color: rank.color }]} numberOfLines={1}>{rank.tier + 1} · {rank.name}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         <ResetCountdownChip styles={styles} label={t.resetCountdownLabel(resetCountdown.days, resetCountdown.hours, resetCountdown.minutes)} />
 
         {currentTierOrder > 0 && (
@@ -212,6 +226,11 @@ function makeStyles(C: AppColors) {
     infoBtnText: { fontSize: 15, fontFamily: FontFamily.bold, color: C.muted },
 
     rankEmptyWrap: { marginHorizontal: Spacing.lg },
+    preview: { marginHorizontal: Spacing.lg, marginTop: 12, padding: 12, borderRadius: Radii.lg, backgroundColor: '#0E0B1A' },
+    previewTitle: { fontSize: 12, fontFamily: FontFamily.extraBold, color: '#C8C2E0', textTransform: 'uppercase', letterSpacing: 0.7, textAlign: 'center', marginBottom: 10 },
+    previewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    previewTier: { width: '31%', minHeight: 118, borderRadius: Radii.md, borderWidth: 1.5, backgroundColor: '#191428', alignItems: 'center', justifyContent: 'center', paddingVertical: 6 },
+    previewTierText: { fontSize: 10, fontFamily: FontFamily.extraBold, maxWidth: '100%', paddingHorizontal: 4, textAlign: 'center' },
     rankhero: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,
       borderRadius: Radii.xl, padding: 22, alignItems: 'center',

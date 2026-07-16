@@ -14,9 +14,9 @@
 
 import React, { forwardRef, useImperativeHandle, useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
-import Svg, { G, Polygon, Path, Circle, Rect, Ellipse, Line } from 'react-native-svg';
+import Svg, { Defs, G, Polygon, Path, Circle, Ellipse, Line, RadialGradient, Rect, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
-import { getRankConfigByTier, STAR_POINTS, type Channel, type SvgEl } from '../config/ranks.config';
+import { getRankConfigByTier, starPoints, type Channel, type SvgEl } from '../config/ranks.config';
 import { playRankSound } from '../audio/rankSound';
 import { useTranslations } from '../hooks/useSettings';
 import { shouldRunRankLoop } from '../lib/rankPresentation';
@@ -56,7 +56,7 @@ function renderEl(el: SvgEl, i: number) {
   const stroke = el.stroke;
   const sw = el.sw;
   const fill = el.fill ?? (el.stroke ? 'none' : undefined);
-  const common = { fill, stroke, strokeWidth: sw, strokeLinecap: el.cap };
+  const common = { fill, stroke, strokeWidth: sw, strokeLinecap: el.cap, opacity: el.opacity };
   switch (el.t) {
     case 'path':    return <Path key={i} {...common} d={el.d!} />;
     case 'polygon': return <Polygon key={i} {...common} points={el.points!} />;
@@ -76,6 +76,7 @@ export const RankMascot = forwardRef<RankMascotHandle, Props>(
     const t = useTranslations();
     const p = useRef(new Animated.Value(0)).current;
     const pop = useRef(new Animated.Value(1)).current;
+    const gradientId = useRef(`rank_luminous_${Math.random().toString(36).slice(2)}`).current;
     const loopAnim = useRef<Animated.CompositeAnimation | null>(null);
     const c = rank.anim.channels;
 
@@ -135,6 +136,7 @@ export const RankMascot = forwardRef<RankMascotHandle, Props>(
               { translateX: chanInterp(p, c.translateX, 0) },
               { translateY: chanInterp(p, c.translateY, 0) },
               { rotate: chanInterpDeg(p, c.rotate, 0) },
+              { scale: chanInterp(p, c.scale, 1) },
               { scaleX: chanInterp(p, c.scaleX, 1) },
               { scaleY: chanInterp(p, c.scaleY, 1) },
             ],
@@ -142,24 +144,31 @@ export const RankMascot = forwardRef<RankMascotHandle, Props>(
         >
           <Svg width={size} height={size} viewBox="-60 -60 120 120">
             <G>
-              {rank.glow ? <Circle cx={0} cy={0} r={34} fill={rank.glow} opacity={rank.glowOpacity ?? 0.4} /> : null}
-              {rank.limbs.map((d, i) => (
-                <Path
-                  key={`l${i}`}
-                  d={d}
-                  stroke={rank.edge}
-                  strokeWidth={7}
-                  fill="none"
-                  strokeLinecap="round"
-                />
-              ))}
+              {rank.bodyStyle === 'luminous' ? (
+                <Defs>
+                  <RadialGradient id={gradientId} cx="50%" cy="40%" r="70%">
+                    <Stop offset="0" stopColor="#FFFFFF" />
+                    <Stop offset="0.55" stopColor="#FFF3D6" />
+                    <Stop offset="1" stopColor="#F0D084" />
+                  </RadialGradient>
+                </Defs>
+              ) : null}
+              {rank.back.map(renderEl)}
+              {rank.bodyStyle === 'luminous' ? <Polygon points={starPoints({ ...rank.geometry, outer: rank.geometry.outer + 7, innerRatio: 0.54 })} fill="#FFF6DC" opacity={0.25} /> : null}
               <Polygon
-                points={STAR_POINTS}
-                fill={rank.color}
+                points={starPoints(rank.geometry)}
+                fill={rank.bodyStyle === 'luminous' ? `url(#${gradientId})` : rank.color}
                 stroke={rank.edge}
-                strokeWidth={1.5}
+                strokeWidth={rank.tier >= 6 ? 3 : 2.4}
               />
+              {rank.bodyStyle === 'luminous' ? <Circle cx={0} cy={-3} r={9} fill="#FFFFFF" opacity={0.55} /> : null}
               {rank.face.map(renderEl)}
+              {rank.front.map(renderEl)}
+              {Array.from({ length: rank.band + 1 }, (_, index) => {
+                const x = -(rank.band * 5) + index * 10;
+                const color = ['#C8C2E0', '#7EC0FF', '#D7A6FF', '#FFDD6B', '#FF9ECB'][rank.band];
+                return <Polygon key={`pip-${index}`} points={`${x},47.8 ${x + 2.8},51 ${x},54.2 ${x - 2.8},51`} fill={color} opacity={0.95} />;
+              })}
             </G>
           </Svg>
         </Animated.View>

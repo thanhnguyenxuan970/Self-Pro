@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RankMascot } from './RankMascot';
 import { getRankConfigByTierOrder } from '../config/ranks.config';
@@ -30,13 +30,17 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklySt
   const waveOne = useRef(new Animated.Value(0)).current;
   const waveTwo = useRef(new Animated.Value(0)).current;
   const floatY = useRef(new Animated.Value(0)).current;
+  const evolution = useRef(new Animated.Value(0)).current;
   const floatLoop = useRef<Animated.CompositeAnimation | null>(null);
+  const [displayTier, setDisplayTier] = useState(Math.max(0, tierOrder - 2));
 
   useEffect(() => {
     if (!visible) return;
-    const values = [eyebrow, mascot, title, starChip, cta, waveOne, waveTwo, floatY];
+    const values = [eyebrow, mascot, title, starChip, cta, waveOne, waveTwo, floatY, evolution];
     values.forEach(value => value.setValue(0));
+    setDisplayTier(Math.max(0, tierOrder - 2));
     if (!shouldRunCelebrationBurst(visible, reduceMotion)) {
+      setDisplayTier(tierOrder - 1);
       [eyebrow, mascot, title, starChip, cta].forEach(value => value.setValue(1));
       return;
     }
@@ -49,17 +53,19 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklySt
       Animated.delay(delay),
       Animated.timing(value, { toValue: 1, duration: 650, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]);
+    const swapTimer = setTimeout(() => setDisplayTier(tierOrder - 1), 1_850);
     const entrance = Animated.parallel([
-      rise(eyebrow, 100),
+      rise(eyebrow, 2_000),
       Animated.sequence([
-        Animated.delay(260),
+        Animated.delay(1_850),
         Animated.spring(mascot, { toValue: 1, friction: 5, tension: 110, useNativeDriver: true }),
       ]),
-      wave(waveOne, 380),
-      wave(waveTwo, 600),
-      rise(title, 520),
-      rise(starChip, 760),
-      rise(cta, 900),
+      wave(waveOne, 2_050),
+      wave(waveTwo, 2_280),
+      rise(title, 2_180),
+      rise(starChip, 2_420),
+      rise(cta, 2_560),
+      Animated.timing(evolution, { toValue: 1, duration: 2_050, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
     ]);
     entrance.start(({ finished }) => {
       if (!finished) return;
@@ -72,8 +78,9 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklySt
     return () => {
       entrance.stop();
       floatLoop.current?.stop();
+      clearTimeout(swapTimer);
     };
-  }, [visible, reduceMotion]);
+  }, [visible, reduceMotion, tierOrder]);
 
   const riseStyle = (value: Animated.Value) => ({
     opacity: value,
@@ -83,19 +90,27 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklySt
     opacity: value.interpolate({ inputRange: [0, 0.72, 1], outputRange: [0, 0.45, 0] }),
     transform: [{ scale: value.interpolate({ inputRange: [0, 1], outputRange: [0.5, 3.1] }) }],
   });
+  const flashStyle = {
+    opacity: evolution.interpolate({ inputRange: [0, 0.44, 0.66, 1], outputRange: [0, 0, 0.95, 0] }),
+  };
 
   return (
     <Modal visible={visible} animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onDismiss}>
       <View style={styles.screen} accessibilityViewIsModal>
         <View style={[styles.wash, { backgroundColor: cfg.color }]} pointerEvents="none" />
+        {!reduceMotion && <Animated.View pointerEvents="none" style={[styles.flash, flashStyle]} />}
         <Animated.View style={[styles.eyebrow, { backgroundColor: `${cfg.color}24` }, riseStyle(eyebrow)]}>
           <Text style={[styles.eyebrowText, { color: cfg.color }]}>✦ {t.levelUpTitle}</Text>
         </Animated.View>
         <View style={styles.mascotStage}>
           {!reduceMotion && <Animated.View style={[styles.wave, { borderColor: cfg.color }, waveStyle(waveOne)]} />}
           {!reduceMotion && <Animated.View style={[styles.wave, { borderColor: cfg.color }, waveStyle(waveTwo)]} />}
-          <Animated.View style={{ transform: [{ scale: mascot.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }, { translateY: floatY }] }}>
-            <RankMascot tier={tierOrder - 1} size={168} loop reduceMotion={reduceMotion} />
+          <Animated.View style={{ transform: [
+            { translateX: evolution.interpolate({ inputRange: [0, 0.22, 0.4, 1], outputRange: [0, 5, -5, 0] }) },
+            { scale: mascot.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] }) },
+            { translateY: floatY },
+          ] }}>
+            <RankMascot tier={displayTier} size={168} loop reduceMotion={reduceMotion} />
           </Animated.View>
         </View>
         <Animated.View style={[styles.copy, riseStyle(title)]}>
@@ -119,6 +134,7 @@ function makeStyles(C: AppColors) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: '#0F1410', alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, overflow: 'hidden' },
     wash: { position: 'absolute', width: 420, height: 420, borderRadius: 210, top: '9%', opacity: 0.2 },
+    flash: { ...StyleSheet.absoluteFill, backgroundColor: '#FFFFFF' },
     eyebrow: { borderRadius: Radii.pill, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 18 },
     eyebrowText: { fontFamily: FontFamily.extraBold, fontSize: 12, letterSpacing: 0.7 },
     mascotStage: { width: 220, height: 190, alignItems: 'center', justifyContent: 'center' },
