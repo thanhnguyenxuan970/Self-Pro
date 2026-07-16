@@ -5,7 +5,7 @@ export type HeatmapDay = { local_date: string; total_points: number; stars?: num
 export type HeatmapCell = { date: string; level: number; month?: string };
 
 export function heatmapShades(colors: AppColors) {
-  return [colors.surface3, colors.primarySoft, colors.primary, colors.primaryHover, colors.primaryPress];
+  return [colors.surface2, colors.heatmapGold1, colors.heatmapGold2, colors.heatmapGold3, colors.heatmapGold4];
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -18,16 +18,16 @@ function toLocalDate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-export function heatmapLevel(points: number, goal: number): number {
-  if (points <= 0) return 0;
-  if (points < goal) return 1;
-  if (points < goal * 1.5) return 2;
-  if (points < goal * 2) return 3;
+export function heatmapLevel(stars: number): number {
+  if (stars <= 0) return 0;
+  if (stars <= 5) return 1;
+  if (stars <= 10) return 2;
+  if (stars <= 20) return 3;
   return 4;
 }
 
-export function buildHeatmapWeeks(days: HeatmapDay[], goal: number, today = new Date()): HeatmapCell[][] {
-  const levels = new Map(days.map(day => [day.local_date, heatmapLevel(day.total_points, goal)]));
+export function buildHeatmapWeeks(days: HeatmapDay[], today = new Date()): HeatmapCell[][] {
+  const levels = new Map(days.map(day => [day.local_date, heatmapLevel(day.stars ?? 0)]));
   const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const start = new Date(end.getTime() - 364 * DAY_MS);
   start.setDate(start.getDate() - ((start.getDay() + 6) % 7));

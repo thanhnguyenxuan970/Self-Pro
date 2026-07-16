@@ -223,6 +223,7 @@ export function TodayScreen() {
   const [pendingLevelUp, setPendingLevelUp] = useState<{ tierOrder: number; tierName: string } | null>(null);
   const [levelUpChecked, setLevelUpChecked] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
+  const [showScoringGuide, setShowScoringGuide] = useState(false);
 
   const { data: shareCardData } = useShareCardData(userId);
 
@@ -465,7 +466,7 @@ export function TodayScreen() {
         </View>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
-        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} weeklyStars={weeklyStars} rankName={rankDisplayName} streakRef={streakTutorialRef} />
+        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} weeklyStars={weeklyStars} rankName={rankDisplayName} streakRef={streakTutorialRef} scoringGuideVisible={showScoringGuide} onScoringGuideClose={() => setShowScoringGuide(false)} />
 
         <TouchableOpacity
           style={styles.challengeEntryCard}
@@ -498,6 +499,7 @@ export function TodayScreen() {
 
         <View style={styles.taskListHeader}>
           <Text style={styles.sectionLabel}>{t.sectionToday}</Text>
+          {!selectionMode && <TouchableOpacity style={styles.scoringGuideButton} onPress={() => setShowScoringGuide(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t.scoringGuideTitle}><Text style={styles.scoringGuideText}>?</Text></TouchableOpacity>}
           {selectionMode && (
             <View style={styles.selActions}>
               <TouchableOpacity onPress={selectAll} style={styles.selBtn}>
@@ -626,6 +628,8 @@ function makeStyles(C: AppColors) {
     taskListHeader: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     },
+    scoringGuideButton: { width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: C.line2, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', marginTop: 20, marginRight: Spacing.lg },
+    scoringGuideText: { color: C.muted, fontSize: 11, lineHeight: 13, fontFamily: FontFamily.extraBold },
     selActions: { flexDirection: 'row', gap: 8, marginRight: Spacing.lg, marginTop: 20 },
     selBtn: {
       paddingHorizontal: 10, paddingVertical: 10,
