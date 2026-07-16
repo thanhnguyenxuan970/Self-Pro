@@ -146,7 +146,7 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
             </TouchableOpacity>
           ) : null}
           <Text style={[styles.tPts, resolvePtsStyle(styles, done, isBad)]}>
-            {isBad ? `−${item.star_penalty}★` : `+${done ? (starsEarned ?? 1) : 1}★${done ? ` · +${t.ptsShort(pointsEarned ?? item.base_points)}` : ''}`}
+            {isBad ? `−${item.star_penalty}★` : `+${done ? Math.round(starsEarned ?? 1) : 1}★${done ? ` · +${t.ptsShort(pointsEarned ?? item.base_points)}` : ''}`}
           </Text>
         </View> : null}
       </TouchableOpacity>

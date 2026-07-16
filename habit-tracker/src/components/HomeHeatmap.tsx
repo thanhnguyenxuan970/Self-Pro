@@ -45,7 +45,7 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const selectedPoints = selectedDate ? pointsByDate.get(selectedDate) ?? 0 : 0;
-  const selectedStars = selectedDate ? Math.trunc(starsByDate.get(selectedDate) ?? 0) : 0;
+  const selectedStars = selectedDate ? Math.round(starsByDate.get(selectedDate) ?? 0) : 0;
   const selectedDateLabel = selectedDate ? formatDayDetailDate(selectedDate, lang === 'vi' ? 'vi-VN' : 'en-US') : '';
   const todayGoal = dailyBonusGoal(todayPoints ?? 0, goal);
   const selectedGoal = dailyBonusGoal(selectedPoints, goal);
@@ -67,7 +67,7 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
     </View>
     <View style={styles.rewardRow}>
       <View ref={streakRef} style={styles.rewardPill}>
-        <Text style={styles.rewardText}>{rankName ? `🔥 ${streak} · ★ ${weeklyStars ?? 0} › ${rankEmoji} ${rankName}` : `🔥 ${streak}`}</Text>
+        <Text style={styles.rewardText}>{rankName ? `🔥 ${streak} · ★ ${Math.round(weeklyStars ?? 0)} › ${rankEmoji} ${rankName}` : `🔥 ${streak}`}</Text>
       </View>
     </View>
     <View style={styles.gridRow}>

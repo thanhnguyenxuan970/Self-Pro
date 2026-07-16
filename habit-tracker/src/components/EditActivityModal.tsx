@@ -6,6 +6,8 @@ import {
 import { AppColors, FontFamily, Radii, Spacing, Typography } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import type { Task } from './TaskRow';
+import { DurationClockInput } from './DurationClockInput';
+import { clockFromMinutes, clockMinutes } from '../utils/durationClock';
 
 type Props = {
   visible: boolean;
@@ -21,12 +23,12 @@ export function EditActivityModal({ visible, task, totalDurationMin, onSave, onC
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [name, setName] = useState('');
-  const [duration, setDuration] = useState('');
+  const [duration, setDuration] = useState({ hours: 0, minutes: 0 });
 
   React.useEffect(() => {
     if (task) {
       setName(task.name);
-      setDuration(totalDurationMin != null ? String(totalDurationMin) : '');
+      setDuration(clockFromMinutes(totalDurationMin ?? 0));
     }
   }, [task, totalDurationMin]);
 
@@ -36,8 +38,7 @@ export function EditActivityModal({ visible, task, totalDurationMin, onSave, onC
     if (!task) return;
     const trimmed = name.trim();
     if (!trimmed) return;
-    const parsed = parseInt(duration, 10);
-    const newDuration = task.is_time_based && !isNaN(parsed) && parsed > 0 ? parsed : null;
+    const newDuration = task.is_time_based && clockMinutes(duration) > 0 ? clockMinutes(duration) : null;
     onSave(task.id, trimmed, newDuration);
   }
 
@@ -66,18 +67,7 @@ export function EditActivityModal({ visible, task, totalDurationMin, onSave, onC
           {!!task.is_time_based && (
             <>
               <Text style={styles.label}>{t.editDurationLabel}</Text>
-              <TextInput
-                style={styles.input}
-                value={duration}
-                onChangeText={setDuration}
-                keyboardType="number-pad"
-                maxLength={5}
-                returnKeyType="done"
-                onSubmitEditing={handleSave}
-                placeholderTextColor={colors.muted}
-                accessibilityLabel={t.editDurationLabel}
-                accessibilityHint="Nhập số phút"
-              />
+              <DurationClockInput value={duration} onChange={setDuration} colors={colors} />
             </>
           )}
 

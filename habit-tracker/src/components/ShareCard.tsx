@@ -50,7 +50,7 @@ export const ShareCard = React.forwardRef<View, ShareCardProps>(function ShareCa
         <Text style={styles.heroNumber}>{streakCount}</Text>
         <Text style={styles.heroLabel}>{t.shareStreakUnit}</Text>
         {weeklyStars > 0 && (
-          <Text style={styles.starsRow}>{t.shareWeeklyStars(weeklyStars)}</Text>
+          <Text style={styles.starsRow}>{t.shareWeeklyStars(Math.round(weeklyStars))}</Text>
         )}
       </View>
 

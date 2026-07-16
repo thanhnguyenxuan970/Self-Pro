@@ -462,7 +462,7 @@ export function useTodayTaskTotalDurations(userId: number) {
       const rows = await db.getAllAsync<{ task_type_id: number; total_min: number; total_stars: number; total_points: number }>(
         `SELECT task_type_id, SUM(duration_min) AS total_min, SUM(stars_delta) AS total_stars, SUM(points_earned) AS total_points
          FROM activity_log
-         WHERE user_id = ? AND local_date = ? AND task_type_id IS NOT NULL AND source = 'TASK'
+         WHERE user_id = ? AND local_date = ? AND task_type_id IS NOT NULL AND source IN ('TASK', 'DAILY_BONUS')
          GROUP BY task_type_id`,
         [userId, today]
       );

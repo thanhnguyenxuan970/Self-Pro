@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity,
-  Alert, StyleSheet, ActivityIndicator, Animated, ScrollView,
+  Alert, StyleSheet, ActivityIndicator, Animated, Dimensions, ScrollView,
   KeyboardAvoidingView, Keyboard, Platform,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -16,9 +16,12 @@ import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 import { Strings } from '../config/i18n';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 import { activityGroup, activityMatches, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../utils/activityPicker';
-import { parseDurationMinutes } from '../utils/duration';
+import { DurationClockInput } from '../components/DurationClockInput';
+import { clockMinutes } from '../utils/durationClock';
 
 interface Props { visible: boolean; onClose: () => void; presetName?: string | null; }
+
+const SHEET_HIDDEN_Y = Dimensions.get('window').height;
 
 type SuggestionChipProps = {
   s: TemplateTask;
@@ -72,13 +75,12 @@ type DurationStepProps = {
 };
 
 function DurationStep({ pendingTaskName, isPending, onLogDuration, onBack, onClose, t, colors, styles }: DurationStepProps) {
-  const [duration, setDuration] = useState('');
-  const [durationUnit, setDurationUnit] = useState<'min' | 'hr'>('min');
+  const [clock, setClock] = useState({ hours: 0, minutes: 0 });
   const [customDuration, setCustomDuration] = useState(false);
 
   function handleCustomLog() {
-    const mins = parseDurationMinutes(duration, durationUnit);
-    if (mins === null) { Alert.alert(t.error, t.validDuration); return; }
+    const mins = clockMinutes(clock);
+    if (mins <= 0) { Alert.alert(t.error, t.validDuration); return; }
     if (mins > 1440) { Alert.alert(t.error, t.maxDuration); return; }
     onLogDuration(mins);
   }
@@ -122,35 +124,7 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onBack, onClo
           </View>
         ) : (
           <>
-            <View style={styles.durationRow}>
-              <TextInput
-                style={[styles.input, styles.durationInput]}
-                keyboardType="decimal-pad"
-                value={duration}
-                onChangeText={setDuration}
-                placeholder="0"
-                placeholderTextColor={colors.faint}
-                autoFocus
-              />
-              <View style={styles.unitToggle}>
-                <TouchableOpacity
-                  style={[styles.unitBtn, durationUnit === 'min' && styles.unitBtnActive]}
-                  onPress={() => setDurationUnit('min')}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: durationUnit === 'min' }}
-                >
-                  <Text style={[styles.unitBtnText, durationUnit === 'min' && styles.unitBtnTextActive]}>{t.unitMin}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.unitBtn, durationUnit === 'hr' && styles.unitBtnActive]}
-                  onPress={() => setDurationUnit('hr')}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: durationUnit === 'hr' }}
-                >
-                  <Text style={[styles.unitBtnText, durationUnit === 'hr' && styles.unitBtnTextActive]}>{t.unitHour}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <DurationClockInput value={clock} onChange={setClock} colors={colors} />
             <TouchableOpacity style={styles.durationChip} onPress={handleCustomLog} disabled={isPending} accessibilityRole="button">
               {isPending ? (
                 <ActivityIndicator color={colors.white} />
@@ -196,7 +170,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
   const [pendingTask, setPendingTask] = useState<PendingTask | null>(null);
 
   const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const sheetTranslateY = useRef(new Animated.Value(300)).current;
+  const sheetTranslateY = useRef(new Animated.Value(SHEET_HIDDEN_Y)).current;
 
   useEffect(() => {
     if (visible && presetName) {
@@ -226,7 +200,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
     cueModalClose();
     if (reduceMotion) {
       backdropOpacity.setValue(0);
-      sheetTranslateY.setValue(300);
+        sheetTranslateY.setValue(SHEET_HIDDEN_Y);
       setName('');
       setSelectedSuggestion(null);
       setSelectedExistingTask(null);
@@ -238,7 +212,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
     }
     Animated.parallel([
       Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-      Animated.spring(sheetTranslateY, { toValue: 300, tension: 120, friction: 12, useNativeDriver: true }),
+      Animated.timing(sheetTranslateY, { toValue: SHEET_HIDDEN_Y, duration: 220, useNativeDriver: true }),
     ]).start(() => {
       setName('');
       setSelectedSuggestion(null);
@@ -248,7 +222,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
       submittingRef.current = false;
       onClose();
       backdropOpacity.setValue(0);
-      sheetTranslateY.setValue(300);
+      sheetTranslateY.setValue(SHEET_HIDDEN_Y);
     });
   }
 
@@ -368,7 +342,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose} statusBarTranslucent navigationBarTranslucent>
-      <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={styles.kav} behavior="padding" enabled={Platform.OS === 'ios'}>
       <View style={styles.backdrop}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim, opacity: backdropOpacity }]}>
           <TouchableOpacity
@@ -608,12 +582,5 @@ function makeStyles(C: AppColors) {
     presetChipCustom: { backgroundColor: C.surface2, borderWidth: 1.5, borderColor: C.line2 },
     presetChipText: { color: C.white, fontSize: 16, fontFamily: FontFamily.extraBold },
     presetChipCustomText: { color: C.inkDark },
-    durationRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10, marginBottom: Spacing.md, marginTop: Spacing.md },
-    durationInput: { flex: 1, fontSize: 22, fontFamily: FontFamily.bold, textAlign: 'center' },
-    unitToggle: { flexDirection: 'column', borderRadius: Radii.md, overflow: 'hidden', borderWidth: 1.5, borderColor: C.line2 },
-    unitBtn: { flex: 1, paddingHorizontal: 14, justifyContent: 'center', alignItems: 'center', backgroundColor: C.surface2 },
-    unitBtnActive: { backgroundColor: C.primary },
-    unitBtnText: { fontSize: 13, fontFamily: FontFamily.bold, color: C.muted },
-    unitBtnTextActive: { color: C.white },
   });
 }

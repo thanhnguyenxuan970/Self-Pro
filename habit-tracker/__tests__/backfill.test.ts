@@ -73,10 +73,10 @@ describe('computeBackfillSession', () => {
   it('cộng dồn điểm/sao qua nhiều hoạt động trong 1 phiên', () => {
     const result = computeBackfillSession([entry(), entry()], ctx);
     expect(result.rows).toHaveLength(2);
-    expect(result.dayPoints).toBe(40);
-    expect(result.sessionPointsDelta).toBe(40);
-    expect(result.sessionStarsDelta).toBe(3);
-    expect(result.bonusStars).toBe(1);
+    expect(result.dayPoints).toBe(10);
+    expect(result.sessionPointsDelta).toBe(10);
+    expect(result.sessionStarsDelta).toBe(2);
+    expect(result.bonusStars).toBe(0);
   });
 
   it('stores duration for a non-timed backfill', () => {
@@ -85,7 +85,7 @@ describe('computeBackfillSession', () => {
   });
 
   it('thưởng +1 sao ở 25 điểm và thêm +2 sao ở 50 điểm', () => {
-    const result = computeBackfillSession([entry({ basePoints: 30 }), entry({ basePoints: 30 }), entry({ basePoints: 30 })], ctx);
+    const result = computeBackfillSession([entry({ isTimeBased: true, durationMin: 900 }), entry({ isTimeBased: true, durationMin: 900 }), entry({ isTimeBased: true, durationMin: 900 })], ctx);
     expect(result.dayPoints).toBe(90);
     expect(result.rows[0].bonusRow).not.toBeNull(); // crosses 25 threshold here
     expect(result.rows[1].bonusRow).not.toBeNull(); // crosses 50 threshold here
@@ -95,7 +95,7 @@ describe('computeBackfillSession', () => {
   });
 
   it('kế thừa điểm/bonus đã có sẵn trong ngày trước khi phiên bắt đầu', () => {
-    const result = computeBackfillSession([entry({ basePoints: 20 })], { ...ctx, initialDayPoints: 40, initialBonusStars: 0 });
+    const result = computeBackfillSession([entry({ isTimeBased: true, durationMin: 600 })], { ...ctx, initialDayPoints: 40, initialBonusStars: 0 });
     expect(result.dayPoints).toBe(60);
     expect(result.rows[0].bonusRow).not.toBeNull();
     expect(result.bonusStars).toBe(3);
@@ -116,7 +116,7 @@ describe('computeBackfillSession', () => {
 
   it('chỉ cộng vào rank những entry có countTowardRank = true', () => {
     const result = computeBackfillSession(
-      [entry({ basePoints: 20, countTowardRank: true }), entry({ basePoints: 20, countTowardRank: false })],
+      [entry({ isTimeBased: true, durationMin: 600, countTowardRank: true }), entry({ isTimeBased: true, durationMin: 600, countTowardRank: false })],
       ctx,
     );
     expect(result.sessionPointsDelta).toBe(40);

@@ -293,6 +293,7 @@ export function useArchiveTask(userId: number) {
       });
     },
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['activity-picker', userId] });
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['progress'] });

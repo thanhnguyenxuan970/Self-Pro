@@ -96,7 +96,7 @@ function resolveCellIcon(data: CalendarDay | undefined, isMilestone: boolean, is
   if (isMilestone && isBest) return <AnimatedBurningStarIcon />;
   if (isMilestone) return <AnimatedFireIcon />;
   if (isBest) return <AnimatedStarIcon />;
-  return <Text style={{ fontSize: 11, fontFamily: FontFamily.semiBold, marginTop: 1, color: muteColor }}>{parseFloat(data.stars.toFixed(1))}★</Text>;
+  return <Text style={{ fontSize: 11, fontFamily: FontFamily.semiBold, marginTop: 1, color: muteColor }}>{Math.round(data.stars)}★</Text>;
 }
 
 export function CalendarScreen() {
@@ -239,7 +239,7 @@ export function CalendarScreen() {
       {/* Month Summary */}
       <View style={styles.summary}>
         <View style={styles.summaryCell}>
-          <Text style={styles.summaryV}>{parseFloat(totalStars.toFixed(1))}★</Text>
+          <Text style={styles.summaryV}>{Math.round(totalStars)}★</Text>
           <Text style={styles.summaryL}>{t.calendarTotalStars}</Text>
         </View>
         <View style={styles.summarySep} />
@@ -249,7 +249,7 @@ export function CalendarScreen() {
         </View>
         <View style={styles.summarySep} />
         <View style={styles.summaryCell}>
-          <Text style={styles.summaryV}>{bestStars > 0 ? `${parseFloat(bestStars.toFixed(1))}★` : '—'}</Text>
+          <Text style={styles.summaryV}>{bestStars > 0 ? `${Math.round(bestStars)}★` : '—'}</Text>
           <Text style={styles.summaryL}>{t.calendarBest}</Text>
         </View>
       </View>

@@ -1,7 +1,8 @@
 import {
   STARS_PER_TASK,
-  dailyBonusStarsForPoints,
+  POINTS_PER_UNTIMED_ACTIVITY,
   TIME_UNIT_MINUTES,
+  dailyBonusStarsForPoints,
   SOURCE_TASK,
   SOURCE_DAILY_BONUS,
 } from '../config/constants';
@@ -47,10 +48,10 @@ export function computeLogTaskRows(input: ComputeInput): ComputeResult {
 
   if (input.kind === 'GOOD') {
     if (input.isTimeBased) {
-      pointsEarned = Math.max(1, Math.floor((input.durationMin ?? 0) / TIME_UNIT_MINUTES));
+      pointsEarned = Math.max(1, Math.ceil((input.durationMin ?? 0) / TIME_UNIT_MINUTES));
       starsDelta = STARS_PER_TASK;
     } else {
-      pointsEarned = input.basePoints;
+      pointsEarned = POINTS_PER_UNTIMED_ACTIVITY;
       starsDelta = STARS_PER_TASK;
     }
   } else {
@@ -79,7 +80,7 @@ export function computeLogTaskRows(input: ComputeInput): ComputeResult {
   ) {
     bonusRow = {
       user_id: input.userId,
-      task_type_id: null,
+      task_type_id: input.taskTypeId,
       kind: 'DAILY_BONUS',
       duration_min: null,
       points_earned: 0,

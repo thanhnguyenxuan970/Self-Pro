@@ -5,17 +5,6 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\"",
-            "timeout": 5,
-            "statusMessage": "Checking UI changes"
-          }
-        ]
-      },
-      {
         "matcher": "Edit",
         "hooks": [
           {
@@ -23,6 +12,17 @@
             "command": "cd \"${CLAUDE_PROJECT_DIR}/habit-tracker\" && npx tsc --noEmit",
             "timeout": 60,
             "statusMessage": "Type-checking habit-tracker"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\"",
+            "timeout": 5,
+            "statusMessage": "Checking UI changes"
           }
         ]
       }

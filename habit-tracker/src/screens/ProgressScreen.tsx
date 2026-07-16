@@ -44,12 +44,12 @@ function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, e
       )}
       <View style={styles.logBody}>
         <Text style={styles.logName} numberOfLines={1}>
-          {item.task_name != null ? resolveTaskDisplayName(item.task_name, t, item.is_template === 1) : (item.source === 'BONUS' ? bonusDay : item.source)}
+          {item.source === 'DAILY_BONUS' ? bonusDay : item.task_name != null ? resolveTaskDisplayName(item.task_name, t, item.is_template === 1) : item.source}
         </Text>
         <Text style={styles.logDate}>{item.local_date} · {timeStr}</Text>
       </View>
       <Text style={[styles.logStars, item.stars_delta < 0 && styles.logStarsBad]}>
-        {item.stars_delta >= 0 ? '+' : ''}{Math.trunc(item.stars_delta)} ★
+        {item.stars_delta >= 0 ? '+' : ''}{Math.round(item.stars_delta)} ★
       </Text>
     </TouchableOpacity>
   );
@@ -262,6 +262,7 @@ export function ProgressScreen() {
     ? Math.min(1, Math.max(0, ((rankData?.currentStars ?? 0) - rankFloor) / Math.max(1, nextTier.stars_required - rankFloor)))
     : 1;
   const rankName = getRankConfigByTierOrder(currentTier?.tier_order ?? 1).nameVi;
+  const displayCurrentStars = Math.round(rankData?.currentStars ?? 0);
   const isEmpty = allTimeStats?.totalActivities === 0;
 
   return (
@@ -278,8 +279,8 @@ export function ProgressScreen() {
         <Text style={styles.sectionLabel}>{t.analyticsWeeklyRank}</Text>
         <View style={styles.rankCard}>
           <View style={styles.rankHeader}>
-            <View><Text style={styles.rankName}>{rankName}</Text><Text style={styles.rankStars}>{rankData?.currentStars ?? 0} ★</Text></View>
-            <Text style={styles.rankNext}>{nextTier ? t.rankStarsToNext(Math.max(0, nextTier.stars_required - (rankData?.currentStars ?? 0))) : t.rankMaxed}</Text>
+            <View><Text style={styles.rankName}>{rankName}</Text><Text style={styles.rankStars}>{displayCurrentStars} ★</Text></View>
+            <Text style={styles.rankNext}>{nextTier ? t.rankStarsToNext(Math.round(Math.max(0, nextTier.stars_required - (rankData?.currentStars ?? 0)))) : t.rankMaxed}</Text>
           </View>
           <View style={styles.rankTrack}><View style={[styles.rankFill, { width: `${Math.round(rankProgress * 100)}%` }]} /></View>
         </View>

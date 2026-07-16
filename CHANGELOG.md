@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-07-16
+
+### Added
+- **Xem tiến bộ rõ hơn**: chạm vào một ngày trên heatmap để xem chi tiết, đồng thời chú giải sao hằng ngày và điểm thưởng nay dễ hiểu hơn.
+- **Thử thách dễ theo dõi hơn**: làm mới danh sách thử thách và màn tạo thử thách, giữ nút ghi nhận luôn trong tầm tay.
+
+### Fixed
+- **Trải nghiệm ổn định hơn**: sửa cách tính số ngày còn lại của thử thách, cải thiện khả năng đọc, vùng chạm và hỗ trợ trình đọc màn hình trên các màn chính.
+
 ### Added
 - **Trophy coin — metallic upgrade**: `Badge.tsx` rebuilt with a layered coin render (ambient shadow, 5-stop ring gradient, baked 8-lobe luster, bevel edge, recessed disc, emblem emboss, gloss/hotspot/rim-light) per the updated `TIER_COINS` 9-stop ramps in `badgeTiers.ts`; plain `react-native-svg` (no new Skia dependency, since none was already in use)
 - **Challenge Detail — redesigned layout**: added a "Đang chạy" running-status pill next to the title, a "còn N ngày" remaining-days pill under the progress ring, "Nhật ký N ngày" / "Before · After" section labels, and 🔥/🛟 icons on the streak/freeze stat cards

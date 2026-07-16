@@ -103,7 +103,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklySt
           <Text style={[styles.descriptor, { color: cfg.color }]} numberOfLines={2}>{cfg.descriptor}</Text>
         </Animated.View>
         <Animated.View style={[styles.starChip, riseStyle(starChip)]}>
-          <Text style={styles.starChipText}>{t.weekStars(weeklyStars ?? cfg.stars)}</Text>
+          <Text style={styles.starChipText}>{t.weekStars(Math.round(weeklyStars ?? cfg.stars))}</Text>
         </Animated.View>
         <Animated.View style={[styles.ctaWrap, riseStyle(cta)]}>
           <TouchableOpacity style={styles.cta} onPress={onDismiss} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={t.levelUpContinueCta}>

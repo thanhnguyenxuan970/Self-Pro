@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Animated,
+  StyleSheet, ActivityIndicator, Modal, Alert, Animated,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,9 +33,10 @@ import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 import { useShareCardData, tierPercentile } from '../hooks/useShareCardData';
 import { useNewsFeed } from '../queries/useNews';
 import { getNewsViewerKey } from '../utils/news';
-import { parseDurationMinutes } from '../utils/duration';
 import { useHeatmapData } from '../queries/useCalendar';
 import { HomeHeatmap } from '../components/HomeHeatmap';
+import { DurationClockInput } from '../components/DurationClockInput';
+import { clockMinutes } from '../utils/durationClock';
 
 const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑', 8: '👾', 9: '😇' };
 
@@ -59,19 +60,10 @@ function SuggestionEntranceWrapper({ index, reduceMotion, children }: { index: n
   );
 }
 
-function parseLogDuration(duration: string, durationUnit: 'min' | 'hr', errorTitle: string, validDurationMsg: string, maxDurationMsg: string): number | null {
-  const mins = parseDurationMinutes(duration, durationUnit);
-  if (mins === null) { Alert.alert(errorTitle, validDurationMsg); return null; }
-  if (mins > 1440) { Alert.alert(errorTitle, maxDurationMsg); return null; }
-  return mins;
-}
-
 type DurationModalLabels = {
   taskDisplayName: string;
   addActivityHowLong: string;
   durationCustom: string;
-  unitMin: string;
-  unitHour: string;
   logBtn: string;
   cancel: string;
   error: string;
@@ -91,14 +83,13 @@ type DurationModalProps = {
 };
 
 function DurationModal({ task, logPending, onLog, onClose, colors, styles, labels, reduceMotion }: DurationModalProps) {
-  const [duration, setDuration] = useState('');
-  const [durationUnit, setDurationUnit] = useState<'min' | 'hr'>('min');
+  const [clock, setClock] = useState({ hours: 0, minutes: 0 });
   const [customDuration, setCustomDuration] = useState(false);
   const boxScaleAnim = useRef(new Animated.Value(0.92)).current;
   const boxFadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (task) { setDuration(''); setDurationUnit('min'); setCustomDuration(false); }
+    if (task) { setClock({ hours: 0, minutes: 0 }); setCustomDuration(false); }
   }, [task?.id]);
 
   useEffect(() => {
@@ -113,8 +104,10 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
   }, [task?.id, reduceMotion]);
 
   function handleCustomLog() {
-    const mins = parseLogDuration(duration, durationUnit, labels.error, labels.validDuration, labels.maxDuration);
-    if (mins !== null) onLog(mins);
+    const mins = clockMinutes(clock);
+    if (mins <= 0) { Alert.alert(labels.error, labels.validDuration); return; }
+    if (mins > 1440) { Alert.alert(labels.error, labels.maxDuration); return; }
+    onLog(mins);
   }
 
   return (
@@ -137,31 +130,7 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
             </View>
           ) : (
             <>
-              <View style={styles.durationRow}>
-                <TextInput
-                  style={[styles.input, styles.durationInput]}
-                  keyboardType="decimal-pad"
-                  value={duration}
-                  onChangeText={setDuration}
-                  placeholder="0"
-                  placeholderTextColor={colors.muted}
-                  autoFocus
-                />
-                <View style={styles.unitToggle}>
-                  <TouchableOpacity
-                    style={[styles.unitBtn, durationUnit === 'min' && styles.unitBtnActive]}
-                    onPress={() => setDurationUnit('min')}
-                  >
-                    <Text style={[styles.unitBtnText, durationUnit === 'min' && styles.unitBtnTextActive]}>{labels.unitMin}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.unitBtn, durationUnit === 'hr' && styles.unitBtnActive]}
-                    onPress={() => setDurationUnit('hr')}
-                  >
-                    <Text style={[styles.unitBtnText, durationUnit === 'hr' && styles.unitBtnTextActive]}>{labels.unitHour}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+              <DurationClockInput value={clock} onChange={setClock} colors={colors} />
               <TouchableOpacity style={styles.btn} onPress={handleCustomLog} disabled={logPending}>
                 <Text style={styles.btnText}>{labels.logBtn}</Text>
               </TouchableOpacity>
@@ -567,8 +536,6 @@ export function TodayScreen() {
           taskDisplayName: modalTask ? resolveTaskDisplayName(modalTask.name, t) : '',
           addActivityHowLong: t.addActivityHowLong,
           durationCustom: t.durationCustom,
-          unitMin: t.unitMin,
-          unitHour: t.unitHour,
           logBtn: t.logBtn,
           cancel: t.cancel,
           error: t.error,
@@ -683,26 +650,6 @@ function makeStyles(C: AppColors) {
     presetChipCustom: { backgroundColor: C.surface2, borderWidth: 1.5, borderColor: C.line2 },
     presetChipText: { color: C.white, fontSize: 16, fontFamily: FontFamily.extraBold },
     presetChipCustomText: { color: C.inkDark },
-    durationRow: {
-      flexDirection: 'row', alignItems: 'stretch', gap: 10, marginBottom: Spacing.md,
-    },
-    input: {
-      backgroundColor: C.surface2, color: C.inkDark, padding: 13,
-      borderRadius: Radii.md, fontSize: 14,
-      borderWidth: 1.5, borderColor: C.line2,
-    },
-    durationInput: { flex: 1, fontSize: 22, fontFamily: FontFamily.bold, textAlign: 'center' },
-    unitToggle: {
-      flexDirection: 'column', borderRadius: Radii.md, overflow: 'hidden',
-      borderWidth: 1.5, borderColor: C.line2,
-    },
-    unitBtn: {
-      flex: 1, paddingHorizontal: 14, justifyContent: 'center', alignItems: 'center',
-      backgroundColor: C.surface2,
-    },
-    unitBtnActive: { backgroundColor: C.primary },
-    unitBtnText: { fontSize: 13, fontFamily: FontFamily.bold, color: C.muted },
-    unitBtnTextActive: { color: C.white },
     btn: { backgroundColor: C.primary, padding: 15, borderRadius: Radii.md, alignItems: 'center', marginBottom: 8 },
     btnText: { color: C.white, fontSize: 15, fontFamily: FontFamily.bold },
     cancel: { textAlign: 'center', color: C.muted, padding: 8 },

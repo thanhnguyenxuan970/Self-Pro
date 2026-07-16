@@ -60,7 +60,7 @@ function LeaderboardSection({ leaderboard, lbLoading, styles, colors, youLabel, 
                 {entry.displayName}{entry.isCurrentUser ? ` (${youLabel})` : ''}
               </Text>
             </View>
-            <Text style={styles.lbStars}>{entry.weeklyStars} ★</Text>
+            <Text style={styles.lbStars}>{Math.round(entry.weeklyStars)} ★</Text>
           </View>
         );
       })}
@@ -115,6 +115,8 @@ export function RankScreen() {
   const prevTierStars = currentTier?.stars_required ?? 0;
   const nextTierStars = nextTier?.stars_required ?? prevTierStars;
   const starsToNext = nextTier ? Math.max(0, nextTierStars - currentStars) : 0;
+  const displayCurrentStars = Math.round(currentStars);
+  const displayStarsToNext = Math.round(starsToNext);
   const progressPct = nextTier
     ? Math.min(1, Math.max(0, (currentStars - prevTierStars) / Math.max(1, nextTierStars - prevTierStars)))
     : 1;
@@ -148,13 +150,13 @@ export function RankScreen() {
             <Text style={styles.rankNm} numberOfLines={2}>{rankLabel}</Text>
             <Text style={styles.rankEn} numberOfLines={2}>{t.rankQuoteMap[currentTier?.rank_name ?? ''] ?? cfg.descriptor}</Text>
             <View style={styles.rankWk}>
-              <Text style={styles.rankWkTxt}>{t.weekStars(currentStars)}</Text>
+              <Text style={styles.rankWkTxt}>{t.weekStars(displayCurrentStars)}</Text>
             </View>
             <View style={styles.bar}>
               <View style={[styles.barFill, { width: `${Math.round(progressPct * 100)}%` as `${number}%` }]} />
             </View>
             {starsToNext > 0 ? (
-              <Text style={styles.nextCap}>{t.nextRank(starsToNext, nextRankLabel)}</Text>
+              <Text style={styles.nextCap}>{t.nextRank(displayStarsToNext, nextRankLabel)}</Text>
             ) : (
               <Text style={styles.nextCap}>{t.maxRank}</Text>
             )}

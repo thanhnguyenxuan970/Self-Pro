@@ -18,8 +18,9 @@ export function RankEmptyState({ currentStars, unlockStars = 5, nextRankName = '
   const { colors: C } = useTheme();
   const t = useTranslations();
   const s = makeStyles(C);
-  const remaining = Math.max(0, unlockStars - currentStars);
+  const remaining = Math.round(Math.max(0, unlockStars - currentStars));
   const pct = Math.max(0, Math.min(1, currentStars / unlockStars));
+  const displayStars = Math.round(currentStars);
 
   const ang = (-90 + pct * 360) * (Math.PI / 180);
   const ex = (CC + R * Math.cos(ang)).toFixed(1);
@@ -44,7 +45,7 @@ export function RankEmptyState({ currentStars, unlockStars = 5, nextRankName = '
         />
       </Svg>
 
-      <Text style={s.ringNum}>★ {parseFloat(currentStars.toFixed(1))} / {unlockStars}</Text>
+      <Text style={s.ringNum}>★ {displayStars} / {unlockStars}</Text>
       <Text style={s.title}>{t.noRankTitle}</Text>
       <Text style={s.sub}>{t.noRankRemaining(remaining, nextRankName)}</Text>
     </View>

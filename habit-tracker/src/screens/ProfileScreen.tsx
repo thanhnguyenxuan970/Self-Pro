@@ -44,7 +44,7 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
   })), [allTime?.totalActivities, allTime?.bestStreak, challengeDaysDone, currentTier?.tier_order, overachieveWeeks]);
   const earnedTrophies = useMemo(() => trophies.filter(trophy => trophy.earned), [trophies]);
   const rankProgress = nextTier
-    ? t.rankProgress(rank?.currentStars ?? 0, nextTier.stars_required, nextTier.rank_name)
+    ? t.rankProgress(Math.round(rank?.currentStars ?? 0), nextTier.stars_required, nextTier.rank_name)
     : t.rankMaxed;
 
   return (

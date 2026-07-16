@@ -19,15 +19,15 @@ const baseGoodTask: ComputeInput = {
   weekStart: '2025-05-26',
 };
 
-test('GOOD non-time task: base_points=10, stars_delta=+1', () => {
+test('GOOD non-time task: always earns 5 points and one star', () => {
   const result = computeLogTaskRows(baseGoodTask);
-  expect(result.activityRow.points_earned).toBe(10);
+  expect(result.activityRow.points_earned).toBe(5);
   expect(result.activityRow.stars_delta).toBe(1);
   expect(result.activityRow.source).toBe('TASK');
   expect(result.bonusRow).toBeNull();
 });
 
-test('GOOD time-based task: time earns points but each activity earns one star', () => {
+test('GOOD time-based task: 60 minutes earns two points and one star', () => {
   const result = computeLogTaskRows({
     ...baseGoodTask,
     isTimeBased: true,
@@ -35,6 +35,17 @@ test('GOOD time-based task: time earns points but each activity earns one star',
   });
   expect(result.activityRow.points_earned).toBe(2);
   expect(result.activityRow.stars_delta).toBe(1);
+});
+
+test('time points round each partial 30-minute block up', () => {
+  const pointsFor = (durationMin: number) => computeLogTaskRows({
+    ...baseGoodTask, isTimeBased: true, durationMin,
+  }).activityRow.points_earned;
+
+  expect(pointsFor(30)).toBe(1);
+  expect(pointsFor(40)).toBe(2);
+  expect(pointsFor(60)).toBe(2);
+  expect(pointsFor(61)).toBe(3);
 });
 
 test('time-based activity always earns one star regardless of duration', () => {
@@ -47,7 +58,7 @@ test('time-based activity always earns one star regardless of duration', () => {
   expect(starsFor(156)).toBe(1);
 });
 
-test('GOOD time-based task 15min: min 1 point', () => {
+test('GOOD time-based task 15min earns the minimum one point', () => {
   const result = computeLogTaskRows({
     ...baseGoodTask,
     isTimeBased: true,
@@ -71,13 +82,14 @@ test('25 daily points awards one bonus star', () => {
   });
   expect(result.bonusRow).not.toBeNull();
   expect(result.bonusRow!.source).toBe('DAILY_BONUS');
+  expect(result.bonusRow!.task_type_id).toBe(baseGoodTask.taskTypeId);
   expect(result.bonusRow!.stars_delta).toBe(1);
 });
 
 test('50 daily points adds two bonus stars after the 25-point reward', () => {
   const result = computeLogTaskRows({
     ...baseGoodTask,
-    currentDayPoints: 40,
+    currentDayPoints: 45,
     basePoints: 10,
     bonusStarsAwarded: 1,
   });
