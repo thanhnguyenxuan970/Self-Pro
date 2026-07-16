@@ -1,7 +1,14 @@
 // src/constants.ts
 export const STARS_PER_TASK = 1;
-export const DAILY_BONUS_THRESHOLD = 50;   // points in a day → +1 star (once/day)
-export const DAILY_BONUS_STARS = 1;
+export const DAILY_BONUS_THRESHOLD = 50;
+export function dailyBonusStarsForPoints(points: number): number {
+  if (points >= 50) return 3;
+  if (points >= 25) return 1;
+  return 0;
+}
+export function dailyBonusGoal(points: number, maximum = DAILY_BONUS_THRESHOLD): number {
+  return points >= maximum / 2 ? maximum : maximum / 2;
+}
 export const TIME_UNIT_MINUTES = 30;       // +1 pt per 30 min of time-based task
 const DEFAULT_PENALTY_STARS = 2;  // bad habit star penalty (1-2 stars; 50 was a units mix-up)
 const DEFAULT_CURRENCY = 'VND';

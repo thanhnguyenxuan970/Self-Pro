@@ -1,12 +1,10 @@
 import {
   STARS_PER_TASK,
-  DAILY_BONUS_THRESHOLD,
-  DAILY_BONUS_STARS,
+  dailyBonusStarsForPoints,
   TIME_UNIT_MINUTES,
   SOURCE_TASK,
   SOURCE_DAILY_BONUS,
 } from '../config/constants';
-import { computeStars } from './points';
 
 export interface ComputeInput {
   userId: number;
@@ -17,7 +15,7 @@ export interface ComputeInput {
   starPenalty: number;
   durationMin?: number;
   currentDayPoints: number;
-  bonusAlreadyAwarded: boolean;
+  bonusStarsAwarded: number;
   loggedAt: Date;
   localDate: string;
   weekStart: string;
@@ -50,7 +48,7 @@ export function computeLogTaskRows(input: ComputeInput): ComputeResult {
   if (input.kind === 'GOOD') {
     if (input.isTimeBased) {
       pointsEarned = Math.max(1, Math.floor((input.durationMin ?? 0) / TIME_UNIT_MINUTES));
-      starsDelta = Math.max(1, computeStars(input.durationMin ?? 0));
+      starsDelta = STARS_PER_TASK;
     } else {
       pointsEarned = input.basePoints;
       starsDelta = STARS_PER_TASK;
@@ -77,8 +75,7 @@ export function computeLogTaskRows(input: ComputeInput): ComputeResult {
   const newDayPoints = input.currentDayPoints + pointsEarned;
   if (
     input.kind === 'GOOD' &&
-    !input.bonusAlreadyAwarded &&
-    newDayPoints >= DAILY_BONUS_THRESHOLD
+    dailyBonusStarsForPoints(newDayPoints) > input.bonusStarsAwarded
   ) {
     bonusRow = {
       user_id: input.userId,
@@ -86,7 +83,7 @@ export function computeLogTaskRows(input: ComputeInput): ComputeResult {
       kind: 'DAILY_BONUS',
       duration_min: null,
       points_earned: 0,
-      stars_delta: DAILY_BONUS_STARS,
+      stars_delta: dailyBonusStarsForPoints(newDayPoints) - input.bonusStarsAwarded,
       source: SOURCE_DAILY_BONUS,
       logged_at: ts,
       local_date: input.localDate,

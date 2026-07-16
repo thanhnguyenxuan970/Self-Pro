@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
+import { dailyBonusStarsForPoints } from '../config/constants';
 import { getLocalDate, getWeekStart, getLocalDateOffset, getWeekStartOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
 
 export type ActivityLogEntry = {
@@ -226,17 +227,17 @@ export function useRecentActivityLogs(userId: number, limit = 50, fromDate?: str
 }
 
 type DeleteRow = { id: number; local_date: string; week_start: string; points_earned: number; stars_delta: number; kind: string; source: string };
-type DateEntry = { points: number; stars: number; hasBonus: boolean; weekStart: string };
+type DateEntry = { points: number; stars: number; selectedBonus: boolean; weekStart: string };
 
 function groupDeleteRows(rows: DeleteRow[]): { byDate: Map<string, DateEntry>; goodStarsDelta: number; badPenaltyAmt: number } {
   const byDate = new Map<string, DateEntry>();
   let goodStarsDelta = 0;
   let badPenaltyAmt = 0;
   for (const row of rows) {
-    const entry = byDate.get(row.local_date) ?? { points: 0, stars: 0, hasBonus: false, weekStart: row.week_start };
+    const entry = byDate.get(row.local_date) ?? { points: 0, stars: 0, selectedBonus: false, weekStart: row.week_start };
     entry.points += row.points_earned;
-    entry.stars += row.stars_delta;
-    if (row.source === 'DAILY_BONUS') entry.hasBonus = true;
+    if (row.source !== 'DAILY_BONUS') entry.stars += row.stars_delta;
+    else entry.selectedBonus = true;
     byDate.set(row.local_date, entry);
     if (row.kind === 'GOOD') goodStarsDelta += row.stars_delta;
     else if (row.kind === 'BAD') badPenaltyAmt += Math.abs(row.stars_delta);
@@ -246,25 +247,39 @@ function groupDeleteRows(rows: DeleteRow[]): { byDate: Map<string, DateEntry>; g
 
 async function revertDailySummariesForDelete(
   db: SQLiteDatabase, userId: number, byDate: Map<string, DateEntry>,
-): Promise<void> {
-  for (const [date, { points, hasBonus }] of byDate) {
-    const daily = await db.getFirstAsync<{ total_points: number }>(
-      `SELECT total_points FROM daily_summary WHERE user_id = ? AND local_date = ?`,
+): Promise<number> {
+  let bonusStarsRemoved = 0;
+  for (const [date, entry] of byDate) {
+    const daily = await db.getFirstAsync<{ total_points: number; bonus_star_awarded: number }>(
+      `SELECT total_points, bonus_star_awarded FROM daily_summary WHERE user_id = ? AND local_date = ?`,
       [userId, date]
     );
-    const remaining = (daily?.total_points ?? 0) - points;
+    const remaining = (daily?.total_points ?? 0) - entry.points;
+    const remainingBonusStars = dailyBonusStarsForPoints(remaining);
+    const removed = Math.max(0, (daily?.bonus_star_awarded ?? 0) - remainingBonusStars);
+    entry.stars += removed;
+    bonusStarsRemoved += removed;
+    if (removed > 0 || entry.selectedBonus) {
+      await db.runAsync(`DELETE FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS'`, [userId, date]);
+      if (remainingBonusStars > 0) await db.runAsync(
+        `INSERT INTO activity_log (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
+         VALUES (?, NULL, 'DAILY_BONUS', NULL, 0, ?, 'DAILY_BONUS', ?, ?, ?)`,
+        [userId, remainingBonusStars, Date.now(), date, entry.weekStart],
+      );
+    }
     if (remaining <= 0) {
       await db.runAsync(`DELETE FROM daily_summary WHERE user_id = ? AND local_date = ?`, [userId, date]);
     } else {
       await db.runAsync(
         `UPDATE daily_summary SET
            total_points = MAX(0, total_points - ?),
-           bonus_star_awarded = CASE WHEN ? THEN 0 ELSE bonus_star_awarded END
+           bonus_star_awarded = ?
          WHERE user_id = ? AND local_date = ?`,
-        [points, hasBonus ? 1 : 0, userId, date]
+        [entry.points, remainingBonusStars, userId, date]
       );
     }
   }
+  return bonusStarsRemoved;
 }
 
 async function revertWeeklySummariesForDelete(
@@ -316,13 +331,13 @@ export function useDeleteActivityLogs(userId: number) {
         if (rows.length === 0) return;
 
         const { byDate, goodStarsDelta, badPenaltyAmt } = groupDeleteRows(rows);
-        await revertDailySummariesForDelete(db, userId, byDate);
+        const bonusStarsRemoved = await revertDailySummariesForDelete(db, userId, byDate);
         await revertWeeklySummariesForDelete(db, userId, byDate);
 
-        if (goodStarsDelta > 0) {
+        if (goodStarsDelta + bonusStarsRemoved > 0) {
           await db.runAsync(
             `UPDATE users SET treat_stars = MAX(0, treat_stars - ?) WHERE id = ?`,
-            [goodStarsDelta, userId]
+            [goodStarsDelta + bonusStarsRemoved, userId]
           );
         }
         if (badPenaltyAmt > 0) {

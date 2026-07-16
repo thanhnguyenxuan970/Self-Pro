@@ -132,21 +132,20 @@ async function runBackfillTx(
     localDate: backfillDate,
     weekStart: backfillWeekStart,
     initialDayPoints: existingDaily ? existingDaily.total_points : 0,
-    initialBonusAwarded: existingDaily ? !!existingDaily.bonus_star_awarded : false,
+    initialBonusStars: existingDaily?.bonus_star_awarded ?? 0,
   });
 
   for (const { activityRow, bonusRow } of session.rows) {
     await insertActivityRows(db, activityRow, bonusRow, nowMs, backfillDate, backfillWeekStart);
   }
 
-  const hasBonus = session.bonusAwarded ? 1 : 0;
   await db.runAsync(
     `INSERT INTO daily_summary (user_id, local_date, total_points, bonus_star_awarded, streak_count)
      VALUES (?, ?, ?, ?, 0)
      ON CONFLICT(user_id, local_date) DO UPDATE SET
        total_points = total_points + ?,
-       bonus_star_awarded = CASE WHEN ? THEN 1 ELSE bonus_star_awarded END`,
-    [userId, backfillDate, session.dayPoints, hasBonus, session.sessionPointsDelta, hasBonus],
+       bonus_star_awarded = excluded.bonus_star_awarded`,
+    [userId, backfillDate, session.dayPoints, session.bonusStars, session.sessionPointsDelta],
   );
 
   const newStreak = await recomputeStreakChain(db, userId, backfillDate, today);

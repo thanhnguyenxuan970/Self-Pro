@@ -64,7 +64,7 @@ describe('computeBackfillSession', () => {
     localDate: '2026-06-17',
     weekStart: '2026-06-15',
     initialDayPoints: 0,
-    initialBonusAwarded: false,
+    initialBonusStars: 0,
   };
   const entry = (over: Partial<BackfillSessionEntry> = {}): BackfillSessionEntry => ({
     taskTypeId: 1, kind: 'GOOD', isTimeBased: false, basePoints: 20, starPenalty: 0, ...over,
@@ -75,8 +75,8 @@ describe('computeBackfillSession', () => {
     expect(result.rows).toHaveLength(2);
     expect(result.dayPoints).toBe(40);
     expect(result.sessionPointsDelta).toBe(40);
-    expect(result.sessionStarsDelta).toBe(2);
-    expect(result.bonusAwarded).toBe(false);
+    expect(result.sessionStarsDelta).toBe(3);
+    expect(result.bonusStars).toBe(1);
   });
 
   it('stores duration for a non-timed backfill', () => {
@@ -84,25 +84,25 @@ describe('computeBackfillSession', () => {
     expect(result.rows[0].activityRow.duration_min).toBe(75);
   });
 
-  it('chỉ thưởng daily-bonus 1 lần dù vượt ngưỡng nhiều lần trong phiên', () => {
+  it('thưởng +1 sao ở 25 điểm và thêm +2 sao ở 50 điểm', () => {
     const result = computeBackfillSession([entry({ basePoints: 30 }), entry({ basePoints: 30 }), entry({ basePoints: 30 })], ctx);
     expect(result.dayPoints).toBe(90);
-    expect(result.rows[0].bonusRow).toBeNull();
+    expect(result.rows[0].bonusRow).not.toBeNull(); // crosses 25 threshold here
     expect(result.rows[1].bonusRow).not.toBeNull(); // crosses 50 threshold here
     expect(result.rows[2].bonusRow).toBeNull(); // already awarded
-    expect(result.bonusAwarded).toBe(true);
-    expect(result.sessionStarsDelta).toBe(3 + 1); // 3 task stars + 1 daily bonus
+    expect(result.bonusStars).toBe(3);
+    expect(result.sessionStarsDelta).toBe(3 + 3); // 3 task stars + 3 daily bonus
   });
 
   it('kế thừa điểm/bonus đã có sẵn trong ngày trước khi phiên bắt đầu', () => {
-    const result = computeBackfillSession([entry({ basePoints: 20 })], { ...ctx, initialDayPoints: 40, initialBonusAwarded: false });
+    const result = computeBackfillSession([entry({ basePoints: 20 })], { ...ctx, initialDayPoints: 40, initialBonusStars: 0 });
     expect(result.dayPoints).toBe(60);
     expect(result.rows[0].bonusRow).not.toBeNull();
-    expect(result.bonusAwarded).toBe(true);
+    expect(result.bonusStars).toBe(3);
   });
 
   it('không thưởng lại nếu bonus hôm đó đã được thưởng từ trước', () => {
-    const result = computeBackfillSession([entry({ basePoints: 20 })], { ...ctx, initialDayPoints: 40, initialBonusAwarded: true });
+    const result = computeBackfillSession([entry({ basePoints: 20 })], { ...ctx, initialDayPoints: 60, initialBonusStars: 3 });
     expect(result.rows[0].bonusRow).toBeNull();
     expect(result.sessionStarsDelta).toBe(1);
   });

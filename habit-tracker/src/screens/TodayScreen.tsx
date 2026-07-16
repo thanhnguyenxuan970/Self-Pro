@@ -542,6 +542,7 @@ export function TodayScreen() {
                   justLogged={justLoggedIds.has(item.id)}
                   totalDurationMin={totalDurations?.get(item.id)?.duration}
                   starsEarned={totalDurations?.get(item.id)?.stars}
+                  pointsEarned={totalDurations?.get(item.id)?.points}
                   onPress={() => selectionMode ? toggleSelect(item.id) : handleLog(item)}
                   onLongPress={() => enterSelection(item.id)}
                   onEdit={() => setEditTask(item)}

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
-import { DAILY_BONUS_THRESHOLD, DAILY_BONUS_STARS } from '../config/constants';
+import { dailyBonusStarsForPoints } from '../config/constants';
 import { MAX_PINNED_ACTIVITIES, PickerTask } from '../utils/activityPicker';
 
 interface TaskFormParams {
@@ -140,14 +140,22 @@ async function revertDailySummaries(
     if (!daily) continue;
 
     const remainingPoints = daily.total_points - taskPoints;
-    let bonusStars = 0;
+    const remainingBonusStars = dailyBonusStarsForPoints(remainingPoints);
+    const bonusStars = Math.max(0, daily.bonus_star_awarded - remainingBonusStars);
 
-    if (daily.bonus_star_awarded && remainingPoints < DAILY_BONUS_THRESHOLD) {
-      bonusStars = DAILY_BONUS_STARS;
+    if (bonusStars > 0) {
       await db.runAsync(
         `DELETE FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS'`,
         [userId, date]
       );
+      if (remainingBonusStars > 0) {
+        await db.runAsync(
+          `INSERT INTO activity_log
+           (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
+           VALUES (?, NULL, 'DAILY_BONUS', NULL, 0, ?, 'DAILY_BONUS', ?, ?, ?)`,
+          [userId, remainingBonusStars, Date.now(), date, weekStart],
+        );
+      }
       const wk = byWeek.get(weekStart) ?? { points: 0, stars: 0 };
       byWeek.set(weekStart, { ...wk, stars: wk.stars + bonusStars });
     }
@@ -163,9 +171,9 @@ async function revertDailySummaries(
       await db.runAsync(
         `UPDATE daily_summary SET
            total_points = MAX(0, total_points - ?),
-           bonus_star_awarded = CASE WHEN ? THEN 0 ELSE bonus_star_awarded END
+           bonus_star_awarded = ?
          WHERE user_id = ? AND local_date = ?`,
-        [taskPoints, bonusStars > 0 ? 1 : 0, userId, date]
+        [taskPoints, remainingBonusStars, userId, date]
       );
     }
   }

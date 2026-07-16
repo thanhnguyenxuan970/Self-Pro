@@ -80,13 +80,13 @@ export interface BackfillSessionContext {
   localDate: string;
   weekStart: string;
   initialDayPoints: number;
-  initialBonusAwarded: boolean;
+  initialBonusStars: number;
 }
 
 export interface BackfillSessionResult {
   rows: ComputeResult[];         // one {activityRow, bonusRow} per entry, in order
   dayPoints: number;             // cumulative daily total_points after the whole session
-  bonusAwarded: boolean;         // daily bonus flag after the whole session
+  bonusStars: number;            // total daily bonus after the whole session
   sessionPointsDelta: number;    // total points added across all entries
   sessionStarsDelta: number;     // total stars added across all entries
   rankPointsDelta: number;       // points from entries with countTowardRank === true
@@ -104,7 +104,7 @@ export function computeBackfillSession(
   ctx: BackfillSessionContext,
 ): BackfillSessionResult {
   let dayPoints = ctx.initialDayPoints;
-  let bonusAwarded = ctx.initialBonusAwarded;
+  let bonusStars = ctx.initialBonusStars;
   let sessionPointsDelta = 0;
   let sessionStarsDelta = 0;
   let rankPointsDelta = 0;
@@ -121,7 +121,7 @@ export function computeBackfillSession(
       starPenalty: entry.starPenalty,
       durationMin: entry.durationMin,
       currentDayPoints: dayPoints,
-      bonusAlreadyAwarded: bonusAwarded,
+      bonusStarsAwarded: bonusStars,
       loggedAt: ctx.loggedAt,
       localDate: ctx.localDate,
       weekStart: ctx.weekStart,
@@ -130,7 +130,7 @@ export function computeBackfillSession(
 
     const entryStarsDelta = result.activityRow.stars_delta + (result.bonusRow ? result.bonusRow.stars_delta : 0);
     dayPoints += result.activityRow.points_earned;
-    if (result.bonusRow) bonusAwarded = true;
+    if (result.bonusRow) bonusStars += result.bonusRow.stars_delta;
     sessionPointsDelta += result.activityRow.points_earned;
     sessionStarsDelta += entryStarsDelta;
     if (entry.countTowardRank === true) {
@@ -139,5 +139,5 @@ export function computeBackfillSession(
     }
   }
 
-  return { rows, dayPoints, bonusAwarded, sessionPointsDelta, sessionStarsDelta, rankPointsDelta, rankStarsDelta };
+  return { rows, dayPoints, bonusStars, sessionPointsDelta, sessionStarsDelta, rankPointsDelta, rankStarsDelta };
 }

@@ -89,11 +89,10 @@ type MetaProps = {
 // fallow-ignore-next-line complexity
 function TaskMetaRow({ item, done, totalDurationMin, styles }: MetaProps) {
   const showDuration = done && !!item.is_time_based && (totalDurationMin ?? 0) > 0;
-  if (!item.icon && !showDuration) return null;
+  if (!showDuration) return null;
   return (
     <View style={styles.tMeta}>
-      {item.icon ? <Text style={styles.tMetaText}>{item.icon}</Text> : null}
-      {showDuration ? <><View style={styles.dot} /><Text style={[styles.tMetaText, styles.tMetaDuration]}>{fmtDuration(totalDurationMin!)}</Text></> : null}
+      <Text style={[styles.tMetaText, styles.tMetaDuration]}>{fmtDuration(totalDurationMin!)}</Text>
     </View>
   );
 }
@@ -101,12 +100,12 @@ function TaskMetaRow({ item, done, totalDurationMin, styles }: MetaProps) {
 type Props = {
   item: Task; done: boolean; isBad: boolean; isLast: boolean;
   isSelected: boolean; selectionMode: boolean; justLogged: boolean;
-  totalDurationMin?: number; starsEarned?: number; logPending: boolean;
+  totalDurationMin?: number; starsEarned?: number; pointsEarned?: number; logPending: boolean;
   colors: AppColors;
   onPress: () => void; onLongPress: () => void; onEdit?: () => void;
 };
 
-export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, starsEarned, onPress, onLongPress, onEdit, logPending, colors }: Props) {
+export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, starsEarned, pointsEarned, onPress, onLongPress, onEdit, logPending, colors }: Props) {
   const t = useTranslations();
   const styles = useMemo(() => makeTaskRowStyles(colors), [colors]);
   const { fadeAnim, scaleAnim, checkScaleAnim } = useTaskRowAnimation(justLogged, done);
@@ -128,11 +127,14 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
           <Text style={styles.checkMark}>{resolveCheckMark(selectionMode, isSelected, done, isBad)}</Text>
         </Animated.View>
         <View style={styles.tBody}>
-          <Text style={[styles.tName, done && styles.tNameDone]} numberOfLines={1}>{resolveTaskDisplayName(item.name, t, item.is_template === 1)}</Text>
+          <View style={styles.titleRow}>
+            <Text style={[styles.tName, done && styles.tNameDone]} numberOfLines={1}>{resolveTaskDisplayName(item.name, t, item.is_template === 1)}</Text>
+            {item.icon ? <Text style={styles.titleIcon}>{item.icon}</Text> : null}
+          </View>
           <TaskMetaRow item={item} done={done} totalDurationMin={totalDurationMin}
             styles={styles} />
         </View>
-        <View style={styles.rightCol}>
+        {done ? <View style={styles.rightCol}>
           {!selectionMode && onEdit ? (
             <TouchableOpacity
               onPress={onEdit}
@@ -140,13 +142,13 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
               accessibilityLabel={t.editActivity}
               accessibilityRole="button"
             >
-              <Text style={styles.editIcon}>✏️</Text>
+              <Text style={styles.editIcon}>...</Text>
             </TouchableOpacity>
           ) : null}
           <Text style={[styles.tPts, resolvePtsStyle(styles, done, isBad)]}>
-            {isBad ? `−${item.star_penalty} ★` : `+${done ? (starsEarned ?? 1) : 1} ★`}
+            {isBad ? `−${item.star_penalty}★` : `+${done ? (starsEarned ?? 1) : 1}★${done ? ` · +${t.ptsShort(pointsEarned ?? item.base_points)}` : ''}`}
           </Text>
-        </View>
+        </View> : null}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -172,12 +174,13 @@ function makeTaskRowStyles(C: AppColors) {
     checkBad: { backgroundColor: C.danger, borderColor: C.danger },
     checkMark: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.white },
     tBody: { flex: 1, minWidth: 0 },
-    tName: { fontSize: 14.5, lineHeight: 20, fontFamily: FontFamily.semiBold, color: C.inkDark },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    tName: { flexShrink: 1, fontSize: 14.5, lineHeight: 20, fontFamily: FontFamily.semiBold, color: C.inkDark },
     tNameDone: { color: C.muted, textDecorationLine: 'line-through' },
+    titleIcon: { fontSize: 13, lineHeight: 20 },
     tMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
     tMetaText: { fontSize: 11.5, lineHeight: 17, color: C.muted },
     tMetaDuration: { color: C.primary, fontFamily: FontFamily.bold },
-    dot: { width: 3, height: 3, backgroundColor: C.faint, borderRadius: 2 },
     rightCol: { alignItems: 'flex-end', gap: 2, flexShrink: 0 },
     editIcon: { fontSize: 14 },
     tPts: { fontSize: 13, fontFamily: FontFamily.extraBold, flexShrink: 0 },

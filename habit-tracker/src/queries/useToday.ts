@@ -9,7 +9,7 @@ import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
 import { computeTierUnlocks, TierRow } from '../game/tierUnlocks';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
-import { DAILY_BONUS_THRESHOLD, DAILY_BONUS_STARS } from '../config/constants';
+import { dailyBonusStarsForPoints } from '../config/constants';
 
 type FullTierRow = TierRow & { tier_order: number; rank_name: string };
 
@@ -56,6 +56,23 @@ async function insertLogRows(
       bonusRow.points_earned, bonusRow.stars_delta, bonusRow.source,
       bonusRow.logged_at, bonusRow.local_date, bonusRow.week_start,
     ]);
+  }
+}
+
+async function replaceDailyBonusRows(
+  db: SQLiteDatabase, userId: number, localDate: string, weekStart: string, stars: number,
+): Promise<void> {
+  await db.runAsync(
+    `DELETE FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS'`,
+    [userId, localDate],
+  );
+  if (stars > 0) {
+    await db.runAsync(
+      `INSERT INTO activity_log
+       (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
+       VALUES (?, NULL, 'DAILY_BONUS', NULL, 0, ?, 'DAILY_BONUS', ?, ?, ?)`,
+      [userId, stars, Date.now(), localDate, weekStart],
+    );
   }
 }
 
@@ -149,7 +166,7 @@ async function updateTreatPool(
 
 async function revertDailySummaryUnlog(
   db: SQLiteDatabase, userId: number, today: string,
-  taskPoints: number, bonusStars: number, remainingPoints: number,
+  taskPoints: number, remainingBonusStars: number, remainingPoints: number,
 ): Promise<void> {
   if (remainingPoints <= 0) {
     await db.runAsync(`DELETE FROM daily_summary WHERE user_id = ? AND local_date = ?`, [userId, today]);
@@ -157,9 +174,9 @@ async function revertDailySummaryUnlog(
     await db.runAsync(
       `UPDATE daily_summary SET
          total_points = MAX(0, total_points - ?),
-         bonus_star_awarded = CASE WHEN ? THEN 0 ELSE bonus_star_awarded END
+         bonus_star_awarded = ?
        WHERE user_id = ? AND local_date = ?`,
-      [taskPoints, bonusStars > 0 ? 1 : 0, userId, today]
+      [taskPoints, remainingBonusStars, userId, today]
     );
   }
 }
@@ -359,7 +376,7 @@ export function useLogTask(userId: number) {
           isTimeBased: params.isTimeBased, basePoints: params.basePoints,
           starPenalty: params.starPenalty, durationMin: params.durationMin,
           currentDayPoints: daily?.total_points ?? 0,
-          bonusAlreadyAwarded: !!daily?.bonus_star_awarded,
+          bonusStarsAwarded: daily?.bonus_star_awarded ?? 0,
           loggedAt: now, localDate: today, weekStart,
         });
 
@@ -378,9 +395,9 @@ export function useLogTask(userId: number) {
            VALUES (?, ?, ?, ?, ?)
            ON CONFLICT(user_id, local_date) DO UPDATE SET
              total_points = total_points + ?,
-             bonus_star_awarded = CASE WHEN ? THEN 1 ELSE bonus_star_awarded END`,
+             bonus_star_awarded = bonus_star_awarded + ?`,
           [userId, today, (daily?.total_points ?? 0) + activityRow.points_earned,
-           bonusRow ? 1 : 0, todayStreak, activityRow.points_earned, bonusRow ? 1 : 0]
+           bonusRow?.stars_delta ?? 0, todayStreak, activityRow.points_earned, bonusRow?.stars_delta ?? 0]
         );
 
         await db.runAsync(
@@ -442,14 +459,14 @@ export function useTodayTaskTotalDurations(userId: number) {
     queryKey: ['today', 'durations', userId, today],
     queryFn: async () => {
       const db = await getDb();
-      const rows = await db.getAllAsync<{ task_type_id: number; total_min: number; total_stars: number }>(
-        `SELECT task_type_id, SUM(duration_min) AS total_min, SUM(stars_delta) AS total_stars
+      const rows = await db.getAllAsync<{ task_type_id: number; total_min: number; total_stars: number; total_points: number }>(
+        `SELECT task_type_id, SUM(duration_min) AS total_min, SUM(stars_delta) AS total_stars, SUM(points_earned) AS total_points
          FROM activity_log
          WHERE user_id = ? AND local_date = ? AND task_type_id IS NOT NULL AND source = 'TASK'
          GROUP BY task_type_id`,
         [userId, today]
       );
-      return new Map(rows.map(r => [r.task_type_id, { duration: r.total_min ?? 0, stars: r.total_stars ?? 0 }]));
+      return new Map(rows.map(r => [r.task_type_id, { duration: r.total_min ?? 0, stars: r.total_stars ?? 0, points: r.total_points ?? 0 }]));
     },
   });
 }
@@ -484,20 +501,10 @@ export function useUnlogTask(userId: number) {
         );
 
         const remainingPoints = (daily?.total_points ?? 0) - taskPoints;
-        let bonusStars = 0;
-        if (remainingPoints < DAILY_BONUS_THRESHOLD) {
-          const bonusRow = await db.getFirstAsync<{ id: number }>(
-            `SELECT id FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS' LIMIT 1`,
-            [userId, today]
-          );
-          if (bonusRow) {
-            bonusStars = DAILY_BONUS_STARS;
-            await db.runAsync(
-              `DELETE FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS'`,
-              [userId, today]
-            );
-          }
-        }
+        const currentBonusStars = daily?.bonus_star_awarded ?? 0;
+        const remainingBonusStars = dailyBonusStarsForPoints(remainingPoints);
+        const bonusStars = Math.max(0, currentBonusStars - remainingBonusStars);
+        if (bonusStars > 0) await replaceDailyBonusRows(db, userId, today, weekStart, remainingBonusStars);
 
         const totalStarsDelta = taskStars + bonusStars;
         const newWeeklyStars = Math.max(0, (weeklyRow?.weekly_stars ?? 0) - totalStarsDelta);
@@ -506,7 +513,7 @@ export function useUnlogTask(userId: number) {
           await db.runAsync(`DELETE FROM activity_log WHERE id = ?`, [row.id]);
         }
 
-        await revertDailySummaryUnlog(db, userId, today, taskPoints, bonusStars, remainingPoints);
+        await revertDailySummaryUnlog(db, userId, today, taskPoints, remainingBonusStars, remainingPoints);
 
         await db.runAsync(
           `UPDATE weekly_summary SET
