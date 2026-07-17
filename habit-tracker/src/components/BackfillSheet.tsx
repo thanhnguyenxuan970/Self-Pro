@@ -8,11 +8,14 @@ import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
 import { useActivityPickerTasks, useCreateTask } from '../queries/useTasks';
+import { useUpdateTaskName } from '../queries/useTasks';
 import { useBackfillDay, type BackfillEntryParams } from '../queries/useBackfill';
 import { backfillRemaining } from '../game/backfill';
 import { AppColors, FontFamily, Radii, Spacing } from '../config/theme';
 import { TEMPLATE_CATEGORIES, type TemplateTask } from '../config/constants';
 import { AddActivitySheet } from '../screens/AddActivitySheet';
+import { EditActivityModal } from './EditActivityModal';
+import type { Task } from './TaskRow';
 
 type PickerTask = { id: number; icon?: string | null; name: string };
 type BackfillErrorT = { backfillDenyQuota: string; backfillDenyFull: string; backfillDenyFreeze: string; cantLog: string };
@@ -141,6 +144,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   const { data: pickerTasks = [] } = useActivityPickerTasks(userId);
   const tasks = useMemo(() => pickerTasks.filter(task => task.archived === 0), [pickerTasks]);
   const createTask = useCreateTask(userId);
+  const updateTaskName = useUpdateTaskName(userId);
   const { mutateAsync, isPending } = useBackfillDay(userId);
 
   const [entries, setEntries] = useState<DraftEntry[]>([]);
@@ -149,6 +153,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
   const [showAddActivity, setShowAddActivity] = useState(false);
+  const [editTask, setEditTask] = useState<Task | null>(null);
   const nextEntryId = useRef(0);
 
   useEffect(() => {
@@ -202,10 +207,14 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
 
   function handleEditEntry(id: string) {
     const entry = entries.find(e => e.id === id);
-    if (!entry) return;
-    setEditingEntryId(id);
-    setSelectedTaskId(entry.taskTypeId);
-    setSelectedTimed(entry.isTimeBased);
+    const task = tasks.find(item => item.id === entry?.taskTypeId);
+    if (task) setEditTask(task as Task);
+  }
+
+  async function saveEditedTask(taskId: number, name: string) {
+    await updateTaskName.mutateAsync({ taskId, name });
+    setEntries(prev => prev.map(entry => entry.taskTypeId === taskId ? { ...entry, name } : entry));
+    setEditTask(null);
   }
 
   function handleRemoveEntry(id: string) {
@@ -361,6 +370,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
         </View>
       </KeyboardAvoidingView>
       <AddActivitySheet visible={showAddActivity} onClose={() => setShowAddActivity(false)} />
+      <EditActivityModal visible={!!editTask} task={editTask} onClose={() => setEditTask(null)} onSave={(taskId, name) => { void saveEditedTask(taskId, name); }} />
     </Modal>
   );
 }
