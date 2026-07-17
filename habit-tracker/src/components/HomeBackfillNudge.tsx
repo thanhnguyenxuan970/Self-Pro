@@ -79,7 +79,7 @@ function makeStyles(C: AppColors) {
     dayLabel: { color: C.muted, fontFamily: FontFamily.medium, fontSize: 10 },
     day: { width: 28, height: 28, borderRadius: Radii.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: C.surface2 },
     dayDone: { backgroundColor: C.primary },
-    dayPending: { backgroundColor: C.surface, borderWidth: 1, borderStyle: 'dashed', borderColor: C.primary },
+    dayPending: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.primary },
     dayToday: { borderWidth: 1.5, borderColor: C.primary },
     dayFuture: { opacity: 0.45 },
     dayValue: { color: C.muted, fontFamily: FontFamily.bold, fontSize: 13 },
