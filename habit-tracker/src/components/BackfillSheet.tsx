@@ -7,8 +7,9 @@ import Toast from 'react-native-toast-message';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
-import { useActivityPickerTasks, useCreateTask } from '../queries/useTasks';
+import { useCreateTask } from '../queries/useTasks';
 import { useUpdateTaskName } from '../queries/useTasks';
+import { useTodayTasks } from '../queries/useToday';
 import { useBackfillDay, type BackfillEntryParams } from '../queries/useBackfill';
 import { backfillRemaining } from '../game/backfill';
 import { AppColors, FontFamily, Radii, Spacing } from '../config/theme';
@@ -141,8 +142,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   const { bottom } = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors, bottom), [colors, bottom]);
 
-  const { data: pickerTasks = [] } = useActivityPickerTasks(userId);
-  const tasks = useMemo(() => pickerTasks.filter(task => task.archived === 0), [pickerTasks]);
+  const { data: tasks = [] } = useTodayTasks(userId);
   const createTask = useCreateTask(userId);
   const updateTaskName = useUpdateTaskName(userId);
   const { mutateAsync, isPending } = useBackfillDay(userId);
