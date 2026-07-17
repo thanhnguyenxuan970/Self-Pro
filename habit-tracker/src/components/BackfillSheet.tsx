@@ -12,6 +12,7 @@ import { useBackfillDay, type BackfillEntryParams } from '../queries/useBackfill
 import { backfillRemaining } from '../game/backfill';
 import { AppColors, FontFamily, Radii, Spacing } from '../config/theme';
 import { TEMPLATE_CATEGORIES, type TemplateTask } from '../config/constants';
+import { AddActivitySheet } from '../screens/AddActivitySheet';
 
 type PickerTask = { id: number; icon?: string | null; name: string };
 type BackfillErrorT = { backfillDenyQuota: string; backfillDenyFull: string; backfillDenyFreeze: string; cantLog: string };
@@ -147,6 +148,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   const [selectedTimed, setSelectedTimed] = useState<boolean>(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
+  const [showAddActivity, setShowAddActivity] = useState(false);
   const nextEntryId = useRef(0);
 
   useEffect(() => {
@@ -171,9 +173,9 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   }
 
   function handleSelectTask(id: number | null) {
-    setSelectedTaskId(id);
     const task = tasks.find(item => item.id === id);
-    if (task) setSelectedTimed(!!task.is_time_based);
+    if (!task) return;
+    setEntries(prev => [...prev, { id: String(nextEntryId.current++), taskTypeId: task.id, name: task.name, icon: task.icon, kind: task.kind as 'GOOD' | 'BAD', isTimeBased: !!task.is_time_based, basePoints: task.base_points, starPenalty: task.star_penalty, durationMin: 30 }]);
   }
 
   function handleAddOrUpdate() {
@@ -311,23 +313,16 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
                     colors={colors}
                     styles={styles}
                   />
-                  {selectedTask && <View style={styles.timingRow}>
-                    <TouchableOpacity style={[styles.timingButton, !selectedTimed && styles.timingActive]} onPress={() => setSelectedTimed(false)}><Text style={[styles.timingText, !selectedTimed && styles.timingActiveText]}>{t.addActivityNoTimer}</Text></TouchableOpacity>
-                    <TouchableOpacity style={[styles.timingButton, selectedTimed && styles.timingActive]} onPress={() => setSelectedTimed(true)}><Text style={[styles.timingText, selectedTimed && styles.timingActiveText]}>{t.addActivityTimedBtn}</Text></TouchableOpacity>
-                  </View>}
                   {tasks.length === 0 && <View style={styles.suggestions}>{TEMPLATE_CATEGORIES.flatMap(c => c.tasks).map(s => <TouchableOpacity key={s.nameKey} style={styles.suggestion} onPress={() => void addSuggestion(s)}><Text style={styles.suggestionText}>{s.icon} {(t as Record<string, unknown>)[s.nameKey] as string ?? s.name}</Text></TouchableOpacity>)}</View>}
 
                   <TouchableOpacity
-                    style={[styles.addBtn, addDisabled && styles.addBtnDisabled]}
-                    onPress={handleAddOrUpdate}
-                    disabled={addDisabled}
+                    style={styles.addBtn}
+                    onPress={() => setShowAddActivity(true)}
                     activeOpacity={0.8}
                     accessibilityRole="button"
-                    accessibilityLabel={editingEntryId ? t.backfillUpdateActivity : t.backfillAddActivity}
+                    accessibilityLabel={t.backfillAddActivity}
                   >
-                    <Text style={styles.addBtnText}>
-                      {editingEntryId ? t.backfillUpdateActivity : t.backfillAddActivity}
-                    </Text>
+                    <Text style={styles.addBtnText}>{t.backfillAddActivity}</Text>
                   </TouchableOpacity>
 
                   {entries.length === 0 && (
@@ -365,6 +360,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
           )}
         </View>
       </KeyboardAvoidingView>
+      <AddActivitySheet visible={showAddActivity} onClose={() => setShowAddActivity(false)} />
     </Modal>
   );
 }
