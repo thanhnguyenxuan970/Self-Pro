@@ -482,7 +482,10 @@ export function TodayScreen() {
           colors={colors}
           t={t}
           onDismiss={dismissBackfillNudge}
-          onPress={() => setBackfillDate(backfillNudge.pendingDates[0] ?? null)}
+          opensCalendar={backfillNudge.pendingDates.length > 1}
+          onPress={() => backfillNudge.pendingDates.length === 1
+            ? setBackfillDate(backfillNudge.pendingDates[0])
+            : navigation.navigate('Calendar' as never)}
         />}
 
         <TouchableOpacity

@@ -12,14 +12,16 @@ type Props = {
   colors: AppColors;
   t: Strings;
   onPress: () => void;
+  opensCalendar: boolean;
   onDismiss: () => void;
 };
 
-export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors, t, onPress, onDismiss }: Props) {
+export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors, t, onPress, opensCalendar, onDismiss }: Props) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   if (nudge.state === 'HIDDEN') return null;
   const fixable = Math.min(nudge.pendingDates.length, nudge.remaining);
   const capped = nudge.state === 'PROMPT_CAPPED';
+  const ctaLabel = opensCalendar ? t.calendarTitle : t.homeBackfillCta(fixable);
   const title = capped ? t.homeBackfillCappedTitle(nudge.pendingDates.length, fixable) : t.homeBackfillTitle(nudge.pendingDates.length);
   const subtitle = capped ? t.homeBackfillCappedBody : t.homeBackfillBody(nudge.pendingDates.length, nudge.reconnectable);
   const active = new Set(activeDates);
@@ -54,8 +56,8 @@ export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors
     <TouchableOpacity style={styles.dismiss} onPress={onDismiss} hitSlop={8} accessibilityRole="button" accessibilityLabel={t.homeBackfillDismiss}>
       <Text style={styles.dismissText}>×</Text>
     </TouchableOpacity>
-    <View style={styles.footer}><TouchableOpacity style={[styles.cta, capped && styles.cappedCta]} onPress={onPress} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t.homeBackfillCta(fixable)}>
-      <Text style={styles.ctaText}>{t.homeBackfillCta(fixable)}</Text>
+    <View style={styles.footer}><TouchableOpacity style={[styles.cta, capped && styles.cappedCta]} onPress={onPress} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={ctaLabel}>
+      <Text style={styles.ctaText}>{ctaLabel}</Text>
     </TouchableOpacity><View style={styles.quota}><Text style={styles.quotaText}>{t.homeBackfillQuota(nudge.remaining)}</Text>{[0, 1].map(i => <View key={i} style={[styles.dot, i >= nudge.remaining && styles.dotOff]} />)}</View></View>
   </View>;
 }
