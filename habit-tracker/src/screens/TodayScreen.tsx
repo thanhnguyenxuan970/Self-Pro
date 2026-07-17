@@ -199,6 +199,8 @@ export function TodayScreen() {
   const [levelUpChecked, setLevelUpChecked] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
   const [showScoringGuide, setShowScoringGuide] = useState(false);
+  const [backfillDate, setBackfillDate] = useState<string | null>(null);
+  const [backfillNudgeDismissed, setBackfillNudgeDismissed] = useState(false);
 
   const { data: shareCardData } = useShareCardData(userId);
 
