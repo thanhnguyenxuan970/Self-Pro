@@ -632,6 +632,14 @@ const vi = {
   backfillConfirmTitle: 'Xác nhận điểm danh bù?',
   backfillConfirmBody: 'Sau khi lưu, bạn sẽ không thể chỉnh sửa các hoạt động này nữa.',
   backfillLocked: 'Đã khoá — không thể chỉnh sửa',
+  homeBackfillEyebrow: 'ĐIỂM DANH BÙ',
+  homeBackfillTitle: (n: number) => `Lỡ ${n} ngày tuần này`,
+  homeBackfillBody: (n: number, reconnectable: boolean) => reconnectable ? `Bù cả ${n} ngày là nối lại được chuỗi` : `Bù ${n} ngày vẫn ghi điểm và sao`,
+  homeBackfillCappedTitle: (pending: number, fixable: number) => `Lỡ ${pending} ngày · bù được ${fixable}`,
+  homeBackfillCappedBody: 'Chuỗi khó nối trọn, nhưng bù vẫn ghi điểm & sao',
+  homeBackfillCta: (n: number) => `Bù ${n} ngày →`,
+  homeBackfillQuota: (n: number) => `${n} lượt còn lại`,
+  homeBackfillDismiss: 'Ẩn nhắc điểm danh bù hôm nay',
 
   // Auto-translate
   translating: 'Đang dịch…',
@@ -1301,6 +1309,14 @@ const en: typeof vi = {
   backfillConfirmTitle: 'Confirm backfill?',
   backfillConfirmBody: "Once saved, you won't be able to edit these activities anymore.",
   backfillLocked: 'Locked — can no longer be edited',
+  homeBackfillEyebrow: 'BACKFILL',
+  homeBackfillTitle: (n: number) => `Missed ${n} day${n === 1 ? '' : 's'} this week`,
+  homeBackfillBody: (n: number, reconnectable: boolean) => reconnectable ? `Backfill all ${n} to reconnect your streak` : `Backfill ${n} to earn points and stars`,
+  homeBackfillCappedTitle: (pending: number, fixable: number) => `Missed ${pending} days · ${fixable} can be backfilled`,
+  homeBackfillCappedBody: 'Your streak may stay broken, but backfill still earns points and stars',
+  homeBackfillCta: (n: number) => `Backfill ${n} day${n === 1 ? '' : 's'} →`,
+  homeBackfillQuota: (n: number) => `${n} left`,
+  homeBackfillDismiss: 'Dismiss backfill reminder for today',
 
   // Auto-translate
   translating: 'Translating…',

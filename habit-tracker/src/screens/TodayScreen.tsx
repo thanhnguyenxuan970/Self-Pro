@@ -34,9 +34,14 @@ import { useShareCardData, tierPercentile } from '../hooks/useShareCardData';
 import { useNewsFeed } from '../queries/useNews';
 import { getNewsViewerKey } from '../utils/news';
 import { useHeatmapData } from '../queries/useCalendar';
+import { useBackfillStatus } from '../queries/useBackfillStatus';
 import { HomeHeatmap } from '../components/HomeHeatmap';
+import { HomeBackfillNudge } from '../components/HomeBackfillNudge';
+import { BackfillSheet } from '../components/BackfillSheet';
 import { DurationClockInput } from '../components/DurationClockInput';
 import { clockMinutes } from '../utils/durationClock';
+import { getHomeBackfillNudge } from '../game/homeBackfillNudge';
+import { getLocalDate, getWeekStart } from '../utils/formatters';
 
 const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑', 8: '👾', 9: '😇' };
 
@@ -179,6 +184,7 @@ export function TodayScreen() {
   const { data: totalDurations } = useTodayTaskTotalDurations(userId);
   const { data: rankData } = useRankData(userId);
   const { data: heatmapDays = [] } = useHeatmapData(userId);
+  const { data: backfillStatus } = useBackfillStatus(userId);
   const logTask = useLogTask(userId);
   const unlogTask = useUnlogTask(userId);
   const archiveTask = useArchiveTask(userId);
@@ -200,6 +206,13 @@ export function TodayScreen() {
     rankMascotBridge.onRankUp = (rank) => setPendingLevelUp({ tierOrder: rank.tier_order, tierName: rank.rank_name });
     return () => { rankMascotBridge.onRankUp = null; };
   }, []);
+
+  useEffect(() => {
+    if (!rankData?.promotion) return;
+    const next = { tierOrder: rankData.promotion.tier_order, tierName: rankData.promotion.rank_name };
+    setPendingLevelUp(next);
+    AsyncStorage.setItem(PENDING_LEVELUP_KEY, JSON.stringify(next)).catch(() => {});
+  }, [rankData?.promotion]);
 
   useEffect(() => {
     AsyncStorage.getItem(PENDING_LEVELUP_KEY).then(raw => {
@@ -241,6 +254,28 @@ export function TodayScreen() {
   const { unreadCount: unreadNewsCount } = useNewsFeed(newsViewerKey);
 
   const reduceMotion = useReduceMotion();
+
+  const backfillNudgeKey = `backfillNudgeDismissed:${getLocalDate()}`;
+  useEffect(() => {
+    let active = true;
+    AsyncStorage.getItem(backfillNudgeKey).then(value => {
+      if (active) setBackfillNudgeDismissed(value === 'true');
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [backfillNudgeKey]);
+
+  const backfillNudge = useMemo(() => getHomeBackfillNudge({
+    today: getLocalDate(),
+    weekStart: getWeekStart(),
+    activeDates: heatmapDays.map(day => day.local_date),
+    freezeDates: backfillStatus?.freezeDates ?? new Set<string>(),
+    backfillsUsedThisWeek: backfillStatus?.backfillsUsedThisWeek ?? 0,
+  }), [backfillStatus, heatmapDays]);
+
+  function dismissBackfillNudge() {
+    setBackfillNudgeDismissed(true);
+    AsyncStorage.setItem(backfillNudgeKey, 'true').catch(() => {});
+  }
 
   const avatarInitial = (googleUser?.name?.charAt(0) ?? 'B').toUpperCase();
   const today = new Date();
@@ -437,6 +472,17 @@ export function TodayScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
         <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} weeklyStars={weeklyStars} rankName={rankDisplayName} streakRef={streakTutorialRef} scoringGuideVisible={showScoringGuide} onScoringGuideClose={() => setShowScoringGuide(false)} />
 
+        {!backfillNudgeDismissed && <HomeBackfillNudge
+          nudge={backfillNudge}
+          activeDates={heatmapDays.map(day => day.local_date)}
+          today={getLocalDate()}
+          weekStart={getWeekStart()}
+          colors={colors}
+          t={t}
+          onDismiss={dismissBackfillNudge}
+          onPress={() => setBackfillDate(backfillNudge.pendingDates[0] ?? null)}
+        />}
+
         <TouchableOpacity
           style={styles.challengeEntryCard}
           onPress={() => navigation.navigate('ChallengeHub' as never)}
@@ -542,6 +588,13 @@ export function TodayScreen() {
           validDuration: t.validDuration,
           maxDuration: t.maxDuration,
         }}
+      />
+      <BackfillSheet
+        visible={!!backfillDate}
+        date={backfillDate ?? ''}
+        backfillsUsedThisWeek={backfillStatus?.backfillsUsedThisWeek ?? 0}
+        userId={userId}
+        onClose={() => setBackfillDate(null)}
       />
     </SafeAreaView>
   );
