@@ -208,7 +208,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   function handleEditEntry(id: string) {
     const entry = entries.find(e => e.id === id);
     const task = tasks.find(item => item.id === entry?.taskTypeId);
-    if (task) setEditTask(task as Task);
+    if (task) setEditTask(task as unknown as Task);
   }
 
   async function saveEditedTask(taskId: number, name: string) {
