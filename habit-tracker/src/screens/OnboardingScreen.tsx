@@ -281,6 +281,7 @@ function makeStyles(C: AppColors) {
       alignItems: 'center',
       width: '100%',
       ...Shadows.hero,
+      shadowColor: C.primary,
     },
     buttonTop: { marginTop: 40 },
     buttonDisabled: { opacity: 0.5 },

@@ -338,7 +338,7 @@ function makeStyles(colors: AppColors, bottomInset: number) {
     legendLabel: { fontSize: 11, fontFamily: FontFamily.semiBold, color: colors.ink2 },
     summary: {
       flexDirection: 'row',
-      backgroundColor: colors.white,
+      backgroundColor: colors.surface,
       borderRadius: Radii.md,
       borderWidth: 1,
       borderColor: colors.line,

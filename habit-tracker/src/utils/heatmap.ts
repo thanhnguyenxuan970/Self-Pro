@@ -5,7 +5,7 @@ export type HeatmapDay = { local_date: string; total_points: number; stars?: num
 export type HeatmapCell = { date: string; level: number; month?: string };
 
 export function heatmapShades(colors: AppColors) {
-  return [colors.surface2, colors.heatmapGold1, colors.heatmapGold2, colors.heatmapGold3, colors.heatmapGold4];
+  return [colors.surface2, `${colors.primary}40`, `${colors.primary}66`, `${colors.primary}99`, colors.primary];
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;

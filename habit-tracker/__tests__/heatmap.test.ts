@@ -16,7 +16,7 @@ test.each([false, true])('uses the selected accent for every heatmap level in %s
     const colors = getColors(isDark, accent);
     expect(colors.primary).toBe(ACCENTS[accent][isDark ? 'dark' : 'light'].primary);
     expect(heatmapShades(colors)).toEqual([
-      colors.surface2, colors.heatmapGold1, colors.heatmapGold2, colors.heatmapGold3, colors.heatmapGold4,
+      colors.surface2, `${colors.primary}40`, `${colors.primary}66`, `${colors.primary}99`, colors.primary,
     ]);
   }
 });

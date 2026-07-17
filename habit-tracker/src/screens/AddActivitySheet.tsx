@@ -495,6 +495,7 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.xxl,
       maxHeight: '80%',
       ...Shadows.hero,
+      shadowColor: C.primary,
     },
     handle: {
       width: 40, height: 4, backgroundColor: C.line2,

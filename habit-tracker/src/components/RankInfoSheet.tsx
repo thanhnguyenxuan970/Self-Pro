@@ -5,6 +5,7 @@ import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getRankConfigByTierOrder } from '../config/ranks.config';
 import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
+import { RankMascot } from './RankMascot';
 
 interface RankTier {
   id: number;
@@ -26,6 +27,7 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
   const { bottom } = useSafeAreaInsets();
   const styles = makeStyles(C, bottom);
   const sorted = [...tiers].sort((a, b) => a.tier_order - b.tier_order);
+  const currentTierOrder = sorted.find(tier => tier.id === currentTierId)?.tier_order ?? 0;
   const points: { e: string; t: string; s: string }[] = [
     { e: '⭐', t: t.rankInfoPoint1Title, s: t.rankInfoPoint1Sub },
     { e: '📈', t: t.rankInfoPoint2Title, s: t.rankInfoPoint2Sub(sorted.length) },
@@ -59,26 +61,32 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
             <Text style={styles.sec}>{t.rankInfoTiersHeading(sorted.length)}</Text>
             {sorted.map((tier) => {
               const cur = tier.id === currentTierId;
+              const unlocked = tier.tier_order < currentTierOrder;
               const cfg = getRankConfigByTierOrder(tier.tier_order);
               const rankLabel = t.rankNameMap[cfg.name] ?? cfg.name;
               const rankAltLabel = rankLabel === cfg.nameVi ? cfg.name : cfg.nameVi;
-              const locked = tier.tier_order === 9 && !cur;
+              const locked = !unlocked && !cur;
+              const hidden = tier.tier_order === 9 && !cur;
               const lockedLabel = rankLabel === cfg.name ? '??? · hidden' : '??? · còn giấu';
               return (
                 <View key={tier.id} style={[styles.lrow, cur && styles.lrowCur]}>
-                  <View style={[styles.lnum, cur && styles.lnumCur]}>
-                    <Text style={[styles.lnumText, cur && styles.lnumTextCur]}>{tier.tier_order}</Text>
-                  </View>
+                  {unlocked ? <RankMascot tier={tier.tier_order - 1} size={36} loop={false} /> : locked ? (
+                    <Text style={styles.lockedMark}>🔒</Text>
+                  ) : (
+                    <View style={[styles.lnum, cur && styles.lnumCur]}>
+                      <Text style={[styles.lnumText, cur && styles.lnumTextCur]}>{tier.tier_order}</Text>
+                    </View>
+                  )}
                   <View style={styles.lcopy}>
-                    <Text style={styles.lname} numberOfLines={1}>{locked ? lockedLabel : rankLabel}</Text>
-                    {!locked && <Text style={styles.lnameVi} numberOfLines={1}>{rankAltLabel}</Text>}
+                    <Text style={styles.lname} numberOfLines={1}>{hidden ? lockedLabel : rankLabel}</Text>
+                    {!hidden && <Text style={styles.lnameVi} numberOfLines={1}>{rankAltLabel}</Text>}
                   </View>
                   {cur ? (
                     <View style={styles.youtag}>
                       <Text style={styles.youtagText}>{t.leaderboardYou}</Text>
                     </View>
                   ) : null}
-                  {!locked && <Text style={styles.lstar}>{tier.stars_required} ⭐</Text>}
+                  {!hidden && <Text style={styles.lstar}>{tier.stars_required} ⭐</Text>}
                 </View>
               );
             })}
@@ -108,6 +116,7 @@ function makeStyles(C: AppColors, bottomInset: number) {
     lrowCur: { borderWidth: 2, borderColor: C.primary, backgroundColor: C.primarySoft },
     lnum: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.surface3, alignItems: 'center', justifyContent: 'center' },
     lnumCur: { backgroundColor: C.primary },
+    lockedMark: { width: 36, textAlign: 'center', fontSize: 20 },
     lnumText: { fontSize: 11, fontFamily: FontFamily.bold, color: C.ink2 },
     lnumTextCur: { color: C.white },
     lcopy: { flex: 1, minWidth: 0 },

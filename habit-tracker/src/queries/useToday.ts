@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { getStoredGoogleUserEmail } from '../hooks/useAuth';
@@ -7,8 +6,8 @@ import { syncUserStreak } from '../api/syncService';
 import { logActiveChallengeDay } from './useChallenge';
 import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
-import { computeTierUnlocks, TierRow } from '../game/tierUnlocks';
-import { rankMascotBridge } from '../lib/rankMascotBridge';
+import { TierRow } from '../game/tierUnlocks';
+import { resolveWeeklyRank } from '../game/weeklyRank';
 import { dailyBonusStarsForPoints } from '../config/constants';
 
 type FullTierRow = TierRow & { tier_order: number; rank_name: string };
@@ -86,7 +85,7 @@ async function getCarryOverTierId(
   userId: number,
   tiers: FullTierRow[],
   currentWeekStart: string,
-): Promise<number> {
+): Promise<number | null> {
   const sorted = [...tiers].sort((a, b) => a.tier_order - b.tier_order);
   const lowestTier = sorted[0];
 
@@ -97,49 +96,16 @@ async function getCarryOverTierId(
     [userId, currentWeekStart],
   );
 
-  if (!lastWeek || lastWeek.current_tier_id === null) return lowestTier.id;
+  if (!lastWeek) return null;
+  if (lastWeek.current_tier_id === null) return resolveWeeklyRank(null, lastWeek.weekly_stars, sorted).tierId;
 
   const lastTier = sorted.find(t => t.id === lastWeek.current_tier_id);
   if (!lastTier) return lowestTier.id;
 
   // No inactivity — carry over
-  if (lastWeek.weekly_stars !== 0) return lastWeek.current_tier_id;
 
   // Inactivity penalty: demote 1 tier
-  const demotedOrder = lastTier.tier_order - 1;
-  if (demotedOrder < 1) return lowestTier.id;
-
-  const demotedTier = sorted.find(t => t.tier_order === demotedOrder);
-  if (!demotedTier) return lowestTier.id;
-
-  return demotedTier.id;
-}
-
-async function handleTierUnlocks(
-  db: SQLiteDatabase,
-  tiers: FullTierRow[],
-  newUnlocks: ReturnType<typeof computeTierUnlocks>,
-  userId: number,
-  weekStart: string,
-): Promise<{ didRankUp: boolean; newTier: { tier_order: number; rank_name: string } | null }> {
-  if (newUnlocks.length === 0) return { didRankUp: false, newTier: null };
-  const firstUnlock = newUnlocks[0];
-  const matched = tiers.find(t => t.id === firstUnlock.tier_id);
-  const newTier = matched ? { tier_order: matched.tier_order, rank_name: matched.rank_name } : null;
-  for (const unlock of newUnlocks) {
-    await db.runAsync(
-      `INSERT OR IGNORE INTO reward_unlocks
-       (user_id, tier_id, week_start, stars_at_unlock, reward_amount, claimed)
-       VALUES (?, ?, ?, ?, 0, 0)`,
-      [unlock.user_id, unlock.tier_id, unlock.week_start, unlock.stars_at_unlock],
-    );
-  }
-  // Persist the new rank into the weekly row so it survives between sessions
-  await db.runAsync(
-    `UPDATE weekly_summary SET current_tier_id = ? WHERE user_id = ? AND week_start = ?`,
-    [firstUnlock.tier_id, userId, weekStart],
-  );
-  return { didRankUp: true, newTier };
+  return resolveWeeklyRank(lastTier.id, lastWeek.weekly_stars, sorted).tierId;
 }
 
 async function updateTreatPool(
@@ -323,7 +289,7 @@ export function useLogTask(userId: number) {
       basePoints: number;
       starPenalty: number;
       durationMin?: number;
-    }): Promise<{ newStreak: number; prevStreak: number; didRankUp: boolean; newTier: { tier_order: number; rank_name: string } | null }> => {
+    }): Promise<{ newStreak: number; prevStreak: number }> => {
       const db = await getDb();
       const today = getLocalDate();
       const weekStart = getWeekStart();
@@ -340,8 +306,6 @@ export function useLogTask(userId: number) {
       );
 
       let streakResult = { newStreak: 1, prevStreak: 0 };
-      let didRankUp = false;
-      let newTier: { tier_order: number; rank_name: string } | null = null;
 
       // All volatile reads + computation + writes inside one transaction.
       // This prevents TOCTOU: two concurrent mutateAsync calls can no longer
@@ -357,16 +321,10 @@ export function useLogTask(userId: number) {
           `SELECT weekly_stars, current_tier_id FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
           [userId, weekStart]
         );
-        const alreadyUnlocked = await db.getAllAsync<{ tier_id: number }>(
-          `SELECT tier_id FROM reward_unlocks WHERE user_id = ? AND week_start = ?`,
-          [userId, weekStart]
-        );
-
         // Carry-over: compute starting tier for new weeks; reuse existing for ongoing weeks.
         const carryOverTierId = weeklyRow === null
           ? await getCarryOverTierId(db, userId, tiers, weekStart)
-          : (weeklyRow.current_tier_id ?? tiers.find(t => t.tier_order === 1)!.id);
-        const startingTierOrder = tiers.find(t => t.id === carryOverTierId)?.tier_order ?? 0;
+          : weeklyRow.current_tier_id;
 
         const { todayStreak, streakResult: sr } = await computeTodayStreak(db, userId, today, yesterdayDate, daily);
         streakResult = sr;
@@ -381,13 +339,6 @@ export function useLogTask(userId: number) {
         });
 
         const totalStarsDelta = activityRow.stars_delta + (bonusRow?.stars_delta ?? 0);
-        const oldStars = weeklyRow?.weekly_stars ?? 0;
-        const newUnlocks = computeTierUnlocks({
-          userId, weekStart, oldStars, newStars: oldStars + totalStarsDelta,
-          tiers, alreadyUnlockedTierIds: alreadyUnlocked.map(r => r.tier_id),
-          startingTierOrder,
-        });
-
         await insertLogRows(db, activityRow, bonusRow);
 
         await db.runAsync(
@@ -412,10 +363,6 @@ export function useLogTask(userId: number) {
            activityRow.points_earned, totalStarsDelta, totalStarsDelta]
         );
 
-        const unlockResult = await handleTierUnlocks(db, tiers, newUnlocks, userId, weekStart);
-        didRankUp = unlockResult.didRankUp;
-        newTier = unlockResult.newTier;
-
         await updateTreatPool(db, userId, params.kind, totalStarsDelta, nowMs);
         await logActiveChallengeDay(db, {
           userId,
@@ -424,7 +371,7 @@ export function useLogTask(userId: number) {
         });
       });
 
-      return { ...streakResult, didRankUp, newTier };
+      return streakResult;
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['today'] });
@@ -435,16 +382,6 @@ export function useLogTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['rank'] });
       qc.invalidateQueries({ queryKey: ['challenge'] });
       qc.invalidateQueries({ queryKey: ['achievements'] });
-      if (data.didRankUp) rankMascotBridge.ref?.current?.playRankUp();
-      if (data.didRankUp && data.newTier) rankMascotBridge.onRankUp?.(data.newTier);
-      if (data.didRankUp && data.newTier) {
-        const weekStart = getWeekStart();
-        AsyncStorage.setItem(PENDING_LEVELUP_KEY, JSON.stringify({
-          tierOrder: data.newTier.tier_order,
-          tierName: data.newTier.rank_name,
-          weekStart,
-        })).catch(() => {});
-      }
       // Fire-and-forget streak sync — non-fatal if Supabase absent or table not migrated
       getStoredGoogleUserEmail()
         .then(email => { if (email) return syncUserStreak(email, data.newStreak); })

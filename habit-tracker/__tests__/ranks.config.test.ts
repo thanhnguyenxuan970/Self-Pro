@@ -20,7 +20,7 @@ describe('rank config', () => {
     expect(getRankConfigByTierOrder(5).glow).toBe('#F472B6');
     expect(getRankConfigByTierOrder(7).glow).toBe('#FFE066');
     expect(getRankConfigByTierOrder(8).glow).toBe('#8B5CF6');
-    expect(getRankConfigByTierOrder(2).anim.channels.rotate).toEqual([[0, -14], [0.5, -11], [1, -14]]);
+    expect(getRankConfigByTierOrder(2).anim.channels.rotate).toEqual([[0, -9], [0.5, -6], [1, -9]]);
     expect(getRankConfigByTierOrder(5).face.filter(el => el.t === 'line')).toHaveLength(8);
     expect(getRankConfigByTierOrder(9).glowOpacity).toBe(0.6);
   });

@@ -109,7 +109,8 @@ const RANK_DATA: BaseRank[] = [
       { t: 'path', d: 'M-6,8 q7,4 12,-2', stroke: '#2A2540', sw: 2.6, cap: 'round' },
     ]),
     anim: { duration: 2000, loop: true, channels: {
-      rotate: [[0, -14], [0.5, -11], [1, -14]],
+      rotate: [[0, -9], [0.5, -6], [1, -9]],
+      translateY: [[0, 0], [0.5, -1], [1, 0]],
     }},
     sfx: 'mewing',
     haptic: 'success',
@@ -128,9 +129,11 @@ const RANK_DATA: BaseRank[] = [
       { t: 'line', x1: -4, y1: -4, x2: 4, y2: -4, stroke: '#2A2540', sw: 2.4 },
       { t: 'path', d: 'M-6,9 q6,4 12,-2', stroke: '#2A2540', sw: 2.6, cap: 'round' },
     ]),
-    anim: { duration: 550, loop: true, channels: {
-      rotate: [[0, -7], [1, 7]],
-      translateX: [[0, -3], [1, 3]],
+    anim: { duration: 1800, loop: true, channels: {
+      // Smooth nod: matching first/last frame avoids the hard reset that made griddy jitter.
+      rotate: [[0, -2], [0.5, 2], [1, -2]],
+      translateY: [[0, 1], [0.5, -3], [1, 1]],
+      scale: [[0, 1], [0.5, 1.025], [1, 1]],
     }},
     sfx: 'rizz',
     haptic: 'success',
@@ -153,8 +156,8 @@ const RANK_DATA: BaseRank[] = [
       { t: 'line', x1: -3, y1: 6, x2: -3, y2: 12, stroke: '#2DD4BF', sw: 1.4 },
       { t: 'line', x1: 3, y1: 6, x2: 3, y2: 12, stroke: '#2DD4BF', sw: 1.4 },
     ]),
-    anim: { duration: 1700, loop: true, channels: {
-      scale: [[0, 1], [0.35, 1.13], [0.55, 1.07], [0.85, 0.95], [1, 1]],
+    anim: { duration: 2000, loop: true, channels: {
+      scale: [[0, 1], [0.35, 1.08], [0.55, 1.05], [0.85, 0.98], [1, 1]],
     }},
     sfx: 'gigachad',
     haptic: 'heavy-success',
@@ -182,8 +185,9 @@ const RANK_DATA: BaseRank[] = [
       { t: 'line', x1: 0, y1: -33, x2: 0, y2: -25, stroke: '#F9A8D4', sw: 2, cap: 'round' },
       { t: 'line', x1: 0, y1: 33, x2: 0, y2: 25, stroke: '#F9A8D4', sw: 2, cap: 'round' },
     ]),
-    anim: { duration: 1300, loop: true, channels: {
-      translateY: [[0, 1], [0.5, -2], [1, 1]],
+    anim: { duration: 2100, loop: true, channels: {
+      translateY: [[0, 1], [0.5, -3], [1, 1]],
+      scale: [[0, 1], [0.5, 1.02], [1, 1]],
     }},
     sfx: 'aura-farmer',
     haptic: 'heavy-success',
@@ -226,8 +230,8 @@ const RANK_DATA: BaseRank[] = [
       { t: 'path', d: 'M-8,7 q8,7 16,0', stroke: '#2A2540', sw: 2.6, cap: 'round' },
     ]),
     anim: { duration: 2600, loop: true, channels: {
-      translateY: [[0, 0], [0.3, -11], [0.5, 0], [0.7, -5], [1, 0]],
-      rotate: [[0, 0], [0.7, 7], [0.84, 0], [1, 0]],
+      translateY: [[0, 0], [0.3, -8], [0.5, 0], [0.7, -4], [1, 0]],
+      rotate: [[0, 0], [0.7, 5], [0.84, 0], [1, 0]],
       scaleY: [[0, 1], [0.5, 0.93], [1, 1]],
     }},
     sfx: 'goated',

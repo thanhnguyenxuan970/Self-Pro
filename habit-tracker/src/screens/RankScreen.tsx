@@ -7,6 +7,7 @@ import { useLeaderboard } from '../queries/useLeaderboard';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
+import { LevelUpCelebrationModal } from '../components/LevelUpCelebrationModal';
 import { getRankConfigByTierOrder, RANKS } from '../config/ranks.config';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { RankInfoSheet } from '../components/RankInfoSheet';
@@ -82,9 +83,10 @@ export function RankScreen() {
     return () => { rankMascotBridge.ref = null; };
   }, []);
 
-  const currentTierOrder = data
+  const storedTierOrder = data
     ? (data.currentTierId ? (data.tiers.find(t => t.id === data.currentTierId)?.tier_order ?? 0) : 0)
     : 0;
+  const currentTierOrder = storedTierOrder;
   const { data: leaderboard = [], isLoading: lbLoading } = useLeaderboard(
     googleUser?.email ?? null,
     currentTierOrder,
@@ -92,6 +94,7 @@ export function RankScreen() {
   );
 
   const [infoVisible, setInfoVisible] = useState(false);
+  const [previewTier, setPreviewTier] = useState<number | null>(null);
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -107,15 +110,14 @@ export function RankScreen() {
     );
   }
 
-  const { currentStars, currentTierId, tiers } = data;
+  const { currentStars, tiers } = data;
   // Rank is authoritative from current_tier_id (carry-over + cap system), not derived from star count
-  const currentTier = currentTierId ? tiers.find(t => t.id === currentTierId) : undefined;
+  const currentTier = tiers.find(t => t.tier_order === currentTierOrder);
   const nextTier = currentTier ? tiers.find(t => t.tier_order === currentTier.tier_order + 1) : tiers.find(t => t.stars_required > currentStars);
   const firstTierStars = tiers[0]?.stars_required ?? 5;
   const prevTierStars = currentTier?.stars_required ?? 0;
   const nextTierStars = nextTier?.stars_required ?? prevTierStars;
   const starsToNext = nextTier ? Math.max(0, nextTierStars - currentStars) : 0;
-  const displayCurrentStars = Math.round(currentStars);
   const displayStarsToNext = Math.round(starsToNext);
   const progressPct = nextTier
     ? Math.min(1, Math.max(0, (currentStars - prevTierStars) / Math.max(1, nextTierStars - prevTierStars)))
@@ -146,12 +148,8 @@ export function RankScreen() {
         {currentStars >= firstTierStars ? (
           <View style={styles.rankhero}>
             <View style={[styles.rankheroGlow, { backgroundColor: cfg.glow ?? cfg.color }]} importantForAccessibility="no" />
-            <RankMascot ref={mascotRef} tier={(currentTier?.tier_order ?? 1) - 1} size={100} loop reduceMotion={reduceMotion} />
+            <RankMascot ref={mascotRef} tier={(currentTier?.tier_order ?? 1) - 1} size={100} loop reduceMotion={reduceMotion} ambient />
             <Text style={styles.rankNm} numberOfLines={2}>{rankLabel}</Text>
-            <Text style={styles.rankEn} numberOfLines={2}>{t.rankQuoteMap[currentTier?.rank_name ?? ''] ?? cfg.descriptor}</Text>
-            <View style={styles.rankWk}>
-              <Text style={styles.rankWkTxt}>{t.weekStars(displayCurrentStars)}</Text>
-            </View>
             <View style={styles.bar}>
               <View style={[styles.barFill, { width: `${Math.round(progressPct * 100)}%` as `${number}%` }]} />
             </View>
@@ -171,19 +169,29 @@ export function RankScreen() {
           </View>
         )}
 
-        {__DEV__ && (
-          <View style={styles.preview}>
-            <Text style={styles.previewTitle}>Bộ sưu tập · animation test</Text>
-            <View style={styles.previewGrid}>
-              {RANKS.map(rank => (
-                <View key={rank.tier} style={[styles.previewTier, { borderColor: rank.edge }]}>
-                  <RankMascot tier={rank.tier} size={76} loop reduceMotion={false} />
-                  <Text style={[styles.previewTierText, { color: rank.color }]} numberOfLines={1}>{rank.tier + 1} · {rank.name}</Text>
-                </View>
-              ))}
-            </View>
+        <View style={styles.progression}>
+          <Text style={styles.progressionTitle}>LỘ TRÌNH RANK</Text>
+          <View style={styles.previewGrid}>
+            {RANKS.map(rank => {
+              const unlocked = rank.tier < currentTierOrder;
+              return (
+                <TouchableOpacity
+                  key={rank.tier}
+                  disabled={!unlocked}
+                  onPress={() => setPreviewTier(rank.tier)}
+                  style={[styles.progressionTier, { borderColor: unlocked ? rank.edge : colors.line }, !unlocked && styles.lockedTier]}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !unlocked }}
+                  accessibilityLabel={unlocked ? `Xem lại thăng cấp ${rank.name}` : `${rank.name} khóa đến ${rank.stars} sao`}
+                >
+                  {unlocked ? <RankMascot tier={rank.tier} size={76} loop reduceMotion={reduceMotion} ambient /> : <Text style={styles.lockedMark}>🔒</Text>}
+                  <Text style={[styles.previewTierText, { color: unlocked ? rank.color : colors.muted }]} numberOfLines={1}>{rank.tier + 1} · {rank.name}</Text>
+                  {!unlocked && <Text style={styles.lockedRequirement}>{rank.stars} ★</Text>}
+                </TouchableOpacity>
+              );
+            })}
           </View>
-        )}
+        </View>
 
         <ResetCountdownChip styles={styles} label={t.resetCountdownLabel(resetCountdown.days, resetCountdown.hours, resetCountdown.minutes)} />
 
@@ -211,6 +219,12 @@ export function RankScreen() {
         currentTierId={currentTier?.id ?? null}
         onClose={() => setInfoVisible(false)}
       />
+      <LevelUpCelebrationModal
+        visible={previewTier !== null}
+        tierOrder={(previewTier ?? 0) + 1}
+        tierName={previewTier === null ? '' : RANKS[previewTier].name}
+        onDismiss={() => setPreviewTier(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -226,10 +240,13 @@ function makeStyles(C: AppColors) {
     infoBtnText: { fontSize: 15, fontFamily: FontFamily.bold, color: C.muted },
 
     rankEmptyWrap: { marginHorizontal: Spacing.lg },
-    preview: { marginHorizontal: Spacing.lg, marginTop: 12, padding: 12, borderRadius: Radii.lg, backgroundColor: '#0E0B1A' },
-    previewTitle: { fontSize: 12, fontFamily: FontFamily.extraBold, color: '#C8C2E0', textTransform: 'uppercase', letterSpacing: 0.7, textAlign: 'center', marginBottom: 10 },
+    progression: { marginHorizontal: Spacing.lg, marginTop: 12, padding: 12, borderRadius: Radii.lg, backgroundColor: C.surface2 },
+    progressionTitle: { fontSize: 12, fontFamily: FontFamily.extraBold, color: C.ink2, textTransform: 'uppercase', letterSpacing: 0.7, textAlign: 'center', marginBottom: 10 },
+    progressionTier: { width: '31%', minHeight: 118, borderRadius: Radii.md, borderWidth: 1.5, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', paddingVertical: 6 },
+    lockedTier: { backgroundColor: C.surface2 },
+    lockedMark: { fontSize: 28, marginBottom: 10 },
+    lockedRequirement: { fontSize: 10, fontFamily: FontFamily.extraBold, color: C.muted, marginTop: 2 },
     previewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    previewTier: { width: '31%', minHeight: 118, borderRadius: Radii.md, borderWidth: 1.5, backgroundColor: '#191428', alignItems: 'center', justifyContent: 'center', paddingVertical: 6 },
     previewTierText: { fontSize: 10, fontFamily: FontFamily.extraBold, maxWidth: '100%', paddingHorizontal: 4, textAlign: 'center' },
     rankhero: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,
@@ -238,16 +255,10 @@ function makeStyles(C: AppColors) {
     },
     rankheroGlow: {
       position: 'absolute', top: 0, left: 0, right: 0, height: '60%',
-      opacity: 0.4,
+      opacity: 0.12,
     },
     rankEm: { fontSize: 54, marginBottom: 2 },
     rankNm: { fontSize: 25, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, marginTop: 8 },
-    rankEn: { fontSize: 12.5, color: C.muted, marginTop: 2, fontStyle: 'italic' },
-    rankWk: {
-      marginTop: 12, backgroundColor: C.starSoft,
-      paddingHorizontal: 14, paddingVertical: 6, borderRadius: Radii.pill,
-    },
-    rankWkTxt: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.starGoldText },
     bar: { width: '100%', height: 8, backgroundColor: C.surface2, borderRadius: Radii.pill, marginTop: 14, overflow: 'hidden' },
     barFill: { height: '100%', backgroundColor: C.primary, borderRadius: Radii.pill },
     nextCap: { fontSize: 12, color: C.muted, marginTop: 13, fontFamily: FontFamily.semiBold, textAlign: 'center' },

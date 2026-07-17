@@ -20,6 +20,7 @@ import { getRankConfigByTier, starPoints, type Channel, type SvgEl } from '../co
 import { playRankSound } from '../audio/rankSound';
 import { useTranslations } from '../hooks/useSettings';
 import { shouldRunRankLoop } from '../lib/rankPresentation';
+import { RankAmbientFx } from './RankAmbientFx';
 
 // Interpolate a channel from p (0→1); returns constant dflt if channel absent
 function chanInterp(p: Animated.Value, arr: Channel | undefined, dflt: number): Animated.AnimatedInterpolation<number> {
@@ -68,10 +69,10 @@ function renderEl(el: SvgEl, i: number) {
 }
 
 export interface RankMascotHandle { playRankUp: () => void; }
-interface Props { tier: number; size?: number; loop?: boolean; reduceMotion?: boolean; }
+interface Props { tier: number; size?: number; loop?: boolean; reduceMotion?: boolean; ambient?: boolean; }
 
 export const RankMascot = forwardRef<RankMascotHandle, Props>(
-  ({ tier, size = 120, loop = true, reduceMotion = false }, ref) => {
+  ({ tier, size = 120, loop = true, reduceMotion = false, ambient = false }, ref) => {
     const rank = getRankConfigByTier(tier);
     const t = useTranslations();
     const p = useRef(new Animated.Value(0)).current;
@@ -128,6 +129,7 @@ export const RankMascot = forwardRef<RankMascotHandle, Props>(
         accessibilityRole="image"
         accessibilityLabel={t.rankNameMap[rank.name] ?? rank.name}
       >
+        {ambient && <RankAmbientFx tier={tier} size={size} reduceMotion={reduceMotion} />}
         <Animated.View
           style={{
             width: size,
