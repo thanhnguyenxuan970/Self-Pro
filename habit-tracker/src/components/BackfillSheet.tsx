@@ -211,9 +211,9 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
     if (task) setEditTask(task as unknown as Task);
   }
 
-  async function saveEditedTask(taskId: number, name: string) {
+  async function saveEditedTask(taskId: number, name: string, durationMin: number | null) {
     await updateTaskName.mutateAsync({ taskId, name });
-    setEntries(prev => prev.map(entry => entry.taskTypeId === taskId ? { ...entry, name } : entry));
+    setEntries(prev => prev.map(entry => entry.taskTypeId === taskId ? { ...entry, name, durationMin: durationMin ?? entry.durationMin } : entry));
     setEditTask(null);
   }
 
@@ -370,7 +370,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
         </View>
       </KeyboardAvoidingView>
       <AddActivitySheet visible={showAddActivity} onClose={() => setShowAddActivity(false)} />
-      <EditActivityModal visible={!!editTask} task={editTask} onClose={() => setEditTask(null)} onSave={(taskId, name) => { void saveEditedTask(taskId, name); }} />
+      <EditActivityModal visible={!!editTask} task={editTask} totalDurationMin={entries.find(entry => entry.taskTypeId === editTask?.id)?.durationMin} onClose={() => setEditTask(null)} onSave={(taskId, name, durationMin) => { void saveEditedTask(taskId, name, durationMin); }} />
     </Modal>
   );
 }
