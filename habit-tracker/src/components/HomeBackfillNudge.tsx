@@ -24,7 +24,6 @@ export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors
   const capped = nudge.state === 'PROMPT_CAPPED';
   const ctaLabel = opensCalendar ? t.calendarTitle : t.homeBackfillCta(fixable);
   const title = capped ? t.homeBackfillCappedTitle(nudge.pendingDates.length, fixable) : t.homeBackfillTitle(nudge.pendingDates.length);
-  const subtitle = capped ? t.homeBackfillCappedBody : t.homeBackfillBody(nudge.pendingDates.length, nudge.reconnectable);
   const active = new Set(activeDates);
   const dates = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(`${weekStart}T12:00:00`);
@@ -40,7 +39,6 @@ export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors
       <Text style={styles.title}>{title}</Text>
       </View>
     </View>
-      <Text style={styles.subtitle}>{subtitle}</Text>
     <View style={styles.weekStrip}>
       {dates.map((date, index) => {
         const pending = nudge.pendingDates.includes(date);
