@@ -12,11 +12,12 @@ type Props = {
   colors: AppColors;
   t: Strings;
   onPress: () => void;
+  onDatePress: (date: string) => void;
   opensCalendar: boolean;
   onDismiss: () => void;
 };
 
-export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors, t, onPress, opensCalendar, onDismiss }: Props) {
+export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors, t, onPress, onDatePress, opensCalendar, onDismiss }: Props) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   if (nudge.state === 'HIDDEN') return null;
   const fixable = Math.min(nudge.pendingDates.length, nudge.remaining);
@@ -45,11 +46,12 @@ export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors
         const pending = nudge.pendingDates.includes(date);
         const isToday = date === today;
         const future = date > today;
+        const cell = <View style={[styles.day, active.has(date) && styles.dayDone, pending && styles.dayPending, isToday && styles.dayToday, future && styles.dayFuture]}>
+          <Text style={[styles.dayValue, active.has(date) && styles.dayDoneText, pending && styles.dayPendingText]}>{active.has(date) ? '✓' : pending ? '+' : future ? '·' : '×'}</Text>
+        </View>;
         return <View key={date} style={styles.dayWrap}>
           <Text style={styles.dayLabel}>{t.calDow[index]}</Text>
-          <View style={[styles.day, active.has(date) && styles.dayDone, pending && styles.dayPending, isToday && styles.dayToday, future && styles.dayFuture]}>
-            <Text style={[styles.dayValue, active.has(date) && styles.dayDoneText, pending && styles.dayPendingText]}>{active.has(date) ? '✓' : pending ? '+' : future ? '·' : '×'}</Text>
-          </View>
+          {pending ? <TouchableOpacity onPress={() => onDatePress(date)} accessibilityRole="button" accessibilityLabel={`${t.backfillEligible} ${date}`}>{cell}</TouchableOpacity> : cell}
         </View>;
       })}
     </View>

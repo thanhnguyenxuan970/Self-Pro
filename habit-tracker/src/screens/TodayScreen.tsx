@@ -482,6 +482,7 @@ export function TodayScreen() {
           colors={colors}
           t={t}
           onDismiss={dismissBackfillNudge}
+          onDatePress={setBackfillDate}
           opensCalendar={backfillNudge.pendingDates.length > 1}
           onPress={() => backfillNudge.pendingDates.length === 1
             ? setBackfillDate(backfillNudge.pendingDates[0])
