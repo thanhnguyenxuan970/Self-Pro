@@ -30,11 +30,14 @@ export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors
   });
 
   return <View style={[styles.card, capped && styles.cappedCard]} accessibilityLabel={title}>
-    <View style={styles.copy}>
-      <Text style={styles.eyebrow}>{t.homeBackfillEyebrow}</Text>
+    <View style={styles.header}>
+      <View style={[styles.icon, capped && styles.cappedIcon]}><Text style={styles.iconText}>{capped ? '⌛' : '🔥'}</Text></View>
+      <View style={styles.copy}>
+      <Text style={[styles.eyebrow, capped && styles.cappedText]}>{t.homeBackfillEyebrow}</Text>
       <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
+      </View>
     </View>
+      <Text style={styles.subtitle}>{subtitle}</Text>
     <View style={styles.weekStrip}>
       {dates.map((date, index) => {
         const pending = nudge.pendingDates.includes(date);
@@ -51,10 +54,9 @@ export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors
     <TouchableOpacity style={styles.dismiss} onPress={onDismiss} hitSlop={8} accessibilityRole="button" accessibilityLabel={t.homeBackfillDismiss}>
       <Text style={styles.dismissText}>×</Text>
     </TouchableOpacity>
-    <TouchableOpacity style={styles.cta} onPress={onPress} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t.homeBackfillCta(fixable)}>
+    <View style={styles.footer}><TouchableOpacity style={[styles.cta, capped && styles.cappedCta]} onPress={onPress} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t.homeBackfillCta(fixable)}>
       <Text style={styles.ctaText}>{t.homeBackfillCta(fixable)}</Text>
-    </TouchableOpacity>
-    <Text style={styles.quota}>{t.homeBackfillQuota(nudge.remaining)}</Text>
+    </TouchableOpacity><View style={styles.quota}><Text style={styles.quotaText}>{t.homeBackfillQuota(nudge.remaining)}</Text>{[0, 1].map(i => <View key={i} style={[styles.dot, i >= nudge.remaining && styles.dotOff]} />)}</View></View>
   </View>;
 }
 
@@ -62,8 +64,12 @@ function makeStyles(C: AppColors) {
   return StyleSheet.create({
     card: { marginHorizontal: Spacing.lg, marginTop: 12, padding: 14, paddingLeft: 18, backgroundColor: C.surface, borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line, borderLeftWidth: 4, borderLeftColor: C.primary, ...Shadows.light },
     cappedCard: { borderLeftColor: C.starGold },
-    copy: { paddingRight: 28 },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingRight: 30 },
+    icon: { width: 52, height: 52, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primarySoft },
+    cappedIcon: { backgroundColor: C.starSoft }, iconText: { fontSize: 25 },
+    copy: { flex: 1 },
     eyebrow: { color: C.primary, fontFamily: FontFamily.bold, fontSize: 11, letterSpacing: 0.5, marginBottom: 3 },
+    cappedText: { color: C.starGold },
     title: { color: C.inkDark, fontFamily: FontFamily.bold, fontSize: 15, lineHeight: 21 },
     subtitle: { color: C.ink2, fontFamily: FontFamily.regular, fontSize: 12, lineHeight: 18, marginTop: 4 },
     weekStrip: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
@@ -79,8 +85,11 @@ function makeStyles(C: AppColors) {
     dayPendingText: { color: C.primary },
     dismiss: { position: 'absolute', top: 6, right: 6, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     dismissText: { color: C.muted, fontFamily: FontFamily.bold, fontSize: 20 },
-    cta: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, marginTop: 10, backgroundColor: C.primarySoft, borderRadius: Radii.pill },
+    footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
+    cta: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 18, backgroundColor: C.primarySoft, borderRadius: Radii.pill },
+    cappedCta: { backgroundColor: C.starSoft },
     ctaText: { color: C.primary, fontFamily: FontFamily.bold, fontSize: 13 },
-    quota: { position: 'absolute', right: 14, bottom: 14, color: C.muted, fontFamily: FontFamily.medium, fontSize: 11 },
+    quota: { flexDirection: 'row', alignItems: 'center', gap: 5 }, quotaText: { color: C.muted, fontFamily: FontFamily.medium, fontSize: 11 },
+    dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.primary }, dotOff: { backgroundColor: C.line2 },
   });
 }
