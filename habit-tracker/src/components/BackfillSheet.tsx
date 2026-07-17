@@ -7,10 +7,11 @@ import Toast from 'react-native-toast-message';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
-import { useActivityPickerTasks } from '../queries/useTasks';
+import { useActivityPickerTasks, useCreateTask } from '../queries/useTasks';
 import { useBackfillDay, type BackfillEntryParams } from '../queries/useBackfill';
 import { backfillRemaining } from '../game/backfill';
 import { AppColors, FontFamily, Radii, Spacing } from '../config/theme';
+import { TEMPLATE_CATEGORIES, type TemplateTask } from '../config/constants';
 
 type PickerTask = { id: number; icon?: string | null; name: string };
 type BackfillErrorT = { backfillDenyQuota: string; backfillDenyFull: string; backfillDenyFreeze: string; cantLog: string };
@@ -138,6 +139,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
 
   const { data: pickerTasks = [] } = useActivityPickerTasks(userId);
   const tasks = useMemo(() => pickerTasks.filter(task => task.archived === 0), [pickerTasks]);
+  const createTask = useCreateTask(userId);
   const { mutateAsync, isPending } = useBackfillDay(userId);
 
   const [entries, setEntries] = useState<DraftEntry[]>([]);
@@ -204,6 +206,13 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
       setEditingEntryId(null);
       setSelectedTaskId(null);
     }
+  }
+
+  async function addSuggestion(s: TemplateTask) {
+    try {
+      const taskTypeId = await createTask.mutateAsync({ name: s.name, kind: s.kind, isTimeBased: s.isTimeBased, basePoints: s.basePoints, starPenalty: s.starPenalty, icon: s.icon, isTemplate: true });
+      setEntries(prev => [...prev, { id: String(nextEntryId.current++), taskTypeId, name: s.name, icon: s.icon, kind: s.kind, isTimeBased: s.isTimeBased, basePoints: s.basePoints, starPenalty: s.starPenalty, durationMin: 30 }]);
+    } catch { Alert.alert(t.error, t.cantLog); }
   }
 
   async function submitSession() {
@@ -295,6 +304,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
                     colors={colors}
                     styles={styles}
                   />
+                  {tasks.length === 0 && <View style={styles.suggestions}>{TEMPLATE_CATEGORIES.flatMap(c => c.tasks).map(s => <TouchableOpacity key={s.nameKey} style={styles.suggestion} onPress={() => void addSuggestion(s)}><Text style={styles.suggestionText}>{s.icon} {(t as Record<string, unknown>)[s.nameKey] as string ?? s.name}</Text></TouchableOpacity>)}</View>}
 
                   <TouchableOpacity
                     style={[styles.addBtn, addDisabled && styles.addBtnDisabled]}
@@ -427,6 +437,9 @@ function makeStyles(colors: AppColors, bottomInset: number) {
       color: colors.ink2,
       textAlign: 'center',
     },
+    suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+    suggestion: { minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: colors.primarySoft, borderRadius: Radii.pill },
+    suggestionText: { color: colors.primary, fontFamily: FontFamily.semiBold, fontSize: 12 },
     emptyDraftHint: {
       fontSize: 12,
       fontFamily: FontFamily.regular,
