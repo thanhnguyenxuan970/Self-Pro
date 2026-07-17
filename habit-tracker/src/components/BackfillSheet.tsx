@@ -1,22 +1,16 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Modal, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform,
+  Modal, View, Text, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform,
   StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
-import { useTodayTasks } from '../queries/useToday';
+import { useActivityPickerTasks } from '../queries/useTasks';
 import { useBackfillDay, type BackfillEntryParams } from '../queries/useBackfill';
 import { backfillRemaining } from '../game/backfill';
 import { AppColors, FontFamily, Radii, Spacing } from '../config/theme';
-
-const DURATION_OPTIONS: { label: string; mins: number }[] = [
-  { label: '30', mins: 30 },
-  { label: '1h', mins: 60 },
-  { label: '1.5h', mins: 90 },
-];
 
 type PickerTask = { id: number; icon?: string | null; name: string };
 type BackfillErrorT = { backfillDenyQuota: string; backfillDenyFull: string; backfillDenyFreeze: string; cantLog: string };
@@ -47,33 +41,6 @@ interface TaskPickerListProps {
   emptyText: string;
   colors: AppColors;
   styles: ReturnType<typeof makeStyles>;
-}
-
-interface DurationPickerProps {
-  durationMin: number;
-  onSelect: (mins: number) => void;
-  colors: AppColors;
-  styles: ReturnType<typeof makeStyles>;
-}
-
-function DurationPicker({ durationMin, onSelect, colors, styles }: DurationPickerProps) {
-  return (
-    <View style={styles.durationRow} accessibilityRole="radiogroup">
-      {DURATION_OPTIONS.map(opt => {
-        const on = durationMin === opt.mins;
-        return (
-          <TouchableOpacity key={opt.mins}
-            style={[styles.durChip, on && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
-            onPress={() => onSelect(opt.mins)} activeOpacity={0.7}
-            accessibilityRole="radio" accessibilityLabel={opt.label} accessibilityState={{ checked: on }}>
-            <Text style={[styles.durChipText, on && { color: colors.primary, fontFamily: FontFamily.semiBold }]}>
-              {opt.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
 }
 
 function TaskPickerList({ tasks, selectedTaskId, onSelect, emptyText, colors, styles }: TaskPickerListProps) {
@@ -169,22 +136,20 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   const { bottom } = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors, bottom), [colors, bottom]);
 
-  const { data: tasks = [] } = useTodayTasks(userId);
+  const { data: pickerTasks = [] } = useActivityPickerTasks(userId);
+  const tasks = useMemo(() => pickerTasks.filter(task => task.archived === 0), [pickerTasks]);
   const { mutateAsync, isPending } = useBackfillDay(userId);
 
   const [entries, setEntries] = useState<DraftEntry[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
-  const [durationText, setDurationText] = useState('30');
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
   const nextEntryId = useRef(0);
-  const durationInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (visible) {
       setEntries([]);
       setSelectedTaskId(null);
-      setDurationText('30');
       setEditingEntryId(null);
       setLocked(false);
     }
@@ -203,18 +168,10 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
 
   function handleSelectTask(id: number | null) {
     setSelectedTaskId(id);
-    setDurationText('30');
-  }
-
-  function setDuration(mins: number) {
-    setDurationText(String(mins));
   }
 
   function handleAddOrUpdate() {
     if (!selectedTask) return;
-    const duration = Number(durationText);
-    if (!Number.isInteger(duration) || duration <= 0) { Alert.alert(t.error, t.validDuration); return; }
-    if (duration > 1440) { Alert.alert(t.error, t.maxDuration); return; }
     const draft: DraftEntry = {
       id: editingEntryId ?? String(nextEntryId.current++),
       taskTypeId: selectedTask.id,
@@ -224,15 +181,13 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
       isTimeBased: !!selectedTask.is_time_based,
       basePoints: selectedTask.base_points,
       starPenalty: selectedTask.star_penalty,
-      durationMin: duration,
+      durationMin: 30,
     };
     setEntries(prev => {
       if (editingEntryId) return prev.map(e => (e.id === editingEntryId ? draft : e));
       return [...prev, draft];
     });
-    durationInputRef.current?.blur();
     setSelectedTaskId(null);
-    setDurationText('30');
     setEditingEntryId(null);
   }
 
@@ -241,7 +196,6 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
     if (!entry) return;
     setEditingEntryId(id);
     setSelectedTaskId(entry.taskTypeId);
-    setDurationText(String(entry.durationMin));
   }
 
   function handleRemoveEntry(id: string) {
@@ -249,7 +203,6 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
     if (editingEntryId === id) {
       setEditingEntryId(null);
       setSelectedTaskId(null);
-      setDurationText('30');
     }
   }
 
@@ -341,21 +294,6 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
                     emptyText={t.backfillNoTasks}
                     colors={colors}
                     styles={styles}
-                  />
-
-                  <Text style={[styles.sectionLabel, { marginTop: 12 }]}>{t.editDurationLabel}</Text>
-                  <DurationPicker durationMin={Number(durationText)} onSelect={setDuration} colors={colors} styles={styles} />
-                  <TextInput
-                    ref={durationInputRef}
-                    style={styles.durationInput}
-                    value={durationText}
-                    onChangeText={(value) => {
-                      setDurationText(value);
-                    }}
-                    keyboardType="number-pad"
-                    placeholder="30"
-                    placeholderTextColor={colors.muted}
-                    accessibilityLabel={t.editDurationLabel}
                   />
 
                   <TouchableOpacity
