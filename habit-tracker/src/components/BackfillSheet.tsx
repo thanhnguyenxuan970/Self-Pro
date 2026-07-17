@@ -144,6 +144,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
 
   const [entries, setEntries] = useState<DraftEntry[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const [selectedTimed, setSelectedTimed] = useState<boolean>(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
   const nextEntryId = useRef(0);
@@ -152,6 +153,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
     if (visible) {
       setEntries([]);
       setSelectedTaskId(null);
+      setSelectedTimed(false);
       setEditingEntryId(null);
       setLocked(false);
     }
@@ -170,6 +172,8 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
 
   function handleSelectTask(id: number | null) {
     setSelectedTaskId(id);
+    const task = tasks.find(item => item.id === id);
+    if (task) setSelectedTimed(!!task.is_time_based);
   }
 
   function handleAddOrUpdate() {
@@ -180,7 +184,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
       name: selectedTask.name,
       icon: selectedTask.icon,
       kind: selectedTask.kind as 'GOOD' | 'BAD',
-      isTimeBased: !!selectedTask.is_time_based,
+      isTimeBased: selectedTimed,
       basePoints: selectedTask.base_points,
       starPenalty: selectedTask.star_penalty,
       durationMin: 30,
@@ -190,6 +194,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
       return [...prev, draft];
     });
     setSelectedTaskId(null);
+    setSelectedTimed(false);
     setEditingEntryId(null);
   }
 
@@ -198,6 +203,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
     if (!entry) return;
     setEditingEntryId(id);
     setSelectedTaskId(entry.taskTypeId);
+    setSelectedTimed(entry.isTimeBased);
   }
 
   function handleRemoveEntry(id: string) {
@@ -205,6 +211,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
     if (editingEntryId === id) {
       setEditingEntryId(null);
       setSelectedTaskId(null);
+      setSelectedTimed(false);
     }
   }
 
@@ -304,6 +311,10 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
                     colors={colors}
                     styles={styles}
                   />
+                  {selectedTask && <View style={styles.timingRow}>
+                    <TouchableOpacity style={[styles.timingButton, !selectedTimed && styles.timingActive]} onPress={() => setSelectedTimed(false)}><Text style={[styles.timingText, !selectedTimed && styles.timingActiveText]}>{t.addActivityNoTimer}</Text></TouchableOpacity>
+                    <TouchableOpacity style={[styles.timingButton, selectedTimed && styles.timingActive]} onPress={() => setSelectedTimed(true)}><Text style={[styles.timingText, selectedTimed && styles.timingActiveText]}>{t.addActivityTimedBtn}</Text></TouchableOpacity>
+                  </View>}
                   {tasks.length === 0 && <View style={styles.suggestions}>{TEMPLATE_CATEGORIES.flatMap(c => c.tasks).map(s => <TouchableOpacity key={s.nameKey} style={styles.suggestion} onPress={() => void addSuggestion(s)}><Text style={styles.suggestionText}>{s.icon} {(t as Record<string, unknown>)[s.nameKey] as string ?? s.name}</Text></TouchableOpacity>)}</View>}
 
                   <TouchableOpacity
@@ -440,6 +451,11 @@ function makeStyles(colors: AppColors, bottomInset: number) {
     suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
     suggestion: { minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: colors.primarySoft, borderRadius: Radii.pill },
     suggestionText: { color: colors.primary, fontFamily: FontFamily.semiBold, fontSize: 12 },
+    timingRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+    timingButton: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line2, borderRadius: Radii.sm },
+    timingActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+    timingText: { color: colors.ink2, fontFamily: FontFamily.semiBold, fontSize: 12 },
+    timingActiveText: { color: colors.primary },
     emptyDraftHint: {
       fontSize: 12,
       fontFamily: FontFamily.regular,
