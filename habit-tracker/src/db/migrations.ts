@@ -561,7 +561,30 @@ async function v20(db: SQLiteDatabase): Promise<void> {
   await db.runAsync(`UPDATE task_types SET is_template = 1 WHERE name IN ('Running', 'Gym', 'Reading', 'Language Learning', 'Homework', 'Studying', 'Cleaning', 'Cooking', 'Work', 'Study', 'Family', 'Relationship', 'Sports', 'Chạy bộ', 'Đọc sách', 'Học ngoại ngữ', 'Làm bài tập', 'Ôn bài', 'Dọn dẹp', 'Nấu ăn')`);
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20];
+// v20 -> v21: streak milestone bonuses are display-only flex stars; they never
+// enter weekly rank or the spendable treat pool.
+async function v21(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS milestone_stars (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      milestone_days INTEGER NOT NULL,
+      stars INTEGER NOT NULL,
+      awarded_at INTEGER NOT NULL,
+      UNIQUE(user_id, milestone_days)
+    );
+    INSERT OR IGNORE INTO milestone_stars (user_id, milestone_days, stars, awarded_at)
+    SELECT u.id, m.days, m.stars, CAST(strftime('%s', 'now') AS INTEGER) * 1000
+    FROM users u
+    JOIN (
+      SELECT 7 AS days, 1 AS stars UNION ALL SELECT 14, 2 UNION ALL SELECT 30, 3 UNION ALL SELECT 60, 4
+      UNION ALL SELECT 90, 5 UNION ALL SELECT 100, 6 UNION ALL SELECT 180, 8 UNION ALL SELECT 365, 10
+    ) m
+    WHERE m.days <= COALESCE((SELECT MAX(streak_count) FROM daily_summary WHERE user_id = u.id), 0);
+  `);
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

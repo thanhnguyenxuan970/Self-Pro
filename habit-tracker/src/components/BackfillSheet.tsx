@@ -17,6 +17,7 @@ import { TEMPLATE_CATEGORIES, type TemplateTask } from '../config/constants';
 import { AddActivitySheet } from '../screens/AddActivitySheet';
 import { EditActivityModal } from './EditActivityModal';
 import type { Task } from './TaskRow';
+import type { StreakMilestone } from '../game/streakMilestones';
 
 type PickerTask = { id: number; icon?: string | null; name: string };
 type BackfillErrorT = { backfillDenyQuota: string; backfillDenyFull: string; backfillDenyFreeze: string; cantLog: string };
@@ -133,10 +134,11 @@ interface Props {
   date: string; // YYYY-MM-DD
   backfillsUsedThisWeek: number;
   userId: number;
+  onMilestone: (milestone: StreakMilestone) => void;
   onClose: () => void;
 }
 
-export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, onClose }: Props) {
+export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, onMilestone, onClose }: Props) {
   const { colors } = useTheme();
   const t = useTranslations();
   const { bottom } = useSafeAreaInsets();
@@ -243,9 +245,10 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
         starPenalty: e.starPenalty,
         durationMin: e.durationMin,
       }));
-      await mutateAsync({ date, entries: payload });
+      const result = await mutateAsync({ date, entries: payload });
       setLocked(true);
       Toast.show({ type: 'success', text1: t.backfillSuccess });
+      if (result.milestone) onMilestone(result.milestone);
     } catch (err: unknown) {
       Alert.alert(t.error, resolveBackfillError((err as Error)?.message, t));
     }

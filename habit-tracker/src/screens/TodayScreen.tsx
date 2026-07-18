@@ -21,6 +21,7 @@ import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme'
 import { Task, TaskRow } from '../components/TaskRow';
 import { SkeletonRow } from '../components/SkeletonRow';
 import { LevelUpCelebrationModal } from '../components/LevelUpCelebrationModal';
+import { StreakMilestoneCelebrationModal } from '../components/StreakMilestoneCelebrationModal';
 import { EditActivityModal } from '../components/EditActivityModal';
 import { ShareCardModal } from './ShareCardModal';
 import { useScreenCommons } from '../hooks/useScreenCommons';
@@ -42,6 +43,7 @@ import { DurationClockInput } from '../components/DurationClockInput';
 import { clockMinutes } from '../utils/durationClock';
 import { getHomeBackfillNudge } from '../game/homeBackfillNudge';
 import { getLocalDate, getWeekStart } from '../utils/formatters';
+import type { StreakMilestone } from '../game/streakMilestones';
 
 const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑', 8: '👾', 9: '😇' };
 
@@ -196,6 +198,7 @@ export function TodayScreen() {
   const pendingLogTaskIds = useRef(new Set<number>());
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set());
   const [pendingLevelUp, setPendingLevelUp] = useState<{ tierOrder: number; tierName: string } | null>(null);
+  const [pendingStreakMilestone, setPendingStreakMilestone] = useState<StreakMilestone | null>(null);
   const [levelUpChecked, setLevelUpChecked] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
   const [showScoringGuide, setShowScoringGuide] = useState(false);
@@ -296,13 +299,17 @@ export function TodayScreen() {
 
   const SHARE_MILESTONES = [7, 30, 90];
 
-  function showStreakToast(newStreak: number, prevStreak: number) {
+  function showStreakToast(newStreak: number, prevStreak: number, milestone: StreakMilestone | null) {
     if (newStreak === 1 && prevStreak > 1) {
       Toast.show({ type: 'error', text1: t.streakBreakTitle, text2: t.streakBreakMsg(prevStreak), visibilityTime: 3000 });
     } else if (newStreak > 1 && newStreak > prevStreak) {
-      if ([3, 7, 30, 90].includes(newStreak)) cueStreakMilestone();
-      Toast.show({ type: 'success', text1: t.streakMilestone(newStreak), visibilityTime: 1800 });
-      if (SHARE_MILESTONES.includes(newStreak)) {
+      if (milestone) {
+        cueStreakMilestone();
+        setPendingStreakMilestone(milestone);
+      } else {
+        Toast.show({ type: 'success', text1: t.streakMilestone(newStreak), visibilityTime: 1800 });
+      }
+      if (!milestone && SHARE_MILESTONES.includes(newStreak)) {
         setTimeout(() => setShowShareCard(true), 1500);
       }
     }
@@ -330,7 +337,7 @@ export function TodayScreen() {
         taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD',
         isTimeBased: false, basePoints: task.base_points, starPenalty: task.star_penalty,
       });
-      showStreakToast(result.newStreak, result.prevStreak);
+      showStreakToast(result.newStreak, result.prevStreak, result.milestone);
       setJustLoggedIds(prev => new Set(prev).add(task.id));
       setTimeout(() => setJustLoggedIds(prev => { const n = new Set(prev); n.delete(task.id); return n; }), 1500);
     } catch { Alert.alert(t.error, t.cantLog); }
@@ -345,7 +352,7 @@ export function TodayScreen() {
         isTimeBased: true, basePoints: modalTask.base_points,
         starPenalty: modalTask.star_penalty, durationMin: mins,
       });
-      showStreakToast(result.newStreak, result.prevStreak);
+      showStreakToast(result.newStreak, result.prevStreak, result.milestone);
       closeModal();
     } catch { Alert.alert(t.error, t.cantLog); }
   }
@@ -360,7 +367,7 @@ export function TodayScreen() {
         taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD',
         isTimeBased: false, basePoints: task.base_points, starPenalty: task.star_penalty,
       });
-      showStreakToast(result.newStreak, result.prevStreak);
+      showStreakToast(result.newStreak, result.prevStreak, result.milestone);
       setDismissedSuggestions(prev => new Set(prev).add(task.id));
     } catch { Alert.alert(t.error, t.cantLog); }
   }
@@ -595,11 +602,19 @@ export function TodayScreen() {
           maxDuration: t.maxDuration,
         }}
       />
+      <StreakMilestoneCelebrationModal
+        milestone={pendingLevelUp === null ? pendingStreakMilestone : null}
+        onDismiss={() => setPendingStreakMilestone(null)}
+      />
       <BackfillSheet
         visible={!!backfillDate}
         date={backfillDate ?? ''}
         backfillsUsedThisWeek={backfillStatus?.backfillsUsedThisWeek ?? 0}
         userId={userId}
+        onMilestone={(milestone) => {
+          setBackfillDate(null);
+          setPendingStreakMilestone(milestone);
+        }}
         onClose={() => setBackfillDate(null)}
       />
     </SafeAreaView>

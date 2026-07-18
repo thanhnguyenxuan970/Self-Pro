@@ -3,6 +3,7 @@ import { getDb } from '../db/client';
 import { canBackfill, computeBackfillSession, computeStreakCounts, type BackfillSessionEntry } from '../game/backfill';
 import { getLocalDate, getLocalDateFor, getWeekStart, getWeekStartFor } from '../utils/formatters';
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { crossedStreakMilestone, type StreakMilestone } from '../game/streakMilestones';
 
 export type BackfillEntryParams = BackfillSessionEntry;
 
@@ -94,9 +95,13 @@ async function runBackfillTx(
   db: SQLiteDatabase, entries: BackfillEntryParams[],
   userId: number, backfillDate: string,
   backfillWeekStart: string, currentWeekStart: string, today: string,
-): Promise<number> {
+): Promise<{ newStreak: number; milestone: StreakMilestone | null }> {
   const now = new Date();
   const nowMs = now.getTime();
+  const previousBest = await db.getFirstAsync<{ best: number }>(
+    `SELECT COALESCE(MAX(streak_count), 0) AS best FROM daily_summary WHERE user_id = ?`,
+    [userId],
+  );
 
   const quotaRow = await db.getFirstAsync<{ n: number }>(
     `SELECT COUNT(DISTINCT local_date) AS n FROM activity_log WHERE user_id = ? AND week_start = ? AND is_backfill = 1`,
@@ -149,6 +154,19 @@ async function runBackfillTx(
   );
 
   const newStreak = await recomputeStreakChain(db, userId, backfillDate, today);
+  const currentBest = await db.getFirstAsync<{ best: number }>(
+    `SELECT COALESCE(MAX(streak_count), 0) AS best FROM daily_summary WHERE user_id = ?`,
+    [userId],
+  );
+  const candidate = crossedStreakMilestone(previousBest?.best ?? 0, currentBest?.best ?? 0);
+  let milestone: StreakMilestone | null = null;
+  if (candidate) {
+    const result = await db.runAsync(
+      `INSERT OR IGNORE INTO milestone_stars (user_id, milestone_days, stars, awarded_at) VALUES (?, ?, ?, ?)`,
+      [userId, candidate.days, candidate.stars, nowMs],
+    );
+    if (result.changes > 0) milestone = candidate;
+  }
 
   if (session.rankPointsDelta !== 0 || session.rankStarsDelta !== 0) {
     await db.runAsync(
@@ -164,14 +182,14 @@ async function runBackfillTx(
     );
   }
 
-  return newStreak;
+  return { newStreak, milestone };
 }
 
 export function useBackfillDay(userId: number) {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: BackfillDayParams): Promise<{ newStreak: number }> => {
+    mutationFn: async (params: BackfillDayParams): Promise<{ newStreak: number; milestone: StreakMilestone | null }> => {
       const db = await getDb();
       const today = getLocalDate();
       const currentWeekStart = getWeekStart();
@@ -195,13 +213,13 @@ export function useBackfillDay(userId: number) {
       }
       if (params.entries.length === 0) throw new Error('EMPTY_SESSION');
 
-      let newStreak = 0;
+      let result = { newStreak: 0, milestone: null as StreakMilestone | null };
       await db.withExclusiveTransactionAsync(async (txn) => {
-        newStreak = await runBackfillTx(
+        result = await runBackfillTx(
           txn, params.entries, userId, backfillDate, backfillWeekStart, currentWeekStart, today,
         );
       });
-      return { newStreak };
+      return result;
     },
 
     onSuccess: () => {

@@ -15,7 +15,9 @@ import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
 import { AppColors, Radii, Spacing, FontFamily, Shadows } from '../config/theme';
 import { AnimatedFireIcon, AnimatedStarIcon, AnimatedBurningStarIcon } from '../components/CalendarIcons';
 import { BackfillSheet } from '../components/BackfillSheet';
+import { StreakMilestoneCelebrationModal } from '../components/StreakMilestoneCelebrationModal';
 import { canBackfill } from '../game/backfill';
+import type { StreakMilestone } from '../game/streakMilestones';
 import { getLocalDate, getWeekStart, getWeekStartFor } from '../utils/formatters';
 
 
@@ -109,6 +111,7 @@ export function CalendarScreen() {
 
   const [yearMonth, setYearMonth] = useState(() => toYearMonth(new Date()));
   const [backfillDate, setBackfillDate] = useState<string | null>(null);
+  const [pendingStreakMilestone, setPendingStreakMilestone] = useState<StreakMilestone | null>(null);
 
   const { data: days = [] } = useCalendarData(userId, yearMonth);
   const { data: backfillStatus } = useBackfillStatus(userId);
@@ -260,8 +263,13 @@ export function CalendarScreen() {
       date={backfillDate ?? ''}
       backfillsUsedThisWeek={backfillStatus?.backfillsUsedThisWeek ?? 0}
       userId={userId}
+      onMilestone={(milestone) => {
+        setBackfillDate(null);
+        setPendingStreakMilestone(milestone);
+      }}
       onClose={() => setBackfillDate(null)}
     />
+    <StreakMilestoneCelebrationModal milestone={pendingStreakMilestone} onDismiss={() => setPendingStreakMilestone(null)} />
     </SafeAreaView>
   );
 }

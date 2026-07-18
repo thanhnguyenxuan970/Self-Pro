@@ -9,10 +9,23 @@ import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters
 import { TierRow } from '../game/tierUnlocks';
 import { resolveWeeklyRank } from '../game/weeklyRank';
 import { dailyBonusStarsForPoints } from '../config/constants';
+import { crossedStreakMilestone, type StreakMilestone } from '../game/streakMilestones';
 
 type FullTierRow = TierRow & { tier_order: number; rank_name: string };
 
 type DailySummaryRow = { total_points: number; bonus_star_awarded: number; streak_count: number };
+
+async function awardStreakMilestone(
+  db: SQLiteDatabase, userId: number, previousBest: number, current: number, awardedAt: number,
+): Promise<StreakMilestone | null> {
+  const milestone = crossedStreakMilestone(previousBest, current);
+  if (!milestone) return null;
+  const result = await db.runAsync(
+    `INSERT OR IGNORE INTO milestone_stars (user_id, milestone_days, stars, awarded_at) VALUES (?, ?, ?, ?)`,
+    [userId, milestone.days, milestone.stars, awardedAt],
+  );
+  return result.changes > 0 ? milestone : null;
+}
 
 async function computeTodayStreak(
   db: SQLiteDatabase, userId: number, today: string, yesterdayDate: string,
@@ -289,7 +302,7 @@ export function useLogTask(userId: number) {
       basePoints: number;
       starPenalty: number;
       durationMin?: number;
-    }): Promise<{ newStreak: number; prevStreak: number }> => {
+    }): Promise<{ newStreak: number; prevStreak: number; milestone: StreakMilestone | null }> => {
       const db = await getDb();
       const today = getLocalDate();
       const weekStart = getWeekStart();
@@ -306,6 +319,7 @@ export function useLogTask(userId: number) {
       );
 
       let streakResult = { newStreak: 1, prevStreak: 0 };
+      let milestone: StreakMilestone | null = null;
 
       // All volatile reads + computation + writes inside one transaction.
       // This prevents TOCTOU: two concurrent mutateAsync calls can no longer
@@ -316,6 +330,10 @@ export function useLogTask(userId: number) {
           `SELECT total_points, bonus_star_awarded, streak_count FROM daily_summary
            WHERE user_id = ? AND local_date = ?`,
           [userId, today]
+        );
+        const best = await db.getFirstAsync<{ best: number }>(
+          `SELECT COALESCE(MAX(streak_count), 0) AS best FROM daily_summary WHERE user_id = ?`,
+          [userId],
         );
         const weeklyRow = await db.getFirstAsync<{ weekly_stars: number; current_tier_id: number | null }>(
           `SELECT weekly_stars, current_tier_id FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
@@ -328,6 +346,7 @@ export function useLogTask(userId: number) {
 
         const { todayStreak, streakResult: sr } = await computeTodayStreak(db, userId, today, yesterdayDate, daily);
         streakResult = sr;
+        milestone = await awardStreakMilestone(db, userId, best?.best ?? 0, Math.max(best?.best ?? 0, sr.newStreak), nowMs);
 
         const { activityRow, bonusRow } = computeLogTaskRows({
           userId, taskTypeId: params.taskTypeId, kind: params.kind,
@@ -371,7 +390,7 @@ export function useLogTask(userId: number) {
         });
       });
 
-      return streakResult;
+      return { ...streakResult, milestone };
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['today'] });
