@@ -216,6 +216,7 @@ const vi = {
     'GOATED':         'Đỉnh Chóp',
     'Final Boss':     'Trùm Cuối',
     'Ascended':       'Đỉnh Của Chóp',
+    'Singularity':    'Gánh Cả Vũ Trụ',
   } as Record<string, string>,
   // Rank quote (Gen-Z phrase, shown under rank name/mascot/share card)
   rankQuoteMap: {
@@ -228,6 +229,7 @@ const vi = {
     'GOATED':         'infinite W, no cap 🐐',
     'Final Boss':     'boss music on',
     'Ascended':       'god mode: on',
+    'Singularity':    'event horizon',
   } as Record<string, string>,
 
   // LogActivitySheet
@@ -899,6 +901,7 @@ const en: typeof vi = {
     'GOATED':         'GOATED',
     'Final Boss':     'Final Boss',
     'Ascended':       'Ascended',
+    'Singularity':    'Singularity',
   } as Record<string, string>,
   rankQuoteMap: {
     'Delulu':         '"delulu is the solulu"',
@@ -910,6 +913,7 @@ const en: typeof vi = {
     'GOATED':         '"infinite W, no cap"',
     'Final Boss':     '"boss music on"',
     'Ascended':       '"god mode: on"',
+    'Singularity':    '"event horizon"',
   } as Record<string, string>,
 
   // LogActivitySheet

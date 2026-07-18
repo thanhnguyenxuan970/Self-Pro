@@ -15,7 +15,7 @@ export function RankAmbientFx({ tier, size, reduceMotion }: Props) {
     if (reduceMotion) return;
     const animation = Animated.loop(Animated.timing(progress, {
       toValue: 1,
-      duration: [2200, 2000, 1100, 1500, 2200, 1800, 2600, 3600, 3000][rank.tier],
+      duration: rank.anim.duration,
       easing: Easing.linear,
       useNativeDriver: true,
     }));

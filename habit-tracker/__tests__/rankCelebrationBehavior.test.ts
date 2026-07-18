@@ -2,9 +2,10 @@ import { getRankConfigByTierOrder } from '../src/config/ranks.config';
 import { getCelebrationGlowColor, shouldRunCelebrationBurst, shouldRunRankLoop } from '../src/lib/rankPresentation';
 
 describe('rank celebration behavior', () => {
-  test('uses dedicated glow colors for Final Boss and Ascended', () => {
+  test('uses dedicated glow colors for the top rank tiers', () => {
     expect(getCelebrationGlowColor(8)).toBe(getRankConfigByTierOrder(8).glow);
     expect(getCelebrationGlowColor(9)).toBe(getRankConfigByTierOrder(9).glow);
+    expect(getCelebrationGlowColor(10)).toBe('#FF8C42');
   });
 
   test('disables celebration burst when reduced motion is enabled', () => {

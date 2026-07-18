@@ -66,7 +66,7 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
               const rankLabel = t.rankNameMap[cfg.name] ?? cfg.name;
               const rankAltLabel = rankLabel === cfg.nameVi ? cfg.name : cfg.nameVi;
               const locked = !unlocked && !cur;
-              const hidden = tier.tier_order === 9 && !cur;
+              const hidden = tier.tier_order === 10 && !cur;
               const lockedLabel = rankLabel === cfg.name ? '??? · hidden' : '??? · còn giấu';
               return (
                 <View key={tier.id} style={[styles.lrow, cur && styles.lrowCur]}>

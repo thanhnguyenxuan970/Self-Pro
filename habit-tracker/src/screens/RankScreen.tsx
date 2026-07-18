@@ -185,7 +185,7 @@ export function RankScreen() {
                   accessibilityLabel={unlocked ? `Xem lại thăng cấp ${rank.name}` : `${rank.name} khóa đến ${rank.stars} sao`}
                 >
                   {unlocked ? <RankMascot tier={rank.tier} size={76} loop reduceMotion={reduceMotion} ambient /> : <Text style={styles.lockedMark}>🔒</Text>}
-                  <Text style={[styles.previewTierText, { color: unlocked ? rank.color : colors.muted }]} numberOfLines={1}>{rank.tier + 1} · {rank.name}</Text>
+                  <Text style={[styles.previewTierText, { color: unlocked ? colors.inkDark : colors.muted }]} numberOfLines={1}>{rank.tier + 1} · {rank.name}</Text>
                   {!unlocked && <Text style={styles.lockedRequirement}>{rank.stars} ★</Text>}
                 </TouchableOpacity>
               );

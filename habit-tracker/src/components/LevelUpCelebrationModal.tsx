@@ -108,7 +108,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklySt
       <View style={styles.screen} accessibilityViewIsModal>
         {!reduceMotion && <Animated.View pointerEvents="none" style={[styles.flash, flashStyle]} />}
         <Animated.View style={[styles.eyebrow, { backgroundColor: `${cfg.color}24` }, riseStyle(eyebrow)]}>
-          <Text style={[styles.eyebrowText, { color: cfg.color }]}>✦ {t.levelUpTitle}</Text>
+          <Text style={[styles.eyebrowText, { color: cfg.glow ?? cfg.color }]}>✦ {t.levelUpTitle}</Text>
         </Animated.View>
         <View style={styles.mascotStage}>
           <View style={[styles.wash, { backgroundColor: cfg.color }]} pointerEvents="none" />

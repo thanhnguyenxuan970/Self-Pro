@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+- **Tier 9 Singularity**: extended the weekly rank ladder to 2560 stars with its flat cosmic mascot, bilingual labels, level-up presentation, and SQLite migration v22.
+
 ## [1.1.4] - 2026-07-16
 
 ### Added

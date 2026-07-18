@@ -286,6 +286,31 @@ const RANK_DATA: BaseRank[] = [
     sfx: 'ascended',
     haptic: 'heavy-success',
   },
+  {
+    tier: 9,
+    name: 'Singularity',
+    nameVi: 'Gánh Cả Vũ Trụ',
+    stars: 2560,
+    descriptor: 'event horizon',
+    color: '#1E1436',
+    edge: '#FFB347',
+    glow: '#FF8C42',
+    glowOpacity: 0.5,
+    face: FACE([
+      { t: 'path', d: 'M-13,-8 l8,2.5 M13,-8 l-8,2.5', stroke: '#FFE8C2', sw: 2.8, cap: 'round' },
+      { t: 'path', d: 'M-11,-1 q3,3 6,0 M5,-1 q3,3 6,0', stroke: '#FFE8C2', sw: 2.2, cap: 'round' },
+      { t: 'circle', cx: -13, cy: 4, r: 2.2, fill: '#FF8C42', opacity: 0.55 },
+      { t: 'circle', cx: 13, cy: 4, r: 2.2, fill: '#FF8C42', opacity: 0.55 },
+      { t: 'path', d: 'M-5,6 q5,4 11,-1', stroke: '#FFE8C2', sw: 2.2, cap: 'round' },
+    ]),
+    anim: { duration: 4200, loop: true, channels: {
+      scale: [[0, 1], [0.45, 0.96], [0.7, 1.05], [0.85, 1.01], [1, 1]],
+      rotate: [[0, 0], [0.45, -1], [0.7, 0.5], [1, 0]],
+      translateY: [[0, 1], [0.7, -2], [1, 1]],
+    }},
+    sfx: 'singularity',
+    haptic: 'heavy-success',
+  },
 ];
 
 const BACK: Record<number, SvgEl[]> = {
@@ -300,6 +325,10 @@ const BACK: Record<number, SvgEl[]> = {
     { t: 'path', d: 'M-33,6 l-5,-2 M-32,-3 l-5,-2 M33,6 l5,-2 M32,-3 l5,-2', stroke: '#8FBF6B', sw: 2.4, cap: 'round' },
   ],
   7: [{ t: 'path', d: 'M-28,-6 q-12,26 2,44 L-10,26 Z M28,-6 q12,26 -2,44 L10,26 Z', fill: '#B91C1C', opacity: 0.85 }],
+  9: [
+    { t: 'path', d: 'M0,-50 A50,50 0 0 1 47,17', stroke: '#FF8C42', sw: 2.2, cap: 'round', opacity: 0.5 },
+    { t: 'path', d: 'M0,44 A38,38 0 0 0 -36,-13', stroke: '#FFB347', sw: 1.5, cap: 'round', opacity: 0.35 },
+  ],
 };
 
 const FRONT: Record<number, SvgEl[]> = {
@@ -338,6 +367,9 @@ const FRONT: Record<number, SvgEl[]> = {
     { t: 'line', x1: 48, y1: 0, x2: 55, y2: 0, stroke: '#E0A93B', sw: 1.4, cap: 'round' },
     { t: 'line', x1: 0, y1: 48, x2: 0, y2: 55, stroke: '#E0A93B', sw: 1.4, cap: 'round' },
     { t: 'line', x1: -48, y1: 0, x2: -55, y2: 0, stroke: '#E0A93B', sw: 1.4, cap: 'round' },
+  ],
+  9: [
+    { t: 'path', d: 'M24,-34 C25,-28 25,-28 31,-27 C25,-26 25,-26 24,-20 C23,-26 23,-26 17,-27 C23,-28 23,-28 24,-34 Z', fill: '#FFB347' },
   ],
 };
 

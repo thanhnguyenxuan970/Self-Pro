@@ -12,6 +12,7 @@ const RANK_SOUNDS: Record<number, number> = {
   6: require('../assets/sounds/ranks/goated-up.mp3'),
   7: require('../assets/sounds/ranks/goated-up.mp3'),
   8: require('../assets/sounds/ranks/goated-up.mp3'),
+  9: require('../assets/sounds/ranks/goated-up.mp3'),
 };
 
 // Max duration per spec (longest tier = 500ms). Add 600ms buffer before cleanup.

@@ -1,11 +1,12 @@
 import { RANKS, getRankConfigByTierOrder, getRankThreshold, starPoints } from '../src/config/ranks.config';
 
 describe('rank config', () => {
-  test('includes Final Boss and Ascended at the top of the ladder', () => {
-    expect(RANKS[RANKS.length - 2]?.name).toBe('Final Boss');
-    expect(RANKS[RANKS.length - 1]?.name).toBe('Ascended');
+  test('includes Singularity at the top of the ladder', () => {
+    expect(RANKS[RANKS.length - 2]?.name).toBe('Ascended');
+    expect(RANKS[RANKS.length - 1]?.name).toBe('Singularity');
     expect(getRankConfigByTierOrder(8).nameVi).toBe('Trùm Cuối');
     expect(getRankConfigByTierOrder(9).nameVi).toBe('Đỉnh Của Chóp');
+    expect(getRankConfigByTierOrder(10).nameVi).toBe('Gánh Cả Vũ Trụ');
   });
 
   test('switches to doubling thresholds after GOATED', () => {
@@ -26,13 +27,15 @@ describe('rank config', () => {
   });
 
   test('uses the rarity ladder and keeps Ascended luminous', () => {
-    expect(RANKS.map(rank => rank.band)).toEqual([0, 0, 1, 1, 2, 2, 3, 3, 4]);
+    expect(RANKS.map(rank => rank.band)).toEqual([0, 0, 1, 1, 2, 2, 3, 3, 4, 4]);
     expect(getRankConfigByTierOrder(7).front).not.toHaveLength(0);
     expect(getRankConfigByTierOrder(8).back).not.toHaveLength(0);
     expect(getRankConfigByTierOrder(8).color).toBe('#6D28D9');
     expect(getRankConfigByTierOrder(8).front.some(el => el.t === 'circle' && el.fill === '#EF4444')).toBe(true);
     expect(getRankConfigByTierOrder(9).bodyStyle).toBe('luminous');
     expect(starPoints(getRankConfigByTierOrder(9).geometry).split(' ')).toHaveLength(10);
+    expect(getRankConfigByTierOrder(10)).toMatchObject({ color: '#1E1436', edge: '#FFB347', sfx: 'singularity' });
+    expect(getRankConfigByTierOrder(10).back).toHaveLength(2);
   });
 
   test('keeps every static mascot silhouette', () => {
@@ -201,6 +204,24 @@ describe('rank config', () => {
       "line",
     ],
     "tier": 8,
+  },
+  {
+    "back": [
+      "path",
+      "path",
+    ],
+    "band": 4,
+    "face": [
+      "path",
+      "path",
+      "circle",
+      "circle",
+      "path",
+    ],
+    "front": [
+      "path",
+    ],
+    "tier": 9,
   },
 ]
 `);
