@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useDailySummary } from '../queries/useToday';
 import { useAllTimeStats } from '../queries/useProgress';
 import { useRankData } from '../queries/useRank';
-import { useChallengeDaysTotal, useWeeklyOverachieverCount } from '../queries/useAchievements';
+import { useAchievementActivityMetrics, useChallengeDaysTotal, useWeeklyOverachieverCount } from '../queries/useAchievements';
 import { ACHIEVEMENTS } from '../config/achievements';
 import { computeAchievementStatus } from '../lib/achievements';
 import { Badge } from '../components/Badge';
@@ -30,6 +30,7 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
   const { data: rank } = useRankData(userId);
   const { data: challengeDaysDone } = useChallengeDaysTotal(userId);
   const { data: overachieveWeeks } = useWeeklyOverachieverCount(userId);
+  const { data: activityMetrics } = useAchievementActivityMetrics(userId);
   const currentTier = rank?.tiers.find(tier => tier.id === rank.currentTierId);
   const nextTier = rank?.tiers.find(tier => tier.stars_required > (rank?.currentStars ?? 0));
   const trophies = useMemo(() => ACHIEVEMENTS.map(achievement => ({
@@ -40,8 +41,13 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
       challengeDaysDone: challengeDaysDone ?? 0,
       rankTierOrder: currentTier?.tier_order ?? 0,
       weeklyOverachieveWeeks: overachieveWeeks ?? 0,
+      activeDays: allTime?.activeDays ?? 0,
+      morningLogs: activityMetrics?.morningLogs ?? 0,
+      nightLogs: activityMetrics?.nightLogs ?? 0,
+      totalStars: allTime?.totalStars ?? 0,
+      activityTypes: activityMetrics?.activityTypes ?? 0,
     }),
-  })), [allTime?.totalActivities, allTime?.bestStreak, challengeDaysDone, currentTier?.tier_order, overachieveWeeks]);
+  })), [allTime?.totalActivities, allTime?.bestStreak, allTime?.activeDays, allTime?.totalStars, challengeDaysDone, currentTier?.tier_order, overachieveWeeks, activityMetrics]);
   const earnedTrophies = useMemo(() => trophies.filter(trophy => trophy.earned), [trophies]);
   const rankProgress = nextTier
     ? t.rankProgress(Math.round(rank?.currentStars ?? 0), nextTier.stars_required, nextTier.rank_name)

@@ -110,15 +110,15 @@ export function Badge({ tier, emblem, label, sub, progress, locked, size = 96, c
           {!locked && <Circle cx="50" cy="50" r="24" fill={`url(#halo-${gradId})`} />}
 
           {/* 7. Emblem — double drop-shadow (dark below, light above) to emboss */}
-          <G transform="translate(30.6,30.6) scale(1.66)" stroke="rgba(0,0,0,0.32)" strokeWidth={2.05}
+          <G transform="translate(25.8,25.8) scale(1.51)" stroke="rgba(0,0,0,0.32)" strokeWidth={2}
              fill="none" strokeLinecap="round" strokeLinejoin="round">
             <Path d={EMBLEM_PATH[emblem]} />
           </G>
-          <G transform="translate(29.6,29.6) scale(1.66)" stroke="rgba(255,255,255,0.4)" strokeWidth={2.05}
+          <G transform="translate(24.8,24.8) scale(1.51)" stroke="rgba(255,255,255,0.4)" strokeWidth={2}
              fill="none" strokeLinecap="round" strokeLinejoin="round">
             <Path d={EMBLEM_PATH[emblem]} />
           </G>
-          <G transform="translate(30,30) scale(1.66)" stroke={tint} strokeOpacity={locked ? 0.55 : 1} strokeWidth={2.05}
+          <G transform="translate(25.2,25.2) scale(1.51)" stroke={tint} strokeOpacity={locked ? 0.55 : 1} strokeWidth={2}
              fill="none" strokeLinecap="round" strokeLinejoin="round">
             <Path d={EMBLEM_PATH[emblem]} />
           </G>

@@ -5,7 +5,7 @@ import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../c
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useAllTimeStats } from '../queries/useProgress';
 import { useRankData } from '../queries/useRank';
-import { useChallengeDaysTotal, useAchievementUnlocks, useRecordAchievementUnlock, useWeeklyOverachieverCount } from '../queries/useAchievements';
+import { useAchievementActivityMetrics, useChallengeDaysTotal, useAchievementUnlocks, useRecordAchievementUnlock, useWeeklyOverachieverCount } from '../queries/useAchievements';
 import { ACHIEVEMENTS, FILTERS, matchesFilter, type AchievementFilter } from '../config/achievements';
 import { computeAchievementStatus, type AchievementStats } from '../lib/achievements';
 import { Badge } from '../components/Badge';
@@ -20,10 +20,11 @@ export function TrophyShelfScreen() {
   const { data: rank, isLoading: rankLoading } = useRankData(userId);
   const { data: challengeDaysDone, isLoading: challengeLoading } = useChallengeDaysTotal(userId);
   const { data: overachieveWeeks, isLoading: overachieveLoading } = useWeeklyOverachieverCount(userId);
+  const { data: activityMetrics, isLoading: activityMetricsLoading } = useAchievementActivityMetrics(userId);
   const { data: unlocks = {}, isLoading: unlocksLoading } = useAchievementUnlocks(userId);
   const recordUnlock = useRecordAchievementUnlock(userId);
 
-  const isLoading = allTimeLoading || rankLoading || challengeLoading || overachieveLoading || unlocksLoading;
+  const isLoading = allTimeLoading || rankLoading || challengeLoading || overachieveLoading || activityMetricsLoading || unlocksLoading;
 
   const stats: AchievementStats = useMemo(() => {
     const tiers = rank?.tiers ?? [];
@@ -35,8 +36,13 @@ export function TrophyShelfScreen() {
       challengeDaysDone: challengeDaysDone ?? 0,
       rankTierOrder,
       weeklyOverachieveWeeks: overachieveWeeks ?? 0,
+      activeDays: allTime?.activeDays ?? 0,
+      morningLogs: activityMetrics?.morningLogs ?? 0,
+      nightLogs: activityMetrics?.nightLogs ?? 0,
+      totalStars: allTime?.totalStars ?? 0,
+      activityTypes: activityMetrics?.activityTypes ?? 0,
     };
-  }, [allTime, rank, challengeDaysDone, overachieveWeeks]);
+  }, [allTime, rank, challengeDaysDone, overachieveWeeks, activityMetrics]);
 
   const items = useMemo(
     () => ACHIEVEMENTS.map(a => ({ ...a, ...computeAchievementStatus(a, stats) })),

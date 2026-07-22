@@ -6,6 +6,11 @@ export interface AchievementStats {
   challengeDaysDone: number;
   rankTierOrder: number;
   weeklyOverachieveWeeks: number;
+  activeDays: number;
+  morningLogs: number;
+  nightLogs: number;
+  totalStars: number;
+  activityTypes: number;
 }
 
 export interface AchievementStatus {
@@ -21,6 +26,12 @@ export function computeAchievementStatus(a: Achievement, stats: AchievementStats
     rankTier: stats.rankTierOrder,
     firstLog: stats.totalActivities > 0 ? 1 : 0,
     weeklyOverachieve: stats.weeklyOverachieveWeeks,
+    activeDays: stats.activeDays,
+    morningLogs: stats.morningLogs,
+    nightLogs: stats.nightLogs,
+    totalStars: stats.totalStars,
+    totalLogs: stats.totalActivities,
+    activityTypes: stats.activityTypes,
   }[a.metric];
 
   return {

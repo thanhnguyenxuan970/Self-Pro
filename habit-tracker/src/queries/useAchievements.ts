@@ -50,6 +50,25 @@ export function useWeeklyOverachieverCount(userId: number) {
   });
 }
 
+/** Extra Trophy Shelf metrics derived directly from the append-only activity log. */
+export function useAchievementActivityMetrics(userId: number) {
+  return useQuery({
+    queryKey: ['achievements', 'activity-metrics', userId],
+    queryFn: async () => {
+      const db = await getDb();
+      const row = await db.getFirstAsync<{ morningLogs: number; nightLogs: number; activityTypes: number }>(
+        `SELECT
+           COALESCE(SUM(CASE WHEN CAST(strftime('%H', datetime(logged_at / 1000, 'unixepoch', 'localtime')) AS INTEGER) < 9 THEN 1 ELSE 0 END), 0) AS morningLogs,
+           COALESCE(SUM(CASE WHEN CAST(strftime('%H', datetime(logged_at / 1000, 'unixepoch', 'localtime')) AS INTEGER) >= 22 THEN 1 ELSE 0 END), 0) AS nightLogs,
+           COUNT(DISTINCT task_type_id) AS activityTypes
+         FROM activity_log WHERE user_id = ? AND source = 'TASK'`,
+        [userId],
+      );
+      return row ?? { morningLogs: 0, nightLogs: 0, activityTypes: 0 };
+    },
+  });
+}
+
 /** Map of achievementId -> date first recorded as unlocked (YYYY-MM-DD). */
 export function useAchievementUnlocks(userId: number) {
   return useQuery({
