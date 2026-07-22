@@ -28,7 +28,12 @@ export function cueStreakMilestone(): void {
   playOne('streakMilestone');
 }
 
+export function cueBadgeUnlock(isRare: boolean): void {
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  if (isRare) setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}), 120);
+  playOne(isRare ? 'streakMilestone' : 'modalOpen');
+}
+
 // Modal open / close — subtle whoosh, no haptic.
 export function cueModalOpen(): void  { playOne('modalOpen'); }
 export function cueModalClose(): void { playOne('modalClose'); }
-

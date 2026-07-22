@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, TouchableOpacity, StyleSheet, StatusBar, Platform } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, StatusBar, Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { NavigationContainer } from '@react-navigation/native';
@@ -25,6 +25,7 @@ import { GoogleUser } from '../hooks/useAuth';
 import { useTutorial } from '../hooks/useTutorial';
 import { subscribeAddActivityIntent } from '../hooks/useAddActivityIntent';
 import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
+import { BadgeUnlockCelebrationHost } from '../components/BadgeUnlockCelebration';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -76,7 +77,7 @@ function FABButton({ onPress, colors }: { onPress: () => void; colors: AppColors
   const fabRef = useMemo(() => targetRef('fab'), [targetRef]);
   return (
     <TouchableOpacity style={fabStyles.container} onPress={onPress} activeOpacity={0.85} accessibilityLabel={t.addActivity} accessibilityRole="button">
-      <View ref={fabRef} style={[fabStyles.button, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
+      <View ref={fabRef} collapsable={false} style={[fabStyles.button, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
         <IconPlus />
       </View>
     </TouchableOpacity>
@@ -98,7 +99,11 @@ const fabStyles = StyleSheet.create({
 function MainTabs({ onFABPress }: { onFABPress: () => void }) {
   const { colors } = useTheme();
   const t = useTranslations();
+  const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const { targetRef } = useTutorial();
+  const analyticsTutorialRef = useMemo(() => targetRef('analytics'), [targetRef]);
+  const rankTutorialRef = useMemo(() => targetRef('rank'), [targetRef]);
   const tabBarHeight = BOTTOM_TAB_BAR_HEIGHT + insets.bottom;
   return (
     <Tab.Navigator
@@ -113,6 +118,8 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.faint,
+        tabBarAllowFontScaling: false,
+        tabBarShowLabel: width >= 360,
         tabBarLabelStyle: { fontSize: 10, fontFamily: FontFamily.bold, marginTop: 4 },
       }}
     >
@@ -138,12 +145,18 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
       <Tab.Screen
         name="Analytics"
         component={ProgressScreen}
-        options={{ title: t.tabAnalytics, tabBarIcon: ({ color }) => <IconChart color={color} /> }}
+        options={{
+          title: t.tabAnalytics,
+          tabBarIcon: ({ color }) => <View ref={analyticsTutorialRef} collapsable={false}><IconChart color={color} /></View>,
+        }}
       />
       <Tab.Screen
         name="Rank"
         component={RankScreen}
-        options={{ title: t.tabRank, tabBarIcon: ({ color }) => <IconTrophy color={color} /> }}
+        options={{
+          title: t.tabRank,
+          tabBarIcon: ({ color }) => <View ref={rankTutorialRef} collapsable={false}><IconTrophy color={color} /></View>,
+        }}
       />
     </Tab.Navigator>
   );
@@ -225,6 +238,7 @@ function AppStack({
         presetName={presetName}
         onClose={() => { setFabVisible(false); setPresetName(null); }}
       />
+      <BadgeUnlockCelebrationHost />
     </>
   );
 }
