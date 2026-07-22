@@ -6,7 +6,7 @@ import { ACHIEVEMENTS, type Achievement } from '../config/achievements';
 import { computeAchievementStatus, type AchievementStats } from '../lib/achievements';
 import { useAllTimeStats } from '../queries/useProgress';
 import { useRankData } from '../queries/useRank';
-import { useAchievementUnlocks, useActivityMetrics, useChallengeDaysTotal, useWeeklyOverachieverCount } from '../queries/useAchievements';
+import { useAchievementActivityMetrics, useAchievementUnlocks, useChallengeDaysTotal, useWeeklyOverachieverCount } from '../queries/useAchievements';
 import { getDb } from '../db/client';
 import { useAuthUser } from '../hooks/useAuth';
 import { useReduceMotion } from '../hooks/useReduceMotion';
@@ -24,7 +24,7 @@ export function BadgeUnlockCelebrationHost() {
   const { data: rank, isLoading: rankLoading } = useRankData(userId);
   const { data: challengeDays, isLoading: challengeLoading } = useChallengeDaysTotal(userId);
   const { data: overachieveWeeks, isLoading: overachieveLoading } = useWeeklyOverachieverCount(userId);
-  const { data: activityMetrics, isLoading: metricsLoading } = useActivityMetrics(userId);
+  const { data: activityMetrics, isLoading: metricsLoading } = useAchievementActivityMetrics(userId);
   const { data: unlocks = {}, isLoading: unlocksLoading } = useAchievementUnlocks(userId);
   const [queue, setQueue] = useState<Unlock[]>([]);
   const ready = useRef(false);
