@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Habi — Analytics Promo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; } body { margin: 0; min-height: 100vh; background: #080d0a; color: #fff; font-family: 'Be Vietnam Pro', sans-serif; display: grid; place-items: center; }
+    #root { width: min(100%, 1080px); } .promo-shell { display: grid; grid-template-columns: minmax(280px, 540px) 220px; gap: 28px; align-items: center; padding: 24px; }
+    .stage { width: 100%; aspect-ratio: 9 / 16; overflow: hidden; position: relative; background: #0f1410; box-shadow: 0 24px 80px #0009; } .scene { position:absolute; inset:0; padding: 11% 8%; overflow:hidden; }
+    .phone { position:absolute; inset: 6% 8%; border: 8px solid #050705; border-radius: 42px; overflow:hidden; background:#101612; transform-origin: 50% 44%; } .phone-content { height:100%; padding: 38px 18px 88px; }
+    .eyebrow { font-size: clamp(9px, 1.7vw, 15px); letter-spacing:.15em; color:#9aa69e; font-weight:800; } .stat { font-size: clamp(38px, 8vw, 76px); font-weight:800; letter-spacing:-.08em; line-height:1; margin:12px 0 4px; } .muted { color:#9aa69e; font-size: clamp(11px, 2vw, 17px); }
+    .card { background:#1a241e; border:1px solid #ffffff12; border-radius:18px; padding:16px; margin-top:18px; } .row { display:flex; align-items:center; gap:10px; padding:13px 0; border-bottom:1px solid #ffffff10; font-size:14px; font-weight:600; } .row:last-child { border:0; }
+    .check { width:23px; height:23px; border:2px solid #587061; border-radius:7px; display:grid; place-items:center; color:#fff; font-size:14px; } .tabs { position:absolute; bottom:0; left:0; right:0; height:72px; display:flex; align-items:center; justify-content:space-around; border-top:1px solid #ffffff12; color:#779080; font-size:10px; } .fab { width:48px; height:48px; margin-top:-23px; border-radius:50%; display:grid; place-items:center; font-size:27px; color:#fff; box-shadow:0 8px 18px #0008; }
+    .grid { display:grid; grid-template-columns: repeat(17, 1fr); gap:4px; margin-top:22px; } .cell { aspect-ratio:1; border-radius:3px; } .legend { display:flex; align-items:center; gap:5px; margin-top:12px; font-size:10px; color:#9aa69e; } .legend i { width:13px; height:13px; border-radius:3px; display:block; }
+    .chart { height:42%; display:flex; align-items:flex-end; gap:9px; padding:18px 2px 0; border-bottom:1px solid #ffffff28; position:relative; } .goal { position:absolute; left:0; right:0; bottom:69%; border-top:1px dashed #c6d1ca77; font-size:10px; color:#c6d1ca; } .bar-wrap { flex:1; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:6px; font-size:9px; color:#9aa69e; } .bar { width:100%; max-width:32px; border-radius:8px 8px 2px 2px; }
+    .donut-wrap { display:grid; place-items:center; margin:24px auto 10px; width:176px; height:176px; position:relative; } .donut-wrap svg { position:absolute; inset:0; transform:rotate(-90deg); } .donut-center { text-align:center; z-index:1; } .donut-center strong { display:block; font-size:34px; letter-spacing:-.08em; } .legend-row { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid #ffffff10; font-size:12px; }
+    .closing { display:grid; place-items:center; text-align:center; } .brand-ring { width:120px; height:120px; border-radius:50%; position:relative; display:grid; place-items:center; } .brand-ring svg { position:absolute; inset:0; transform:rotate(-90deg); } .wordmark { font-size:46px; font-weight:800; letter-spacing:-.08em; margin-top:24px; }
+    .tweaks { background:#121814; border:1px solid #ffffff16; border-radius:16px; padding:16px; font-size:12px; } .tweaks h1 { font-size:15px; margin:0 0 14px; } .tweaks label { display:flex; justify-content:space-between; gap:10px; margin:12px 0; min-height:44px; align-items:center; } .swatches { display:flex; gap:7px; } .swatch { width:44px; height:44px; border-radius:50%; border:3px solid transparent; cursor:pointer; } .swatch.active { border-color:#fff; } .time { font-variant-numeric:tabular-nums; color:#9aa69e; margin-top:14px; }
+    @media (max-width: 700px) { .promo-shell { grid-template-columns:1fr; padding:0; } .stage { width:100vw; max-width:540px; } .tweaks { margin:0 16px 20px; } }
+    @media (prefers-reduced-motion: reduce) { .phone { transform:none !important; } }
+  </style>
+</head>
+<body>
+  <div id="root" data-om-exportable-video-with-duration-secs="17"></div>
+  <script>window.OM_SCENES = [{id:'opening',duration:3},{id:'heatmap',duration:4},{id:'bars',duration:3.5},{id:'donut',duration:3.5},{id:'closing',duration:3}]; window.EDITMODE = 'habi-analytics-promo-v1'; window.TWEAK_DEFAULTS = { motionEditor:false, accent:'#E0A93B' };</script>
+  <script type="text/babel" src="./animations-v2.jsx"></script>
+  <script type="text/babel" src="./tweaks-panel.jsx"></script>
+  <script type="text/babel" src="./habi-promo.jsx"></script>
+</body>
+</html>
