@@ -1,6 +1,6 @@
-export const STREAK_MILESTONES = [7, 14, 30, 60, 90, 100, 180, 365] as const;
+export const STREAK_MILESTONES = [7, 14, 30, 90, 180, 365] as const;
 
-const FLEX_STARS: Record<number, number> = { 7: 1, 14: 2, 30: 3, 60: 4, 90: 5, 100: 6, 180: 8, 365: 10 };
+const FLEX_STARS: Record<number, number> = { 7: 1, 14: 2, 30: 3, 90: 5, 180: 8, 365: 10 };
 
 export type StreakMilestone = { days: number; stars: number };
 
