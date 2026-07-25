@@ -1,12 +1,12 @@
 import { RANKS, getRankConfigByTierOrder, getRankThreshold, starPoints } from '../src/config/ranks.config';
 
 describe('rank config', () => {
-  test('includes Singularity at the top of the ladder', () => {
+  test('includes Cosmic at the top of the ladder', () => {
     expect(RANKS[RANKS.length - 2]?.name).toBe('Ascended');
-    expect(RANKS[RANKS.length - 1]?.name).toBe('Singularity');
+    expect(RANKS[RANKS.length - 1]?.name).toBe('Cosmic');
     expect(getRankConfigByTierOrder(8).nameVi).toBe('Trùm Cuối');
     expect(getRankConfigByTierOrder(9).nameVi).toBe('Đỉnh Của Chóp');
-    expect(getRankConfigByTierOrder(10).nameVi).toBe('Gánh Cả Vũ Trụ');
+    expect(getRankConfigByTierOrder(10).nameVi).toBe('Ngoài Vùng Phủ Sóng');
   });
 
   test('switches to doubling thresholds after GOATED', () => {
@@ -34,8 +34,9 @@ describe('rank config', () => {
     expect(getRankConfigByTierOrder(8).front.some(el => el.t === 'circle' && el.fill === '#EF4444')).toBe(true);
     expect(getRankConfigByTierOrder(9).bodyStyle).toBe('luminous');
     expect(starPoints(getRankConfigByTierOrder(9).geometry).split(' ')).toHaveLength(10);
-    expect(getRankConfigByTierOrder(10)).toMatchObject({ color: '#1E1436', edge: '#FFB347', sfx: 'singularity' });
-    expect(getRankConfigByTierOrder(10).back).toHaveLength(2);
+    expect(getRankConfigByTierOrder(10)).toMatchObject({ color: '#5B4BC4', edge: '#2E2378', sfx: 'cosmic' });
+    // Ring only — the orbiting moon lives in RankMascot (COSMIC_ORBIT overlay), not config.
+    expect(getRankConfigByTierOrder(10).back).toHaveLength(1);
   });
 
   test('keeps every static mascot silhouette', () => {
@@ -208,7 +209,6 @@ describe('rank config', () => {
   {
     "back": [
       "path",
-      "path",
     ],
     "band": 4,
     "face": [
@@ -219,6 +219,8 @@ describe('rank config', () => {
       "path",
     ],
     "front": [
+      "path",
+      "path",
       "path",
     ],
     "tier": 9,

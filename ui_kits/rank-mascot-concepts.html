@@ -1,0 +1,378 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Habi · Nova Rank — Evolution</title>
+<style>
+  :root{--bg:#0E0B1A;--panel:#191428;--line:#2A2440;--ink:#EDE9FB;--muted:#9A93B8;}
+  body.light{--bg:#F3F1FB;--panel:#FFFFFF;--line:#E4E0F0;--ink:#231E38;--muted:#7A7396;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:radial-gradient(1200px 600px at 50% -10%, #1b1636, var(--bg));color:var(--ink);min-height:100vh}
+  body.light{background:radial-gradient(1200px 600px at 50% -10%, #efe9ff, var(--bg))}
+  header{padding:22px 30px 6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  h1{margin:0;font-size:21px}
+  .toggle{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:600}
+  .stage{max-width:760px;margin:6px auto 4px;text-align:center;padding:10px 20px}
+  .stlabel{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .hcards{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;margin-top:8px;min-height:260px}
+  .arrow{font-size:26px;color:var(--muted)}
+  .obtn{margin:14px auto 0;display:inline-flex;align-items:center;gap:8px;border:none;border-radius:999px;padding:14px 30px;font-size:16px;font-weight:800;color:#0E0B1A;background:linear-gradient(90deg,#F4C842,#FB923C);cursor:pointer;box-shadow:0 6px 26px rgba(244,200,66,.4);transition:transform .12s}
+  .obtn:hover{transform:translateY(-2px) scale(1.03)}
+  .obtn:active{transform:scale(.97)}
+  .obtn:disabled{opacity:.45;cursor:default;transform:none}
+  .done{font-size:18px;font-weight:800;margin-top:14px}
+  .replay{background:none;border:none;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:12px;margin-top:8px}
+  .sect{max-width:640px;margin:26px auto 60px;padding:0 20px}
+  .sect h2{font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:0 0 12px;text-align:center}
+  .gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .gcard{position:relative;background:var(--panel);border-radius:18px;padding:12px 10px;display:flex;flex-direction:column;align-items:center;gap:1px;overflow:hidden;cursor:pointer;transition:transform .15s;border:1px solid var(--line)}
+  .gcard:hover{transform:translateY(-4px)}
+  .gcard.big{padding:16px 18px}
+  .mholder{width:112px;height:112px;display:flex;align-items:center;justify-content:center;transform-origin:center;position:relative;z-index:2}
+  .gcard.big .mholder{width:196px;height:196px}
+  .mholder svg{width:100%;height:100%;overflow:visible}
+  .rchip{position:absolute;top:8px;left:8px;font-size:10px;font-weight:800;letter-spacing:.5px;padding:2px 7px;border-radius:999px;z-index:4}
+  .cname{font-size:14px;font-weight:800;margin-top:2px;z-index:2}
+  .gcard.big .cname{font-size:19px}
+  .cvi{font-size:11px;color:var(--muted);z-index:2}
+  .lock{position:absolute;top:8px;right:10px;font-size:13px;opacity:.75;z-index:4}
+  .qmark{position:absolute;top:50%;left:50%;transform:translate(-50%,-60%);font-weight:900;color:var(--edge);opacity:.5;text-shadow:0 0 20px var(--glow);font-size:60px;z-index:3}
+  .gcard.big .qmark{font-size:104px}
+  .locked .mholder svg{filter:brightness(.16) drop-shadow(0 0 7px var(--glow));opacity:.9}
+  .locked{animation:lpulse 1.5s ease-in-out infinite}
+  @keyframes lpulse{0%,100%{filter:none}50%{filter:brightness(1.12)}}
+  #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:55}
+  #fx{position:fixed;inset:0;pointer-events:none;z-index:58}
+  .confetti{position:fixed;width:8px;height:12px;border-radius:2px}
+  #banner{position:fixed;top:22%;left:0;right:0;text-align:center;font-size:50px;font-weight:900;pointer-events:none;z-index:60;opacity:0;text-shadow:0 4px 30px rgba(0,0,0,.55)}
+  /* ===== signature loop animations (từ ranks.config) ===== */
+  .anim-0{animation:s0 1.9s ease-in-out infinite}@keyframes s0{0%{transform:rotate(-7deg) scaleY(1)}25%{transform:rotate(6deg) scaleY(.96)}50%{transform:rotate(-5deg) scaleY(1.05)}75%{transform:rotate(7deg) scaleY(1)}100%{transform:rotate(-7deg) scaleY(1)}}
+  .anim-1{animation:s1 2s ease-in-out infinite}@keyframes s1{0%,100%{transform:rotate(-9deg) translateY(0)}50%{transform:rotate(-6deg) translateY(-2px)}}
+  .anim-2{animation:s2 .55s ease-in-out infinite alternate}@keyframes s2{0%{transform:translateX(-3px) rotate(-6deg)}100%{transform:translateX(3px) rotate(6deg)}}
+  .anim-3{animation:s3 1.7s ease-in-out infinite;transform-origin:50% 74%}@keyframes s3{0%,100%{transform:scale(1)}35%{transform:scale(1.13,1.07)}55%{transform:scale(1.13,1.07)}70%{transform:scale(.95,1.01)}82%{transform:scale(1.03)}}
+  .anim-4{animation:s4 2.2s ease-in-out infinite}@keyframes s4{0%,100%{transform:translateY(2px) scale(1)}50%{transform:translateY(-5px) scale(1.04)}}
+  .anim-5{animation:s5 1.8s ease-in-out infinite}@keyframes s5{0%,100%{transform:translateY(2px) rotate(-2deg)}50%{transform:translateY(-5px) rotate(2deg)}}
+  .anim-6{animation:s6 2.6s ease-in-out infinite}@keyframes s6{0%,100%{transform:translateY(0) rotate(0)}18%{transform:translateY(-11px) rotate(0)}30%{transform:translateY(0) scale(1,.93)}42%{transform:translateY(-5px) scale(1)}52%{transform:translateY(0)}70%{transform:rotate(7deg) translateY(2px)}84%{transform:rotate(0) translateY(0)}}
+  .anim-7{animation:s7 3.6s ease-in-out infinite}@keyframes s7{0%,100%{transform:translateY(0) scale(1) rotate(-1deg);filter:brightness(1)}40%{transform:translateY(-5px) scale(1.05) rotate(.5deg);filter:brightness(1)}50%{transform:translateY(-5px) scale(1.05);filter:brightness(.35) saturate(1.5)}54%{transform:translateY(-5px) scale(1.06);filter:brightness(1.1)}58%{transform:translateY(-5px) scale(1.05);filter:brightness(.45)}63%{transform:translateY(-4px) scale(1.05);filter:brightness(1)}82%{transform:translateY(-2px) scale(1.02) rotate(1.5deg);filter:brightness(.8)}}
+  .anim-8{animation:s8 3s ease-in-out infinite}@keyframes s8{0%,100%{transform:translateY(3px) rotate(-1deg) scale(1)}50%{transform:translateY(-6px) rotate(1deg) scale(1.03)}}
+  .anim-x{animation:sx 1.5s ease-in-out infinite}@keyframes sx{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(-3px) rotate(-3deg)}75%{transform:translateY(-1px) rotate(3deg)}}
+  /* ===== ambient FX riêng từng rank ===== */
+  .fxl{position:absolute;inset:0;pointer-events:none;z-index:1;overflow:hidden;border-radius:inherit}
+  .fi{position:absolute;opacity:0}
+  .fx0 .fi{animation:heartUp linear infinite}
+  @keyframes heartUp{0%{transform:translateY(16px) scale(.5) rotate(-8deg);opacity:0}25%{opacity:.9}100%{transform:translateY(-70px) scale(1.1) rotate(10deg);opacity:0}}
+  .fx1 .fi{height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--glow),transparent);animation:breeze ease-in-out infinite}
+  @keyframes breeze{0%{transform:translateX(-60px);opacity:0}30%,60%{opacity:.7}100%{transform:translateX(70px);opacity:0}}
+  .fx2 .fi{color:var(--glow);text-shadow:0 0 8px var(--glow);animation:zap steps(2) infinite}
+  @keyframes zap{0%,72%{opacity:0}76%,86%{opacity:1}90%,100%{opacity:0}}
+  .fx3 .fi{border:2px solid var(--glow);border-radius:50%;left:50%;top:50%;animation:pring ease-out infinite}
+  @keyframes pring{0%{width:36px;height:36px;margin:-18px 0 0 -18px;opacity:.85}100%{width:150px;height:150px;margin:-75px 0 0 -75px;opacity:0}}
+  .fx4 .orb{position:absolute;left:50%;top:50%;width:7px;height:7px;margin:-3.5px;border-radius:50%;background:var(--glow);box-shadow:0 0 8px var(--glow);animation:orbit linear infinite}
+  @keyframes orbit{0%{transform:rotate(0) translateX(58px) rotate(0)}100%{transform:rotate(360deg) translateX(58px) rotate(-360deg)}}
+  .fx5 .beam{position:absolute;top:-12%;left:50%;width:70px;height:75%;transform:translateX(-50%);background:linear-gradient(180deg,rgba(255,255,255,.30),transparent);clip-path:polygon(38% 0,62% 0,100% 100%,0 100%);animation:sway 3.2s ease-in-out infinite}
+  @keyframes sway{0%,100%{transform:translateX(-58%) rotate(-3deg)}50%{transform:translateX(-42%) rotate(3deg)}}
+  .fx5 .fi{color:#fff;text-shadow:0 0 6px #fff;animation:twinkle ease-in-out infinite}
+  @keyframes twinkle{0%,100%{opacity:0;transform:scale(.5)}50%{opacity:1;transform:scale(1.15)}}
+  .fx6 .fi{color:#FFE066;text-shadow:0 0 6px #F4C842;animation:goldRain linear infinite}
+  @keyframes goldRain{0%{transform:translateY(-18px) rotate(0);opacity:0}18%{opacity:1}100%{transform:translateY(120px) rotate(200deg);opacity:0}}
+  .fx7 .fi{width:5px;height:5px;border-radius:50%;background:var(--glow);box-shadow:0 0 9px var(--glow);animation:ember ease-in infinite}
+  @keyframes ember{0%{transform:translateY(10px) translateX(0) scale(.6);opacity:0}25%{opacity:1}100%{transform:translateY(-85px) translateX(9px) scale(1.05);opacity:0}}
+  .fx7v{position:absolute;inset:0;box-shadow:inset 0 0 34px rgba(139,92,246,.5);border-radius:inherit;animation:vig 1.3s ease-in-out infinite}
+  @keyframes vig{0%,100%{opacity:.4}50%{opacity:.95}}
+  .fx8 .rot{position:absolute;left:50%;top:50%;width:210px;height:210px;margin:-105px;background:conic-gradient(from 0deg,transparent 0 18deg,rgba(224,169,59,.20) 22deg 30deg,transparent 34deg 60deg,rgba(224,169,59,.20) 64deg 72deg,transparent 76deg 108deg,rgba(224,169,59,.20) 112deg 120deg,transparent 124deg 156deg,rgba(224,169,59,.20) 160deg 168deg,transparent 172deg 204deg,rgba(224,169,59,.20) 208deg 216deg,transparent 220deg 252deg,rgba(224,169,59,.20) 256deg 264deg,transparent 268deg 300deg,rgba(224,169,59,.20) 304deg 312deg,transparent 316deg);border-radius:50%;animation:slowspin 14s linear infinite}
+  @keyframes slowspin{to{transform:rotate(360deg)}}
+  .fx8 .fi{color:#FFF4C2;text-shadow:0 0 8px #E0A93B;animation:feather ease-in-out infinite}
+  @keyframes feather{0%{transform:translateY(-14px) rotate(0);opacity:0}20%{opacity:.95}100%{transform:translateY(110px) rotate(-160deg) translateX(-14px);opacity:0}}
+
+  /* ===== per-rank evolution props ===== */
+  .eprop{position:absolute;pointer-events:none;z-index:5}
+  .ebolt{font-size:64px;filter:drop-shadow(0 0 14px #60A5FA)}
+  .ering{border:3px solid var(--c,#2DD4BF);border-radius:50%;left:50%;top:50%}
+  .espot{top:-6%;left:50%;width:120px;height:80%;background:linear-gradient(180deg,rgba(255,255,255,.5),transparent);clip-path:polygon(40% 0,60% 0,100% 100%,0 100%);transform-origin:top center}
+  .estar{color:#FFE066;text-shadow:0 0 8px #F4C842}
+  .efeather{font-size:20px}
+  .eember{width:6px;height:6px;border-radius:50%;background:#8B5CF6;box-shadow:0 0 10px #8B5CF6}
+  .ewind{height:3px;border-radius:3px;background:linear-gradient(90deg,transparent,#818CF8,transparent)}
+  .eheart{font-size:22px}
+  /* ===== evolution overlay ===== */
+  #evo{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:70;background:rgba(8,5,20,.88);backdrop-filter:blur(3px)}
+  #evo.on{display:flex}
+  .evobox{position:relative;width:340px;height:340px;display:flex;align-items:center;justify-content:center}
+  .evobox svg{width:250px;height:250px;overflow:visible}
+  .evoglow{position:absolute;left:50%;top:50%;width:10px;height:10px;border-radius:50%;pointer-events:none}
+  .etext{position:absolute;bottom:-8px;left:0;right:0;text-align:center;font-size:15px;font-weight:800;letter-spacing:2px;color:#fff;opacity:.9}
+  .whiteout svg *{fill:#fff!important;stroke:#fff!important}
+  .evshake{animation:evsk .3s linear infinite}
+  @keyframes evsk{0%,100%{transform:translate(0,0)}25%{transform:translate(-4px,2px)}50%{transform:translate(4px,-2px)}75%{transform:translate(-3px,-2px)}}
+  .evpulse{animation:evp .5s ease-in-out infinite}
+  @keyframes evp{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+</style>
+<body>
+<div id="flash"></div><div id="fx"></div><div id="banner"></div>
+<div id="evo"><div class="evobox" id="evobox"></div></div>
+<header>
+  <h1>Habi · Nova — animation riêng + biến hình thăng cấp</h1>
+  <button class="toggle" id="tg">☀️</button>
+</header>
+
+<div class="stage">
+  <div class="stlabel">Bấm nút để xem màn BIẾN HÌNH lên rank kế tiếp</div>
+  <div class="hcards"><div id="curCard"></div><div class="arrow" id="arw">→</div><div id="nextCard"></div></div>
+  <button class="obtn" id="openBtn">⚡ Thăng cấp!</button>
+  <div class="done" id="doneMsg" style="display:none">🏆 ĐỈNH CỦA CHÓP — đã tiến hoá tối đa!</div>
+  <div><button class="replay" id="replay" style="display:none">↺ chơi lại từ đầu</button></div>
+</div>
+
+<div class="sect">
+  <h2>Bộ sưu tập · <span id="cnt">1</span>/9</h2>
+  <div class="gallery" id="gallery"></div>
+</div>
+
+<script>
+const TIERS=[
+ {i:0,name:'Delulu',vi:'Nhứt',color:'#A78BFA',edge:'#7C5CE0',glow:'#A78BFA',stars:5},
+ {i:1,name:'Mewing',vi:'Chuẩn',color:'#818CF8',edge:'#5B61D6',glow:'#818CF8',stars:10},
+ {i:2,name:'Rizz',vi:'Hào Quang',color:'#60A5FA',edge:'#3B82F6',glow:'#60A5FA',stars:20},
+ {i:3,name:'Gigachad',vi:'Nét',color:'#2DD4BF',edge:'#14B8A6',glow:'#2DD4BF',stars:40},
+ {i:4,name:'Aura Farmer',vi:'Khao Khát Center',color:'#F472B6',edge:'#EC4899',glow:'#F472B6',stars:80},
+ {i:5,name:'Main Character',vi:'Nhân Vật Chính',color:'#FB923C',edge:'#EA7317',glow:'#FB923C',stars:160},
+ {i:6,name:'GOATED',vi:'Vượt Mức Pickleball',color:'#F4C842',edge:'#A87B12',glow:'#FFE066',stars:320},
+ {i:7,name:'Final Boss',vi:'Trùm Cuối',color:'#8B5CF6',edge:'#5B21B6',glow:'#8B5CF6',stars:640},
+ {i:8,name:'Ascended',vi:'Đỉnh Của Chóp',color:'#F5EEFF',edge:'#C9A227',glow:'#E0A93B',stars:1280},
+];
+const RIDX=[0,0,1,1,2,2,3,3,4];
+const RAR=[{label:'COMMON',bg:'#3a3550',fg:'#c8c2e0'},{label:'RARE',bg:'#12386b',fg:'#7ec0ff'},{label:'EPIC',bg:'#3d1f66',fg:'#d7a6ff'},{label:'LEGENDARY',bg:'#5a4410',fg:'#ffdd6b'},{label:'MYTHIC',bg:'#5a1030',fg:'#ff9ecb'}];
+
+function hexA(hex,a){const h=hex.replace('#','');return `rgba(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)},${a})`;}
+function sparkle(x,y,s,c){const q=s*0.32;return `<path d="M${x},${y-s} C${x+q},${y-q} ${x+q},${y-q} ${x+s},${y} C${x+q},${y+q} ${x+q},${y+q} ${x},${y+s} C${x-q},${y+q} ${x-q},${y+q} ${x-s},${y} C${x-q},${y-q} ${x-q},${y-q} ${x},${y-s} Z" fill="${c}"/>`;}
+function heart(x,y,s,c){return `<path d="M${x},${y+s*0.9} C${x-s*1.1},${y-s*0.2} ${x-s*0.5},${y-s} ${x},${y-s*0.35} C${x+s*0.5},${y-s} ${x+s*1.1},${y-s*0.2} ${x},${y+s*0.9} Z" fill="${c}"/>`;}
+function rays(cx,cy,r1,r2,n,col,w,rot){let s='';for(let k=0;k<n;k++){const a=(rot||0)+k*2*Math.PI/n;s+=`<line x1="${(cx+Math.cos(a)*r1).toFixed(1)}" y1="${(cy+Math.sin(a)*r1).toFixed(1)}" x2="${(cx+Math.cos(a)*r2).toFixed(1)}" y2="${(cy+Math.sin(a)*r2).toFixed(1)}" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/>`;}return s;}
+function polyStar(cx,cy,outer,inner,points,rot){let p=[];for(let k=0;k<points*2;k++){const r=k%2===0?outer:inner;const a=rot+k*Math.PI/points;p.push(`${(cx+Math.cos(a)*r).toFixed(1)},${(cy+Math.sin(a)*r).toFixed(1)}`);}return p.join(' ');}
+function accCrown(cx,topY){return `<path d="M${cx-14},${topY} l3,-11 l6,6 l5,-9 l5,9 l6,-6 l3,11 Z" fill="#FFE066" stroke="#A87B12" stroke-width="1.6" stroke-linejoin="round"/><circle cx="${cx}" cy="${topY-9}" r="1.9" fill="#EF4444"/>`;}
+function accGoatHorns(cx,topY){return `<path d="M${cx-12},${topY} q-11,-2 -9,-13 q4,4 9,5 Z" fill="#EBD9A6" stroke="#8a6d2f" stroke-width="1.1"/><path d="M${cx+12},${topY} q11,-2 9,-13 q-4,4 -9,5 Z" fill="#EBD9A6" stroke="#8a6d2f" stroke-width="1.1"/>`;}
+function accDemonHorns(cx,topY,col){return `<path d="M${cx-10},${topY-1} q-7,-6 -4,-16 q5,7 9,11 Z" fill="${col}"/><path d="M${cx+10},${topY-1} q7,-6 4,-16 q-5,7 -9,11 Z" fill="${col}"/>`;}
+function accHalo(cx,topY,col){return `<ellipse cx="${cx}" cy="${topY}" rx="17" ry="5.4" fill="none" stroke="${col}" stroke-width="3"/><ellipse cx="${cx}" cy="${topY}" rx="17" ry="5.4" fill="none" stroke="#fff" stroke-width="1" opacity="0.6"/>`;}
+function accWings(cx,cy,col){const w=(sx)=>`<path d="M${cx+sx*7},${cy-4} q${sx*24},-16 ${sx*30},1 q${sx*-7},-2 ${sx*-13},1 q${sx*20},1 ${sx*22},15 q${sx*-8},-6 ${sx*-16},-5 q${sx*14},7 ${sx*11},18 q${sx*-9},-10 ${sx*-19},-13 Z" fill="${col}" opacity="0.9"/>`;return `<g>${w(-1)}${w(1)}</g>`;}
+function laurel(cx,cy){const side=(sx)=>`<path d="M${cx+sx*29},${cy+15} q${sx*11},-13 ${sx*4},-31" fill="none" stroke="#8FBF6B" stroke-width="3.4" stroke-linecap="round"/><path d="M${cx+sx*33},${cy+6} l${sx*5},-2 M${cx+sx*32},${cy-3} l${sx*5},-2 M${cx+sx*29},${cy-11} l${sx*5},-1" stroke="#8FBF6B" stroke-width="2.4" stroke-linecap="round"/>`;return side(-1)+side(1);}
+
+function faceCore(t,fx,fy){
+  const ink='#2A2540',g=t.glow,i=t.i,L=fx-10,R=fx+10,Y=fy;
+  switch(i){
+    case 1: return `<line x1="${L-4}" y1="${Y}" x2="${L+4}" y2="${Y}" stroke="${ink}" stroke-width="2.6" stroke-linecap="round"/><line x1="${R-4}" y1="${Y}" x2="${R+4}" y2="${Y}" stroke="${ink}" stroke-width="2.6" stroke-linecap="round"/><path d="M${fx-6},${Y+10} q7,4 12,-2" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
+    case 2: return `<rect x="${L-6}" y="${Y-5}" width="12" height="8" rx="3" fill="${ink}"/><rect x="${R-6}" y="${Y-5}" width="12" height="8" rx="3" fill="${ink}"/><line x1="${L+6}" y1="${Y-2}" x2="${R-6}" y2="${Y-2}" stroke="${ink}" stroke-width="2.4"/><path d="M${fx-6},${Y+11} q6,4 12,-2" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
+    case 3: return `<path d="M${L-5},${Y-4} l9,3" stroke="${ink}" stroke-width="2.8" stroke-linecap="round"/><path d="M${R+5},${Y-4} l-9,3" stroke="${ink}" stroke-width="2.8" stroke-linecap="round"/><circle cx="${L}" cy="${Y+1}" r="2.2" fill="${ink}"/><circle cx="${R}" cy="${Y+1}" r="2.2" fill="${ink}"/><rect x="${fx-8}" y="${Y+8}" width="16" height="6" rx="2" fill="${ink}"/><line x1="${fx-3}" y1="${Y+8}" x2="${fx-3}" y2="${Y+14}" stroke="${t.color}" stroke-width="1.4"/><line x1="${fx+3}" y1="${Y+8}" x2="${fx+3}" y2="${Y+14}" stroke="${t.color}" stroke-width="1.4"/>`;
+    case 4: return `<path d="M${L-4},${Y+1} q4,-4 8,0" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M${R-4},${Y+1} q4,-4 8,0" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/><circle cx="${L-7}" cy="${Y+7}" r="3" fill="${t.edge}" opacity="0.5"/><circle cx="${R+7}" cy="${Y+7}" r="3" fill="${t.edge}" opacity="0.5"/><path d="M${fx-6},${Y+9} q6,5 12,0" stroke="${ink}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`;
+    case 5: return `${sparkle(L,Y,4,ink)}${sparkle(R,Y,4,ink)}<circle cx="${L-8}" cy="${Y+7}" r="3" fill="${t.edge}" opacity="0.45"/><circle cx="${R+8}" cy="${Y+7}" r="3" fill="${t.edge}" opacity="0.45"/><path d="M${fx-7},${Y+9} q7,6 14,0" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
+    case 6: return `<path d="M${L-5},${Y-3} l9,2" stroke="${ink}" stroke-width="2.8" stroke-linecap="round"/><path d="M${R+5},${Y-3} l-9,2" stroke="${ink}" stroke-width="2.8" stroke-linecap="round"/><circle cx="${L}" cy="${Y+2}" r="2.3" fill="${ink}"/><circle cx="${R}" cy="${Y+2}" r="2.3" fill="${ink}"/><path d="M${fx-8},${Y+9} q8,7 16,0" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
+    case 7: return `<path d="M${L-5},${Y-3} l9,3" stroke="${ink}" stroke-width="3" stroke-linecap="round"/><path d="M${R+5},${Y-3} l-9,3" stroke="${ink}" stroke-width="3" stroke-linecap="round"/><path d="M${L-4},${Y+2} q4,-3 8,0" stroke="${g}" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M${R-4},${Y+2} q4,-3 8,0" stroke="${g}" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M${fx-8},${Y+9} q8,6 16,0" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M${fx-4},${Y+11} l1.4,3 l1.4,-3 Z" fill="#fff"/><path d="M${fx+1.2},${Y+11} l1.4,3 l1.4,-3 Z" fill="#fff"/>`;
+    case 8: return `<path d="M${L-4},${Y+1} q4,-4 8,0" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M${R-4},${Y+1} q4,-4 8,0" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/><circle cx="${L-7}" cy="${Y+6}" r="2.6" fill="${t.edge}" opacity="0.45"/><circle cx="${R+7}" cy="${Y+6}" r="2.6" fill="${t.edge}" opacity="0.45"/><path d="M${fx-5},${Y+9} q5,4 10,0" stroke="${ink}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`;
+  }
+}
+function novaFace(t,fx,fy){
+  if(t.i===0) return `${heart(fx-10,fy,3.6,'#F472B6')}${heart(fx+10,fy,3.6,'#F472B6')}<path d="M${fx-6},${fy+9} q6,5 12,0" stroke="#2A2540" stroke-width="2.4" fill="none" stroke-linecap="round"/>`;
+  return faceCore(t,fx,fy);
+}
+function svgWrap(t,inner){const gi=(3+t.i*1.5).toFixed(1);const op=(0.22+t.i*0.055).toFixed(2);return `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 0 ${gi}px ${hexA(t.glow,op)})">${inner}</svg>`;}
+let uidc=0;
+function conceptNova(t){
+  const i=t.i,cx=60,cy=62,outer=26+i*1.5,inner=outer*(0.62-i*0.028);
+  const pts=polyStar(cx,cy,outer,inner,5,-Math.PI/2);
+  const topY=cy-outer+3;
+  let back='',front='';
+  if(i===5) back+=`<path d="M60,2 L28,58 L92,58 Z" fill="#FFFFFF" opacity="0.12"/>`;
+  if(i===4) back+=rays(cx,cy,outer+5,outer+17,14,t.glow,2,0.2)+rays(cx,cy,outer+5,outer+11,14,t.glow,1.4,Math.PI/14);
+  if(i===6) back+=laurel(cx,cy);
+  if(i===7) back+=`<path d="M${cx-28},${cy-6} q-12,26 2,44 L${cx-10},${cy+26} Z M${cx+28},${cy-6} q12,26 -2,44 L${cx+10},${cy+26} Z" fill="#B91C1C" opacity="0.85"/>`;
+  let body;
+  if(i===7){ // FINAL BOSS — Ác Đế (7C)
+    body=`<polygon points="${pts}" fill="#6D28D9" stroke="${t.edge}" stroke-width="3" stroke-linejoin="round"/>`;
+  } else if(i===8){ // ASCENDED — Sao Ánh Sáng (8A)
+    const ptsO=polyStar(cx,cy,outer+7,(outer+7)*0.54,5,-Math.PI/2);
+    const gid='lum8_'+(uidc++); // id duy nhất: tránh trùng ID gradient giữa các bản render (bug mascot tàng hình)
+    body=`<defs><radialGradient id="${gid}" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.55" stop-color="#FFF3D6"/><stop offset="1" stop-color="#F0D084"/></radialGradient></defs><polygon points="${ptsO}" fill="#FFF6DC" opacity="0.25"/><polygon points="${pts}" fill="url(#${gid})" stroke="#C9A227" stroke-width="2.4" stroke-linejoin="round"/><circle cx="${cx}" cy="${cy-3}" r="9" fill="#FFFFFF" opacity="0.55"/>`;
+  } else {
+    body=`<polygon points="${pts}" fill="${t.color}" stroke="${t.edge}" stroke-width="3" stroke-linejoin="round"/>`;
+  }
+  const face=novaFace(t,cx,cy-2);
+  if(i===0) front+=heart(40,42,4.5,'#F9A8D4')+heart(84,38,4,'#F472B6')+heart(82,66,3,'#F9A8D4');
+  if(i===1) front+=`<path d="M46,76 Q60,86 74,76" stroke="${t.edge}" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M78,50 q7,-1 9,-7 M80,56 q8,0 11,-5" stroke="${t.glow}" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.8"/>`;
+  if(i===2) front+=sparkle(84,42,4,'#fff')+sparkle(30,72,3,t.glow)+`<path d="M84,58 l-5,9 l4.5,0 l-3.5,8 l9,-11 l-4.5,0 l3.5,-6 Z" fill="${t.glow}" stroke="${t.edge}" stroke-width="0.8" stroke-linejoin="round"/>`;
+  if(i===3) front+=`<path d="M20,50 l-8,-4 M18,60 l-9,0 M20,70 l-8,4" stroke="${t.edge}" stroke-width="2.6" stroke-linecap="round"/><path d="M100,50 l8,-4 M102,60 l9,0 M100,70 l8,4" stroke="${t.edge}" stroke-width="2.6" stroke-linecap="round"/>${sparkle(60,25,4,t.glow)}`;
+  if(i===5) front+=sparkle(86,40,5,'#fff')+sparkle(34,64,3.5,'#fff')+sparkle(60,24,4.5,t.glow)+`<line x1="30" y1="38" x2="90" y2="38" stroke="#fff" stroke-width="1.4" opacity="0.5"/>`;
+  if(i===6) front+=`<path d="M${cx-12},${topY+3} l2.5,-9 l5,5 l4.5,-8 l4.5,8 l5,-5 l2.5,9 Z" fill="#FFE066" stroke="#A87B12" stroke-width="1.6" stroke-linejoin="round"/>`;
+  if(i===7) front+=`<path d="M${cx-15},${topY+3} l3.5,-12 l5.5,7 l6,-11 l6,11 l5.5,-7 l3.5,12 Z" fill="#2B1D46" stroke="#8B5CF6" stroke-width="1.4" stroke-linejoin="round"/><circle cx="${cx}" cy="${topY-7}" r="2" fill="#EF4444"/>`;
+  if(i===8) front+=accHalo(cx,topY-5,t.glow)+rays(cx,cy,outer+8,outer+14,8,t.glow,1.4,0);
+  // ladder pips theo băng độ hiếm (tối đa 5, scale được khi thêm rank mới):
+  // COMMON 1 · RARE 2 · EPIC 3 · LEGENDARY 4 · MYTHIC 5. Trong cùng băng phân cấp bằng size + độ sắc.
+  const band=RIDX[Math.min(i,RIDX.length-1)], nPips=band+1, pipCol=RAR[band].fg;
+  let pips='';const py=112;
+  for(let k=0;k<nPips;k++){const px=cx-(nPips-1)*5+k*10;pips+=`<polygon points="${px},${py-3.2} ${px+2.8},${py} ${px},${py+3.2} ${px-2.8},${py}" fill="${pipCol}" opacity="0.95"/>`;}
+  return svgWrap(t,back+body+face+front+pips);
+}
+
+// ===== ambient FX per rank =====
+function fxHTML(t,big){
+  const i=t.i, sc=big?1:0.62;
+  const rnd=(a,b)=>a+Math.random()*(b-a);
+  let items='';
+  if(i===0){for(let k=0;k<5;k++)items+=`<span class="fi" style="left:${rnd(12,84).toFixed(0)}%;bottom:18%;font-size:${(rnd(9,14)*sc).toFixed(0)}px;animation-duration:${rnd(2.2,3.6).toFixed(2)}s;animation-delay:${rnd(0,2.5).toFixed(2)}s">💜</span>`;}
+  if(i===1){for(let k=0;k<4;k++)items+=`<span class="fi" style="top:${rnd(22,72).toFixed(0)}%;left:30%;width:${(rnd(26,46)*sc).toFixed(0)}px;animation-duration:${rnd(1.6,2.6).toFixed(2)}s;animation-delay:${rnd(0,2).toFixed(2)}s"></span>`;}
+  if(i===2){for(let k=0;k<4;k++)items+=`<span class="fi" style="left:${rnd(10,82).toFixed(0)}%;top:${rnd(12,70).toFixed(0)}%;font-size:${(rnd(10,15)*sc).toFixed(0)}px;animation-duration:${rnd(1.1,2).toFixed(2)}s;animation-delay:${rnd(0,1.6).toFixed(2)}s">⚡</span>`;}
+  if(i===3){for(let k=0;k<2;k++)items+=`<span class="fi" style="animation-duration:1.5s;animation-delay:${(k*0.75).toFixed(2)}s"></span>`;}
+  if(i===4){for(let k=0;k<3;k++)items+=`<span class="orb" style="animation-duration:${(2.8+k*0.001).toFixed(2)}s;animation-delay:${(-k*0.93).toFixed(2)}s"></span>`;}
+  if(i===5){items+='<div class="beam"></div>';for(let k=0;k<4;k++)items+=`<span class="fi" style="left:${rnd(12,84).toFixed(0)}%;top:${rnd(15,75).toFixed(0)}%;font-size:${(rnd(8,13)*sc).toFixed(0)}px;animation-duration:${rnd(1.4,2.4).toFixed(2)}s;animation-delay:${rnd(0,2).toFixed(2)}s">✦</span>`;}
+  if(i===6){for(let k=0;k<6;k++)items+=`<span class="fi" style="left:${rnd(8,88).toFixed(0)}%;top:-6%;font-size:${(rnd(9,14)*sc).toFixed(0)}px;animation-duration:${rnd(2,3.4).toFixed(2)}s;animation-delay:${rnd(0,2.8).toFixed(2)}s">★</span>`;}
+  if(i===7){items+='<div class="fx7v"></div>';for(let k=0;k<6;k++)items+=`<span class="fi" style="left:${rnd(10,86).toFixed(0)}%;bottom:12%;animation-duration:${rnd(1.6,2.8).toFixed(2)}s;animation-delay:${rnd(0,2.2).toFixed(2)}s"></span>`;}
+  if(i===8){items+='<div class="rot"></div>';for(let k=0;k<4;k++)items+=`<span class="fi" style="left:${rnd(12,82).toFixed(0)}%;top:-4%;font-size:${(rnd(9,13)*sc).toFixed(0)}px;animation-duration:${rnd(2.6,4).toFixed(2)}s;animation-delay:${rnd(0,3).toFixed(2)}s">✦</span>`;}
+  return `<div class="fxl fx${i}">${items}</div>`;
+}
+
+// ===== UI =====
+let cur=0, busy=false;
+function cardHTML(t,locked,big){
+  const r=RAR[RIDX[t.i]];
+  const glow=hexA(t.glow,big?0.5:0.36);
+  return `<div class="gcard${big?' big':''}${locked?' locked':''}" data-i="${t.i}" style="--edge:${t.edge};--glow:${t.glow};box-shadow:0 0 ${big?34:18}px ${glow}, inset 0 0 0 2px ${hexA(t.edge,0.5)}">
+    <div class="rchip" style="background:${r.bg};color:${r.fg}">${locked?'???':r.label}</div>
+    ${locked?'<div class="lock">🔒</div>':''}
+    ${locked?'':fxHTML(t,big)}
+    <div class="mholder anim-${locked?'x':t.i}">${conceptNova(t)}</div>
+    ${locked?'<div class="qmark">?</div>':''}
+    <div class="cname" ${locked?'style="opacity:.5"':''}>${locked?'?? · ?????':t.i+'· '+t.name}</div>
+    <div class="cvi">${locked?'★ ???':t.vi+' · ★'+t.stars}</div>
+  </div>`;
+}
+function renderHero(){
+  document.getElementById('curCard').innerHTML=cardHTML(TIERS[cur],false,true);
+  const nc=document.getElementById('nextCard'), btn=document.getElementById('openBtn'), dm=document.getElementById('doneMsg'), rp=document.getElementById('replay'), arw=document.getElementById('arw');
+  if(cur>=8){nc.innerHTML='';nc.style.display='none';arw.style.display='none';btn.style.display='none';dm.style.display='block';rp.style.display='inline';}
+  else{nc.style.display='';arw.style.display='';nc.innerHTML=cardHTML(TIERS[cur+1],true,true);btn.style.display='';dm.style.display='none';rp.style.display=cur>0?'inline':'none';}
+}
+function renderGallery(){
+  let h='';TIERS.forEach(t=>h+=cardHTML(t,t.i>cur,false));
+  document.getElementById('gallery').innerHTML=h;
+  document.getElementById('cnt').textContent=cur+1;
+}
+function flash(op,dur){document.getElementById('flash').animate([{opacity:0},{opacity:op},{opacity:0}],{duration:dur});}
+function confettiBurst(el){
+  const colors=['#F472B6','#60A5FA','#F4C842','#2DD4BF','#A78BFA','#FB923C','#ffffff'];
+  const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,host=document.getElementById('fx');
+  for(let k=0;k<70;k++){const p=document.createElement('div');p.className='confetti';p.style.background=colors[k%colors.length];p.style.left=cx+'px';p.style.top=cy+'px';host.appendChild(p);
+    const ang=Math.random()*Math.PI*2,dist=80+Math.random()*200,dx=Math.cos(ang)*dist,dy=Math.sin(ang)*dist-(60+Math.random()*80),rot=Math.random()*720-360;
+    p.animate([{transform:'translate(0,0) rotate(0)',opacity:1},{transform:`translate(${dx}px,${dy+300}px) rotate(${rot}deg)`,opacity:0}],{duration:1200+Math.random()*500,easing:'cubic-bezier(.2,.7,.3,1)'}).onfinish=()=>p.remove();}
+}
+function rarityBanner(i){const r=RAR[RIDX[i]],b=document.getElementById('banner');b.textContent=r.label+'!';b.style.color=r.fg;b.animate([{transform:'translateY(24px) scale(.6)',opacity:0},{transform:'translateY(0) scale(1)',opacity:1,offset:.28},{opacity:1,offset:.72},{transform:'translateY(-12px)',opacity:0}],{duration:1400});}
+
+// ===== EVOLUTION sequence — choreography riêng từng rank =====
+function spawn(box,cls,styles,html){const d=document.createElement('div');d.className='eprop '+cls;Object.assign(d.style,styles||{});d.innerHTML=html||'';box.appendChild(d);return d;}
+function shakeBox(box,amp,dur){box.animate([{transform:'translate(0,0)'},{transform:`translate(${amp}px,${-amp/2}px)`},{transform:`translate(${-amp}px,${amp/2}px)`},{transform:`translate(${amp/1.5}px,${amp/2}px)`},{transform:'translate(0,0)'}],{duration:dur,iterations:2});}
+
+// mỗi rank đích 1 màn reveal riêng; gọi done() khi xong
+const REVEALS={
+  1(em,box,t,done){ // MEWING — hít sâu, nén khí rồi bung gió
+    em.animate([{transform:'scale(.7,.7)'},{transform:'scale(.92,1.22)',offset:.45},{transform:'scale(1.15,.85)',offset:.7},{transform:'scale(1)'}],{duration:900,easing:'ease-in-out'});
+    for(let k=0;k<6;k++){const w=spawn(box,'ewind',{top:(25+k*10)+'%',left:'10%',width:'0px',opacity:0});
+      w.animate([{width:'0px',opacity:0,transform:'translateX(-40px)'},{width:'120px',opacity:.9,offset:.4},{width:'40px',opacity:0,transform:'translateX(190px)'}],{duration:700,delay:350+k*60}).onfinish=()=>w.remove();}
+    setTimeout(done,1250);
+  },
+  2(em,box,t,done){ // RIZZ — sét đánh + griddy trượt qua lại
+    const b=spawn(box,'ebolt',{top:'-14%',left:'50%',transform:'translateX(-50%)',opacity:0},'⚡');
+    b.animate([{opacity:0,transform:'translate(-50%,-40px) scale(.6)'},{opacity:1,transform:'translate(-50%,0) scale(1.2)',offset:.25},{opacity:0,offset:.45},{opacity:1,offset:.55},{opacity:0}],{duration:600}).onfinish=()=>b.remove();
+    em.animate([{opacity:0,filter:'brightness(3)'},{opacity:1,filter:'brightness(1.6)',offset:.3},{filter:'brightness(1)'}],{duration:500});
+    em.animate([{transform:'translateX(0)'},{transform:'translateX(-26px) rotate(-8deg)',offset:.25},{transform:'translateX(26px) rotate(8deg)',offset:.5},{transform:'translateX(-14px) rotate(-5deg)',offset:.75},{transform:'translateX(0)'}],{duration:800,delay:450,easing:'ease-in-out'});
+    setTimeout(done,1350);
+  },
+  3(em,box,t,done){ // GIGACHAD — giáng xuống rầm + sóng xung kích
+    em.animate([{transform:'translateY(-210px) scale(1.15)',opacity:.6},{transform:'translateY(0) scale(1,.82)',opacity:1,offset:.55},{transform:'translateY(-14px) scale(.96,1.06)',offset:.75},{transform:'translateY(0) scale(1)'}],{duration:750,easing:'cubic-bezier(.3,.7,.4,1)'});
+    setTimeout(()=>{shakeBox(box,7,240);
+      for(let k=0;k<2;k++){const r=spawn(box,'ering',{width:'40px',height:'40px',margin:'-20px'});r.style.setProperty('--c',t.glow);
+        r.animate([{width:'40px',height:'40px',margin:'-20px',opacity:.9},{width:'300px',height:'300px',margin:'-150px',opacity:0}],{duration:700,delay:k*160,easing:'ease-out'}).onfinish=()=>r.remove();}
+    },420);
+    setTimeout(done,1400);
+  },
+  4(em,box,t,done){ // AURA FARMER — xoáy vào + orb bung quỹ đạo
+    em.animate([{transform:'rotate(-720deg) scale(.15)',opacity:0},{transform:'rotate(0) scale(1.1)',opacity:1,offset:.7},{transform:'scale(1)'}],{duration:950,easing:'cubic-bezier(.2,.9,.3,1)'});
+    setTimeout(()=>{for(let k=0;k<6;k++){const a=k*Math.PI/3;const o=spawn(box,'',{left:'50%',top:'50%',width:'9px',height:'9px',margin:'-4.5px',borderRadius:'50%',background:t.glow,boxShadow:`0 0 12px ${t.glow}`});
+      o.animate([{transform:'translate(0,0) scale(.4)',opacity:0},{transform:`translate(${Math.cos(a)*95}px,${Math.sin(a)*95}px) scale(1)`,opacity:1,offset:.6},{transform:`translate(${Math.cos(a+0.9)*112}px,${Math.sin(a+0.9)*112}px) scale(.5)`,opacity:0}],{duration:1000,easing:'ease-out'}).onfinish=()=>o.remove();}},650);
+    setTimeout(done,1550);
+  },
+  5(em,box,t,done){ // MAIN CHARACTER — spotlight quét tới, từ bóng đen bừng sáng
+    const sp=spawn(box,'espot',{transform:'translateX(-160%) rotate(-14deg)',opacity:0});
+    sp.animate([{transform:'translateX(-160%) rotate(-14deg)',opacity:0},{transform:'translateX(-50%) rotate(0)',opacity:1,offset:.55},{opacity:.85}],{duration:900,fill:'forwards'});
+    em.style.filter='brightness(0)';
+    em.animate([{filter:'brightness(0)',transform:'scale(.94)'},{filter:'brightness(0)',offset:.5},{filter:'brightness(1.35)',transform:'scale(1.06)',offset:.8},{filter:'brightness(1)',transform:'scale(1)'}],{duration:1100,fill:'forwards'}).onfinish=()=>{em.style.filter='';sp.animate([{opacity:.85},{opacity:0}],{duration:400,fill:'forwards'}).onfinish=()=>sp.remove();};
+    for(let k=0;k<5;k++){const st=spawn(box,'',{left:(20+Math.random()*60)+'%',top:(15+Math.random()*55)+'%',color:'#fff',textShadow:'0 0 8px #fff',fontSize:'15px',opacity:0});st.textContent='✦';
+      st.animate([{opacity:0,transform:'scale(.4)'},{opacity:1,transform:'scale(1.3)',offset:.5},{opacity:0,transform:'scale(.6)'}],{duration:600,delay:800+k*120}).onfinish=()=>st.remove();}
+    setTimeout(done,1650);
+  },
+  6(em,box,t,done){ // GOATED — cú nhảy đăng quang + 2 vòng vàng + mưa sao
+    em.animate([{transform:'translateY(60px) scale(.8)',opacity:.5},{transform:'translateY(-26px) scale(1.08)',opacity:1,offset:.55},{transform:'translateY(0) scale(1,.95)',offset:.78},{transform:'translateY(0) scale(1)'}],{duration:950,easing:'cubic-bezier(.3,1.2,.4,1)'});
+    setTimeout(()=>{for(let k=0;k<2;k++){const r=spawn(box,'ering',{width:'40px',height:'40px',margin:'-20px'});r.style.setProperty('--c','#F4C842');
+      r.animate([{width:'40px',height:'40px',margin:'-20px',opacity:.9},{width:'280px',height:'280px',margin:'-140px',opacity:0}],{duration:750,delay:k*180,easing:'ease-out'}).onfinish=()=>r.remove();}},780);
+    for(let k=0;k<9;k++){const st=spawn(box,'estar',{left:(8+Math.random()*84)+'%',top:'-8%',fontSize:(10+Math.random()*9)+'px',opacity:0});st.textContent='★';
+      st.animate([{opacity:0,transform:'translateY(0) rotate(0)'},{opacity:1,offset:.2},{opacity:0,transform:'translateY(290px) rotate(200deg)'}],{duration:1200+Math.random()*400,delay:900+Math.random()*300}).onfinish=()=>st.remove();}
+    setTimeout(done,1800);
+  },
+  7(em,box,t,done){ // FINAL BOSS — trỗi dậy chậm từ bóng tối, một nhịp chấn động
+    const veil=spawn(box,'',{inset:'-40%',background:'radial-gradient(circle,transparent 32%,rgba(35,8,50,.8))'});
+    em.animate([{transform:'translateY(130px) scale(.86)',opacity:0,filter:'brightness(.3)'},{transform:'translateY(0) scale(1)',opacity:1,filter:'brightness(.55)',offset:.7},{filter:'brightness(1)'}],{duration:1000,easing:'ease-out'});
+    setTimeout(()=>{shakeBox(box,6,260);
+      for(let k=0;k<6;k++){const e=spawn(box,'eember',{left:(12+Math.random()*76)+'%',bottom:'8%',opacity:0});
+        e.animate([{opacity:0,transform:'translateY(8px)'},{opacity:1,offset:.25},{opacity:0,transform:'translateY(-130px) translateX(10px)'}],{duration:900+Math.random()*400,delay:Math.random()*250}).onfinish=()=>e.remove();}
+    },1000);
+    setTimeout(()=>{veil.animate([{opacity:1},{opacity:0}],{duration:450,fill:'forwards'}).onfinish=()=>veil.remove();},1400);
+    setTimeout(done,1800);
+  },
+  8(em,box,t,done){ // ASCENDED — thăng thiên êm: bay lên + cột sáng vàng + lông vũ
+    em.animate([{transform:'translateY(50px) scale(.92)',opacity:.5},{transform:'translateY(-10px) scale(1.02)',opacity:1,offset:.7},{transform:'translateY(-6px) scale(1)'}],{duration:1100,easing:'ease-out',fill:'forwards'});
+    const beam=spawn(box,'',{top:'-12%',left:'50%',transform:'translateX(-50%)',width:'120px',height:'120%',background:'linear-gradient(180deg,rgba(255,236,170,.4),transparent 80%)',opacity:0});
+    beam.animate([{opacity:0},{opacity:1,offset:.4},{opacity:0}],{duration:1500}).onfinish=()=>beam.remove();
+    const r=spawn(box,'ering',{width:'50px',height:'50px',margin:'-25px'});r.style.setProperty('--c','#E0A93B');
+    r.animate([{width:'50px',height:'50px',margin:'-25px',opacity:.8},{width:'300px',height:'300px',margin:'-150px',opacity:0}],{duration:1100,delay:500,easing:'ease-out'}).onfinish=()=>r.remove();
+    for(let k=0;k<5;k++){const fe=spawn(box,'efeather',{left:(15+Math.random()*70)+'%',top:'-8%',opacity:0});fe.textContent='✦';
+      fe.animate([{opacity:0,transform:'translateY(-10px) rotate(0)'},{opacity:.95,offset:.2},{opacity:0,transform:'translateY(260px) rotate(-150deg) translateX(-18px)'}],{duration:1500+Math.random()*600,delay:300+Math.random()*500}).onfinish=()=>fe.remove();}
+    setTimeout(done,1900);
+  },
+};
+
+function evolve(){
+  if(busy||cur>=8) return; busy=true;
+  const from=TIERS[cur], to=TIERS[cur+1];
+  const evo=document.getElementById('evo'), box=document.getElementById('evobox');
+  evo.classList.add('on');
+  box.innerHTML=`<div class="evoglow" id="eg"></div><div id="em">${conceptNova(from)}</div><div class="etext" id="et">Đang tiến hoá…</div>`;
+  const em=document.getElementById('em'), eg=document.getElementById('eg');
+  // phase 1: charge (chung) — rung + tụ sáng
+  em.classList.add('evshake');
+  eg.animate([{boxShadow:`0 0 0px 0px ${hexA(from.glow,0)}`},{boxShadow:`0 0 130px 90px ${hexA(from.glow,0.55)}`}],{duration:950,fill:'forwards'});
+  setTimeout(()=>{
+    // phase 2: whiteout silhouette (chung)
+    em.classList.remove('evshake');em.classList.add('whiteout','evpulse');
+    eg.animate([{boxShadow:`0 0 130px 90px ${hexA(from.glow,0.55)}`},{boxShadow:`0 0 170px 120px rgba(255,255,255,0.75)`}],{duration:850,fill:'forwards'});
+    setTimeout(()=>{
+      // phase 3: swap + flash, rồi màn reveal RIÊNG của rank đích
+      em.innerHTML=conceptNova(to);
+      flash(0.95,450);
+      setTimeout(()=>{
+        em.classList.remove('whiteout','evpulse');
+        eg.animate([{boxShadow:'0 0 170px 120px rgba(255,255,255,0.75)'},{boxShadow:`0 0 120px 80px ${hexA(to.glow,0.5)}`}],{duration:600,fill:'forwards'});
+        document.getElementById('et').textContent=`${from.name} đã tiến hoá thành ${to.name.toUpperCase()}!`;
+        REVEALS[to.i](em,box,to,()=>{
+          confettiBurst(box);rarityBanner(to.i);
+          setTimeout(()=>{
+            evo.classList.remove('on');box.innerHTML='';
+            cur++;renderHero();renderGallery();busy=false;
+            const c=document.getElementById('curCard').querySelector('.gcard');
+            if(c) c.animate([{transform:'scale(.85)'},{transform:'scale(1.06)',offset:.6},{transform:'scale(1)'}],{duration:450,easing:'ease-out'});
+          },1500);
+        });
+      },230);
+    },900);
+  },950);
+}
+document.getElementById('openBtn').onclick=evolve;
+document.getElementById('replay').onclick=()=>{if(busy)return;cur=0;renderHero();renderGallery();};
+document.getElementById('gallery').onclick=e=>{const c=e.target.closest('.gcard');if(!c||busy)return;const i=+c.dataset.i;if(i<=cur){cur=i;renderHero();renderGallery();}};
+document.getElementById('evo').onclick=e=>{};
+document.getElementById('tg').onclick=()=>document.body.classList.toggle('light');
+renderHero();renderGallery();
+</script>
+</body>

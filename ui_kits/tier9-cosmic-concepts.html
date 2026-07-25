@@ -1,0 +1,275 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Habi · Tier 9 v2 — sau Ascended (2560⭐) · Cosmic · on-brand</title>
+<style>
+  :root{--bg:#07040F;--panel:#140F24;--line:#261F3E;--ink:#EDE9FB;--muted:#9A93B8}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:var(--ink);min-height:100vh;
+    background:radial-gradient(1400px 700px at 50% -12%, #171034, var(--bg))}
+  header{padding:24px 30px 4px;text-align:center}
+  h1{margin:0;font-size:20px}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px}
+  .row{display:flex;justify-content:center;align-items:flex-start;gap:18px;flex-wrap:wrap;padding:26px 20px 10px}
+  .card{position:relative;width:252px;background:var(--panel);border:1px solid var(--line);border-radius:20px;
+    padding:18px 14px 14px;display:flex;flex-direction:column;align-items:center;overflow:hidden}
+  .card.ref{opacity:.85;transform:scale(.94)}
+  .chip{position:absolute;top:10px;left:10px;font-size:10px;font-weight:800;letter-spacing:.6px;padding:3px 8px;
+    border-radius:999px;z-index:5;color:#0B0620}
+  /* FX neo trong .mh → luôn đúng tâm mascot, không phụ thuộc chiều cao card */
+  .mh{width:190px;height:190px;display:flex;align-items:center;justify-content:center;position:relative;z-index:2}
+  .mh svg{width:100%;height:100%;overflow:visible;position:relative;z-index:2}
+  .fx{position:absolute;inset:0;pointer-events:none;z-index:1;overflow:visible}
+  .nm{font-size:19px;font-weight:800;margin-top:2px}
+  .vi{font-size:12px;color:var(--muted)}
+  .dsc{font-size:11px;font-style:italic;color:var(--muted);opacity:.85;margin-top:2px}
+  .notes{font-size:11px;color:var(--muted);line-height:1.55;margin-top:10px;border-top:1px dashed var(--line);
+    padding-top:9px;width:100%}
+  .notes b{color:var(--ink)}
+  details{width:100%;margin-top:8px}
+  summary{font-size:11px;color:var(--muted);cursor:pointer;font-weight:700}
+  pre{font-size:9.5px;line-height:1.5;background:#0B0718;border:1px solid var(--line);border-radius:10px;
+    padding:8px 10px;overflow-x:auto;color:#C4B5FD;margin:6px 0 0}
+  .foot{max-width:740px;margin:16px auto 60px;padding:0 24px;font-size:12.5px;color:var(--muted);line-height:1.7;text-align:center}
+  .foot b{color:var(--ink)}
+
+  /* ambient FX — mọi toạ độ tính từ 50%/50% = tâm mascot */
+  .fxa i{position:absolute;left:50%;top:50%;color:#C4B5FD;text-shadow:0 0 6px #A78BFA;font-style:normal;
+    animation:twinkA ease-in-out infinite;opacity:0}
+  @keyframes twinkA{0%,100%{opacity:0;transform:translate(var(--x),var(--y)) scale(.5)}
+    50%{opacity:.95;transform:translate(var(--x),var(--y)) scale(1.1)}}
+  .fxb i{position:absolute;left:50%;top:50%;width:4.5px;height:4.5px;margin:-2.25px;border-radius:50%;font-style:normal;
+    background:#FFB347;box-shadow:0 0 7px #FF8C42;animation:infall linear infinite;opacity:0}
+  @keyframes infall{0%{transform:rotate(var(--a)) translateX(96px) scale(1);opacity:0}12%{opacity:.9}
+    100%{transform:rotate(calc(var(--a) + 420deg)) translateX(6px) scale(.2);opacity:0}}
+  .fxc i{position:absolute;left:50%;top:50%;border:2px solid #FFE066;border-radius:50%;font-style:normal;
+    animation:nova 2.4s ease-out infinite}
+  /* sync đúng frame "bung" của anim C tại offset 0.66 (trước đây 0.58 → lệch 190ms) */
+  @keyframes nova{0%,62%{width:60px;height:60px;margin:-30px 0 0 -30px;opacity:0}
+    66%{opacity:.8}100%{width:190px;height:190px;margin:-95px 0 0 -95px;opacity:0}}
+</style>
+<body>
+<header>
+  <h1>Tier 9 · sau <b>Ascended</b> — 2560⭐ · v2 on-brand</h1>
+  <div class="sub">Mặt cute stroke #2A2540 · thân flat/luminous · cosmic = accent · anim nội suy <b>linear</b> đúng RN interpolate · viewBox −60..60 khớp app · có band pips</div>
+</header>
+
+<div class="row" id="row"></div>
+
+<div class="foot">
+  Anim của mỗi mock được render trực tiếp từ object <b>RankAnim channels</b> (xem "Config" từng card) qua cùng phép nội suy
+  tuyến tính như app — paste vào <b>ranks.config.ts</b> là khớp. Threshold 2560 tự đúng qua getRankThreshold.
+  Duy nhất mock C cần <b>geometry.points: 8</b> (renderer hỗ trợ sẵn); A và B thuần flat, <b>không cần sửa renderer</b>.
+</div>
+
+<script>
+/* ==== giống hệt starPoints trong ranks.config.ts ==== */
+function starPts(g){const p=[],n=g.points??5;for(let i=0;i<n*2;i++){
+  const r=i%2===0?g.outer:g.outer*g.innerRatio,a=-Math.PI/2+i*Math.PI/n;
+  p.push((Math.cos(a)*r).toFixed(1)+','+(Math.sin(a)*r).toFixed(1));}return p.join(' ');}
+
+const G9={outer:39.5,innerRatio:0.368};           // công thức config cho tier 9
+const T9=starPts(G9);
+const T9_8=starPts({outer:39.5,innerRatio:0.52,points:8}); // mock C
+const T8=starPts({outer:38,innerRatio:0.396});    // Ascended ref
+
+/* viewBox khớp app (RankMascot.tsx: -60 -60 120 120, RN Svg CÓ clip) — đã verify mọi element extent ≤ 58 < 60 */
+const VB='viewBox="-60 -60 120 120" xmlns="http://www.w3.org/2000/svg"';
+/* App render BACK tĩnh (không có animateTransform trong renderer) → mock cũng tĩnh cho trung thực */
+const SPIN=()=>'';
+/* Band pips: app luôn vẽ band+1 pip dưới chân — tier 9 band=4 → 5 pip hồng #FF9ECB */
+const PIPS=`<path d="${[-20,-10,0,10,20].map(x=>`M${x},47.8 l2.8,3.2 -2.8,3.2 -2.8,-3.2 Z`).join(' ')}" fill="#FF9ECB" opacity=".95"/>`;
+
+/* ---------- Ascended (tham chiếu) ---------- */
+/* Ascended render đúng bodyStyle luminous của app: aura polygon + gradient body + core trắng */
+const refSvg=`<svg ${VB}>
+  <defs><radialGradient id="lum8" cx="50%" cy="40%" r="70%">
+    <stop offset="0" stop-color="#FFFFFF"/><stop offset=".55" stop-color="#FFF3D6"/><stop offset="1" stop-color="#F0D084"/>
+  </radialGradient></defs>
+  <polygon points="${starPts({outer:45,innerRatio:0.54})}" fill="#FFF6DC" opacity=".25"/>
+  <polygon points="${T8}" fill="url(#lum8)" stroke="#C9A227" stroke-width="3" style="filter:drop-shadow(0 0 14px rgba(224,169,59,.6))"/>
+  <circle cx="0" cy="-3" r="9" fill="#FFFFFF" opacity=".55"/>
+  <ellipse cx="0" cy="-46" rx="17" ry="5.4" fill="none" stroke="#E0A93B" stroke-width="3"/>
+  <ellipse cx="0" cy="-46" rx="17" ry="5.4" fill="none" stroke="#FFF" stroke-width="1" opacity=".6"/>
+  <path d="M-10,-7 q3,3 6,0 M2,-7 q3,3 6,0" stroke="#2A2A2A" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <circle cx="-10" cy="-1" r="2.1" fill="#F9A8D4"/><circle cx="10" cy="-1" r="2.1" fill="#F9A8D4"/>
+  <path d="M-6,4 q6,5 12,0" stroke="#2A2A2A" stroke-width="2" fill="none" stroke-linecap="round"/>
+  ${PIPS}
+</svg>`;
+
+/* ---------- A · COSMIC — em sao mơ màng đeo vành planet ---------- */
+const aSvg=`<svg ${VB}>
+  <ellipse cx="0" cy="2" rx="54" ry="15" fill="none" stroke="#C4B5FD" stroke-width="2.4" opacity=".5"
+    transform="rotate(-16)"/>
+  <!-- moon BACK copy: luôn hiện, bị thân sao che ở nửa gần -->
+  <circle r="3.6" fill="#F9A8D4" stroke="#E879B9" stroke-width="1">
+    <animateMotion dur="9s" repeatCount="indefinite"
+      path="M51.9,-12.9 A54,15 -16 1 1 -51.9,16.9 A54,15 -16 1 1 51.9,-12.9 Z"/>
+  </circle>
+  <!-- ring dust BACK: 3 hạt chậm hơn (14s), lệch pha qua begin âm -->
+  <circle r="1.6" fill="#C4B5FD" opacity=".8"><animateMotion dur="14s" begin="-2.33s" repeatCount="indefinite"
+    path="M51.9,-12.9 A54,15 -16 1 1 -51.9,16.9 A54,15 -16 1 1 51.9,-12.9 Z"/></circle>
+  <circle r="1.6" fill="#C4B5FD" opacity=".8"><animateMotion dur="14s" begin="-7.58s" repeatCount="indefinite"
+    path="M51.9,-12.9 A54,15 -16 1 1 -51.9,16.9 A54,15 -16 1 1 51.9,-12.9 Z"/></circle>
+  <circle r="1.6" fill="#C4B5FD" opacity=".8"><animateMotion dur="14s" begin="-11.08s" repeatCount="indefinite"
+    path="M51.9,-12.9 A54,15 -16 1 1 -51.9,16.9 A54,15 -16 1 1 51.9,-12.9 Z"/></circle>
+  <polygon points="${T9}" fill="#5B4BC4" stroke="#2E2378" stroke-width="3"
+    style="filter:drop-shadow(0 0 14px rgba(167,139,250,.55))"/>
+  <path d="M-49,7 Q0,25 49,7" fill="none" stroke="#C4B5FD" stroke-width="2.4" stroke-linecap="round" opacity=".9"/>
+  <path d="M-10,-5 q3,3 6,0 M4,-5 q3,3 6,0" stroke="#2A2540" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  <circle cx="-11" cy="1" r="2.2" fill="#F9A8D4"/><circle cx="11" cy="1" r="2.2" fill="#F9A8D4"/>
+  <path d="M-5,5 q5,4 10,0" stroke="#2A2540" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  <path d="M22,-34 C23,-30 23,-30 27,-29 C23,-28 23,-28 22,-24 C21,-28 21,-28 17,-29 C21,-30 21,-30 22,-34 Z" fill="#FFFFFF"/>
+  <path d="M-27,14 C-26,17 -26,17 -23,18 C-26,19 -26,19 -27,22 C-28,19 -28,19 -31,18 C-28,17 -28,17 -27,14 Z" fill="#C4B5FD"/>
+  <!-- moon FRONT copy: chỉ hiện ở nửa gần (t 0→0.5, sweep 1 = nửa dưới) để đè lên thân sao -->
+  <circle r="3.6" fill="#F9A8D4" stroke="#E879B9" stroke-width="1">
+    <animateMotion dur="9s" repeatCount="indefinite"
+      path="M51.9,-12.9 A54,15 -16 1 1 -51.9,16.9 A54,15 -16 1 1 51.9,-12.9 Z"/>
+    <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
+      values="1;1;0;0;1" keyTimes="0;0.46;0.5;0.96;1"/>
+  </circle>
+  <!-- ring dust FRONT: cùng begin với bản back để đồng pha -->
+  <circle r="1.6" fill="#C4B5FD"><animateMotion dur="14s" begin="-2.33s" repeatCount="indefinite"
+    path="M51.9,-12.9 A54,15 -16 1 1 -51.9,16.9 A54,15 -16 1 1 51.9,-12.9 Z"/>
+    <animate attributeName="opacity" dur="14s" begin="-2.33s" repeatCount="indefinite"
+      values="0.8;0.8;0;0;0.8" keyTimes="0;0.46;0.5;0.96;1"/></circle>
+  <circle r="1.6" fill="#C4B5FD"><animateMotion dur="14s" begin="-7.58s" repeatCount="indefinite"
+    path="M51.9,-12.9 A54,15 -16 1 1 -51.9,16.9 A54,15 -16 1 1 51.9,-12.9 Z"/>
+    <animate attributeName="opacity" dur="14s" begin="-7.58s" repeatCount="indefinite"
+      values="0.8;0.8;0;0;0.8" keyTimes="0;0.46;0.5;0.96;1"/></circle>
+  <circle r="1.6" fill="#C4B5FD"><animateMotion dur="14s" begin="-11.08s" repeatCount="indefinite"
+    path="M51.9,-12.9 A54,15 -16 1 1 -51.9,16.9 A54,15 -16 1 1 51.9,-12.9 Z"/>
+    <animate attributeName="opacity" dur="14s" begin="-11.08s" repeatCount="indefinite"
+      values="0.8;0.8;0;0;0.8" keyTimes="0;0.46;0.5;0.96;1"/></circle>
+  ${PIPS}
+</svg>`;
+
+/* ---------- B · SINGULARITY — em sao trầm tĩnh, viền hố đen vàng-cam ---------- */
+const bSvg=`<svg ${VB}>
+  <g>${SPIN(11,true)}
+    <path d="M0,-50 A50,50 0 0 1 47,17" fill="none" stroke="#FF8C42" stroke-width="2.2" opacity=".5" stroke-linecap="round"/>
+    <path d="M-12,48 A50,50 0 0 1 -50,-6" fill="none" stroke="#FFB347" stroke-width="1.5" opacity=".35" stroke-linecap="round"/>
+  </g>
+  <polygon points="${T9}" fill="#1E1436" stroke="#FFB347" stroke-width="3"
+    style="filter:drop-shadow(0 0 14px rgba(255,140,66,.5))"/>
+  <path d="M-13,-8 l8,2.5 M13,-8 l-8,2.5" stroke="#FFE8C2" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  <path d="M-11,-1 q3,3 6,0 M5,-1 q3,3 6,0" stroke="#FFE8C2" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  <circle cx="-13" cy="4" r="2.2" fill="#FF8C42" opacity=".55"/><circle cx="13" cy="4" r="2.2" fill="#FF8C42" opacity=".55"/>
+  <path d="M-5,6 q5,4 11,-1" stroke="#FFE8C2" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  <path d="M24,-26 q4,-1 5,-5 q1,4 5,5 q-4,1 -5,5 q-1,-4 -5,-5 Z" fill="#FFB347"/>
+  ${PIPS}
+</svg>`;
+
+/* ---------- C · SUPERNOVA — 8 cánh, em sao tăng động mắt sparkle ---------- */
+const cSvg=`<svg ${VB}>
+  <g opacity=".85">${SPIN(16)}
+    <path d="M0,-58 l2.6,8 -5.2,0 Z M58,0 l-8,2.6 0,-5.2 Z M0,58 l-2.6,-8 5.2,0 Z M-58,0 l8,-2.6 0,5.2 Z"
+      fill="#FFE066" style="filter:drop-shadow(0 0 5px #F4C842)"/>
+  </g>
+  <polygon points="${T9_8}" fill="#FFD166" stroke="#FF6B4A" stroke-width="3"
+    style="filter:drop-shadow(0 0 16px rgba(255,224,102,.65))"/>
+  <path d="M-11,-8 C-10,-4.5 -10,-4.5 -6.5,-3.5 C-10,-2.5 -10,-2.5 -11,1 C-12,-2.5 -12,-2.5 -15.5,-3.5 C-12,-4.5 -12,-4.5 -11,-8 Z" fill="#2A2540"/>
+  <path d="M11,-8 C12,-4.5 12,-4.5 15.5,-3.5 C12,-2.5 12,-2.5 11,1 C10,-2.5 10,-2.5 6.5,-3.5 C10,-4.5 10,-4.5 11,-8 Z" fill="#2A2540"/>
+  <circle cx="-18" cy="6" r="2.6" fill="#FF6B4A" opacity=".45"/><circle cx="18" cy="6" r="2.6" fill="#FF6B4A" opacity=".45"/>
+  <path d="M-7,6 q7,7 14,0" stroke="#2A2540" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+  <path d="M-3.5,8.5 l1.4,3 l1.4,-3 M1,8.5 l1.4,3 l1.4,-3" fill="#FFFFFF"/>
+  ${PIPS}
+</svg>`;
+
+/* ==== RankAnim specs — paste-ready, render 1:1 bên dưới ==== */
+const ANIMS={
+  ref:{duration:2600,loop:true,channels:{
+    translateY:[[0,2.5],[0.5,-4.5],[1,2.5]],
+    scaleX:[[0,1],[0.5,1.03],[1,1]],
+    scaleY:[[0,1],[0.5,1.03],[1,1]]}},
+  a:{duration:3200,loop:true,channels:{
+    translateY:[[0,3],[0.5,-6],[1,3]],
+    rotate:[[0,-3],[0.5,3],[1,-3]],
+    scale:[[0,1],[0.5,1.02],[1,1]]}},
+  b:{duration:4200,loop:true,channels:{
+    scale:[[0,1],[0.45,0.96],[0.7,1.05],[0.85,1.01],[1,1]],
+    rotate:[[0,0],[0.45,-1],[0.7,0.5],[1,0]],
+    translateY:[[0,1],[0.7,-2],[1,1]]}},
+  c:{duration:2400,loop:true,channels:{
+    scale:[[0,1],[0.55,0.92],[0.66,1.12],[0.78,1],[0.88,1.05],[1,1]],
+    rotate:[[0,0],[0.55,-2],[0.66,1],[1,0]],
+    translateY:[[0,0],[0.66,-3],[1,0]]}},
+};
+
+/* ==== interpolation y hệt app: lerp tuyến tính per-channel ==== */
+function chVal(ch,t){
+  if(t<=ch[0][0])return ch[0][1];
+  if(t>=ch[ch.length-1][0])return ch[ch.length-1][1];
+  for(let i=1;i<ch.length;i++){if(t<=ch[i][0]){
+    const [t0,v0]=ch[i-1],[t1,v1]=ch[i];
+    return v0+(v1-v0)*((t-t0)/(t1-t0));}}
+  return ch[ch.length-1][1];
+}
+function playRankAnim(el,anim){
+  const offs=[...new Set(Object.values(anim.channels).flat().map(k=>k[0]))].sort((x,y)=>x-y);
+  if(offs[0]!==0)offs.unshift(0); if(offs[offs.length-1]!==1)offs.push(1);
+  const frames=offs.map(t=>{
+    const c=anim.channels,parts=[];
+    parts.push(`translate(${c.translateX?chVal(c.translateX,t):0}px, ${c.translateY?chVal(c.translateY,t):0}px)`);
+    parts.push(`rotate(${c.rotate?chVal(c.rotate,t):0}deg)`);
+    const sx=c.scaleX?chVal(c.scaleX,t):(c.scale?chVal(c.scale,t):1);
+    const sy=c.scaleY?chVal(c.scaleY,t):(c.scale?chVal(c.scale,t):1);
+    parts.push(`scale(${sx}, ${sy})`);
+    if(c.skewX)parts.push(`skewX(${chVal(c.skewX,t)}deg)`);
+    /* app dùng RN p.interpolate + Easing.linear → nội suy TUYẾN TÍNH thuần.
+       ease-in-out lệch tới 1.09px/0.73° (đo tại t=0.38 mock A) → phải linear. */
+    return {offset:t,transform:parts.join(' '),easing:'linear'};
+  });
+  el.animate(frames,{duration:anim.duration,iterations:Infinity});
+}
+
+const cfg=(a,extra)=>JSON.stringify({...extra,anim:a},null,1).replace(/"/g,'');
+
+const CARDS=[
+  {cls:'ref',chip:'TIER 8 · REF',chipBg:'#E0A93B',svg:refSvg,animKey:'ref',fx:'',
+   nm:'Ascended',vi:'Đỉnh Của Chóp',dsc:'god mode: on',
+   notes:'1280⭐ · tham chiếu scale/vibe. Anim render từ đúng channels trong config hiện tại.'},
+  {cls:'',chip:'MOCK A',chipBg:'#A78BFA',svg:aSvg,animKey:'a',fx:'fxa',
+   nm:'Cosmic',vi:'Ngoài Vùng Phủ Sóng',dsc:'left the chat',
+   notes:'<b>Ý tưởng:</b> Ascended có halo → tier 9 lên hẳn <b>vành planet</b> quanh thân + moon nhỏ quay quanh. Mặt mơ màng nhắm mắt, má hồng — DNA tier 8. Thân flat, không gradient.',
+   extra:{color:'#5B4BC4',edge:'#2E2378',glow:'#A78BFA',glowOpacity:0.55}},
+  {cls:'',chip:'MOCK B',chipBg:'#FFB347',svg:bSvg,animKey:'b',fx:'fxb',
+   nm:'Singularity',vi:'Gánh Cả Vũ Trụ',dsc:'event horizon',
+   notes:'<b>Ý tưởng:</b> thân tím thẫm + viền vàng-cam = chân trời sự kiện; hạt sáng xoáy vào tâm. Mày tự tin kiểu Gigachad nhưng mắt cong cute. Stroke mặt #FFE8C2 vì nền tối (như tier 7 dùng accent sáng).',
+   extra:{color:'#1E1436',edge:'#FFB347',glow:'#FF8C42',glowOpacity:0.5}},
+  {cls:'',chip:'MOCK C',chipBg:'#FFE066',svg:cSvg,animKey:'c',fx:'fxc',
+   nm:'Supernova',vi:'Cháy Hết Nấc',dsc:'went nova',
+   notes:'<b>Ý tưởng:</b> 8 cánh (geometry.points:8), mắt sparkle 4 cánh #2A2540, cười răng thò như Final Boss, shockwave lan từ tâm. Vàng ấm hơn GOATED (#FFD166 vs #F4C842) + viền đỏ cam để tách vibe.',
+   extra:{color:'#FFD166',edge:'#FF6B4A',glow:'#FFE066',glowOpacity:0.55,geometry:{points:8,innerRatio:0.52}}},
+];
+
+const row=document.getElementById('row');
+CARDS.forEach(c=>{
+  const d=document.createElement('div');
+  d.className='card '+c.cls;
+  d.innerHTML=`<span class="chip" style="background:${c.chipBg}">${c.chip}</span>
+    <div class="mh"><div class="fx ${c.fx}"></div><div class="animT" style="width:100%;height:100%">${c.svg}</div></div>
+    <div class="nm">${c.nm}</div><div class="vi">${c.vi}</div><div class="dsc">“${c.dsc}”</div>
+    <div class="notes">${c.notes}</div>
+    ${c.extra?`<details><summary>Config (paste-ready)</summary><pre>${cfg(ANIMS[c.animKey],c.extra)}</pre></details>`:''}`;
+  row.appendChild(d);
+  playRankAnim(d.querySelector('.animT'),ANIMS[c.animKey]);
+});
+
+/* ambient FX — toạ độ từ tâm mascot */
+document.querySelectorAll('.fxa').forEach(l=>{
+  [[-72,-58],[70,-40],[-64,30],[76,44],[8,-84]].forEach(([x,y],i)=>{
+    const s=document.createElement('i');s.textContent='✦';
+    s.style.cssText=`--x:${x}px;--y:${y}px;font-size:${8+(i%3)*3}px;
+      animation-duration:${2.2+i*0.5}s;animation-delay:${i*0.55}s`;
+    l.appendChild(s);});});
+document.querySelectorAll('.fxb').forEach(l=>{for(let i=0;i<6;i++){
+  const s=document.createElement('i');
+  s.style.cssText=`--a:${i*60}deg;animation-duration:${3+i*0.45}s;animation-delay:${i*0.7}s`;
+  l.appendChild(s);}});
+document.querySelectorAll('.fxc').forEach(l=>{for(let i=0;i<2;i++){
+  const s=document.createElement('i');
+  s.style.cssText=`animation-delay:${i*1.2}s`;
+  l.appendChild(s);}});
+</script>
+</body>
+</html>

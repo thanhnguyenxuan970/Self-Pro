@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Habi · Điểm danh bù đa-ngày (ý tưởng #4)</title>
+<style>
+  :root{
+    --primary:#25B36E; --primaryHover:#1E9B5E; --primaryPress:#177A49; --primarySoft:#C6E9D5;
+    --tintBg:#EAF7F0; --bgBase:#F5F6F5; --surface:#FFFFFF; --line:#ECEEEC;
+    --ink:#1B1F1D; --ink2:#3F4642; --muted:#6E7672; --faint:#A5ABA7;
+    --gold:#E0A93B; --orange:#E57D00; --danger:#D74045; --dangerSoft:#FBE2E3; --warnBg:#FBEFD3; --warnInk:#8A6110;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:#E7E9E8; color:var(--ink); display:flex; flex-direction:column; align-items:center; gap:14px; padding:22px 12px 40px; min-height:100%;}
+  .caption{max-width:400px; text-align:center; color:#55605a; font-size:13px; line-height:1.55;}
+  .caption b{color:#233; font-weight:600;}
+  .phone{width:400px; max-width:100%; background:var(--bgBase); border-radius:34px; border:10px solid #11150f; box-shadow:0 18px 50px rgba(0,0,0,.28); overflow:hidden; position:relative; height:800px;}
+  .notch{position:absolute; top:0; left:50%; transform:translateX(-50%); width:150px; height:26px; background:#11150f; border-radius:0 0 16px 16px; z-index:40;}
+  .screen{position:absolute; inset:0; display:flex; flex-direction:column;}
+  .statusbar{height:44px; display:flex; align-items:flex-end; justify-content:space-between; padding:0 22px 4px; font-size:12px; font-weight:600;}
+  .content{flex:1; overflow-y:auto; padding:6px 16px 90px;}
+  .greet{font-size:20px; font-weight:700; margin:6px 0 1px;}
+  .date{font-size:12px; color:var(--muted); margin-bottom:14px;}
+  .hero{display:flex; gap:10px; margin-bottom:14px;}
+  .stat{flex:1; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:11px 13px;}
+  .stat .row{display:flex; align-items:center; gap:6px;}
+  .stat .big{font-size:22px; font-weight:700;}
+  .stat .lbl{font-size:11px; color:var(--muted); margin-top:2px;}
+  .star{font-size:16px; color:var(--gold);}
+
+  .chip{position:relative; background:var(--tintBg); border:1px solid var(--primary); border-radius:14px; padding:13px 12px 12px; margin-bottom:16px; transition:opacity .3s, transform .3s, max-height .35s, margin .3s, padding .3s; max-height:200px; overflow:hidden;}
+  .chip.hide{opacity:0; transform:translateY(-6px); max-height:0; margin:0; padding:0 12px; border-color:transparent;}
+  .chip .newtag{position:absolute; top:-9px; left:12px; font-size:10px; font-weight:700; color:#fff; background:var(--primary); border-radius:6px; padding:1px 7px;}
+  .chip .top{display:flex; align-items:flex-start; gap:11px;}
+  .chip .ic{font-size:22px; line-height:1.1; color:var(--primaryPress);}
+  .chip .txt{flex:1;}
+  .chip .t1{font-size:14px; font-weight:700; color:var(--primaryPress);}
+  .chip .t2{font-size:11px; color:var(--ink2); margin-top:2px; line-height:1.4;}
+  .chip .x{font-size:18px; color:var(--faint); cursor:pointer; padding:2px; line-height:1;}
+  .chip .cta{width:100%; margin-top:11px; font-size:13px; font-weight:600; color:#fff; background:var(--primary); border:none; border-radius:10px; padding:11px; cursor:pointer;}
+  .chip .cta:active{background:var(--primaryPress);}
+  .chip.done{background:#F1FAF5; border-color:var(--primarySoft);}
+
+  .sect{font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--muted); margin:4px 0 8px;}
+  .task{display:flex; align-items:center; gap:11px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:11px 13px; margin-bottom:9px;}
+  .task .ti{font-size:18px; width:22px; text-align:center;}
+  .task .nm{flex:1; font-size:14px;}
+  .task .ck{width:22px; height:22px; border-radius:50%; border:2px solid var(--primarySoft); flex:none;}
+  .task.done .ck{background:var(--primary); border-color:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px;}
+  .task.done .nm{color:var(--muted); text-decoration:line-through;}
+  .task .off{filter:grayscale(1);}
+
+  .tabbar{position:absolute; bottom:0; left:0; right:0; height:74px; background:var(--surface); border-top:1px solid var(--line); display:flex; justify-content:space-around; align-items:flex-start; padding-top:9px; z-index:20;}
+  .tab{display:flex; flex-direction:column; align-items:center; gap:3px; font-size:10px; color:var(--faint);}
+  .tab.active{color:var(--primary); font-weight:600;}
+  .tab .g{font-size:22px; position:relative;}
+  .tab .dot{position:absolute; top:-2px; right:-4px; min-width:15px; height:15px; padding:0 3px; border-radius:8px; background:var(--danger); color:#fff; font-size:9px; font-weight:700; line-height:15px; text-align:center; border:1.5px solid var(--surface); display:none;}
+  .tab .dot.on{display:block;}
+
+  .scrim{position:absolute; inset:0; background:rgba(20,24,20,.42); opacity:0; pointer-events:none; transition:opacity .3s; z-index:30;}
+  .scrim.on{opacity:1; pointer-events:auto;}
+  .sheet{position:absolute; left:0; right:0; bottom:0; background:var(--surface); border-radius:22px 22px 0 0; padding:8px 18px 26px; transform:translateY(100%); transition:transform .32s cubic-bezier(.2,.8,.2,1); z-index:35; max-height:90%; overflow-y:auto;}
+  .sheet.on{transform:translateY(0);}
+  .grip{width:38px; height:4px; border-radius:2px; background:#D9DCDA; margin:8px auto 14px;}
+  .sh-head{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;}
+  .sh-title{font-size:18px; font-weight:700;}
+  .sh-sub{font-size:12px; color:var(--muted); margin-top:2px;}
+  .qbadge{background:var(--tintBg); color:var(--primaryPress); font-size:12px; font-weight:600; border-radius:8px; padding:4px 10px; white-space:nowrap;}
+  .qbadge.warn{background:var(--dangerSoft); color:var(--danger);}
+
+  .streaknote{display:flex; gap:8px; align-items:flex-start; font-size:12px; border-radius:10px; padding:9px 11px; margin-bottom:14px; line-height:1.45;}
+  .streaknote.bad{background:var(--warnBg); color:var(--warnInk);}
+  .streaknote.good{background:var(--tintBg); color:var(--primaryPress);}
+
+  .dayrow{display:flex; align-items:center; gap:11px; border:1px solid var(--line); border-radius:12px; padding:12px 13px; margin-bottom:9px; cursor:pointer; transition:border-color .15s, background .15s;}
+  .dayrow:hover{border-color:#CDD3CF;}
+  .dayrow.done{background:#F1FAF5; border-color:var(--primarySoft); cursor:default;}
+  .dayrow.locked{opacity:.5; cursor:not-allowed;}
+  .dayrow .dnm{flex:1; font-size:14px; font-weight:600;}
+  .dayrow .dmeta{font-size:11px; color:var(--muted); margin-top:1px;}
+  .dayrow .arr{color:var(--faint); font-size:16px;}
+  .dayrow .tick{color:var(--primary); font-weight:700;}
+
+  .pick-lbl{font-size:12px; font-weight:600; color:var(--ink2); margin:4px 0 8px;}
+  .opt{display:flex; align-items:center; gap:11px; border-radius:10px; padding:11px 12px; margin-bottom:4px; cursor:pointer;}
+  .opt.sel{background:var(--primarySoft);}
+  .opt .oic{font-size:20px; width:28px; text-align:center;}
+  .opt .onm{flex:1; font-size:15px;}
+  .opt.sel .onm{color:var(--primaryPress); font-weight:600;}
+  .opt .tk{color:var(--primary); font-weight:700;}
+
+  .durrow{display:flex; gap:10px; margin:12px 0 4px;}
+  .dur{flex:1; padding:14px 0; border-radius:10px; border:1px solid var(--line); text-align:center; font-size:13px; color:var(--ink2); cursor:pointer;}
+  .dur.on{background:var(--primarySoft); border-color:var(--primary); color:var(--primaryPress); font-weight:600;}
+  .durinput{width:100%; margin-top:10px; height:44px; padding:0 12px; border-radius:10px; border:1px solid var(--line); font-size:14px; color:var(--ink);}
+  .addbtn{width:100%; margin-top:14px; border:1px solid var(--primary); background:#fff; color:var(--primary); border-radius:12px; padding:12px; font-size:14px; font-weight:600; cursor:pointer;}
+  .addbtn:disabled{opacity:.4; cursor:not-allowed;}
+
+  .entry{display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:8px;}
+  .entry .eic{font-size:18px; width:24px; text-align:center;}
+  .entry .ecol{flex:1;}
+  .entry .enm{font-size:14px;}
+  .entry .emeta{font-size:11px; color:var(--muted); margin-top:1px;}
+  .entry .eact{font-size:15px; color:var(--ink2); cursor:pointer; padding:4px 6px;}
+  .entry .eact.del{color:var(--danger);}
+
+  .save{width:100%; background:var(--primary); color:#fff; border:none; border-radius:14px; padding:15px; font-size:15px; font-weight:700; margin-top:14px; cursor:pointer;}
+  .save:disabled{background:#BFD9C9; cursor:not-allowed;}
+  .save:active:not(:disabled){background:var(--primaryPress);}
+  .warnline{font-size:11px; color:var(--muted); text-align:center; margin-top:10px;}
+
+  .toast{position:absolute; top:52px; left:16px; right:16px; background:var(--surface); border:1px solid var(--primarySoft); border-left:4px solid var(--primary); border-radius:12px; padding:12px 14px; box-shadow:0 8px 24px rgba(0,0,0,.14); z-index:45; display:flex; gap:10px; align-items:center; transform:translateY(-24px); opacity:0; pointer-events:none; transition:transform .3s, opacity .3s;}
+  .toast.on{transform:translateY(0); opacity:1;}
+  .toast .tt{font-size:13px; font-weight:600; color:var(--primaryPress);}
+  .toast .ts{font-size:12px; color:var(--ink2);}
+
+  .controls{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; max-width:400px;}
+  .cbtn{font-size:12px; border:1px solid #C7CCC9; background:#fff; color:#333; border-radius:20px; padding:7px 14px; cursor:pointer;}
+  .cbtn.k{border-color:var(--primary); color:var(--primaryPress);}
+  .cbtn.act{background:var(--primarySoft); border-color:var(--primary); color:var(--primaryPress);}
+</style>
+</head>
+<body>
+
+  <div class="caption">Ý tưởng #4 — <b>đa-ngày</b>. Chip gộp số ngày lỡ trong tuần và số lượt bù còn lại; sheet cho <b>chọn ngày</b> rồi <b>tự dựng danh sách hoạt động</b> (chọn hoạt động của bạn + thời lượng, thêm/sửa/xoá tự do) — không phải hành động cố định. Copy về streak nói thật.</div>
+
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="statusbar"><span>9:41</span><span>●●● ▮</span></div>
+
+      <div class="content">
+        <div class="greet">Chào James</div>
+        <div class="date">Thứ Bảy, 17 tháng 7</div>
+
+        <div class="hero">
+          <div class="stat"><div class="row"><span style="font-size:18px;">🔥</span><span class="big" id="streak">1</span></div><div class="lbl">ngày liên tục</div></div>
+          <div class="stat"><div class="row"><span class="star">★</span><span class="big">48</span></div><div class="lbl">sao tuần này</div></div>
+        </div>
+
+        <div class="chip" id="chip">
+          <span class="newtag">Mới</span>
+          <div class="top">
+            <span class="ic">↩</span>
+            <div class="txt"><div class="t1" id="chipT1"></div><div class="t2" id="chipT2"></div></div>
+            <span class="x" onclick="dismissChip()">✕</span>
+          </div>
+          <button class="cta" id="chipBtn" onclick="openDayPicker()">Chọn ngày bù</button>
+        </div>
+
+        <div class="sect">HÔM NAY</div>
+        <div class="task done"><span class="ti">🏃</span><span class="nm">Chạy bộ</span><span class="ck">✓</span></div>
+        <div class="task"><span class="ti off">📖</span><span class="nm">Đọc sách</span><span class="ck"></span></div>
+        <div class="task"><span class="ti off">🧘</span><span class="nm">Thiền 10 phút</span><span class="ck"></span></div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active"><span class="g">🏠</span>Hôm nay</div>
+        <div class="tab"><span class="g">📅<span class="dot" id="tabDot"></span></span>Lịch</div>
+        <div class="tab"><span class="g">🏆</span>Thử thách</div>
+        <div class="tab"><span class="g">👤</span>Hồ sơ</div>
+      </div>
+
+      <div class="toast" id="toast"><span style="font-size:20px;color:var(--primaryPress);">✓</span><div><div class="tt">Đã điểm danh bù!</div><div class="ts" id="toastSub"></div></div></div>
+
+      <div class="scrim" id="scrim" onclick="closeSheets()"></div>
+
+      <div class="sheet" id="dayPicker">
+        <div class="grip"></div>
+        <div class="sh-head">
+          <div><div class="sh-title">Chọn ngày cần bù</div><div class="sh-sub" id="dpSub"></div></div>
+          <div class="qbadge" id="dpQuota"></div>
+        </div>
+        <div class="streaknote" id="dpNote"></div>
+        <div id="dayList"></div>
+      </div>
+
+      <div class="sheet" id="builder">
+        <div class="grip"></div>
+        <div class="sh-head">
+          <div><div class="sh-title">Điểm danh bù</div><div class="sh-sub" id="bDate"></div></div>
+          <div class="qbadge" id="bQuota"></div>
+        </div>
+
+        <div id="entriesWrap" style="display:none;">
+          <div class="pick-lbl">Hoạt động đã thêm</div>
+          <div id="entryList"></div>
+        </div>
+
+        <div class="pick-lbl">Chọn hoạt động của bạn</div>
+        <div id="optList"></div>
+
+        <div class="pick-lbl" style="margin-top:14px;">Thời lượng</div>
+        <div class="durrow" id="durRow"></div>
+        <input class="durinput" id="durInput" type="number" min="1" value="30" oninput="onDurInput()" placeholder="Nhập số phút">
+
+        <button class="addbtn" id="addBtn" disabled onclick="addEntry()">＋ Thêm hoạt động</button>
+        <button class="save" id="saveBtn" disabled onclick="saveDay()">Thêm ít nhất 1 hoạt động</button>
+        <div class="warnline">Sau khi lưu, ngày này sẽ được khoá và không thể chỉnh sửa.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="cbtn k" onclick="loadScenario('A')" id="scA">↺ Lỡ 3 ngày · quota 2</button>
+    <button class="cbtn" onclick="loadScenario('B')" id="scB">Lỡ 2 ngày · quota 2</button>
+    <button class="cbtn" onclick="loadScenario('C')" id="scC">Không có ngày lỡ</button>
+  </div>
+
+<script>
+  var LIB = [
+    {k:'run', ic:'🏃', nm:'Chạy bộ'},
+    {k:'read', ic:'📖', nm:'Đọc sách'},
+    {k:'med', ic:'🧘', nm:'Thiền'},
+    {k:'water', ic:'💧', nm:'Uống đủ nước'},
+    {k:'eng', ic:'🗣️', nm:'Học tiếng Anh'}
+  ];
+  var DURS = [{lbl:'30′', m:30},{lbl:'1h', m:60},{lbl:'1.5h', m:90}];
+  var S = {};
+
+  function loadScenario(sc){
+    document.getElementById('scA').className='cbtn'+(sc==='A'?' act':' k');
+    document.getElementById('scB').className='cbtn'+(sc==='B'?' act':'');
+    document.getElementById('scC').className='cbtn'+(sc==='C'?' act':'');
+    var missed;
+    if(sc==='A') missed=[{id:'d4',label:'Thứ Tư, 14/7'},{id:'d5',label:'Thứ Năm, 15/7'},{id:'d6',label:'Thứ Sáu, 16/7'}];
+    else if(sc==='B') missed=[{id:'d5',label:'Thứ Năm, 15/7'},{id:'d6',label:'Thứ Sáu, 16/7'}];
+    else missed=[];
+    S={scenario:sc, quota:2, missed:missed.map(function(d){return {id:d.id,label:d.label,done:false};}), curDay:null, sel:null, mins:30, editId:null, entriesByDay:{}};
+    S.missed.forEach(function(d){S.entriesByDay[d.id]=[];});
+    closeSheets();
+    renderHome();
+  }
+
+  function remainingQuota(){ var used=S.missed.filter(function(d){return d.done;}).length; return Math.max(0,S.quota-used); }
+  function pendingCount(){ return S.missed.filter(function(d){return !d.done;}).length; }
+  function bufferable(){ return Math.min(remainingQuota(), pendingCount()); }
+
+  function renderHome(){
+    var chip=document.getElementById('chip');
+    var pend=pendingCount(), rem=remainingQuota(), done=S.missed.filter(function(d){return d.done;}).length;
+    var dot=document.getElementById('tabDot');
+
+    if(S.missed.length===0){ chip.classList.add('hide'); dot.classList.remove('on'); document.getElementById('streak').textContent='13'; return; }
+    chip.classList.remove('hide');
+    dot.textContent=Math.min(remainingQuota(),pendingCount()); dot.classList.add('on');
+
+    if(pend===0){
+      chip.classList.add('done');
+      chip.querySelector('.newtag').style.display='none';
+      chip.querySelector('.ic').textContent='✓';
+      document.getElementById('chipBtn').style.display='none';
+      var allSaved = done>=S.missed.length;
+      document.getElementById('chipT1').textContent='Đã bù '+done+' ngày';
+      document.getElementById('chipT2').textContent = allSaved ? 'Chuỗi được nối lại — tiếp tục nhé' : 'Đã dùng hết lượt · vẫn còn ngày lỡ chưa cứu';
+      document.getElementById('streak').textContent = allSaved ? String(12+1) : '1';
+      return;
+    }
+
+    chip.classList.remove('done');
+    chip.querySelector('.newtag').style.display='';
+    chip.querySelector('.ic').textContent='↩';
+    document.getElementById('chipBtn').style.display='';
+    document.getElementById('streak').textContent='1';
+    var t1 = pend===1 ? ('Bạn lỡ 1 ngày tuần này') : ('Tuần này bạn lỡ '+pend+' ngày');
+    document.getElementById('chipT1').textContent=t1;
+    var canFix = Math.min(rem,pend);
+    var t2;
+    if(pend<=rem) t2='Bù cả '+pend+' ngày để nối lại chuỗi · còn '+rem+' lượt';
+    else t2='Chỉ bù được '+canFix+'/'+pend+' ngày (giới hạn '+rem+' lượt/tuần) — chuỗi khó cứu trọn';
+    document.getElementById('chipT2').textContent=t2;
+  }
+
+  function openDayPicker(){
+    renderDayPicker();
+    document.getElementById('scrim').classList.add('on');
+    document.getElementById('dayPicker').classList.add('on');
+  }
+  function renderDayPicker(){
+    var rem=remainingQuota(), pend=pendingCount();
+    document.getElementById('dpSub').textContent='Tuần này · '+pend+' ngày chưa bù';
+    var q=document.getElementById('dpQuota'); q.textContent='Còn '+rem+' lượt/tuần'; q.className='qbadge'+(rem<=0?' warn':'');
+    var note=document.getElementById('dpNote');
+    if(pend<=rem && pend>0){ note.className='streaknote good'; note.innerHTML='<span>🔗</span><span>Bù hết '+pend+' ngày này sẽ <b>nối lại chuỗi</b> của bạn.</span>'; }
+    else if(rem>0){ note.className='streaknote bad'; note.innerHTML='<span>⚠️</span><span>Bạn lỡ '+pend+' ngày nhưng chỉ còn '+rem+' lượt. Còn ngày trống thì <b>chuỗi vẫn đứt</b> — bù chủ yếu để ghi lại hoạt động, không tua lại được.</span>'; }
+    else { note.className='streaknote bad'; note.innerHTML='<span>⚠️</span><span>Hết lượt bù tuần này. Tuần sau reset — hoặc bắt đầu lại cho nhẹ đầu.</span>'; }
+
+    var html='';
+    S.missed.forEach(function(d){
+      if(d.done){ html+='<div class="dayrow done"><div style="flex:1"><div class="dnm">'+d.label+'</div><div class="dmeta">'+S.entriesByDay[d.id].length+' hoạt động · đã khoá</div></div><span class="tick">✓</span></div>'; }
+      else if(rem<=0){ html+='<div class="dayrow locked"><div style="flex:1"><div class="dnm">'+d.label+'</div><div class="dmeta">Hết lượt bù</div></div></div>'; }
+      else { html+='<div class="dayrow" onclick="openBuilder(\''+d.id+'\')"><div style="flex:1"><div class="dnm">'+d.label+'</div><div class="dmeta">Chưa có hoạt động</div></div><span class="arr">›</span></div>'; }
+    });
+    document.getElementById('dayList').innerHTML=html;
+  }
+
+  function openBuilder(dayId){
+    S.curDay=dayId; S.sel=null; S.mins=30; S.editId=null;
+    document.getElementById('dayPicker').classList.remove('on');
+    var d=S.missed.find(function(x){return x.id===dayId;});
+    document.getElementById('bDate').textContent='Cho ngày '+d.label;
+    var q=document.getElementById('bQuota'); q.textContent='Còn '+remainingQuota()+' lượt/tuần'; q.className='qbadge';
+    document.getElementById('durInput').value='30';
+    renderBuilder();
+    document.getElementById('scrim').classList.add('on');
+    document.getElementById('builder').classList.add('on');
+  }
+
+  function renderBuilder(){
+    var opt=''; LIB.forEach(function(a){
+      var on=S.sel===a.k;
+      opt+='<div class="opt'+(on?' sel':'')+'" onclick="selOpt(\''+a.k+'\')"><span class="oic">'+a.ic+'</span><span class="onm">'+a.nm+'</span>'+(on?'<span class="tk">✓</span>':'')+'</div>';
+    });
+    document.getElementById('optList').innerHTML=opt;
+
+    var dr=''; DURS.forEach(function(x){ dr+='<div class="dur'+(S.mins===x.m?' on':'')+'" onclick="selDur('+x.m+')">'+x.lbl+'</div>'; });
+    document.getElementById('durRow').innerHTML=dr;
+
+    var ents=S.entriesByDay[S.curDay];
+    var ew=document.getElementById('entriesWrap');
+    if(ents.length>0){
+      ew.style.display='';
+      var eh=''; ents.forEach(function(e){
+        eh+='<div class="entry"><span class="eic">'+e.ic+'</span><div class="ecol"><div class="enm">'+e.nm+'</div><div class="emeta">'+e.mins+' phút</div></div><span class="eact" onclick="editEntry(\''+e.id+'\')">✎</span><span class="eact del" onclick="delEntry(\''+e.id+'\')">✕</span></div>';
+      });
+      document.getElementById('entryList').innerHTML=eh;
+    } else ew.style.display='none';
+
+    document.getElementById('addBtn').disabled = !S.sel;
+    document.getElementById('addBtn').textContent = S.editId ? '✓ Cập nhật hoạt động' : '＋ Thêm hoạt động';
+    var save=document.getElementById('saveBtn');
+    save.disabled = ents.length===0;
+    save.textContent = ents.length===0 ? 'Thêm ít nhất 1 hoạt động' : ('Lưu & khoá ('+ents.length+') →');
+  }
+
+  function selOpt(k){ S.sel = S.sel===k? null : k; renderBuilder(); }
+  function selDur(m){ S.mins=m; document.getElementById('durInput').value=String(m); renderBuilder(); }
+  function onDurInput(){ var v=parseInt(document.getElementById('durInput').value,10); if(!isNaN(v)) S.mins=v; renderBuilder(); }
+
+  function addEntry(){
+    if(!S.sel) return;
+    var a=LIB.find(function(x){return x.k===S.sel;});
+    var ents=S.entriesByDay[S.curDay];
+    if(S.editId){ var e=ents.find(function(x){return x.id===S.editId;}); e.k=a.k; e.ic=a.ic; e.nm=a.nm; e.mins=S.mins; S.editId=null; }
+    else ents.push({id:'e'+Math.random().toString(36).slice(2,7), k:a.k, ic:a.ic, nm:a.nm, mins:S.mins});
+    S.sel=null; S.mins=30; document.getElementById('durInput').value='30';
+    renderBuilder();
+  }
+  function editEntry(id){ var e=S.entriesByDay[S.curDay].find(function(x){return x.id===id;}); S.editId=id; S.sel=e.k; S.mins=e.mins; document.getElementById('durInput').value=String(e.mins); renderBuilder(); }
+  function delEntry(id){ S.entriesByDay[S.curDay]=S.entriesByDay[S.curDay].filter(function(x){return x.id!==id;}); if(S.editId===id){S.editId=null;S.sel=null;} renderBuilder(); }
+
+  function saveDay(){
+    var d=S.missed.find(function(x){return x.id===S.curDay;});
+    d.done=true;
+    document.getElementById('builder').classList.remove('on');
+    var toast=document.getElementById('toast');
+    document.getElementById('toastSub').textContent=d.label+' đã được ghi lại.';
+    toast.classList.add('on'); setTimeout(function(){toast.classList.remove('on');},2400);
+    renderHome();
+    setTimeout(function(){
+      if(pendingCount()>0 && remainingQuota()>0){ openDayPicker(); }
+      else { document.getElementById('scrim').classList.remove('on'); }
+    }, 480);
+  }
+
+  function dismissChip(){ document.getElementById('chip').classList.add('hide'); }
+  function closeSheets(){ document.getElementById('scrim').classList.remove('on'); document.getElementById('dayPicker').classList.remove('on'); document.getElementById('builder').classList.remove('on'); }
+
+  loadScenario('A');
+</script>
+</body>
+</html>

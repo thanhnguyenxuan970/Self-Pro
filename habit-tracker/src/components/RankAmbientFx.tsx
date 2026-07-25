@@ -24,6 +24,8 @@ export function RankAmbientFx({ tier, size, reduceMotion }: Props) {
   }, [rank.tier, reduceMotion]);
 
   if (reduceMotion) return null;
+  // Tier 9 (Cosmic) intentionally uses the default ✦ twinkle path — Mock A spec:
+  // lilac sparkles (#A78BFA glow) drifting around the mascot, phase-shifted.
   const item = (symbol: string, index: number, color = rank.glow ?? rank.color) => {
     const [left, top] = POSITIONS[index];
     const fall = tier === 0 || tier >= 6;

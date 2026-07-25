@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, PanResponder, Dimensions, LayoutChangeEvent } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, LayoutChangeEvent } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import { FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
@@ -14,14 +14,15 @@ interface Props {
   total: number;
   title: string;
   body: string;
+  roundHighlight: boolean;
+  highlightPadding: number;
   bottomInset: number;
   onNext: () => void;
   onBack: () => void;
   onSkip: () => void;
 }
 
-const PAD = 10;
-const GAP = 16;
+const GAP = 24;
 const TIP_W = 280;
 const TIP_H = 160;
 const TAB_BAR_H = 62;
@@ -37,7 +38,7 @@ function computeTipPosition(
     if (spaceBelow >= measuredTipH) {
       tipTop = Math.min(rect.y + rect.height + GAP, H - minBottom - measuredTipH);
     } else if (spaceAbove >= measuredTipH) {
-      tipBottom = Math.max(H - rect.y + GAP, minBottom);
+      tipTop = Math.max(GAP, rect.y - measuredTipH - GAP);
     } else {
       tipTop = Math.max(GAP * 2, rect.y - measuredTipH - GAP);
     }
@@ -48,77 +49,58 @@ function computeTipPosition(
   return { tipTop, tipBottom, tipLeft };
 }
 
-function handleSwipeGesture(
-  g: { dx: number; dy: number },
-  evt: { nativeEvent: { pageX: number } },
-  windowWidth: number,
-  onNext: () => void,
-  onBack: () => void,
-) {
-  if (Math.abs(g.dx) >= 50) {
-    if (g.dx < 0) onNext();
-    else onBack();
-  } else if (Math.abs(g.dy) < 30 && Math.abs(g.dx) < 20) {
-    if (evt.nativeEvent.pageX < windowWidth / 2) onBack();
-    else onNext();
-  }
-}
-
-function computeHighlightRect(rect: TargetRect | null): { hx: number; hy: number; hw: number; hh: number } {
+function computeHighlightRect(rect: TargetRect | null, padding: number): { hx: number; hy: number; hw: number; hh: number } {
   if (!rect) return { hx: 0, hy: 0, hw: 0, hh: 0 };
-  return { hx: rect.x - PAD, hy: rect.y - PAD, hw: rect.width + PAD * 2, hh: rect.height + PAD * 2 };
+  return { hx: rect.x - padding, hy: rect.y - padding, hw: rect.width + padding * 2, hh: rect.height + padding * 2 };
 }
 
-export function Coachmark({ visible, rect, index, total, title, body, bottomInset, onNext, onBack, onSkip }: Props) {
+export function Coachmark({ visible, rect, index, total, title, body, bottomInset, roundHighlight, highlightPadding, onNext, onBack, onSkip }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
   const reduceMotion = useReduceMotion();
   const { width: W, height: H } = useWindowDimensions();
+  const overlayRef = useRef<View>(null);
+  const [overlay, setOverlay] = useState({ x: 0, y: 0, width: W, height: H });
   const [measuredTipH, setMeasuredTipH] = useState(TIP_H);
   const handleTipLayout = (e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
     if (h > 0) setMeasuredTipH(h);
   };
 
-  const onNextRef = useRef(onNext);
-  const onBackRef = useRef(onBack);
-  useEffect(() => { onNextRef.current = onNext; }, [onNext]);
-  useEffect(() => { onBackRef.current = onBack; }, [onBack]);
-
-  const pan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderRelease: (evt, g) => {
-        handleSwipeGesture(g, evt, Dimensions.get('window').width, onNextRef.current, onBackRef.current);
-      },
-    })
-  ).current;
-
   if (!visible) return null;
 
+  const localRect = rect && {
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+  };
   const isLast = index >= total - 1;
   const minBottom = TAB_BAR_H + bottomInset + 8;
-  const { tipTop, tipBottom, tipLeft } = computeTipPosition(rect, H, W, measuredTipH, minBottom);
+  const { tipTop, tipBottom, tipLeft } = computeTipPosition(localRect, overlay.height, overlay.width, measuredTipH, minBottom);
 
-  const { hx, hy, hw, hh } = computeHighlightRect(rect);
+  const { hx, hy, hw, hh } = computeHighlightRect(localRect, highlightPadding);
   const nextLabel = isLast ? t.tutDone : t.tutNext;
 
   return (
-    <Modal visible transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onSkip} statusBarTranslucent>
-      <View style={StyleSheet.absoluteFill} {...pan.panHandlers}>
-        <Svg width={W} height={H}>
+    <Modal visible transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={() => {}} statusBarTranslucent>
+      <View
+        ref={overlayRef}
+        style={StyleSheet.absoluteFill}
+        onLayout={() => overlayRef.current?.measureInWindow((x, y, width, height) => setOverlay({ x, y, width, height }))}
+      >
+      <Svg pointerEvents="none" width={overlay.width} height={overlay.height} style={[StyleSheet.absoluteFill, { zIndex: 0 }]}>
           <Defs>
             <Mask id="cut">
               <Rect x={0} y={0} width={W} height={H} fill="#ffffff" />
-              {rect ? <Rect x={hx} y={hy} width={hw} height={hh} rx={14} fill="#000000" /> : null}
+              {localRect ? <Rect x={hx} y={hy} width={hw} height={hh} rx={roundHighlight ? hw / 2 : 14} fill="#000000" /> : null}
             </Mask>
           </Defs>
           <Rect x={0} y={0} width={W} height={H} fill="rgba(0,0,0,0.76)" mask="url(#cut)" />
-          {rect ? (
-            <Rect x={hx} y={hy} width={hw} height={hh} rx={14} fill="none" stroke={C.primary} strokeWidth={2.5} />
+          {localRect ? (
+            <Rect x={hx} y={hy} width={hw} height={hh} rx={roundHighlight ? hw / 2 : 14} fill="none" stroke={C.primary} strokeWidth={2.5} />
           ) : null}
-        </Svg>
-      </View>
+      </Svg>
 
       <View
         onLayout={handleTipLayout}
@@ -159,6 +141,7 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
           </View>
         </View>
       </View>
+      </View>
     </Modal>
   );
 }
@@ -166,6 +149,7 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
 const styles = StyleSheet.create({
   tip: {
     position: 'absolute',
+    zIndex: 1,
     borderRadius: 18,
     padding: 16,
     shadowColor: '#000',

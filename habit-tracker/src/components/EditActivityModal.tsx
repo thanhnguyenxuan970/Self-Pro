@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform,
+  StyleSheet, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { AppColors, FontFamily, Radii, Spacing, Typography } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
@@ -13,7 +13,7 @@ type Props = {
   visible: boolean;
   task: Task | null;
   totalDurationMin?: number;
-  onSave: (taskId: number, name: string, newDurationMin: number | null) => void;
+  onSave: (taskId: number, name: string, isTimeBased: boolean, newDurationMin: number | null) => void;
   onClose: () => void;
 };
 
@@ -24,11 +24,13 @@ export function EditActivityModal({ visible, task, totalDurationMin, onSave, onC
 
   const [name, setName] = useState('');
   const [duration, setDuration] = useState({ hours: 0, minutes: 0 });
+  const [isTimeBased, setIsTimeBased] = useState(false);
 
   React.useEffect(() => {
     if (task) {
       setName(task.name);
       setDuration(clockFromMinutes(totalDurationMin ?? 0));
+      setIsTimeBased(!!task.is_time_based);
     }
   }, [task, totalDurationMin]);
 
@@ -38,8 +40,19 @@ export function EditActivityModal({ visible, task, totalDurationMin, onSave, onC
     if (!task) return;
     const trimmed = name.trim();
     if (!trimmed) return;
-    const newDuration = task.is_time_based && clockMinutes(duration) > 0 ? clockMinutes(duration) : null;
-    onSave(task.id, trimmed, newDuration);
+    const newDuration = isTimeBased && clockMinutes(duration) > 0 ? clockMinutes(duration) : null;
+    onSave(task.id, trimmed, isTimeBased, newDuration);
+  }
+
+  function selectType(nextIsTimeBased: boolean) {
+    if (nextIsTimeBased || !isTimeBased) {
+      setIsTimeBased(nextIsTimeBased);
+      return;
+    }
+    Alert.alert(t.editTimerConfirmTitle, t.editTimerConfirmBody, [
+      { text: t.cancel, style: 'cancel' },
+      { text: t.editTimerConfirmAction, style: 'destructive', onPress: () => setIsTimeBased(false) },
+    ]);
   }
 
   return (
@@ -58,13 +71,23 @@ export function EditActivityModal({ visible, task, totalDurationMin, onSave, onC
             onChangeText={setName}
             maxLength={50}
             autoFocus
-            returnKeyType={task.is_time_based ? 'next' : 'done'}
-            onSubmitEditing={task.is_time_based ? undefined : handleSave}
+            returnKeyType={isTimeBased ? 'next' : 'done'}
+            onSubmitEditing={isTimeBased ? undefined : handleSave}
             placeholderTextColor={colors.muted}
             accessibilityLabel={t.editNameLabel}
           />
 
-          {!!task.is_time_based && (
+          <Text style={styles.label}>{t.editActivityTypeLabel}</Text>
+          <View style={styles.typeRow}>
+            <TouchableOpacity style={[styles.typeBtn, isTimeBased && styles.typeBtnSelected, isTimeBased && { backgroundColor: colors.primary }]} onPress={() => selectType(true)} accessibilityRole="button" accessibilityState={{ selected: isTimeBased }}>
+              <Text style={[styles.typeText, isTimeBased && { color: colors.white }]}>{t.editTimed}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.typeBtn, !isTimeBased && styles.typeBtnSelected, !isTimeBased && { backgroundColor: colors.primary }]} onPress={() => selectType(false)} accessibilityRole="button" accessibilityState={{ selected: !isTimeBased }}>
+              <Text style={[styles.typeText, !isTimeBased && { color: colors.white }]}>{t.editNoTimer}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {isTimeBased && (
             <>
               <Text style={styles.label}>{t.editDurationLabel}</Text>
               <DurationClockInput value={duration} onChange={setDuration} colors={colors} />
@@ -111,6 +134,10 @@ function makeStyles(C: AppColors) {
       borderWidth: 1,
       borderColor: C.line,
     },
+    typeRow: { flexDirection: 'row', gap: Spacing.sm },
+    typeBtn: { flex: 1, minHeight: 44, borderRadius: Radii.md, borderWidth: 1, borderColor: C.line, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' },
+    typeBtnSelected: { borderColor: C.primary },
+    typeText: { ...Typography.caption, color: C.ink2, fontFamily: FontFamily.semiBold },
     btnRow: { flexDirection: 'row', gap: 10, marginTop: Spacing.lg },
     btn: {
       flex: 1,

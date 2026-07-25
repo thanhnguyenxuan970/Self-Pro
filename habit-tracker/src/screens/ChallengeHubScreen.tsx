@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
-import { useActiveChallenge, useChallengeHistory, useChallengeRollover, useRestartChallenge } from '../queries/useChallenge';
+import { useActiveChallenge, useChallengeHistory, useChallengeRollover, useDeleteChallenge, useRestartChallenge } from '../queries/useChallenge';
 import { ChallengeCard } from '../components/ChallengeCard';
+import { useSelectionMode } from '../hooks/useSelectionMode';
 
 export function ChallengeHubScreen() {
   const { userId, colors, t, styles } = useScreenCommons(makeStyles);
@@ -14,6 +15,25 @@ export function ChallengeHubScreen() {
   const { data: history = [], isLoading: historyLoading } = useChallengeHistory(userId);
   const rollover = useChallengeRollover(userId);
   const restartChallenge = useRestartChallenge(userId);
+  const deleteChallenges = useDeleteChallenge(userId);
+  const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(history);
+
+  function confirmDelete(ids: number[]) {
+    Alert.alert(
+      t.challengeDeleteTitle,
+      ids.length === 1 ? t.challengeDeleteMsg : t.challengeDeleteNItems(ids.length),
+      [
+        { text: t.cancel, style: 'cancel' },
+        {
+          text: t.delete,
+          style: 'destructive',
+          onPress: () => deleteChallenges.mutateAsync(ids)
+            .then(cancelSelection)
+            .catch(() => Alert.alert(t.error, t.challengeDeleteFailed)),
+        },
+      ],
+    );
+  }
 
   useEffect(() => {
     if (active) rollover.mutate();
@@ -94,20 +114,48 @@ export function ChallengeHubScreen() {
 
             {history.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>{t.challengeCompletedSection}</Text>
+                <View style={styles.historyHeader}>
+                  <Text style={styles.sectionLabel}>{t.challengeCompletedSection}</Text>
+                  {selectionMode && (
+                    <View style={styles.historyActions}>
+                      <TouchableOpacity onPress={selectAll} style={styles.historyAction} accessibilityRole="button" accessibilityLabel={t.all}>
+                        <Text style={styles.historyActionText}>{t.all}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => confirmDelete(Array.from(selectedIds))}
+                        style={styles.historyAction}
+                        disabled={selectedIds.size === 0 || deleteChallenges.isPending}
+                        accessibilityRole="button"
+                        accessibilityLabel={t.deleteCount(selectedIds.size)}
+                      >
+                        <Text style={styles.historyDeleteText}>{t.deleteCount(selectedIds.size)}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={cancelSelection} style={styles.historyAction} accessibilityRole="button" accessibilityLabel={t.cancel}>
+                        <Text style={styles.historyActionText}>{t.cancel}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
                 <View style={styles.pastCard}>
                   {history.map((h, i) => (
                     <View
                       key={h.id}
-                      style={[styles.pastRow, i < history.length - 1 && styles.pastRowBorder]}
+                      style={[styles.pastRow, i < history.length - 1 && styles.pastRowBorder, selectedIds.has(h.id) && styles.pastRowSelected]}
                     >
                       <TouchableOpacity
                         style={styles.historyOpenButton}
-                        onPress={() => (navigation as any).navigate('ChallengeDetail', { challengeId: h.id })}
+                        onPress={() => selectionMode ? toggleSelect(h.id) : (navigation as any).navigate('ChallengeDetail', { challengeId: h.id })}
+                        onLongPress={() => enterSelection(h.id)}
+                        delayLongPress={300}
                         activeOpacity={0.7}
                         accessibilityRole="button"
                         accessibilityLabel={h.name}
                       >
+                        {selectionMode && (
+                          <View style={[styles.checkbox, selectedIds.has(h.id) && styles.checkboxSelected]}>
+                            {selectedIds.has(h.id) && <Text style={styles.checkmark}>✓</Text>}
+                          </View>
+                        )}
                         <View style={[styles.historyIcon, h.status === 'done' ? styles.doneIcon : styles.failedIcon]}>
                           <Text>{h.status === 'done' ? '🏅' : '🧹'}</Text>
                         </View>
@@ -124,9 +172,9 @@ export function ChallengeHubScreen() {
                           </Text>
                         </View>
                       </TouchableOpacity>
-                      {h.status === 'done' ? (
+                      {!selectionMode && h.status === 'done' ? (
                         <Text style={[styles.pastStatus, { color: colors.primary }]} numberOfLines={1}>{t.challengeHistoryDone}</Text>
-                      ) : (
+                      ) : !selectionMode ? (
                         <TouchableOpacity
                           onPress={async () => {
                             const challengeId = await restartChallenge.mutateAsync(h.id);
@@ -138,6 +186,17 @@ export function ChallengeHubScreen() {
                           accessibilityLabel={t.challengeRestartCta}
                         >
                           <Text style={[styles.pastStatus, { color: colors.primary }]} numberOfLines={1}>{t.challengeRestartCta}</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                      {!selectionMode && (
+                        <TouchableOpacity
+                          onPress={() => confirmDelete([h.id])}
+                          disabled={deleteChallenges.isPending}
+                          style={styles.historyDeleteButton}
+                          accessibilityRole="button"
+                          accessibilityLabel={t.challengeDeleteCta}
+                        >
+                          <Text style={styles.historyDeleteIcon}>×</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -170,10 +229,16 @@ function makeStyles(C: AppColors) {
     emptyCta: { backgroundColor: C.primary, paddingVertical: 14, paddingHorizontal: Spacing.xl, borderRadius: Radii.pill },
     emptyCtaText: { ...Typography.bodyStrong, color: C.white },
     section: { gap: Spacing.sm },
+    historyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     sectionLabel: { ...Typography.sectionLabel, color: C.ink2 },
+    historyActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+    historyAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.xs },
+    historyActionText: { ...Typography.caption, color: C.ink2, fontFamily: FontFamily.semiBold },
+    historyDeleteText: { ...Typography.caption, color: C.danger, fontFamily: FontFamily.semiBold },
     pastCard: { backgroundColor: C.surface, borderRadius: Radii.lg, ...Shadows.light },
-    pastRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.md },
+    pastRow: { position: 'relative', flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, paddingRight: 48 },
     pastRowBorder: { borderBottomWidth: 1, borderBottomColor: C.line },
+    pastRowSelected: { backgroundColor: C.primarySoft },
     historyOpenButton: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', marginVertical: -5 },
     historyIcon: { width: 34, height: 34, borderRadius: Radii.sm, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm },
     doneIcon: { backgroundColor: C.starSoft },
@@ -184,5 +249,10 @@ function makeStyles(C: AppColors) {
     pastStatus: { ...Typography.caption, fontFamily: FontFamily.semiBold },
     retryButton: { minHeight: 44, justifyContent: 'center' },
     retryDisabled: { opacity: 0.55 },
+    historyDeleteButton: { position: 'absolute', top: 4, right: 4, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    historyDeleteIcon: { fontSize: 24, lineHeight: 24, color: C.muted, fontFamily: FontFamily.regular },
+    checkbox: { width: 22, height: 22, borderRadius: Radii.sm, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm },
+    checkboxSelected: { backgroundColor: C.primary, borderColor: C.primary },
+    checkmark: { color: C.onAccent, fontFamily: FontFamily.bold },
   });
 }

@@ -87,9 +87,9 @@ function resolveDayCellProps(
     dateStr,
     isEligible,
     isBackfilled,
-    cellBg: isBackfilled ? 'transparent' : cellBg,
+    cellBg,
     numColor,
-    cellIcon: isBackfilled ? null : cellIcon,
+    cellIcon,
   };
 }
 
@@ -202,13 +202,13 @@ export function CalendarScreen() {
             styles.cell,
             { backgroundColor: cellBg },
             day === today && styles.cellToday,
-            (isEligible || isBackfilled) && styles.cellEligible,
+            isEligible && styles.cellEligible,
           ];
           const cellContent = (
             <>
               <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
               <View style={styles.cellBottom}>
-                {cellIcon ?? (isEligible || isBackfilled ? <Text style={styles.backfillHint}>+</Text> : null)}
+                {cellIcon ?? (isEligible ? <Text style={styles.backfillHint}>+</Text> : null)}
               </View>
             </>
           );

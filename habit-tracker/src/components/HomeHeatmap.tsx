@@ -1,8 +1,10 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Animated, Easing } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { useFocusEffect } from '@react-navigation/native';
 import { AppColors, FontFamily, Radii, Shadows, Spacing } from '../config/theme';
 import { useLanguage, useTranslations } from '../hooks/useSettings';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import { HeatmapDay, buildHeatmapWeeks, heatmapShades } from '../utils/heatmap';
 import { formatDayDetailDate } from '../utils/formatters';
 import { dailyBonusGoal } from '../config/constants';
@@ -13,21 +15,95 @@ type Props = {
   scoringGuideVisible?: boolean; onScoringGuideClose?: () => void;
 };
 
-function ProgressRing({ progress, colors }: { progress: number; colors: AppColors }) {
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+// Entry-animated progress ring: the primary arc sweeps from empty up to its
+// current fraction on mount and every time Home regains focus. Reduce-motion
+// paints the final frame directly.
+function ProgressRing({ progress, colors, animKey, reduceMotion }: { progress: number; colors: AppColors; animKey: number; reduceMotion: boolean }) {
   const size = 54;
   const radius = 22;
   const circumference = 2 * Math.PI * radius;
+  const driver = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  useEffect(() => {
+    if (reduceMotion) { driver.setValue(1); return; }
+    driver.setValue(0);
+    const anim = Animated.timing(driver, {
+      toValue: 1, duration: 820, delay: 160,
+      easing: Easing.out(Easing.cubic), useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [progress, animKey, reduceMotion, driver]);
+  // Sweep dashoffset from full (empty ring) to the target fraction's offset.
+  const dashOffset = driver.interpolate({ inputRange: [0, 1], outputRange: [circumference, circumference * (1 - progress)] });
   return <View style={styles.ring} accessibilityLabel={`${Math.round(progress * 100)}% complete`}>
     <Svg width={size} height={size}>
       <Circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={colors.surface2} strokeWidth={5} />
-      <Circle
+      <AnimatedCircle
         cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={colors.primary} strokeWidth={5}
-        strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - progress)}
+        strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={dashOffset}
         rotation="-90" origin={`${size / 2}, ${size / 2}`}
       />
     </Svg>
     <Text style={[styles.ringValue, { color: colors.inkDark }]}>{progress >= 1 ? '✓' : `${Math.round(progress * 100)}%`}</Text>
   </View>;
+}
+
+// Heatmap cells "fill in" with their colour in a diagonal wave: each coloured
+// box starts empty, then its shade pops in (opacity + scale), delayed by its
+// distance from the top-left corner (col + row). Replayed on focus via animKey.
+// Reduce-motion shows every cell filled at rest.
+function AnimatedWeeks({ weeks, styles, shades, today, pointsByDate, onSelect, animKey, reduceMotion }: {
+  weeks: ReturnType<typeof buildHeatmapWeeks>; styles: ReturnType<typeof makeStyles>;
+  shades: string[]; today: string; pointsByDate: Map<string, number>;
+  onSelect: (date: string) => void; animKey: number; reduceMotion: boolean;
+}) {
+  // One Animated.Value per cell (weeks × 7), so each can carry its own diagonal delay.
+  const anims = useRef<Animated.Value[][]>([]).current;
+  if (anims.length !== weeks.length) {
+    anims.length = 0;
+    for (let i = 0; i < weeks.length; i++) {
+      anims.push(Array.from({ length: 7 }, () => new Animated.Value(reduceMotion ? 1 : 0)));
+    }
+  }
+  useEffect(() => {
+    if (reduceMotion) { anims.forEach(col => col.forEach(a => a.setValue(1))); return; }
+    const all: Animated.CompositeAnimation[] = [];
+    anims.forEach((col, i) => col.forEach((a, j) => {
+      a.setValue(0);
+      all.push(Animated.timing(a, {
+        toValue: 1, duration: 420, delay: (i + j) * 34,
+        easing: Easing.out(Easing.cubic), useNativeDriver: true,
+      }));
+    }));
+    const group = Animated.parallel(all, { stopTogether: false });
+    group.start();
+    return () => group.stop();
+  }, [animKey, weeks.length, reduceMotion]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <View style={styles.weeks}>{weeks.map((week, i) => (
+    <View key={i} style={styles.week}>
+      {week.map((cell, j) => {
+        if (!cell.date) return <View key={`${cell.date}-${j}`} style={styles.cell} />;
+        const v = anims[i][j];
+        return (
+          <TouchableOpacity
+            key={cell.date}
+            style={[styles.cell, { backgroundColor: shades[0] }, cell.date === today && styles.todayCell]}
+            onPress={() => onSelect(cell.date)} hitSlop={1}
+            accessibilityRole="button" accessibilityLabel={`${cell.date}: ${pointsByDate.get(cell.date) ?? 0} points`}
+          >
+            {cell.level > 0 && (
+              <Animated.View
+                pointerEvents="none"
+                style={[StyleSheet.absoluteFill, { backgroundColor: shades[cell.level], borderRadius: 4, opacity: v, transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] }) }] }]}
+              />
+            )}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  ))}</View>;
 }
 
 export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji, weeklyStars, rankName, streakRef, scoringGuideVisible = false, onScoringGuideClose }: Props) {
@@ -36,6 +112,11 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
   const [showLegend, setShowLegend] = useState(false);
   const t = useTranslations();
   const [lang] = useLanguage();
+  const reduceMotion = useReduceMotion();
+  // Bumped on every focus so grid + ring entry animations replay when the user
+  // navigates back to Home (the tab screen stays mounted).
+  const [animKey, setAnimKey] = useState(0);
+  useFocusEffect(useCallback(() => { setAnimKey(k => k + 1); }, []));
   const weeks = useMemo(() => buildHeatmapWeeks(days), [days]);
   const activeDays = days.filter(day => day.total_points > 0).length;
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -78,7 +159,11 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
             const month = week.find(cell => cell.month)?.month;
             return month ? <Text key={i} style={[styles.month, { left: i * 16 }]}>{month}</Text> : null;
           })}</View>
-          <View style={styles.weeks}>{weeks.map((week, i) => <View key={i} style={styles.week}>{week.map((cell, j) => cell.date ? <TouchableOpacity key={cell.date} style={[styles.cell, { backgroundColor: shades[cell.level] }, cell.level === 0 && styles.emptyCell, cell.date === today && styles.todayCell]} onPress={() => setSelectedDate(cell.date)} hitSlop={1} accessibilityRole="button" accessibilityLabel={`${cell.date}: ${pointsByDate.get(cell.date) ?? 0} points`} /> : <View key={`${cell.date}-${j}`} style={styles.cell} />)}</View>)}</View>
+          <AnimatedWeeks
+            weeks={weeks} styles={styles} shades={shades} today={today}
+            pointsByDate={pointsByDate} onSelect={setSelectedDate}
+            animKey={animKey} reduceMotion={reduceMotion}
+          />
         </View>
       </ScrollView>
     </View>
@@ -126,7 +211,7 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
       </View>
     </Modal>
     {progress !== null && <View style={styles.today}>
-      <ProgressRing progress={progress} colors={colors} />
+      <ProgressRing progress={progress} colors={colors} animKey={animKey} reduceMotion={reduceMotion} />
       <View style={styles.todayCopy}>
         <Text style={styles.todayValue}>{todayPoints} / {todayGoal}</Text>
         <Text style={styles.todayLabel}>{t.pointsLabel}</Text>

@@ -1,0 +1,191 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Habi · Trophy Shelf — Live Rarity Prototype</title>
+<style>
+  :root{
+    --bg:#0c1310; --panel:#141d18; --panel2:#1a2620; --line:#25342c;
+    --ink:#eafff3; --muted:#8ba798; --green:#3FB56E; --gold:#E0A93B;
+    --shadow:0 14px 40px rgba(0,0,0,.45);
+  }
+  [data-t="light"]{
+    --bg:#f3f7f4; --panel:#ffffff; --panel2:#eef4ef; --line:#e0eae3;
+    --ink:#0f2018; --muted:#5c7064; --shadow:0 10px 30px rgba(20,40,30,.12);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1100px 560px at 82% -12%,#153826 0%,var(--bg) 55%);color:var(--ink);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  [data-t="light"] body{background:radial-gradient(1100px 560px at 82% -12%,#dcf0e4 0%,var(--bg) 55%)}
+  .phone{max-width:430px;margin:24px auto;background:var(--bg);border:1px solid var(--line);border-radius:34px;
+    box-shadow:var(--shadow);overflow:hidden}
+  .bar{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 8px}
+  .brand{display:flex;align-items:center;gap:10px}
+  .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--green),#2f9d5c);display:grid;place-items:center}
+  h1{font-size:17px;margin:0;letter-spacing:-.3px}
+  .live{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;letter-spacing:.6px;
+    color:#5fd48c;background:#3fb56e18;border:1px solid #3fb56e44;padding:4px 9px;border-radius:999px}
+  .dot{width:7px;height:7px;border-radius:50%;background:#3FB56E;animation:pulse 1.6s ease-in-out infinite}
+  .toggle{border:1px solid var(--line);background:var(--panel);color:var(--muted);padding:6px 11px;border-radius:999px;cursor:pointer;font-size:11px;font-weight:700}
+  .subline{padding:0 20px 12px;color:var(--muted);font-size:12px}
+  .tabs{display:flex;gap:8px;padding:4px 20px 14px;overflow-x:auto}
+  .tab{white-space:nowrap;font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:999px;border:1px solid var(--line);
+    background:var(--panel);color:var(--muted);cursor:pointer}
+  .tab.on{background:var(--green);color:#04140b;border-color:var(--green)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 16px 22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px;position:relative;overflow:hidden;
+    cursor:pointer;transition:transform .16s,border-color .16s}
+  .card:hover{transform:translateY(-3px);border-color:var(--green)}
+  .card.locked{opacity:.5}
+  .card .glow{position:absolute;inset:-50% 40% auto -25%;height:120px;filter:blur(38px);opacity:.28;border-radius:50%}
+  .emblem{width:56px;height:56px;filter:drop-shadow(0 5px 10px rgba(0,0,0,.32))}
+  .card.locked .emblem{filter:grayscale(1) brightness(.6)}
+  .nm{font-size:13.5px;font-weight:750;margin-top:9px;letter-spacing:-.2px;line-height:1.25}
+  .tierlab{font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-top:2px}
+  .rar{display:flex;align-items:baseline;gap:5px;margin-top:10px}
+  .pct{font-size:19px;font-weight:850;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+  .rlab{font-size:10px;font-weight:800;letter-spacing:.4px}
+  .r-common{color:#5fd48c}.r-rare{color:#7cc9f0}.r-epic{color:#c9b8ff}.r-myth{color:#ffd98a}
+  [data-t="light"] .r-common{color:#2f9d5c}[data-t="light"] .r-rare{color:#217f9f}[data-t="light"] .r-epic{color:#6b4fd0}[data-t="light"] .r-myth{color:#b07d15}
+  .rbar{height:5px;border-radius:999px;background:var(--panel2);margin-top:8px;overflow:hidden}
+  .rbar i{display:block;height:100%;border-radius:999px;transition:width 1s cubic-bezier(.2,.9,.3,1)}
+  .earned{position:absolute;top:11px;right:11px;font-size:14px}
+
+  /* modal */
+  .scrim{position:fixed;inset:0;background:rgba(4,10,7,.66);display:none;align-items:center;justify-content:center;padding:22px;z-index:9}
+  .scrim.on{display:flex}
+  .modal{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:24px;box-shadow:var(--shadow);position:relative}
+  .modal .glow{position:absolute;inset:-30% 30% auto -10%;height:150px;filter:blur(46px);opacity:.3;border-radius:50%}
+  .mtop{display:flex;flex-direction:column;align-items:center;text-align:center;position:relative}
+  .mtop .emblem{width:96px;height:96px}
+  .mtop h3{margin:12px 0 2px;font-size:19px;letter-spacing:-.3px}
+  .mtop .mdesc{color:var(--muted);font-size:12.5px;max-width:240px}
+  .bigpct{margin:18px 0 4px;text-align:center}
+  .bigpct b{font-size:40px;font-weight:850;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+  .bigpct span{display:block;color:var(--muted);font-size:11.5px;font-weight:700;letter-spacing:.4px;margin-top:2px}
+  .distro{margin:16px 0 4px}
+  .drow{display:flex;align-items:center;gap:9px;margin:7px 0;font-size:11px}
+  .drow .k{width:66px;color:var(--muted);font-weight:700;text-align:right;font-size:10px}
+  .drow .b{flex:1;height:8px;background:var(--panel2);border-radius:999px;overflow:hidden}
+  .drow .b i{display:block;height:100%;border-radius:999px}
+  .drow .v{width:40px;font-weight:800;font-variant-numeric:tabular-nums}
+  .mnote{margin-top:14px;font-size:11.5px;color:var(--muted);text-align:center;border-top:1px dashed var(--line);padding-top:12px}
+  .mnote b{color:var(--green)}
+  .close{position:absolute;top:14px;right:16px;cursor:pointer;color:var(--muted);font-size:20px;font-weight:700}
+  .cap{max-width:430px;margin:0 auto 40px;color:var(--muted);font-size:11.5px;text-align:center;line-height:1.6}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+  @media (prefers-reduced-motion:reduce){.dot{animation:none}.rbar i{transition:none}}
+</style>
+
+<div class="phone">
+  <div class="bar">
+    <div class="brand"><div class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 13l5 5L20 6" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h1 data-i="title">Tủ Huy Hiệu</h1></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="live"><span class="dot"></span><span data-i="live">TRỰC TIẾP</span></span>
+      <button class="toggle" id="lang">EN</button>
+      <button class="toggle" onclick="var b=document.body;b.dataset.t=b.dataset.t==='light'?'dark':'light'">◐</button>
+    </div>
+  </div>
+  <div class="subline" data-i="sub">Độ hiếm cập nhật trực tiếp từ toàn bộ người chơi Habi.</div>
+  <div class="tabs" id="tabs"></div>
+  <div class="grid" id="grid"></div>
+</div>
+<div class="cap" data-i="cap">Prototype · độ hiếm là số mô phỏng · dữ liệu thật sẽ đến từ aggregate Supabase (live, exact %).</div>
+
+<div class="scrim" id="scrim" onclick="if(event.target===this)this.classList.remove('on')">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+const EM={
+sprout:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="e_sprout" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5fd48c"/><stop offset="1" stop-color="#2f9d5c"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#e_sprout)" opacity=".16"/><path d="M50 82V50" stroke="#2f9d5c" stroke-width="6" stroke-linecap="round"/><path d="M50 60c-13 0-20-7-20-17 10 0 20 5 20 17z" fill="#3FB56E"/><path d="M50 50c11 0 18-6 18-15-9 0-18 4-18 15z" fill="#5fd48c"/></svg>`,
+flame:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="e_flame" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#F2802E"/><stop offset="1" stop-color="#ffd15c"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#e_flame)" opacity=".16"/><path d="M52 18c4 14-10 18-10 30 0 4 3 7 3 7s-9-2-9-12c-6 6-10 14-10 22a24 24 0 0048 0c0-18-14-28-22-47z" fill="url(#e_flame)"/><path d="M50 54c3 6 8 8 8 15a8 8 0 01-16 0c0-5 5-9 8-15z" fill="#fff" opacity=".85"/></svg>`,
+book:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="e_book" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e0a86a"/><stop offset="1" stop-color="#9a5b20"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#e_book)" opacity=".16"/><path d="M50 30c-8-6-18-6-24-4v40c6-2 16-2 24 4 8-6 18-6 24-4V26c-6-2-16-2-24 4z" fill="url(#e_book)"/><path d="M50 30v44" stroke="#6b3d12" stroke-width="3"/></svg>`,
+flame2:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="e_flame2" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#EF5A2B"/><stop offset="1" stop-color="#ffb15c"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#e_flame2)" opacity=".16"/><path d="M52 16c5 16-12 20-12 33 0 5 4 8 4 8s-11-3-11-14c-7 7-11 16-11 25a28 28 0 0056 0c0-21-16-33-26-52z" fill="url(#e_flame2)"/><path d="M50 52c4 7 9 10 9 18a9 9 0 01-18 0c0-6 6-11 9-18z" fill="#fff" opacity=".9"/></svg>`,
+calcheck:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="e_cal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5cc5f0"/><stop offset="1" stop-color="#217f9f"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#e_cal)" opacity=".16"/><rect x="26" y="28" width="48" height="44" rx="7" fill="none" stroke="url(#e_cal)" stroke-width="5"/><path d="M26 40h48M38 24v8M62 24v8" stroke="url(#e_cal)" stroke-width="5" stroke-linecap="round"/><path d="M40 54l7 7 14-14" stroke="url(#e_cal)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+rankup:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="e_rank" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#5c3fd6"/><stop offset="1" stop-color="#a58bff"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#e_rank)" opacity=".16"/><path d="M50 22L30 46h12v14h16V46h12z" fill="url(#e_rank)"/><path d="M34 66h32M34 76h32" stroke="url(#e_rank)" stroke-width="6" stroke-linecap="round"/></svg>`,
+trophy:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="e_tro" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#E0A93B"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#e_tro)" opacity=".16"/><path d="M34 26h32v10a16 16 0 01-32 0z" fill="url(#e_tro)"/><path d="M34 30H24c0 10 6 14 12 14M66 30h10c0 10-6 14-12 14" fill="none" stroke="url(#e_tro)" stroke-width="5"/><path d="M50 52v12m-8 8h16m-12 0v-8m8 8v-8" stroke="url(#e_tro)" stroke-width="6" stroke-linecap="round"/></svg>`,
+crown:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="e_crown" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset=".5" stop-color="#E0A93B"/><stop offset="1" stop-color="#b07d15"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#e_crown)" opacity=".18"/><path d="M26 40l11 12 13-20 13 20 11-12 4 32c-1 4-56 4-56 0z" fill="url(#e_crown)"/><g fill="#fff"><circle cx="26" cy="38" r="4.5"/><circle cx="50" cy="30" r="5.5"/><circle cx="74" cy="38" r="4.5"/></g><circle cx="50" cy="60" r="4" fill="#fff" opacity=".8"/></svg>`};
+
+const TIERC={iron:'#a9b2bb',bronze:'#cf8a44',silver:'#c1cbd4',gold:'#e6b52e',platinum:'#bfdae4',diamond:'#7fd6e8'};
+const GLOW={sprout:'#3FB56E',flame:'#F2802E',book:'#C77A3A',flame2:'#EF5A2B',calcheck:'#2FA3E0',rankup:'#7A5CE0',trophy:'#E0A93B',crown:'#E0A93B'};
+
+// pct = live global rarity; band derived from pct
+function band(p){return p>50?'common':p>=20?'rare':p>=5?'epic':'myth'}
+const BANDLAB={common:{vi:'THƯỜNG',en:'COMMON'},rare:{vi:'HIẾM',en:'RARE'},epic:{vi:'CỰC HIẾM',en:'EPIC'},myth:{vi:'HUYỀN THOẠI',en:'MYTHIC'}};
+
+const A=[
+ {id:'first',emblem:'sprout',tier:'iron',grp:'streak',pct:92.4,earned:1,vi:'Bước đầu tiên',en:'First Step',viD:'Ghi nhận hoạt động đầu tiên của bạn.',enD:'Complete your very first activity.'},
+ {id:'streak7',emblem:'flame',tier:'bronze',grp:'streak',pct:58.1,earned:1,vi:'Chuỗi 7 ngày',en:'7-Day Streak',viD:'Đạt chuỗi 7 ngày liên tiếp.',enD:'Reach a 7-day streak.'},
+ {id:'challenge14',emblem:'book',tier:'bronze',grp:'challenge',pct:44.7,earned:1,vi:'Kiên trì 14 ngày',en:'14-Day Grind',viD:'Hoàn thành 14 ngày trong thử thách.',enD:'Complete 14 days across challenges.'},
+ {id:'streak30',emblem:'flame2',tier:'silver',grp:'streak',pct:21.3,earned:1,vi:'Chuỗi 30 ngày',en:'30-Day Streak',viD:'Đạt chuỗi 30 ngày liên tiếp.',enD:'Reach a 30-day streak.'},
+ {id:'challenge30',emblem:'calcheck',tier:'silver',grp:'challenge',pct:18.9,earned:0,vi:'Kiên trì 30 ngày',en:'30-Day Grind',viD:'Hoàn thành 30 ngày trong thử thách.',enD:'Complete 30 days across challenges.'},
+ {id:'rizz',emblem:'rankup',tier:'gold',grp:'rank',pct:12.6,earned:0,vi:'Lên hạng Rizz',en:'Rizz Rank',viD:'Đạt hạng Rizz trở lên tuần này.',enD:'Reach Rizz tier or higher.'},
+ {id:'overachiever',emblem:'calcheck',tier:'gold',grp:'challenge',pct:9.2,earned:0,vi:'Cày vượt chỉ tiêu',en:'Overachiever',viD:'Vượt chỉ tiêu tuần 3 lần.',enD:'Beat your weekly quota 3 times.'},
+ {id:'challenge66',emblem:'calcheck',tier:'gold',grp:'challenge',pct:5.4,earned:0,vi:'Bậc thầy 66 ngày',en:'66-Day Mastery',viD:'Hoàn thành 66 ngày trong thử thách.',enD:'Complete 66 days across challenges.'},
+ {id:'streak100',emblem:'trophy',tier:'platinum',grp:'streak',pct:2.1,earned:0,vi:'Chuỗi 100 ngày',en:'100-Day Streak',viD:'Đạt chuỗi 100 ngày liên tiếp.',enD:'Reach a 100-day streak.'},
+ {id:'auraFarmer',emblem:'crown',tier:'diamond',grp:'rank',pct:0.7,earned:0,vi:'Aura Farmer',en:'Aura Farmer',viD:'Đạt hạng Aura Farmer trở lên.',enD:'Reach Aura Farmer tier or higher.'},
+];
+
+const STR={
+ vi:{title:'Tủ Huy Hiệu',live:'TRỰC TIẾP',sub:'Độ hiếm cập nhật trực tiếp từ toàn bộ người chơi Habi.',cap:'Prototype · độ hiếm là số mô phỏng · dữ liệu thật sẽ đến từ aggregate Supabase (live, exact %).',tabs:{all:'Tất cả',streak:'Chuỗi',challenge:'Thử thách',rank:'Hạng'},of:'người chơi có',rank:'Bạn thuộc',top:'top',owned:'✓ Đã mở khoá',locked:'Chưa mở khoá'},
+ en:{title:'Trophy Shelf',live:'LIVE',sub:'Rarity updates live from every Habi player.',cap:'Prototype · rarities are simulated · real data will come from a Supabase aggregate (live, exact %).',tabs:{all:'All',streak:'Streak',challenge:'Challenge',rank:'Rank'},of:'of players have this',rank:'You’re in the',top:'top',owned:'✓ Unlocked',locked:'Locked'}
+};
+let lang='vi', filter='all';
+
+function render(){
+  const S=STR[lang];
+  document.querySelectorAll('[data-i]').forEach(e=>{const k=e.getAttribute('data-i');if(S[k])e.textContent=S[k]});
+  document.getElementById('lang').textContent = lang==='vi'?'EN':'VI';
+  // tabs
+  document.getElementById('tabs').innerHTML=['all','streak','challenge','rank'].map(t=>
+    `<div class="tab ${filter===t?'on':''}" onclick="filter='${t}';render()">${S.tabs[t]}</div>`).join('');
+  // grid
+  const list=A.filter(a=>filter==='all'||a.grp===filter).sort((x,y)=>x.pct-y.pct);
+  document.getElementById('grid').innerHTML=list.map((a,idx)=>{
+    const b=band(a.pct);
+    return `<div class="card ${a.earned?'':'locked'}" onclick="openM('${a.id}')">
+      <div class="glow" style="background:${GLOW[a.emblem]}"></div>
+      ${a.earned?'<span class="earned">✓</span>':''}
+      ${EM[a.emblem]}
+      <div class="nm">${a[lang]}</div>
+      <div class="tierlab" style="color:${TIERC[a.tier]}">${a.tier}</div>
+      <div class="rar"><span class="pct r-${b}" data-target="${a.pct}">0.0</span><span class="rlab r-${b}">%</span>
+        <span class="rlab r-${b}" style="margin-left:auto">${BANDLAB[b][lang]}</span></div>
+      <div class="rbar"><i style="width:0" data-w="${Math.max(2,a.pct)}" data-col="${GLOW[a.emblem]}"></i></div>
+    </div>`;}).join('');
+  requestAnimationFrame(animate);
+}
+function animate(){
+  document.querySelectorAll('.pct[data-target]').forEach(el=>{
+    const t=+el.dataset.target;let n=0;const step=t/26;
+    const iv=setInterval(()=>{n+=step;if(n>=t){n=t;clearInterval(iv)}el.textContent=n.toFixed(1)},18);
+  });
+  document.querySelectorAll('.rbar i').forEach(el=>{el.style.background=el.dataset.col;requestAnimationFrame(()=>el.style.width=el.dataset.w+'%')});
+}
+function openM(id){
+  const a=A.find(x=>x.id===id),S=STR[lang],b=band(a.pct);
+  // fake distribution across tiers of players
+  const rankPct=a.pct.toFixed(1);
+  document.getElementById('modal').innerHTML=`
+    <span class="close" onclick="document.getElementById('scrim').classList.remove('on')">×</span>
+    <div class="glow" style="background:${GLOW[a.emblem]}"></div>
+    <div class="mtop">${EM[a.emblem].replace('class="emblem"','class="emblem" style="width:96px;height:96px"')}
+      <h3>${a[lang]}</h3><div class="mdesc">${a[lang==='vi'?'viD':'enD']}</div></div>
+    <div class="bigpct"><b class="r-${b}">${rankPct}%</b><span>${S.of}</span></div>
+    <div class="distro">
+      ${distRow('◆ '+BANDLAB.myth[lang],0.7,'#ffd98a')}
+      ${distRow('◆ '+BANDLAB.epic[lang],9,'#c9b8ff')}
+      ${distRow('◆ '+BANDLAB.rare[lang],35,'#7cc9f0')}
+      ${distRow('◆ '+BANDLAB.common[lang],55.3,'#5fd48c')}
+    </div>
+    <div class="mnote">${lang==='vi'
+      ? `<b>${S.rank} ${S.top} ${rankPct}%</b> người chơi Habi sở hữu huy hiệu này. ${a.earned?'':'Mở khoá để tham gia nhóm hiếm.'}`
+      : `<b>${S.rank} ${S.top} ${rankPct}%</b> of Habi players own this. ${a.earned?'':'Unlock it to join the rare club.'}`}</div>`;
+  document.getElementById('scrim').classList.add('on');
+  setTimeout(()=>document.querySelectorAll('#modal .drow i').forEach(el=>el.style.width=el.dataset.w+'%'),40);
+}
+function distRow(k,v,c){return `<div class="drow"><span class="k">${k}</span><span class="b"><i data-w="${v}" style="width:0;background:${c};transition:width .8s"></i></span><span class="v r-${band(v>50?60:v)}">${v}%</span></div>`}
+document.getElementById('lang').onclick=()=>{lang=lang==='vi'?'en':'vi';render()};
+render();
+</script>

@@ -10,6 +10,13 @@ function resolveTaskDisplayName(name: string, t: Strings): string {
 const vi = getTranslations('vi');
 const en = getTranslations('en');
 
+describe('Rank localization', () => {
+  test('translates the rank roadmap heading', () => {
+    expect(vi.rankRoadmap).toBe('LỘ TRÌNH RANK');
+    expect(en.rankRoadmap).toBe('RANK ROADMAP');
+  });
+});
+
 describe('TEMPLATE_NAME_TO_KEY reverse-lookup', () => {
   test('covers all template tasks in both languages', () => {
     const allTasks = TEMPLATE_CATEGORIES.flatMap(c => c.tasks);

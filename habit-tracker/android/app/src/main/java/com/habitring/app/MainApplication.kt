@@ -1,6 +1,7 @@
 package com.habitring.app
 
 import android.app.Application
+import android.content.Context
 import android.content.res.Configuration
 
 import com.facebook.react.PackageList
@@ -15,6 +16,13 @@ import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ExpoReactHostFactory
 
 class MainApplication : Application(), ReactApplication {
+
+  override fun attachBaseContext(base: Context) {
+    val configuration = Configuration(base.resources.configuration).apply {
+      fontScale = fontScale.coerceAtMost(1.3f)
+    }
+    super.attachBaseContext(base.createConfigurationContext(configuration))
+  }
 
   override val reactHost: ReactHost by lazy {
     ExpoReactHostFactory.getDefaultReactHost(
@@ -39,7 +47,10 @@ class MainApplication : Application(), ReactApplication {
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {
-    super.onConfigurationChanged(newConfig)
-    ApplicationLifecycleDispatcher.onConfigurationChanged(this, newConfig)
+    val configuration = Configuration(newConfig).apply {
+      fontScale = fontScale.coerceAtMost(1.3f)
+    }
+    super.onConfigurationChanged(configuration)
+    ApplicationLifecycleDispatcher.onConfigurationChanged(this, configuration)
   }
 }

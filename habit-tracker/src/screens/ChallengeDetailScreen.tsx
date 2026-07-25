@@ -1,12 +1,12 @@
 import React, { useLayoutEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, TextInput, Share } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
-import { useChallengeById, useDeleteChallenge, useLogChallengeDay, useRestartChallenge, useSetChallengeAfterPhoto, useSetChallengeBeforePhoto, useUpdateChallengeName } from '../queries/useChallenge';
+import { useChallengeById, useLogChallengeDay, useRestartChallenge, useSetChallengeAfterPhoto, useSetChallengeBeforePhoto, useUpdateChallengeName } from '../queries/useChallenge';
 import { useTodayTasks } from '../queries/useToday';
 import { requestAddActivity } from '../hooks/useAddActivityIntent';
 import { challengeDate, isComplete } from '../lib/challenge';
@@ -20,6 +20,7 @@ import { PhotoSlot } from '../components/PhotoSlot';
 
 export function ChallengeDetailScreen() {
   const { userId, colors, t, styles } = useScreenCommons(makeStyles);
+  const { top: topInset } = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
   const navigation = useNavigation();
   const route = useRoute();
@@ -31,7 +32,6 @@ export function ChallengeDetailScreen() {
   const setAfterPhoto = useSetChallengeAfterPhoto(userId);
   const setBeforePhoto = useSetChallengeBeforePhoto(userId);
   const restartChallenge = useRestartChallenge(userId);
-  const deleteChallenge = useDeleteChallenge(userId);
   const updateChallengeName = useUpdateChallengeName(userId);
   const [menuVisible, setMenuVisible] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -39,7 +39,6 @@ export function ChallengeDetailScreen() {
   const completedBeforeRender = challenge != null && (
     challenge.status === 'done' || (challenge.mode === 'streak' && isComplete(challenge.daysDone, challenge.targetDays))
   );
-
   const today = challengeDate();
 
   async function handleRestart() {
@@ -72,29 +71,6 @@ export function ChallengeDetailScreen() {
     if (!result.canceled && result.assets[0]) {
       setAfterPhoto.mutate({ challengeId: challenge.id, uri: result.assets[0].uri });
     }
-  }
-
-  function handleDelete() {
-    if (challengeId == null) return;
-    Alert.alert(
-      t.challengeDeleteTitle,
-      t.challengeDeleteMsg,
-      [
-        { text: t.cancel, style: 'cancel' },
-        {
-          text: t.delete,
-          style: 'destructive',
-          onPress: () => {
-            deleteChallenge.mutateAsync(challengeId)
-              .then(() => {
-                if (navigation.canGoBack()) navigation.goBack();
-                else (navigation as any).navigate('ChallengeHub');
-              })
-              .catch(() => Alert.alert(t.error, t.challengeDeleteFailed));
-          },
-        },
-      ],
-    );
   }
 
   async function handleShare() {
@@ -148,7 +124,7 @@ export function ChallengeDetailScreen() {
       headerRight: challenge?.status !== 'active' || completedBeforeRender ? undefined : () => (
         <TouchableOpacity
           onPress={handleMenu}
-          disabled={deleteChallenge.isPending || challengeId == null}
+          disabled={challengeId == null}
           accessibilityRole="button"
           accessibilityLabel={t.screenChallengeDetail}
           style={styles.headerMenuButton}
@@ -157,7 +133,7 @@ export function ChallengeDetailScreen() {
         </TouchableOpacity>
       ),
     });
-  }, [challenge?.name, challenge?.status, challengeId, completedBeforeRender, deleteChallenge.isPending, navigation, styles, t]);
+  }, [challenge?.name, challenge?.status, challengeId, completedBeforeRender, navigation, styles, t]);
 
   if (isLoading || !challenge) {
     return (
@@ -216,8 +192,8 @@ export function ChallengeDetailScreen() {
         {isWeekly && active && (
           <View style={styles.ringWrap}>
             <ChallengeProgressRing
-              fraction={(challenge.weekSessionsDone ?? 0) / Math.max(1, challenge.weeklyTarget ?? 1)}
-              label={t.challengeSessionsThisWeek(challenge.weekSessionsDone ?? 0, challenge.weeklyTarget ?? 0)}
+              fraction={(challenge.weekSessionsDone ?? 0) / Math.max(1, challenge.weekSessionsRequired ?? 1)}
+              label={t.challengeSessionsThisWeek(challenge.weekSessionsDone ?? 0, challenge.weekSessionsRequired ?? 0)}
             />
             <Text style={styles.weekSubLabel}>{t.challengeWeekOf(challenge.weekIndex ?? 0, challenge.totalWeeks ?? 0)}</Text>
           </View>
@@ -259,7 +235,7 @@ export function ChallengeDetailScreen() {
         {active && isWeekly && challenge.weeklyTarget != null && (
           <>
             <WeeklyPaceCard
-              weeklyTarget={challenge.weeklyTarget}
+              weeklyTarget={challenge.weekSessionsRequired ?? challenge.weeklyTarget}
               sessionsDone={challenge.weekSessionsDone ?? 0}
               sessionsRemaining={challenge.weekSessionsRemaining ?? 0}
               daysRemaining={challenge.weekDaysRemaining ?? 0}
@@ -392,19 +368,12 @@ export function ChallengeDetailScreen() {
             accessibilityRole="button"
             accessibilityLabel={t.cancel}
           />
-          <View style={styles.menu} accessibilityViewIsModal>
-            <TouchableOpacity style={styles.menuRow} onPress={openNameEditor} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.editActivity}>
-              <Text style={styles.menuEdit}>🖊️ {t.editActivity}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuRow}
-              onPress={() => { setMenuVisible(false); handleDelete(); }}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={t.challengeDeleteCta}
-            >
-              <Text style={styles.menuDelete}>🗑 {t.challengeDeleteCta}</Text>
-            </TouchableOpacity>
+          <View style={[styles.menu, { top: topInset + 56 + Spacing.xs }]} accessibilityViewIsModal>
+            {active && (
+              <TouchableOpacity style={styles.menuRow} onPress={openNameEditor} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.editActivity}>
+                <Text style={styles.menuEdit}>🖊️ {t.editActivity}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
@@ -471,12 +440,11 @@ function makeStyles(C: AppColors) {
     headerMenuText: { ...Typography.title, color: C.inkDark, fontFamily: FontFamily.bold, lineHeight: 24 },
     menuModalRoot: { flex: 1 },
     menu: {
-      position: 'absolute', top: Spacing.sm, right: Spacing.lg, width: 190,
+      position: 'absolute', right: Spacing.lg, width: 190,
       backgroundColor: C.surface, borderRadius: Radii.lg, paddingVertical: Spacing.xs, ...Shadows.medium,
     },
     menuRow: { minHeight: 48, justifyContent: 'center', paddingHorizontal: Spacing.md },
     menuEdit: { ...Typography.bodyStrong, color: C.inkDark },
-    menuDelete: { ...Typography.bodyStrong, color: C.danger },
     editOverlay: { flex: 1, backgroundColor: C.scrim, justifyContent: 'center', padding: Spacing.lg },
     editCard: { backgroundColor: C.surface, borderRadius: Radii.lg, padding: Spacing.lg, gap: Spacing.md },
     editTitle: { ...Typography.subheading, color: C.inkDark },

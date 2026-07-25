@@ -584,7 +584,9 @@ async function v21(db: SQLiteDatabase): Promise<void> {
   `);
 }
 
-// v21 -> v22: add the Tier 9 Singularity rank without rewriting earned tiers.
+// v21 -> v22: add the Tier 9 rank without rewriting earned tiers.
+// (Originally inserted as 'Singularity'; fresh installs now get 'Cosmic' directly,
+//  and v23 renames any row already written by the old v22.)
 async function v22(db: SQLiteDatabase): Promise<void> {
   const existing = await db.getFirstAsync<{ id: number }>(
     `SELECT id FROM tiers WHERE tier_order = ? LIMIT 1`,
@@ -593,17 +595,25 @@ async function v22(db: SQLiteDatabase): Promise<void> {
   if (existing) {
     await db.runAsync(
       `UPDATE tiers SET stars_required = ?, rank_name = ?, reward_amount = ?, reward_currency = 'VND' WHERE id = ?`,
-      [2560, 'Singularity', 2000000, existing.id],
+      [2560, 'Cosmic', 2000000, existing.id],
     );
   } else {
     await db.runAsync(
       `INSERT INTO tiers (tier_order, stars_required, rank_name, reward_amount, reward_currency) VALUES (?, ?, ?, ?, 'VND')`,
-      [10, 2560, 'Singularity', 2000000],
+      [10, 2560, 'Cosmic', 2000000],
     );
   }
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22];
+// v22 -> v23: tier 9 rebrand Singularity -> Cosmic (Mock A chosen).
+// Covers devices whose DB already ran the original v22.
+async function v23(db: SQLiteDatabase): Promise<void> {
+  await db.runAsync(
+    `UPDATE tiers SET rank_name = 'Cosmic' WHERE tier_order = 10 AND rank_name = 'Singularity'`,
+  );
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

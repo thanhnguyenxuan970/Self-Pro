@@ -31,7 +31,7 @@ interface DraftEntry {
   isTimeBased: boolean;
   basePoints: number;
   starPenalty: number;
-  durationMin: number;
+  durationMin: number | null;
 }
 
 function resolveBackfillError(msg: string | undefined, t: BackfillErrorT): string {
@@ -90,7 +90,7 @@ interface EntryListProps {
 }
 
 function formatEntryMeta(entry: DraftEntry, formatDuration: (mins: number) => string): string {
-  return formatDuration(entry.durationMin);
+  return entry.durationMin == null ? '' : formatDuration(entry.durationMin);
 }
 
 function EntryList({ entries, editingEntryId, locked, onEdit, onRemove, colors, styles, editLabel, removeLabel, formatDuration }: EntryListProps) {
@@ -182,7 +182,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   function handleSelectTask(id: number | null) {
     const task = tasks.find(item => item.id === id);
     if (!task) return;
-    setEntries(prev => [...prev, { id: String(nextEntryId.current++), taskTypeId: task.id, name: task.name, icon: task.icon, kind: task.kind as 'GOOD' | 'BAD', isTimeBased: !!task.is_time_based, basePoints: task.base_points, starPenalty: task.star_penalty, durationMin: 30 }]);
+    setEntries(prev => [...prev, { id: String(nextEntryId.current++), taskTypeId: task.id, name: task.name, icon: task.icon, kind: task.kind as 'GOOD' | 'BAD', isTimeBased: !!task.is_time_based, basePoints: task.base_points, starPenalty: task.star_penalty, durationMin: task.is_time_based ? 30 : null }]);
   }
 
   function handleAddOrUpdate() {
@@ -196,7 +196,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
       isTimeBased: selectedTimed,
       basePoints: selectedTask.base_points,
       starPenalty: selectedTask.star_penalty,
-      durationMin: 30,
+      durationMin: selectedTimed ? 30 : null,
     };
     setEntries(prev => {
       if (editingEntryId) return prev.map(e => (e.id === editingEntryId ? draft : e));
@@ -213,9 +213,9 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
     if (task) setEditTask(task as unknown as Task);
   }
 
-  async function saveEditedTask(taskId: number, name: string, durationMin: number | null) {
-    await updateTaskName.mutateAsync({ taskId, name });
-    setEntries(prev => prev.map(entry => entry.taskTypeId === taskId ? { ...entry, name, durationMin: durationMin ?? entry.durationMin } : entry));
+  async function saveEditedTask(taskId: number, name: string, isTimeBased: boolean, durationMin: number | null) {
+    await updateTaskName.mutateAsync({ taskId, name, isTimeBased });
+    setEntries(prev => prev.map(entry => entry.taskTypeId === taskId ? { ...entry, name, isTimeBased, durationMin: isTimeBased ? durationMin ?? entry.durationMin : null } : entry));
     setEditTask(null);
   }
 
@@ -231,7 +231,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   async function addSuggestion(s: TemplateTask) {
     try {
       const taskTypeId = await createTask.mutateAsync({ name: s.name, kind: s.kind, isTimeBased: s.isTimeBased, basePoints: s.basePoints, starPenalty: s.starPenalty, icon: s.icon, isTemplate: true });
-      setEntries(prev => [...prev, { id: String(nextEntryId.current++), taskTypeId, name: s.name, icon: s.icon, kind: s.kind, isTimeBased: s.isTimeBased, basePoints: s.basePoints, starPenalty: s.starPenalty, durationMin: 30 }]);
+      setEntries(prev => [...prev, { id: String(nextEntryId.current++), taskTypeId, name: s.name, icon: s.icon, kind: s.kind, isTimeBased: s.isTimeBased, basePoints: s.basePoints, starPenalty: s.starPenalty, durationMin: s.isTimeBased ? 30 : null }]);
     } catch { Alert.alert(t.error, t.cantLog); }
   }
 
@@ -243,7 +243,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
         isTimeBased: e.isTimeBased,
         basePoints: e.basePoints,
         starPenalty: e.starPenalty,
-        durationMin: e.durationMin,
+        durationMin: e.durationMin ?? undefined,
       }));
       const result = await mutateAsync({ date, entries: payload });
       setLocked(true);
@@ -373,7 +373,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
         </View>
       </KeyboardAvoidingView>
       <AddActivitySheet visible={showAddActivity} onClose={() => setShowAddActivity(false)} />
-      <EditActivityModal visible={!!editTask} task={editTask} totalDurationMin={entries.find(entry => entry.taskTypeId === editTask?.id)?.durationMin} onClose={() => setEditTask(null)} onSave={(taskId, name, durationMin) => { void saveEditedTask(taskId, name, durationMin); }} />
+      <EditActivityModal visible={!!editTask} task={editTask} totalDurationMin={entries.find(entry => entry.taskTypeId === editTask?.id)?.durationMin ?? undefined} onClose={() => setEditTask(null)} onSave={(taskId, name, isTimeBased, durationMin) => { void saveEditedTask(taskId, name, isTimeBased, durationMin); }} />
     </Modal>
   );
 }

@@ -305,11 +305,11 @@ export function useArchiveTask(userId: number) {
 export function useUpdateTaskName(userId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ taskId, name }: { taskId: number; name: string }) => {
+    mutationFn: async ({ taskId, name, isTimeBased }: { taskId: number; name: string; isTimeBased?: boolean }) => {
       const db = await getDb();
       await db.runAsync(
-        `UPDATE task_types SET name = ? WHERE id = ? AND user_id = ?`,
-        [name, taskId, userId]
+        `UPDATE task_types SET name = ?, is_time_based = COALESCE(?, is_time_based) WHERE id = ? AND user_id = ?`,
+        [name, isTimeBased == null ? null : isTimeBased ? 1 : 0, taskId, userId]
       );
     },
     onSuccess: () => {
@@ -317,6 +317,7 @@ export function useUpdateTaskName(userId: number) {
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
+      qc.invalidateQueries({ queryKey: ['activity-picker', userId] });
     },
   });
 }

@@ -1,7 +1,8 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert, Platform } from 'react-native';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert, Platform, Animated, Easing } from 'react-native';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   useAnalyticsPointsData, useStreakCount,
   useRecentActivityLogs, useDeleteActivityLogs, useWeeklyConsistency, useTopActivities, useAllTimeStats,
@@ -10,6 +11,7 @@ import {
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useSelectionMode } from '../hooks/useSelectionMode';
 import { AddActivitySheet } from './AddActivitySheet';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
@@ -21,6 +23,30 @@ type Range = 'W' | 'M';
 
 type ProgStyles = ReturnType<typeof makeStyles>;
 type ProgTranslations = ReturnType<typeof useTranslations>;
+
+// Fill-up entrance: grows a bar's height (or width) from 0% to `to`% once on mount.
+// Non-native driver because it animates a layout dimension. Respects reduce-motion
+// (jumps straight to the final size). Re-runs when `to`/`animKey` change so the bars
+// re-fill when the W/M range switches.
+function AnimatedFill({ axis, to, delay = 0, duration = 720, animKey, reduceMotion, style }: {
+  axis: 'height' | 'width'; to: number; delay?: number; duration?: number;
+  animKey?: string | number; reduceMotion: boolean; style?: object;
+}) {
+  const p = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  useEffect(() => {
+    if (reduceMotion) { p.setValue(1); return; }
+    p.setValue(0);
+    const anim = Animated.timing(p, {
+      toValue: 1, duration, delay,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [to, delay, duration, animKey, reduceMotion, p]);
+  const size = p.interpolate({ inputRange: [0, 1], outputRange: ['0%', `${to}%`] });
+  return <Animated.View style={[style, { [axis]: size }]} />;
+}
 
 // fallow-ignore-next-line complexity
 function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, enterSelection, bonusDay, timeLocale, t, styles }: {
@@ -181,9 +207,10 @@ function confirmDeleteSelected(
 
 type ChartData = { bucket: string; points: number };
 
-function ProgressChartContent({ isLoading, chartData, range, formatBucket, colors, styles, t }: {
+function ProgressChartContent({ isLoading, chartData, range, formatBucket, colors, reduceMotion, focusKey, styles, t }: {
   isLoading: boolean; chartData: ChartData[]; range: Range;
-  formatBucket: (bucket: string, range: Range) => string; colors: AppColors; styles: ProgStyles; t: ProgTranslations;
+  formatBucket: (bucket: string, range: Range) => string; colors: AppColors;
+  reduceMotion: boolean; focusKey: number; styles: ProgStyles; t: ProgTranslations;
 }) {
   if (isLoading) return <ActivityIndicator color={colors.primary} />;
   if (chartData.length === 0) {
@@ -197,13 +224,21 @@ function ProgressChartContent({ isLoading, chartData, range, formatBucket, color
   const totalPoints = chartData.reduce((sum, day) => sum + day.points, 0);
   return (
     <View style={[styles.barChart, chartData.length > 10 && styles.barChartDense]} accessible accessibilityLabel={t.chartSummary(totalPoints)}>
-      {chartData.map(day => {
+      {chartData.map((day, idx) => {
         const isPeak = day.points === maxPoints;
+        const targetPct = Math.max(14, Math.round((day.points / maxPoints) * 100));
         return (
           <View key={day.bucket} style={styles.barColumn}>
             <Text style={[styles.barValue, isPeak && styles.barValuePeak, chartData.length > 10 && styles.barValueDense]}>{day.points}</Text>
             <View style={styles.barArea}>
-              <View style={[styles.bar, { height: `${Math.max(14, Math.round((day.points / maxPoints) * 100))}%` }, isPeak ? styles.barPeak : styles.barRegular]} />
+              <AnimatedFill
+                axis="height"
+                to={targetPct}
+                delay={idx * 55}
+                animKey={`${range}-${day.bucket}-${focusKey}`}
+                reduceMotion={reduceMotion}
+                style={[styles.bar, isPeak ? styles.barPeak : styles.barRegular]}
+              />
             </View>
             <Text style={[styles.barLabel, chartData.length > 10 && styles.barLabelDense]}>{formatBucket(day.bucket, range)}</Text>
           </View>
@@ -217,7 +252,16 @@ export function ProgressScreen() {
   const userId = useAuthUser();
   const { colors } = useTheme();
   const t = useTranslations();
+  const reduceMotion = useReduceMotion();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  // Re-trigger entrance animations every time the screen gains focus (tab
+  // screens stay mounted, so a one-shot mount effect would only fire once).
+  // Bumping focusKey resets every AnimatedFill via its animKey dependency.
+  const [focusKey, setFocusKey] = useState(0);
+  useFocusEffect(
+    useCallback(() => { setFocusKey(k => k + 1); }, []),
+  );
 
   const [range, setRange] = useState<Range>('W');
   const { data: chartData = [], isLoading } = useAnalyticsPointsData(userId, range);
@@ -282,7 +326,9 @@ export function ProgressScreen() {
             <View><Text style={styles.rankName}>{rankName}</Text><Text style={styles.rankStars}>{displayCurrentStars} ★</Text></View>
             <Text style={styles.rankNext}>{nextTier ? t.rankStarsToNext(Math.round(Math.max(0, nextTier.stars_required - (rankData?.currentStars ?? 0)))) : t.rankMaxed}</Text>
           </View>
-          <View style={styles.rankTrack}><View style={[styles.rankFill, { width: `${Math.round(rankProgress * 100)}%` }]} /></View>
+          <View style={styles.rankTrack}>
+            <AnimatedFill axis="width" to={Math.round(rankProgress * 100)} duration={900} animKey={`${Math.round(rankProgress * 100)}-${focusKey}`} reduceMotion={reduceMotion} style={styles.rankFill} />
+          </View>
         </View>
 
         {/* Segmented control */}
@@ -309,7 +355,7 @@ export function ProgressScreen() {
           <View style={styles.chartWrap}>
             <ProgressChartContent
               isLoading={isLoading} chartData={chartData} range={range}
-              formatBucket={formatBucket} colors={colors} styles={styles} t={t}
+              formatBucket={formatBucket} colors={colors} reduceMotion={reduceMotion} focusKey={focusKey} styles={styles} t={t}
             />
           </View>
         </View>
@@ -337,7 +383,7 @@ export function ProgressScreen() {
                   <View key={idx} style={[styles.topRow, idx === topActivities.length - 1 && styles.topRowLast]}>
                     <Text style={styles.topName} numberOfLines={1}>{resolveTaskDisplayName(item.name, t)}</Text>
                     <View style={styles.topBarTrack}>
-                      <View style={[styles.topBarFill, { width: `${pct}%` }]} />
+                      <AnimatedFill axis="width" to={pct} delay={idx * 80} animKey={`${idx}-${pct}-${focusKey}`} reduceMotion={reduceMotion} style={styles.topBarFill} />
                     </View>
                     <Text style={styles.topCount}>{t.times(item.count)}</Text>
                   </View>

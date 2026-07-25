@@ -134,7 +134,7 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
           <TaskMetaRow item={item} done={done} totalDurationMin={totalDurationMin}
             styles={styles} />
         </View>
-        {done ? <View style={styles.rightCol}>
+        {(done || (!selectionMode && onEdit)) ? <View style={styles.rightCol}>
           {!selectionMode && onEdit ? (
             <TouchableOpacity
               onPress={onEdit}
@@ -142,12 +142,12 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
               accessibilityLabel={t.editActivity}
               accessibilityRole="button"
             >
-              <Text style={styles.editIcon}>...</Text>
+              <Text style={styles.editIcon}>•••</Text>
             </TouchableOpacity>
           ) : null}
-          <Text style={[styles.tPts, resolvePtsStyle(styles, done, isBad)]}>
+          {done ? <Text style={[styles.tPts, resolvePtsStyle(styles, done, isBad)]}>
             {isBad ? `−${item.star_penalty}★` : `+${done ? Math.round(starsEarned ?? 1) : 1}★${done ? ` · +${t.ptsShort(pointsEarned ?? item.base_points)}` : ''}`}
-          </Text>
+          </Text> : null}
         </View> : null}
       </TouchableOpacity>
     </Animated.View>
@@ -182,7 +182,7 @@ function makeTaskRowStyles(C: AppColors) {
     tMetaText: { fontSize: 11.5, lineHeight: 17, color: C.muted },
     tMetaDuration: { color: C.primary, fontFamily: FontFamily.bold },
     rightCol: { alignItems: 'flex-end', gap: 2, flexShrink: 0 },
-    editIcon: { fontSize: 14 },
+    editIcon: { fontSize: 20, color: C.muted },
     tPts: { fontSize: 13, fontFamily: FontFamily.extraBold, flexShrink: 0 },
     tPtsPos: { color: C.primary },
     tPtsNeg: { color: C.danger },

@@ -6,6 +6,8 @@ import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../c
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useTodayTasks } from '../queries/useToday';
 import { useCreateChallenge } from '../queries/useChallenge';
+import { DurationClockInput } from '../components/DurationClockInput';
+import { clockFromMinutes, clockMinutes } from '../utils/durationClock';
 import {
   CHALLENGE_DURATIONS, CHALLENGE_NAME_MAX_LENGTH, computeChallengeReward, isValidCustomChallengeValue, PHAO_COUNT,
   THRESHOLD_COUNTS, THRESHOLD_DURATIONS, TOTAL_WEEKS_OPTIONS, WEEKLY_TARGETS,
@@ -31,6 +33,8 @@ export function CreateChallengeScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [customField, setCustomField] = useState<CustomField>(null);
   const [customValue, setCustomValue] = useState('');
+  const [customDuration, setCustomDuration] = useState(false);
+  const [durationClock, setDurationClock] = useState({ hours: 0, minutes: 0 });
 
   const reward = useMemo(() => mode === 'streak'
     ? computeChallengeReward({ mode: 'streak', targetDays })
@@ -53,6 +57,18 @@ export function CreateChallengeScreen() {
     if (customField === 'days') setTargetDays(value);
     if (customField === 'weeks') setTotalWeeks(value);
     setCustomField(null);
+  }
+
+  function openCustomDuration() {
+    setDurationClock(clockFromMinutes(minDuration ?? 0));
+    setCustomDuration(true);
+  }
+
+  function saveCustomDuration() {
+    const value = clockMinutes(durationClock);
+    if (value < 1 || value > 1440) return;
+    setMinDuration(value);
+    setCustomDuration(false);
   }
 
   async function handleStart() {
@@ -93,7 +109,7 @@ export function CreateChallengeScreen() {
         </View>
 
         <Text style={styles.label}>{t.challengeHabitLabel}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.habitRow} contentContainerStyle={styles.habitRowContent}>
+        <View style={styles.habitRow}>
           <TouchableOpacity
             style={[styles.habitChip, taskTypeId === null && styles.habitChipOn]}
             onPress={() => { setTaskTypeId(null); setMinDuration(null); setMinCount(null); }}
@@ -106,7 +122,7 @@ export function CreateChallengeScreen() {
               activeOpacity={0.75} accessibilityRole="button" accessibilityState={{ selected: on }}
             ><Text style={[styles.habitChipText, on && styles.habitChipTextOn]} numberOfLines={1}>{task.icon ?? '⭐'} {task.name}</Text></TouchableOpacity>;
           })}
-        </ScrollView>
+        </View>
 
         {taskTypeId !== null && <View style={styles.thresholds}>
           <Text style={styles.label}>{t.challengeThresholdLabel}</Text>
@@ -114,7 +130,7 @@ export function CreateChallengeScreen() {
           <View style={styles.chipRow}>{([null, ...THRESHOLD_DURATIONS] as (number | null)[]).map(value => {
             const on = minDuration === value;
             return <TouchableOpacity key={String(value)} style={[styles.chip, on && styles.chipOn]} onPress={() => setMinDuration(value)} accessibilityRole="radio" accessibilityState={{ checked: on }}><Text style={[styles.chipText, on && styles.chipTextOn]}>{value ?? t.challengeThresholdAny}</Text></TouchableOpacity>;
-          })}</View>
+          })}<TouchableOpacity style={styles.customChip} onPress={openCustomDuration} accessibilityRole="button"><Text style={styles.customChipText}>{t.challengeCustom}</Text></TouchableOpacity></View>
           <Text style={styles.smallLabel}>{t.challengeThresholdCountLabel}</Text>
           <View style={styles.chipRow}>{([null, ...THRESHOLD_COUNTS] as (number | null)[]).map(value => {
             const on = minCount === value;
@@ -168,8 +184,8 @@ export function CreateChallengeScreen() {
 
       <View style={styles.sticky}><TouchableOpacity style={[styles.startBtn, submitting && styles.startBtnDisabled]} onPress={handleStart} disabled={submitting} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={startLabel}>{submitting ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.startBtnText} numberOfLines={1}>{startLabel}</Text>}</TouchableOpacity></View>
 
-      <Modal visible={customField !== null} transparent animationType="fade" onRequestClose={() => setCustomField(null)}>
-        <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><View style={styles.customSheet}><Text style={styles.customTitle}>{customField === 'days' ? t.challengeDurationLabel : t.challengeTotalWeeksLabel}</Text><TextInput style={styles.customInput} value={customValue} onChangeText={setCustomValue} keyboardType="number-pad" placeholder={t.challengeCustomPlaceholder} placeholderTextColor={colors.muted} autoFocus /><TouchableOpacity style={styles.customSave} onPress={saveCustom} accessibilityRole="button"><Text style={styles.customSaveText}>{t.challengeCustomSave}</Text></TouchableOpacity></View></KeyboardAvoidingView>
+      <Modal visible={customField !== null || customDuration} transparent animationType="fade" onRequestClose={() => { setCustomField(null); setCustomDuration(false); }}>
+        <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><View style={styles.customSheet}><Text style={styles.customTitle}>{customDuration ? t.challengeThresholdDurationLabel : customField === 'days' ? t.challengeDurationLabel : t.challengeTotalWeeksLabel}</Text>{customDuration ? <DurationClockInput value={durationClock} onChange={setDurationClock} colors={colors} /> : <TextInput style={styles.customInput} value={customValue} onChangeText={setCustomValue} keyboardType="number-pad" placeholder={t.challengeCustomPlaceholder} placeholderTextColor={colors.muted} autoFocus />}<TouchableOpacity style={styles.customSave} onPress={customDuration ? saveCustomDuration : saveCustom} accessibilityRole="button"><Text style={styles.customSaveText}>{t.challengeCustomSave}</Text></TouchableOpacity></View></KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -180,7 +196,7 @@ function makeStyles(C: AppColors) {
     safe: { flex: 1, backgroundColor: C.bgBase }, scrollContent: { padding: Spacing.lg, gap: Spacing.xs, paddingBottom: Spacing.lg },
     label: { ...Typography.sectionLabel, color: C.ink2, marginTop: Spacing.md, marginBottom: Spacing.xs }, smallLabel: { ...Typography.caption, color: C.muted, marginTop: Spacing.xs, marginBottom: Spacing.xs },
     nameWrap: { position: 'relative' }, input: { backgroundColor: C.surface, borderRadius: Radii.md, borderWidth: 1, borderColor: C.line, paddingHorizontal: 14, paddingVertical: 12, paddingRight: 58, fontSize: 15, fontFamily: FontFamily.regular, color: C.inkDark }, counter: { ...Typography.caption, color: C.muted, position: 'absolute', right: 12, top: 14 },
-    habitRow: { flexGrow: 0 }, habitRowContent: { gap: Spacing.sm, paddingRight: Spacing.lg }, habitChip: { maxWidth: 190, paddingHorizontal: Spacing.md, paddingVertical: 10, borderRadius: Radii.pill, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line }, habitChipOn: { backgroundColor: C.primarySoft, borderColor: C.primary }, habitChipText: { ...Typography.bodyStrong, color: C.ink2 }, habitChipTextOn: { color: C.primary },
+    habitRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm }, habitChip: { maxWidth: 190, paddingHorizontal: Spacing.md, paddingVertical: 10, borderRadius: Radii.pill, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line }, habitChipOn: { backgroundColor: C.primarySoft, borderColor: C.primary }, habitChipText: { ...Typography.bodyStrong, color: C.ink2 }, habitChipTextOn: { color: C.primary },
     thresholds: { gap: Spacing.xs }, modeRow: { flexDirection: 'row', gap: Spacing.sm }, modeCard: { flex: 1, minHeight: 148, padding: Spacing.sm, borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line2, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', gap: 4 }, modeCardOn: { backgroundColor: C.primarySoft, borderColor: C.primary }, modeBadge: { position: 'absolute', top: 10, right: 10, width: 20, height: 20, borderRadius: 10, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' }, modeBadgeText: { color: C.onAccent, fontFamily: FontFamily.bold, fontSize: 12 }, modeIcon: { fontSize: 25 }, modeTitle: { ...Typography.bodyStrong, color: C.inkDark, textAlign: 'center' }, modeTitleOn: { color: C.primary }, modeSub: { ...Typography.caption, color: C.ink2, textAlign: 'center' },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm }, chip: { minHeight: 44, paddingHorizontal: Spacing.md, justifyContent: 'center', borderRadius: Radii.pill, borderWidth: 1, borderColor: C.line2, backgroundColor: C.surface }, chipOn: { backgroundColor: C.primarySoft, borderColor: C.primary }, chipText: { ...Typography.bodyStrong, color: C.ink2 }, chipTextOn: { color: C.primary }, customChip: { minHeight: 44, paddingHorizontal: Spacing.md, justifyContent: 'center', borderRadius: Radii.pill, borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2 }, customChipText: { ...Typography.bodyStrong, color: C.muted },
     notifyRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: C.surface, borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line, padding: Spacing.md, marginTop: Spacing.lg }, notifyCopy: { flex: 1 }, notifyLabel: { ...Typography.bodyStrong, color: C.inkDark }, notifyDesc: { ...Typography.secondary, color: C.ink2, marginTop: 2 },

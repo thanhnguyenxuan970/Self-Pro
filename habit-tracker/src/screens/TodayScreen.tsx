@@ -396,12 +396,13 @@ export function TodayScreen() {
     setModalTask(null);
   }
 
-  async function handleEditSave(taskId: number, name: string, newDurationMin: number | null) {
+  async function handleEditSave(taskId: number, name: string, isTimeBased: boolean, newDurationMin: number | null) {
     const task = editTask;
     setEditTask(null);
+    if (!task) return;
     try {
-      await updateTaskName.mutateAsync({ taskId, name });
-      if (newDurationMin !== null && task?.is_time_based) {
+      await updateTaskName.mutateAsync({ taskId, name, isTimeBased });
+      if (newDurationMin !== null && isTimeBased) {
         const currentMin = totalDurations?.get(taskId)?.duration ?? 0;
         if (newDurationMin !== currentMin) {
           await unlogTask.mutateAsync({ taskTypeId: taskId, kind: task.kind as 'GOOD' | 'BAD' });
@@ -459,8 +460,8 @@ export function TodayScreen() {
           <Text style={styles.avatarText}>{avatarInitial}</Text>
         </TouchableOpacity>
         <View style={styles.greet}>
-          <Text style={styles.date}>{dateStr.toUpperCase()}</Text>
-          <Text style={styles.hi}>{t.greeting(googleUser?.name?.split(' ').pop() ?? '')}</Text>
+          <Text style={styles.date} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{dateStr.toUpperCase()}</Text>
+          <Text style={styles.hi} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.greeting(googleUser?.name?.split(' ').pop() ?? '')}</Text>
         </View>
         <View style={styles.topbarActions}>
           <TouchableOpacity

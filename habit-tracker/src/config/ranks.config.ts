@@ -288,27 +288,30 @@ const RANK_DATA: BaseRank[] = [
   },
   {
     tier: 9,
-    name: 'Singularity',
-    nameVi: 'Gánh Cả Vũ Trụ',
+    // Mock A "Cosmic" — evolution of Ascended's halo into a full planet ring.
+    // Spec: Docs/tier9_rank_implementation_plan.md + ui_kits/tier9-cosmic-concepts.html
+    name: 'Cosmic',
+    nameVi: 'Ngoài Vùng Phủ Sóng',
     stars: 2560,
-    descriptor: 'event horizon',
-    color: '#1E1436',
-    edge: '#FFB347',
-    glow: '#FF8C42',
-    glowOpacity: 0.5,
+    descriptor: 'left the chat',
+    color: '#5B4BC4',
+    edge: '#2E2378',
+    glow: '#A78BFA',
+    glowOpacity: 0.55,
     face: FACE([
-      { t: 'path', d: 'M-13,-8 l8,2.5 M13,-8 l-8,2.5', stroke: '#FFE8C2', sw: 2.8, cap: 'round' },
-      { t: 'path', d: 'M-11,-1 q3,3 6,0 M5,-1 q3,3 6,0', stroke: '#FFE8C2', sw: 2.2, cap: 'round' },
-      { t: 'circle', cx: -13, cy: 4, r: 2.2, fill: '#FF8C42', opacity: 0.55 },
-      { t: 'circle', cx: 13, cy: 4, r: 2.2, fill: '#FF8C42', opacity: 0.55 },
-      { t: 'path', d: 'M-5,6 q5,4 11,-1', stroke: '#FFE8C2', sw: 2.2, cap: 'round' },
+      { t: 'path', d: 'M-10,-5 q3,3 6,0', stroke: '#2A2540', sw: 2.4, cap: 'round' },
+      { t: 'path', d: 'M4,-5 q3,3 6,0', stroke: '#2A2540', sw: 2.4, cap: 'round' },
+      { t: 'circle', cx: -11, cy: 1, r: 2.2, fill: '#F9A8D4' },
+      { t: 'circle', cx: 11, cy: 1, r: 2.2, fill: '#F9A8D4' },
+      { t: 'path', d: 'M-5,5 q5,4 10,0', stroke: '#2A2540', sw: 2.2, cap: 'round' },
     ]),
-    anim: { duration: 4200, loop: true, channels: {
-      scale: [[0, 1], [0.45, 0.96], [0.7, 1.05], [0.85, 1.01], [1, 1]],
-      rotate: [[0, 0], [0.45, -1], [0.7, 0.5], [1, 0]],
-      translateY: [[0, 1], [0.7, -2], [1, 1]],
+    // Zero-G drift: slowest float in the ladder, no "landing" beat.
+    anim: { duration: 3200, loop: true, channels: {
+      translateY: [[0, 3], [0.5, -6], [1, 3]],
+      rotate: [[0, -3], [0.5, 3], [1, -3]],
+      scale: [[0, 1], [0.5, 1.02], [1, 1]],
     }},
-    sfx: 'singularity',
+    sfx: 'cosmic',
     haptic: 'heavy-success',
   },
 ];
@@ -326,8 +329,10 @@ const BACK: Record<number, SvgEl[]> = {
   ],
   7: [{ t: 'path', d: 'M-28,-6 q-12,26 2,44 L-10,26 Z M28,-6 q12,26 -2,44 L10,26 Z', fill: '#B91C1C', opacity: 0.85 }],
   9: [
-    { t: 'path', d: 'M0,-50 A50,50 0 0 1 47,17', stroke: '#FF8C42', sw: 2.2, cap: 'round', opacity: 0.5 },
-    { t: 'path', d: 'M0,44 A38,38 0 0 0 -36,-13', stroke: '#FFB347', sw: 1.5, cap: 'round', opacity: 0.35 },
+    // Tilted planet ring (ellipse rx54/ry15 rotated -16°, drawn via arc path — SvgEl has no transform).
+    // The orbiting moon is NOT here: RankMascot renders it as an animated overlay
+    // so it can pass in front of the body on the near side (see COSMIC_ORBIT).
+    { t: 'path', d: 'M51.9,-12.9 A54,15 -16 1 1 -51.9,16.9 A54,15 -16 1 1 51.9,-12.9 Z', stroke: '#C4B5FD', sw: 2.4, opacity: 0.5 },
   ],
 };
 
@@ -369,7 +374,10 @@ const FRONT: Record<number, SvgEl[]> = {
     { t: 'line', x1: -48, y1: 0, x2: -55, y2: 0, stroke: '#E0A93B', sw: 1.4, cap: 'round' },
   ],
   9: [
-    { t: 'path', d: 'M24,-34 C25,-28 25,-28 31,-27 C25,-26 25,-26 24,-20 C23,-26 23,-26 17,-27 C23,-28 23,-28 24,-34 Z', fill: '#FFB347' },
+    // Front half of the planet ring passing over the body + two sparkles.
+    { t: 'path', d: 'M-49,7 Q0,25 49,7', stroke: '#C4B5FD', sw: 2.4, cap: 'round', opacity: 0.9 },
+    { t: 'path', d: 'M22,-34 C23,-30 23,-30 27,-29 C23,-28 23,-28 22,-24 C21,-28 21,-28 17,-29 C21,-30 21,-30 22,-34 Z', fill: '#FFFFFF' },
+    { t: 'path', d: 'M-27,14 C-26,17 -26,17 -23,18 C-26,19 -26,19 -27,22 C-28,19 -28,19 -31,18 C-28,17 -28,17 -27,14 Z', fill: '#C4B5FD' },
   ],
 };
 

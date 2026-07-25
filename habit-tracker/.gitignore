@@ -13,11 +13,14 @@ expo-env.d.ts
 .kotlin/
 *.orig.*
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
 *.mobileprovision
 play-store-service-account.json
+/android/keystore.properties
+/android/app/google-services.json
 
 # Metro
 .metro-health-check*
@@ -46,6 +49,7 @@ supabase/.temp/
 # JVM crash dumps from Android builds
 hs_err_pid*.log
 replay_pid*.log
+*.hprof
 
 # QA/verification scratch artifacts (screenshots, UI dumps, temp DBs)
 .visual-verify/

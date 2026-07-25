@@ -1,0 +1,204 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Habi · Trophy Concepts v2</title>
+<style>
+  :root{
+    --bg:#0c1310; --panel:#141d18; --panel2:#1a2620; --line:#25342c;
+    --ink:#eafff3; --muted:#8ba798; --green:#3FB56E; --gold:#E0A93B;
+    --shadow:0 14px 40px rgba(0,0,0,.45);
+  }
+  [data-t="light"]{
+    --bg:#f3f7f4; --panel:#ffffff; --panel2:#eef4ef; --line:#e0eae3;
+    --ink:#0f2018; --muted:#5c7064; --shadow:0 10px 30px rgba(20,40,30,.12);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 80% -10%,#153826 0%,var(--bg) 55%);color:var(--ink);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  [data-t="light"] body{background:radial-gradient(1200px 600px at 80% -10%,#dcf0e4 0%,var(--bg) 55%)}
+  .wrap{max-width:1120px;margin:0 auto;padding:26px 20px 72px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:11px}
+  .logo{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,var(--green),#2f9d5c);display:grid;place-items:center;box-shadow:var(--shadow)}
+  h1{font-size:21px;margin:0;letter-spacing:-.3px}
+  .sub{color:var(--muted);font-size:13px;margin:2px 0 0}
+  .toggle{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;border-radius:999px;cursor:pointer;font-size:13px;font-weight:600}
+
+  /* HERO unlock */
+  .hero{margin:26px 0 10px;border:1px solid var(--line);border-radius:24px;padding:26px;position:relative;overflow:hidden;
+    background:linear-gradient(120deg,rgba(63,181,110,.14),rgba(224,169,59,.10));box-shadow:var(--shadow)}
+  .hero .rays{position:absolute;inset:-60% -20% auto 30%;height:340px;background:conic-gradient(from 0deg,transparent,rgba(255,224,138,.18),transparent 30%);animation:spin 14s linear infinite}
+  .hero-in{position:relative;display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+  .hero .big{width:118px;height:118px;filter:drop-shadow(0 10px 22px rgba(0,0,0,.4));animation:pop .7s cubic-bezier(.2,1.3,.4,1)}
+  .kicker{font-size:11px;font-weight:800;letter-spacing:2px;color:var(--gold);text-transform:uppercase}
+  .hero h2{margin:4px 0 4px;font-size:26px;letter-spacing:-.5px}
+  .hero p{margin:0;color:var(--ink);opacity:.85;max-width:440px;font-size:14px}
+  .rare-pill{display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-size:12px;font-weight:800;
+    padding:6px 12px;border-radius:999px;background:#7a5ce022;border:1px solid #7a5ce066;color:#c9b8ff}
+  [data-t="light"] .rare-pill{color:#5c3fd6}
+
+  .lead{color:var(--muted);font-size:13.5px;max-width:740px;margin:22px 0 22px;border-left:2px solid var(--green);padding-left:14px}
+  .lead b{color:var(--ink)}
+
+  .section-h{display:flex;align-items:baseline;gap:10px;margin:34px 0 14px}
+  .section-h h3{margin:0;font-size:15px;letter-spacing:.2px}
+  .section-h span{color:var(--muted);font-size:12.5px}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:var(--shadow);
+    position:relative;overflow:hidden;transition:transform .18s ease,border-color .18s;cursor:pointer}
+  .card:hover{transform:translateY(-5px);border-color:var(--green)}
+  .card .glow{position:absolute;inset:-45% 45% auto -20%;height:180px;filter:blur(46px);opacity:.22;border-radius:50%}
+  .top{display:flex;align-items:center;gap:14px;position:relative}
+  .emblem{width:70px;height:70px;flex:0 0 70px;filter:drop-shadow(0 6px 12px rgba(0,0,0,.3))}
+  .vn{font-size:16px;font-weight:750;letter-spacing:-.2px}
+  .en{color:var(--muted);font-size:12px;margin-top:1px}
+  .rarity{display:inline-flex;align-items:center;gap:5px;margin-top:8px;font-size:10.5px;font-weight:800;letter-spacing:.4px;
+    padding:3px 8px;border-radius:999px}
+  .r-common{background:#3fb56e1f;color:#5fd48c;border:1px solid #3fb56e44}
+  .r-rare{background:#2fa3e01f;color:#7cc9f0;border:1px solid #2fa3e044}
+  .r-epic{background:#7a5ce01f;color:#c9b8ff;border:1px solid #7a5ce055}
+  .r-myth{background:#e0a93b1f;color:#ffd98a;border:1px solid #e0a93b55}
+  [data-t="light"] .r-common{color:#2f9d5c}[data-t="light"] .r-rare{color:#217f9f}[data-t="light"] .r-epic{color:#5c3fd6}[data-t="light"] .r-myth{color:#b07d15}
+  .desc{color:var(--ink);opacity:.88;font-size:13px;margin:14px 0 12px}
+  .why{font-size:11.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:10px}
+  .why b{color:var(--green)}
+
+  /* secret cards */
+  .secret{background:repeating-linear-gradient(135deg,var(--panel) 0 14px,var(--panel2) 14px 28px)}
+  .secret .q{font-size:42px;font-weight:900;color:var(--muted);letter-spacing:4px;text-align:center;padding:14px 0}
+  .secret.revealed{background:var(--panel)}
+  .secret .hidden-body{display:none}
+  .secret.revealed .hidden-body{display:block;animation:pop .5s cubic-bezier(.2,1.3,.4,1)}
+  .secret.revealed .q{display:none}
+  .tap{position:absolute;top:12px;right:14px;font-size:10px;font-weight:800;letter-spacing:.5px;color:var(--gold);text-transform:uppercase}
+
+  /* evolving trophy row */
+  .evo{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:20px;box-shadow:var(--shadow)}
+  .evo .stage{text-align:center;position:relative}
+  .evo .stage svg{width:64px;height:64px}
+  .evo .stage .lab{font-size:11.5px;font-weight:700;margin-top:6px}
+  .evo .stage .d{font-size:10.5px;color:var(--muted)}
+  .evo .arrow{position:absolute;right:-8px;top:26px;color:var(--muted);font-size:18px}
+  .evo-note{grid-column:1/-1;font-size:11.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:12px;margin-top:4px}
+  .evo-note b{color:var(--green)}
+
+  footer{margin-top:38px;color:var(--muted);font-size:12px;text-align:center}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+  @media (prefers-reduced-motion:reduce){.rays{animation:none}.big,.hidden-body{animation:none}}
+</style>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M4 13l5 5L20 6" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div><h1>Trophy Concepts <span style="color:var(--gold);font-size:13px">v2</span></h1><div class="sub">Habi · designed to make unlocking feel like an event</div></div>
+    </div>
+    <button class="toggle" onclick="var b=document.body;b.dataset.t=b.dataset.t==='light'?'dark':'light'">Toggle theme</button>
+  </header>
+
+  <!-- HERO: the unlock moment -->
+  <div class="hero">
+    <div class="rays"></div>
+    <div class="hero-in">
+      <svg class="big" viewBox="0 0 100 100"><defs><radialGradient id="pg" cx="50%" cy="38%"><stop offset="0" stop-color="#ffe08a"/><stop offset=".5" stop-color="#EF5A2B"/><stop offset="1" stop-color="#a8321a"/></radialGradient></defs><circle cx="50" cy="50" r="47" fill="url(#pg)" opacity=".2"/><path d="M50 18c-6 10-20 12-27 8 4 12 2 21-6 28 12 1 18 8 21 19 4-10 10-14 12-14s8 4 12 14c3-11 9-18 21-19-8-7-10-16-6-28-7 4-21 2-27-8z" fill="url(#pg)"/><path d="M50 33c-3 6-9 9-9 17 0 8 9 14 9 23 0-9 9-15 9-23 0-8-6-11-9-17z" fill="#fff" opacity=".88"/></svg>
+      <div>
+        <div class="kicker">✦ Trophy Unlocked</div>
+        <h2>Main Character Moment</h2>
+        <p>You broke a streak — then came back the very next day. The hardest badge in the game to earn, because most people don't return.</p>
+        <span class="rare-pill">◆ Chỉ 3.8% người chơi từng mở khoá</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="lead"><b>The reframe:</b> a trophy isn't a metric — it's a <b>moment + a flex + a story</b>. These four systems make the shelf feel alive. Tap the <b>secret cards</b> to reveal them, and see how one trophy can <b>grow with the user</b>.</p>
+
+  <!-- System 1: rarity flex board -->
+  <div class="section-h"><h3>① The Flex Board</h3><span>every badge shows how rare it is — near-zero build, instant status</span></div>
+  <div class="grid" id="flex"></div>
+
+  <!-- System 2: secret trophies -->
+  <div class="section-h"><h3>② Secret Trophies</h3><span>hidden until triggered — the discovery engine people screenshot · tap to reveal</span></div>
+  <div class="grid" id="secret"></div>
+
+  <!-- System 3: evolving trophy -->
+  <div class="section-h"><h3>③ The Living Trophy</h3><span>one emblem that grows the longer you stay — the badge users get attached to</span></div>
+  <div class="evo" id="evo"></div>
+
+  <!-- System 4: real-reward + seasonal -->
+  <div class="section-h"><h3>④ Trophies With Stakes</h3><span>badges that pay out real fuel, or vanish forever</span></div>
+  <div class="grid" id="stakes"></div>
+
+  <footer>Mockup · illustrative SVG emblems · rarity numbers are placeholders · gradients from <code>badgeTiers.ts</code></footer>
+</div>
+
+<script>
+const E = {
+anchor:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5fd48c"/><stop offset="1" stop-color="#2f9d5c"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#ag)" opacity=".16"/><path d="M50 26v46m0 0c-11 0-20-9-22-18m22 18c11 0 20-9 22-18" fill="none" stroke="url(#ag)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="24" r="7" fill="none" stroke="url(#ag)" stroke-width="5"/><path d="M14 62c8 6 14 6 18 0 4 6 10 6 18 0 8 6 14 6 18 0 4 6 10 6 18 0" fill="none" stroke="#7fd6e8" stroke-width="3.5" stroke-linecap="round" opacity=".8"/></svg>`,
+constellation:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a58bff"/><stop offset="1" stop-color="#5c3fd6"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#cg)" opacity=".16"/><path d="M28 34l20 10 24-8-14 22 8 20-24-12-18 8 6-24z" fill="none" stroke="url(#cg)" stroke-width="3" stroke-linejoin="round" opacity=".9"/><g fill="#fff"><circle cx="28" cy="34" r="4"/><circle cx="48" cy="44" r="5"/><circle cx="72" cy="36" r="4"/><circle cx="58" cy="58" r="4.5"/><circle cx="66" cy="78" r="4"/><circle cx="42" cy="66" r="3.5"/></g></svg>`,
+sun:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#E0A93B"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#sg)" opacity=".16"/><path d="M18 66h64" stroke="url(#sg)" stroke-width="5" stroke-linecap="round"/><path d="M30 66a20 20 0 0140 0" fill="url(#sg)"/><g stroke="url(#sg)" stroke-width="4" stroke-linecap="round"><path d="M50 28v-8M28 40l-5-5M72 40l5-5M20 54h-6M86 54h-6"/></g></svg>`,
+moon:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="mg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#bcd4e8"/><stop offset="1" stop-color="#5c7e8b"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#mg)" opacity=".18"/><path d="M60 24a26 26 0 1018 34A20 20 0 0160 24z" fill="url(#mg)"/><g fill="#fff"><circle cx="34" cy="34" r="2.5"/><circle cx="26" cy="48" r="1.8"/><circle cx="40" cy="24" r="1.6"/></g></svg>`,
+clock:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="clg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd15c"/><stop offset="1" stop-color="#EF5A2B"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#clg)" opacity=".16"/><circle cx="50" cy="52" r="26" fill="none" stroke="url(#clg)" stroke-width="6"/><path d="M50 52V36m0 16l12 8" stroke="url(#clg)" stroke-width="6" stroke-linecap="round"/><path d="M40 20h20" stroke="url(#clg)" stroke-width="6" stroke-linecap="round"/></svg>`,
+bolt:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#e6b52e"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#bg)" opacity=".16"/><path d="M56 16L30 56h16l-6 30 30-42H52z" fill="url(#bg)"/></svg>`,
+cake:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="ck" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9ec2"/><stop offset="1" stop-color="#e0559a"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#ck)" opacity=".16"/><rect x="26" y="52" width="48" height="26" rx="6" fill="url(#ck)"/><path d="M26 62c8-6 16-6 24 0s16 6 24 0" fill="none" stroke="#fff" stroke-width="3" opacity=".8"/><path d="M50 34v14M42 40v8M58 40v8" stroke="url(#ck)" stroke-width="4" stroke-linecap="round"/><circle cx="50" cy="32" r="3.5" fill="#ffd15c"/><circle cx="42" cy="38" r="3" fill="#ffd15c"/><circle cx="58" cy="38" r="3" fill="#ffd15c"/></svg>`,
+freeze:`<svg class="emblem" viewBox="0 0 100 100"><defs><linearGradient id="fz" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e8fbff"/><stop offset="1" stop-color="#37a7c3"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#fz)" opacity=".2"/><g stroke="url(#fz)" stroke-width="5" stroke-linecap="round"><path d="M50 18v64M22 34l56 32M78 34L22 66"/><path d="M50 26l-8 6m8-6l8 6M50 74l-8-6m8 6l8-6M30 40l-1 10m21-38 M70 40l1 10"/></g><circle cx="50" cy="50" r="7" fill="url(#fz)"/></svg>`,
+lantern:`<svg class="emblem" viewBox="0 0 100 100"><defs><radialGradient id="lg" cx="50%" cy="45%"><stop offset="0" stop-color="#ffd15c"/><stop offset="1" stop-color="#EF5A2B"/></radialGradient></defs><circle cx="50" cy="50" r="46" fill="url(#lg)" opacity=".16"/><rect x="42" y="24" width="16" height="5" rx="2" fill="#b07d15"/><path d="M34 34c0-4 32-4 32 0 6 4 6 28 0 32 0 4-32 4-32 0-6-4-6-28 0-32z" fill="url(#lg)"/><path d="M40 32h20M40 68h20" stroke="#b07d15" stroke-width="4" stroke-linecap="round"/><path d="M50 40v20M43 50h14" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".85"/></svg>`
+};
+
+// evolving trophy stages: sprout -> sapling -> tree -> forest
+const EVO = {
+1:`<svg viewBox="0 0 100 100"><path d="M50 82V52" stroke="#2f9d5c" stroke-width="5" stroke-linecap="round"/><path d="M50 58c-10 0-16-6-16-14 8 0 16 4 16 14z" fill="#3FB56E"/><path d="M50 52c8 0 14-5 14-12-7 0-14 3-14 12z" fill="#5fd48c"/></svg>`,
+2:`<svg viewBox="0 0 100 100"><path d="M50 84V44" stroke="#2f9d5c" stroke-width="6" stroke-linecap="round"/><path d="M50 62c-13 0-20-7-20-17 10 0 20 5 20 17z" fill="#3FB56E"/><path d="M50 52c11 0 18-6 18-15-9 0-18 4-18 15z" fill="#5fd48c"/><circle cx="50" cy="40" r="10" fill="#3FB56E"/></svg>`,
+3:`<svg viewBox="0 0 100 100"><path d="M50 86V50" stroke="#6b3d12" stroke-width="7" stroke-linecap="round"/><circle cx="50" cy="40" r="20" fill="#3FB56E"/><circle cx="34" cy="48" r="13" fill="#2f9d5c"/><circle cx="66" cy="48" r="13" fill="#5fd48c"/><circle cx="50" cy="30" r="12" fill="#5fd48c"/></svg>`,
+4:`<svg viewBox="0 0 100 100"><path d="M30 86V58M50 88V44M72 86V60" stroke="#6b3d12" stroke-width="6" stroke-linecap="round"/><circle cx="50" cy="34" r="18" fill="#3FB56E"/><circle cx="30" cy="50" r="13" fill="#2f9d5c"/><circle cx="72" cy="52" r="12" fill="#5fd48c"/><circle cx="50" cy="20" r="10" fill="#5fd48c"/><circle cx="16" cy="60" r="8" fill="#3FB56E"/><circle cx="86" cy="62" r="8" fill="#3FB56E"/></svg>`
+};
+
+const R = {common:'THƯỜNG · 41%',rare:'HIẾM · 12%',epic:'CỰC HIẾM · 4%',myth:'HUYỀN THOẠI · 0.9%'};
+
+const FLEX=[
+ {k:'anchor',r:'rare',vn:'Lowkey Locked In',en:'Fewest missed days, not longest streak',
+  desc:'Ít ngày bỏ lỡ nhất tháng — thưởng cho việc xuất hiện đều, kể cả chưa hoàn hảo.',
+  why:'<b>Why it wows:</b> rewards the un-glamorous behavior streaks punish. Rarity tag makes "reliable" feel elite.'},
+ {k:'constellation',r:'epic',vn:'Bộ Sưu Tập Đủ Cả',en:'Full Deck — breadth',
+  desc:'Duy trì 5+ loại thói quen cùng lúc. Không cày một cái — sống cả app.',
+  why:'<b>Why it wows:</b> pushes users into more of the product; epic-rarity flex for power users.'},
+];
+const SECRET=[
+ {k:'clock',vn:'Cinderella',en:'Log at 00:00 sharp',tap:'??? tap',
+  desc:'Log đúng nửa đêm 00:00. Không ai bảo bạn — bạn tự tìm ra.',
+  why:'<b>Why it wows:</b> discovery dopamine. No checklist, pure "wait, there was a secret?"'},
+ {k:'bolt',vn:'Speedrun',en:'3 habits in under 3 minutes',tap:'??? tap',
+  desc:'Xong 3 thói quen trong 3 phút. Tốc độ của người đã locked in.',
+  why:'<b>Why it wows:</b> turns a normal session into a challenge. Screenshot bait.'},
+ {k:'cake',vn:'Sinh Nhật Vẫn Cày',en:'Log on your birthday',tap:'??? tap',
+  desc:'Vẫn giữ thói quen ngay cả ngày sinh nhật. Real dedication.',
+  why:'<b>Why it wows:</b> feels personal — the app noticed your day. Emotional, not mechanical.'},
+];
+const STAKES=[
+ {k:'freeze',r:'myth',vn:'Băng Bảo Hộ',en:'Streak Freeze — a real reward',
+  desc:'Mở khoá = nhận 1 lượt đóng băng streak. Trophy đầu tiên ẢNH HƯỞNG tới lối chơi.',
+  why:'<b>Why it wows:</b> the boldest lever — chasing this trophy = chasing survival. Heaviest build (touches streak logic), biggest payoff.'},
+ {k:'lantern',r:'epic',vn:'Streak Mùa Tết',en:'Seasonal drop — gone after Tết',
+  desc:'Chỉ kiếm được trong dịp Tết. Hết mùa là mất vĩnh viễn.',
+  why:'<b>Why it wows:</b> real FOMO drives daily opens in the window. Cheap: date + streak you already track.'},
+];
+
+function card(d,secret){
+  return `<div class="card ${secret?'secret':''}" ${secret?'onclick="this.classList.add(\'revealed\')"':''}>
+    ${secret?'<span class="tap">'+d.tap+'</span><div class="q">? ? ?</div>':''}
+    <div class="${secret?'hidden-body':''}">
+      <div class="glow" style="background:${({anchor:'#3FB56E',constellation:'#7A5CE0',clock:'#EF5A2B',bolt:'#e6b52e',cake:'#e0559a',freeze:'#37a7c3',lantern:'#EF5A2B'})[d.k]}"></div>
+      <div class="top">${E[d.k]}<div><div class="vn">${d.vn}</div><div class="en">${d.en}</div>
+        ${d.r?`<span class="rarity r-${d.r}">◆ ${R[d.r]}</span>`:''}</div></div>
+      <div class="desc">${d.desc}</div>
+      <div class="why">${d.why}</div>
+    </div></div>`;
+}
+document.getElementById('flex').innerHTML=FLEX.map(d=>card(d,false)).join('');
+document.getElementById('secret').innerHTML=SECRET.map(d=>card(d,true)).join('');
+document.getElementById('stakes').innerHTML=STAKES.map(d=>card(d,false)).join('');
+document.getElementById('evo').innerHTML=
+ [[1,'Mầm','Ngày 1'],[2,'Chồi','Ngày 30'],[3,'Cây','Ngày 100'],[4,'Rừng','Ngày 365']]
+ .map((s,i)=>`<div class="stage">${EVO[s[0]]}<div class="lab">${s[1]}</div><div class="d">${s[2]}</div>${i<3?'<span class="arrow">→</span>':''}</div>`).join('')
+ + `<div class="evo-note"><b>The Living Trophy:</b> one badge, four states — it visibly grows as the user stays. People get attached to things that grow (Tamagotchi, Snap streaks). This is the badge they'd be genuinely sad to lose.</div>`;
+</script>

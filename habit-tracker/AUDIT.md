@@ -32,7 +32,7 @@ Status: ✅ Fixed this pass · 🔧 Recommended (left for you) · 🔎 Verify.
 ## Critical
 
 ### C1 — Keystore signing password in a public repo
-`CLAUDE.md:150` contained `password: HabitR1ng#2026` for `habitring-release.keystore`. The git remote is the **public** `github.com/thanhnguyenxuan970/Self-Pro`, and the value is in committed history (commit `efcea2b`).
+`CLAUDE.md:150` contained a release-keystore password for `habitring-release.keystore`. The git remote is the **public** `github.com/thanhnguyenxuan970/Self-Pro`, and the value is in committed history (commit `efcea2b`).
 - The `.keystore` file itself was **never committed** (verified) and is correctly gitignored, so exploitability is limited (an attacker needs the key file too) — but a signing password in public history must be treated as **compromised**.
 - ✅ **Done:** redacted the value in `CLAUDE.md` (working copy).
 - 🔧 **You must:** (1) change the keystore password (`keytool -storepasswd -keystore habitring-release.keystore`); (2) scrub git history (`git filter-repo` or BFG) and force-push, or make the repo private; (3) never commit the password again — keep it in `android/keystore.properties` (already gitignored) or a secret manager. SHA fingerprints in `CLAUDE.md` are public info and fine.

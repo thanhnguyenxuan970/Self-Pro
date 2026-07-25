@@ -170,7 +170,7 @@ export function RankScreen() {
         )}
 
         <View style={styles.progression}>
-          <Text style={styles.progressionTitle}>LỘ TRÌNH RANK</Text>
+          <Text style={styles.progressionTitle}>{t.rankRoadmap}</Text>
           <View style={styles.previewGrid}>
             {RANKS.map(rank => {
               const unlocked = rank.tier < currentTierOrder;

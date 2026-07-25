@@ -81,6 +81,7 @@ export function StreakMilestoneCelebrationModal({ milestone, onDismiss }: { mile
           <Text style={styles.eyebrow}>{t.streakMilestoneEyebrow}</Text>
           <Text style={styles.headline}>{t.streakMilestoneHeadline(milestone.days)}</Text>
           <View style={styles.rewardChip}><Text style={styles.rewardText}>★ {t.streakMilestoneReward(milestone.stars)}</Text></View>
+          <View style={styles.boostChip}><Text style={styles.boostText}>{t.streakMilestoneBoost(milestone.multiplier)}</Text></View>
           <Text style={styles.subline}>{t.streakMilestoneSubline}</Text>
         </Animated.View>
         <TouchableOpacity style={styles.cta} onPress={onDismiss} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.streakMilestoneCta}>
@@ -103,6 +104,8 @@ function makeStyles(C: AppColors, bottom: number) {
     headline: { color: C.inkDark, fontFamily: FontFamily.extraBold, fontSize: 21, lineHeight: 28, letterSpacing: -0.3, marginTop: 22, textAlign: 'center' },
     rewardChip: { backgroundColor: C.starSoft, borderRadius: Radii.pill, marginTop: 16, paddingHorizontal: 18, paddingVertical: 10 },
     rewardText: { color: C.starGold, fontFamily: FontFamily.extraBold, fontSize: 20, lineHeight: 25, includeFontPadding: false },
+    boostChip: { backgroundColor: C.primarySoft, borderRadius: Radii.pill, marginTop: 10, paddingHorizontal: 18, paddingVertical: 8 },
+    boostText: { color: C.primary, fontFamily: FontFamily.extraBold, fontSize: 16, lineHeight: 20, includeFontPadding: false },
     subline: { color: C.muted, fontFamily: FontFamily.semiBold, fontSize: 13, lineHeight: 18, marginTop: 10, textAlign: 'center' },
     cta: { position: 'absolute', left: 26, right: 26, bottom: Math.max(30, bottom + 12), minHeight: 54, borderRadius: Radii.md, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
     ctaText: { fontFamily: FontFamily.extraBold, fontSize: 16 },

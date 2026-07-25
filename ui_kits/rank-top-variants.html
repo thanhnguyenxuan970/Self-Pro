@@ -1,0 +1,159 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Habi · Top Ranks — 3 phương án mỗi rank</title>
+<style>
+  :root{--bg:#0E0B1A;--panel:#191428;--line:#2A2440;--ink:#EDE9FB;--muted:#9A93B8;}
+  body.light{--bg:#F3F1FB;--panel:#FFFFFF;--line:#E4E0F0;--ink:#231E38;--muted:#7A7396;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:radial-gradient(1200px 600px at 50% -10%,#1b1636,var(--bg));color:var(--ink);min-height:100vh}
+  body.light{background:radial-gradient(1200px 600px at 50% -10%,#efe9ff,var(--bg))}
+  header{padding:22px 30px 8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  h1{margin:0;font-size:21px}
+  .toggle{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:600}
+  .wrap{max-width:860px;margin:0 auto;padding:6px 20px 30px}
+  .rankrow{margin-bottom:30px}
+  .rtitle{font-size:17px;font-weight:800;margin:0 0 2px}
+  .rsub{font-size:12px;color:var(--muted);margin-bottom:10px}
+  .vgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .vcard{position:relative;background:var(--panel);border:2px solid var(--line);border-radius:18px;padding:14px 10px 12px;display:flex;flex-direction:column;align-items:center;cursor:pointer;transition:transform .15s,border-color .15s}
+  .vcard:hover{transform:translateY(-4px)}
+  .vcard.sel{border-color:#F4C842;box-shadow:0 0 22px rgba(244,200,66,.35)}
+  .vcard.sel::after{content:'✓ CHỌN';position:absolute;top:8px;right:10px;font-size:10px;font-weight:800;color:#0E0B1A;background:#F4C842;border-radius:999px;padding:2px 8px}
+  .vh{width:150px;height:150px;display:flex;align-items:center;justify-content:center}
+  .vh svg{width:100%;height:100%;overflow:visible}
+  .vn{font-size:14px;font-weight:800;margin-top:4px}
+  .vd{font-size:11.5px;color:var(--muted);text-align:center;line-height:1.45;margin-top:2px;min-height:48px}
+  .anim-6{animation:s6 2s ease-in-out infinite}@keyframes s6{0%,100%{transform:translateY(0) scale(1)}30%{transform:translateY(-9px) scale(1.05)}45%{transform:translateY(0) scale(1,.95)}60%{transform:translateY(-4px) scale(1.02)}75%{transform:translateY(0) scale(1)}}
+  .anim-7{animation:s7 2.4s ease-in-out infinite}@keyframes s7{0%,100%{transform:translateY(0) scale(1) rotate(-1deg)}50%{transform:translateY(-4px) scale(1.06) rotate(1deg)}}
+  .anim-8{animation:s8 2.6s ease-in-out infinite}@keyframes s8{0%,100%{transform:translateY(3px) scale(1)}50%{transform:translateY(-5px) scale(1.03)}}
+  .sum{position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--line);padding:12px 30px;font-size:14px;font-weight:700;display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
+  .sum span{color:#F4C842}
+</style>
+<body>
+<header>
+  <h1>Top Ranks — 3 phương án mỗi rank, bấm để chọn</h1>
+  <button class="toggle" id="tg">☀️</button>
+</header>
+<div class="wrap" id="wrap"></div>
+<div class="sum" id="sum"></div>
+
+<script>
+const INFO={
+ 6:{name:'GOATED',vi:'Vượt Mức Pickleball',color:'#F4C842',edge:'#A87B12',glow:'#FFE066',outer:35,pips:4,pipCol:'#ffdd6b'},
+ 7:{name:'Final Boss',vi:'Trùm Cuối',color:'#8B5CF6',edge:'#5B21B6',glow:'#8B5CF6',outer:36.5,pips:4,pipCol:'#ffdd6b'},
+ 8:{name:'Ascended',vi:'Đỉnh Của Chóp',color:'#F5EEFF',edge:'#C9A227',glow:'#E0A93B',outer:38,pips:5,pipCol:'#ff9ecb'},
+};
+const CX=60,CY=62;
+function hexA(hex,a){const h=hex.replace('#','');return `rgba(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)},${a})`;}
+function sparkle(x,y,s,c){const q=s*0.32;return `<path d="M${x},${y-s} C${x+q},${y-q} ${x+q},${y-q} ${x+s},${y} C${x+q},${y+q} ${x+q},${y+q} ${x},${y+s} C${x-q},${y+q} ${x-q},${y+q} ${x-s},${y} C${x-q},${y-q} ${x-q},${y-q} ${x},${y-s} Z" fill="${c}"/>`;}
+function polyStar(cx,cy,outer,inner,points,rot){let p=[];for(let k=0;k<points*2;k++){const r=k%2===0?outer:inner;const a=rot+k*Math.PI/points;p.push(`${(cx+Math.cos(a)*r).toFixed(1)},${(cy+Math.sin(a)*r).toFixed(1)}`);}return p.join(' ');}
+function rays(cx,cy,r1,r2,n,col,w,rot){let s='';for(let k=0;k<n;k++){const a=(rot||0)+k*2*Math.PI/n;s+=`<line x1="${(cx+Math.cos(a)*r1).toFixed(1)}" y1="${(cy+Math.sin(a)*r1).toFixed(1)}" x2="${(cx+Math.cos(a)*r2).toFixed(1)}" y2="${(cy+Math.sin(a)*r2).toFixed(1)}" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/>`;}return s;}
+function accHalo(cx,topY,col){return `<ellipse cx="${cx}" cy="${topY}" rx="17" ry="5.4" fill="none" stroke="${col}" stroke-width="3"/><ellipse cx="${cx}" cy="${topY}" rx="17" ry="5.4" fill="none" stroke="#fff" stroke-width="1" opacity="0.6"/>`;}
+function accWings(cx,cy,col){const w=(sx)=>`<path d="M${cx+sx*7},${cy-4} q${sx*24},-16 ${sx*30},1 q${sx*-7},-2 ${sx*-13},1 q${sx*20},1 ${sx*22},15 q${sx*-8},-6 ${sx*-16},-5 q${sx*14},7 ${sx*11},18 q${sx*-9},-10 ${sx*-19},-13 Z" fill="${col}" opacity="0.9"/>`;return `<g>${w(-1)}${w(1)}</g>`;}
+function laurel(cx,cy){const side=(sx)=>`<path d="M${cx+sx*29},${cy+15} q${sx*11},-13 ${sx*4},-31" fill="none" stroke="#8FBF6B" stroke-width="3.4" stroke-linecap="round"/><path d="M${cx+sx*33},${cy+6} l${sx*5},-2 M${cx+sx*32},${cy-3} l${sx*5},-2 M${cx+sx*29},${cy-11} l${sx*5},-1" stroke="#8FBF6B" stroke-width="2.4" stroke-linecap="round"/>`;return side(-1)+side(1);}
+function face6(){const ink='#2A2540',L=CX-10,R=CX+10,Y=CY-2;
+ return `<path d="M${L-5},${Y-3} l9,2" stroke="${ink}" stroke-width="2.8" stroke-linecap="round"/><path d="M${R+5},${Y-3} l-9,2" stroke="${ink}" stroke-width="2.8" stroke-linecap="round"/><circle cx="${L}" cy="${Y+2}" r="2.3" fill="${ink}"/><circle cx="${R}" cy="${Y+2}" r="2.3" fill="${ink}"/><path d="M${CX-8},${Y+9} q8,7 16,0" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;}
+function face7(g){const ink='#2A2540',L=CX-10,R=CX+10,Y=CY-2;
+ return `<path d="M${L-5},${Y-3} l9,3" stroke="${ink}" stroke-width="3" stroke-linecap="round"/><path d="M${R+5},${Y-3} l-9,3" stroke="${ink}" stroke-width="3" stroke-linecap="round"/><path d="M${L-4},${Y+2} q4,-3 8,0" stroke="${g}" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M${R-4},${Y+2} q4,-3 8,0" stroke="${g}" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M${CX-8},${Y+9} q8,6 16,0" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M${CX-4},${Y+11} l1.4,3 l1.4,-3 Z" fill="#fff"/><path d="M${CX+1.2},${Y+11} l1.4,3 l1.4,-3 Z" fill="#fff"/>`;}
+function face8(edge){const ink='#2A2540',L=CX-10,R=CX+10,Y=CY-2;
+ return `<path d="M${L-4},${Y+1} q4,-4 8,0" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M${R-4},${Y+1} q4,-4 8,0" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/><circle cx="${L-7}" cy="${Y+6}" r="2.6" fill="${edge}" opacity="0.45"/><circle cx="${R+7}" cy="${Y+6}" r="2.6" fill="${edge}" opacity="0.45"/><path d="M${CX-5},${Y+9} q5,4 10,0" stroke="${ink}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`;}
+function pips(n,col){let s='';const py=112;for(let k=0;k<n;k++){const px=CX-(n-1)*5+k*10;s+=`<polygon points="${px},${py-3.2} ${px+2.8},${py} ${px},${py+3.2} ${px-2.8},${py}" fill="${col}" opacity="0.95"/>`;}return s;}
+function wrapSvg(tier,inner){const t=INFO[tier];const gi=(3+tier*1.5).toFixed(1);return `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 0 ${gi}px ${hexA(t.glow,0.55)})">${inner}${pips(t.pips,t.pipCol)}</svg>`;}
+
+// ================= GOATED (6) =================
+function g6A(){ // Vàng Ròng — kim loại bóng
+  const t=INFO[6],pts=polyStar(CX,CY,t.outer,t.outer*0.45,5,-Math.PI/2),topY=CY-t.outer+3;
+  return wrapSvg(6,`<defs><linearGradient id="a6a" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.5" stop-color="#F4C842"/><stop offset="1" stop-color="#C98F1B"/></linearGradient></defs>
+<polygon points="${pts}" fill="url(#a6a)" stroke="#A87B12" stroke-width="3" stroke-linejoin="round"/>
+<path d="M${CX-15},${CY-16} q9,-10 22,-6" stroke="#FFFDF2" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.7"/>
+${face6()}${sparkle(CX,topY-3,4.5,'#FFFDF2')}${sparkle(CX+22,CY-6,3,'#FFF3B0')}${sparkle(CX-24,CY+10,2.6,'#FFF3B0')}`);
+}
+function g6B(){ // Sừng Chiến Thần — sừng dê vàng cong lớn, 1 phụ kiện duy nhất
+  const t=INFO[6],pts=polyStar(CX,CY,t.outer,t.outer*0.47,5,-Math.PI/2),topY=CY-t.outer+3;
+  const horn=(sx)=>`<path d="M${CX+sx*13},${topY+6} C ${CX+sx*30},${topY+2} ${CX+sx*34},${topY-16} ${CX+sx*24},${topY-24} C ${CX+sx*28},${topY-12} ${CX+sx*22},${topY-4} ${CX+sx*10},${topY-1} Z" fill="#E8B84B" stroke="#8a6d2f" stroke-width="1.6" stroke-linejoin="round"/>`;
+  return wrapSvg(6,`${horn(-1)}${horn(1)}<polygon points="${pts}" fill="${t.color}" stroke="${t.edge}" stroke-width="3" stroke-linejoin="round"/>${face6()}${sparkle(CX+20,CY-12,3,'#FFFDF2')}`);
+}
+function g6C(){ // Vô Địch — vương miện liền thân + nguyệt quế
+  const t=INFO[6],pts=polyStar(CX,CY,t.outer,t.outer*0.45,5,-Math.PI/2),topY=CY-t.outer+3;
+  return wrapSvg(6,`${laurel(CX,CY)}<polygon points="${pts}" fill="${t.color}" stroke="${t.edge}" stroke-width="3" stroke-linejoin="round"/>
+<path d="M${CX-12},${topY+3} l2.5,-9 l5,5 l4.5,-8 l4.5,8 l5,-5 l2.5,9 Z" fill="#FFE066" stroke="#A87B12" stroke-width="1.6" stroke-linejoin="round"/>
+${face6()}`);
+}
+// ================= FINAL BOSS (7) =================
+function g7A(){ // Obsidian — 7 cánh gai + vết nứt ma thuật
+  const t=INFO[7],pts7=polyStar(CX,CY,t.outer+2,(t.outer+2)*0.46,7,-Math.PI/2);
+  return wrapSvg(7,`<defs><radialGradient id="a7a" cx="50%" cy="42%" r="68%"><stop offset="0" stop-color="#4C3575"/><stop offset="0.6" stop-color="#2B1D46"/><stop offset="1" stop-color="#191030"/></radialGradient></defs>
+<polygon points="${pts7}" fill="url(#a7a)" stroke="#8B5CF6" stroke-width="2.6" stroke-linejoin="round"/>
+<path d="M${CX-16},${CY+4} l7,-6 l-3,-8 M${CX+14},${CY+9} l-5,-7 l4,-6 M${CX-2},${CY+20} l3,-7 l-5,-5" stroke="#C4B5FD" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.9"/>
+<circle cx="${CX-7}" cy="${CY-11}" r="3.4" fill="#EF4444" opacity="0.35"/><circle cx="${CX+7}" cy="${CY-11}" r="3.4" fill="#EF4444" opacity="0.35"/>
+${face7(t.glow)}`);
+}
+function g7B(){ // Hắc Ảnh — lửa tím trên đỉnh + thân tan chảy thành bóng tối
+  const t=INFO[7],pts=polyStar(CX,CY,t.outer,t.outer*0.47,5,-Math.PI/2),topY=CY-t.outer+3;
+  return wrapSvg(7,`<defs><linearGradient id="a7b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3B2A63"/><stop offset="0.75" stop-color="#221740"/><stop offset="1" stop-color="#140D28"/></linearGradient></defs>
+<polygon points="${pts}" fill="url(#a7b)" stroke="#6D28D9" stroke-width="2.8" stroke-linejoin="round"/>
+<path d="M${CX-3},${topY-2} q-4,-8 1,-14 q1,6 5,8 q3,-4 2,-8 q6,7 0,14 Z" fill="#A78BFA" opacity="0.9"/>
+<path d="M${CX-20},${CY+26} q2,7 -3,11 M${CX},${CY+31} q1,8 -2,12 M${CX+19},${CY+25} q3,6 0,11" stroke="#4C1D95" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.85"/>
+${face7('#E9D5FF')}`);
+}
+function g7C(){ // Ác Đế — vương miện gai + cape đỏ, phản diện cổ điển
+  const t=INFO[7],pts=polyStar(CX,CY,t.outer,t.outer*0.46,5,-Math.PI/2),topY=CY-t.outer+3;
+  return wrapSvg(7,`<path d="M${CX-28},${CY-6} q-12,26 2,44 L${CX-10},${CY+26} Z M${CX+28},${CY-6} q12,26 -2,44 L${CX+10},${CY+26} Z" fill="#B91C1C" opacity="0.85"/>
+<polygon points="${pts}" fill="#6D28D9" stroke="${t.edge}" stroke-width="3" stroke-linejoin="round"/>
+<path d="M${CX-15},${topY+3} l3.5,-12 l5.5,7 l6,-11 l6,11 l5.5,-7 l3.5,12 Z" fill="#2B1D46" stroke="#8B5CF6" stroke-width="1.4" stroke-linejoin="round"/>
+<circle cx="${CX}" cy="${topY-7}" r="2" fill="#EF4444"/>
+${face7(t.glow)}`);
+}
+// ================= ASCENDED (8) =================
+function g8A(){ // Sao Ánh Sáng — hai lớp + lõi phát quang + halo
+  const t=INFO[8],pts=polyStar(CX,CY,t.outer,t.outer*0.44,5,-Math.PI/2),ptsO=polyStar(CX,CY,t.outer+7,(t.outer+7)*0.54,5,-Math.PI/2),topY=CY-t.outer+3;
+  return wrapSvg(8,`<defs><radialGradient id="a8a" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.55" stop-color="#FFF3D6"/><stop offset="1" stop-color="#F0D084"/></radialGradient></defs>
+<polygon points="${ptsO}" fill="#FFF6DC" opacity="0.25"/>
+<polygon points="${pts}" fill="url(#a8a)" stroke="#C9A227" stroke-width="2.4" stroke-linejoin="round"/>
+<circle cx="${CX}" cy="${CY-3}" r="9" fill="#FFFFFF" opacity="0.55"/>
+${face8(t.edge)}${accHalo(CX,topY-5,t.glow)}${rays(CX,CY,t.outer+8,t.outer+14,8,t.glow,1.4,0)}`);
+}
+function g8B(){ // Thiên Thần — cánh trắng + halo, cổ điển thần thánh
+  const t=INFO[8],pts=polyStar(CX,CY,t.outer-2,(t.outer-2)*0.46,5,-Math.PI/2),topY=CY-(t.outer-2)+3;
+  return wrapSvg(8,`${accWings(CX,CY,'#FFF4C2')}<polygon points="${pts}" fill="${t.color}" stroke="${t.edge}" stroke-width="2.6" stroke-linejoin="round"/>${face8(t.edge)}${accHalo(CX,topY-4,t.glow)}`);
+}
+function g8C(){ // Tinh Vân — thân dải ngân hà + vành đai sao thổ
+  const t=INFO[8],pts=polyStar(CX,CY,t.outer,t.outer*0.45,5,-Math.PI/2);
+  return wrapSvg(8,`<defs><radialGradient id="a8c" cx="45%" cy="38%" r="75%"><stop offset="0" stop-color="#FDF4FF"/><stop offset="0.45" stop-color="#C4B5FD"/><stop offset="1" stop-color="#6D28D9"/></radialGradient></defs>
+<polygon points="${pts}" fill="url(#a8c)" stroke="#C9A227" stroke-width="2.4" stroke-linejoin="round"/>
+${sparkle(CX-12,CY+14,2.4,'#fff')}${sparkle(CX+15,CY+8,2,'#fff')}${sparkle(CX+6,CY-18,2.6,'#fff')}
+<ellipse cx="${CX}" cy="${CY}" rx="46" ry="12" fill="none" stroke="#E0A93B" stroke-width="2.6" transform="rotate(-16 ${CX} ${CY})" opacity="0.9"/>
+<ellipse cx="${CX}" cy="${CY}" rx="46" ry="12" fill="none" stroke="#fff" stroke-width="0.8" transform="rotate(-16 ${CX} ${CY})" opacity="0.5"/>
+${face8('#7C3AED')}`);
+}
+
+const VARIANTS={
+ 6:[{id:'6A',n:'Vàng Ròng',d:'Thân vàng kim loại gradient + vệt bóng specular + glint. Đẳng cấp từ chất liệu, không phụ kiện.',f:g6A},
+    {id:'6B',n:'Sừng Chiến Thần',d:'Đúng nghĩa GOAT: cặp sừng dê vàng cong lớn — 1 phụ kiện duy nhất, silhouette cực nhận diện.',f:g6B},
+    {id:'6C',n:'Vô Địch',d:'Vương miện vàng + vòng nguyệt quế — biểu tượng nhà vô địch cổ điển, dễ hiểu ngay.',f:g6C}],
+ 7:[{id:'7A',n:'Obsidian',d:'Sao 7 cánh gai bằng đá hắc ám, vết nứt ma thuật tím phát sáng, quầng mắt đỏ.',f:g7A},
+    {id:'7B',n:'Hắc Ảnh',d:'Ngọn lửa tím cháy trên đỉnh, chân thân tan chảy thành bóng tối nhỏ giọt.',f:g7B},
+    {id:'7C',n:'Ác Đế',d:'Phản diện cổ điển: vương miện gai đen + cape đỏ máu. Kịch tính, đọc ngay là "trùm".',f:g7C}],
+ 8:[{id:'8A',n:'Sao Ánh Sáng',d:'Thân ánh sáng hai lớp bán trong suốt, lõi phát quang, halo + tia. Siêu thoát tục.',f:g8A},
+    {id:'8B',n:'Thiên Thần',d:'Cánh trắng + halo — thần thánh cổ điển, thân thiện và dễ thương nhất.',f:g8B},
+    {id:'8C',n:'Tinh Vân',d:'Thân dải ngân hà tím + sao lấp lánh bên trong + vành đai Sao Thổ vàng. Vũ trụ nhất.',f:g8C}],
+};
+const sel={6:null,7:null,8:null};
+const wrap=document.getElementById('wrap');
+let h='';
+for(const tier of [6,7,8]){
+  const t=INFO[tier];
+  h+=`<div class="rankrow"><div class="rtitle" style="color:${t.glow}">${tier}· ${t.name} <span style="font-weight:500;color:var(--muted);font-size:13px">· ${t.vi} · ★${tier===6?320:tier===7?640:1280}</span></div><div class="rsub">Chọn 1 trong 3 phương án</div><div class="vgrid">`;
+  for(const v of VARIANTS[tier]){h+=`<div class="vcard" data-t="${tier}" data-id="${v.id}"><div class="vh anim-${tier}">${v.f()}</div><div class="vn">${v.id} · ${v.n}</div><div class="vd">${v.d}</div></div>`;}
+  h+='</div></div>';
+}
+wrap.innerHTML=h;
+function renderSum(){
+  document.getElementById('sum').innerHTML=`Đã chọn: GOATED <span>${sel[6]??'—'}</span> · Final Boss <span>${sel[7]??'—'}</span> · Ascended <span>${sel[8]??'—'}</span>`;
+}
+wrap.onclick=e=>{const c=e.target.closest('.vcard');if(!c)return;const t=+c.dataset.t;sel[t]=c.dataset.id;
+  document.querySelectorAll(`.vcard[data-t="${t}"]`).forEach(x=>x.classList.toggle('sel',x===c));renderSum();};
+renderSum();
+document.getElementById('tg').onclick=()=>document.body.classList.toggle('light');
+</script>
+</body>
