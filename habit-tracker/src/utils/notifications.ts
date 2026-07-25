@@ -14,7 +14,6 @@ const CHALLENGE_REMINDER_MINUTE = 0;
 export async function scheduleChallengeReminder(challengeName: string, mode: 'streak' | 'weekly'): Promise<string | null> {
   try {
     const Notifications = await import('expo-notifications');
-    const isIOS = require('react-native').Platform.OS === 'ios';
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== 'granted') return null;
     return await Notifications.scheduleNotificationAsync({
@@ -23,11 +22,11 @@ export async function scheduleChallengeReminder(challengeName: string, mode: 'st
         body: `Đừng quên ghi nhận "${challengeName}" hôm nay!`,
         sound: true,
       },
-      trigger: mode === 'weekly'
-        ? isIOS
-          ? { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, weekday: 2, hour: CHALLENGE_REMINDER_HOUR, minute: CHALLENGE_REMINDER_MINUTE, repeats: true }
-          : { type: Notifications.SchedulableTriggerInputTypes.WEEKLY, weekday: 2, hour: CHALLENGE_REMINDER_HOUR, minute: CHALLENGE_REMINDER_MINUTE }
-        : { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: CHALLENGE_REMINDER_HOUR, minute: CHALLENGE_REMINDER_MINUTE },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: CHALLENGE_REMINDER_HOUR,
+        minute: CHALLENGE_REMINDER_MINUTE,
+      },
     });
   } catch {
     return null;

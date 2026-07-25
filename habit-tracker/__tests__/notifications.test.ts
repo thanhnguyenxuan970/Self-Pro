@@ -1,8 +1,7 @@
-jest.mock('react-native', () => ({ Platform: { OS: 'android' } }));
 jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
   scheduleNotificationAsync: jest.fn().mockResolvedValue('scheduled'),
-  SchedulableTriggerInputTypes: { DAILY: 'daily', WEEKLY: 'weekly', CALENDAR: 'calendar' },
+  SchedulableTriggerInputTypes: { DAILY: 'daily' },
 }));
 
 import { parseNotificationTime, scheduleChallengeReminder } from '../src/utils/notifications';
@@ -28,10 +27,18 @@ test('out-of-range minutes returns null', () => {
   expect(parseNotificationTime('08:61')).toBeNull();
 });
 
-test('weekly challenges schedule a Monday weekly reminder', async () => {
+test('weekly challenges schedule a daily reminder', async () => {
   await scheduleChallengeReminder('Read', 'weekly');
 
   expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith(expect.objectContaining({
-    trigger: expect.objectContaining({ type: 'weekly', weekday: 2, hour: 20, minute: 0 }),
+    trigger: expect.objectContaining({ type: 'daily', hour: 20, minute: 0 }),
+  }));
+});
+
+test('streak challenges schedule a daily reminder', async () => {
+  await scheduleChallengeReminder('Read', 'streak');
+
+  expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith(expect.objectContaining({
+    trigger: expect.objectContaining({ type: 'daily', hour: 20, minute: 0 }),
   }));
 });

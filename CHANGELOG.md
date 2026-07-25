@@ -9,6 +9,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 - **Tier 9 Singularity**: extended the weekly rank ladder to 2560 stars with its flat cosmic mascot, bilingual labels, level-up presentation, and SQLite migration v22.
 
+### Fixed
+- **Weekly/session challenges — reminder now actually fires daily**: `scheduleChallengeReminder('weekly')` was scheduling a once-a-week Monday-only local notification, while both the notification body ("...hôm nay!"/"...today!") and the Create-challenge toggle copy (`challengeNotifyWeeklyLabel`/`Desc`: "Weekly reminder" / "Nudges you when you are falling behind the weekly pace") implied a recurring daily nudge. `scheduleChallengeReminder` now schedules the same `DAILY` trigger for both `'streak'` and `'weekly'` modes (dropping the now-dead iOS `CALENDAR` vs Android `WEEKLY` branch), and the weekly-mode toggle copy (VI + EN) was corrected to describe the real daily behavior instead of a pace-aware nudge that was never implemented. Note: this is a plain unconditional daily reminder, not the pace-conditional "nudge only when falling behind, capped at once/week" notification described in the still-open TODOS.md item below — that remains unbuilt.
+
 ## [1.1.4] - 2026-07-16
 
 ### Added
