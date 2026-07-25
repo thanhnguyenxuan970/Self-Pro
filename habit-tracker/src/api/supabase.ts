@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
@@ -8,9 +7,10 @@ const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 export const supabase: SupabaseClient | null = url && key
   ? createClient(url, key, {
       auth: {
-        storage: AsyncStorage,
-        autoRefreshToken: true,
-        persistSession: true,
+        // A fresh Google token is required after each launch; never retain a
+        // Supabase session on-device or refresh it in the background.
+        autoRefreshToken: false,
+        persistSession: false,
         detectSessionInUrl: false,
       },
     })

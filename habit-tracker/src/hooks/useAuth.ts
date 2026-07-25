@@ -68,15 +68,18 @@ export function parseOnboarded(val: string | null): boolean {
   return val === 'true';
 }
 
-/** Read stored Google user email without React. Used by non-hook async code (e.g. sync). */
-export async function getStoredGoogleUserEmail(): Promise<string | null> {
+/** Read the stored Google identity without React. Used by non-hook sync code. */
+export async function getStoredGoogleUser(): Promise<GoogleUser | null> {
   try {
-    const raw = await readGoogleUser();
-    const user = parseGoogleUser(raw);
-    return user?.email ?? null;
+    return parseGoogleUser(await readGoogleUser());
   } catch {
     return null;
   }
+}
+
+/** Read stored Google user email without React. */
+export async function getStoredGoogleUserEmail(): Promise<string | null> {
+  return (await getStoredGoogleUser())?.email ?? null;
 }
 
 export function parseGoogleUser(val: string | null): GoogleUser | null {

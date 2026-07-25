@@ -3,6 +3,7 @@ import { SQLiteDatabase } from 'expo-sqlite';
 import { supabase } from './supabase';
 import { getDb } from '../db/client';
 import { selectClockSuspectLocalIds } from '../lib/clockSuspect';
+import { getStoredGoogleUser } from '../hooks/useAuth';
 
 const KEY_LAST_ACTIVITY = 'habit_sync_last_activity_id';
 const KEY_LAST_FUND = 'habit_sync_last_fund_id';
@@ -114,6 +115,46 @@ async function syncFund(db: SQLiteDatabase, userId: number, userEmail: string): 
   await upsertBatch('fund_transactions', rows, userEmail, key);
 }
 
+/** Establish the short-lived Supabase session required by RLS before syncing.
+ * Google owns the fresh ID token; Supabase sessions intentionally are not
+ * persisted on-device. */
+const SESSION_EXPIRY_SKEW_SECONDS = 60;
+
+export async function ensureSupabaseSession(userEmail: string): Promise<void> {
+  if (!supabase) return;
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  // getSession() only reports whether a session object is cached in memory —
+  // with autoRefreshToken: false it never refreshes, so a session held across
+  // an hour-long app session is stale JWT that Supabase will 401 on. Check
+  // expires_at explicitly instead of trusting presence alone.
+  const sessionIsFresh = session != null
+    && (session.expires_at == null || session.expires_at > Math.floor(Date.now() / 1000) + SESSION_EXPIRY_SKEW_SECONDS);
+  if (sessionIsFresh) {
+    if (session!.user.email !== userEmail) throw new Error('Supabase session does not match the signed-in user');
+    return;
+  }
+
+  // require at call-time: preserves the native-module loading guard used by auth.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { GoogleSignin, isNoSavedCredentialFoundResponse } = require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
+  GoogleSignin.configure({ webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID });
+  // getTokens() only reads whatever ID token is cached on the native
+  // GoogleSignInAccount — it does not refresh it. That cached token expires
+  // ~1hr after the last sign-in, so on Android it goes stale mid-session and
+  // Supabase rejects it as "Bad ID token". signInSilently() forces the native
+  // SDK to refresh the account (and its ID token) before we read it.
+  const silent = await GoogleSignin.signInSilently();
+  if (isNoSavedCredentialFoundResponse(silent)) {
+    throw new Error('No saved Google credential to refresh the sync session');
+  }
+  const { idToken } = await GoogleSignin.getTokens();
+  if (!idToken) throw new Error('Google did not provide an ID token for Supabase sync');
+  const { data, error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
+  if (error) throw error;
+  if (data.user?.email !== userEmail) throw new Error('Google token does not match the signed-in user');
+}
+
 /**
  * Push new local rows to Supabase. Silent no-op when credentials absent.
  * Only the signed-in user's own rows are pushed. Safe to call after every
@@ -121,13 +162,20 @@ async function syncFund(db: SQLiteDatabase, userId: number, userEmail: string): 
  */
 export async function syncToSupabase(userSub: string, userEmail: string): Promise<void> {
   if (!supabase) return;
+  await ensureSupabaseSession(userEmail);
   const db = await getDb();
   const userId = await resolveUserId(db, userSub, userEmail);
   if (userId == null) return;
-  await Promise.allSettled([
+  await Promise.all([
     syncActivity(db, userId, userEmail),
     syncFund(db, userId, userEmail),
   ]);
+}
+
+/** Sync all pending rows for the currently stored Google account. */
+export async function syncCurrentUserToSupabase(): Promise<void> {
+  const user = await getStoredGoogleUser();
+  if (user) await syncToSupabase(user.sub, user.email);
 }
 
 /** Reset all sync cursors (call on sign-out so next sign-in re-syncs from scratch). */

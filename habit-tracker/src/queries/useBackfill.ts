@@ -4,6 +4,7 @@ import { canBackfill, computeBackfillSession, computeStreakCounts, type Backfill
 import { getLocalDate, getLocalDateFor, getWeekStart, getWeekStartFor } from '../utils/formatters';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { crossedStreakMilestone, type StreakMilestone } from '../game/streakMilestones';
+import { syncCurrentUserToSupabase } from '../api/syncService';
 
 export type BackfillEntryParams = BackfillSessionEntry;
 
@@ -228,6 +229,7 @@ export function useBackfillDay(userId: number) {
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['backfill'] });
+      syncCurrentUserToSupabase().catch(error => console.warn('[sync] activity log sync failed:', error));
     },
 
     onError: (_err) => {
