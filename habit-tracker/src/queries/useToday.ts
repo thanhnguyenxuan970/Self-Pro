@@ -1,13 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
-import { getStoredGoogleUserEmail } from '../hooks/useAuth';
-import { syncUserStreak } from '../api/syncService';
+import { getStoredGoogleUser } from '../hooks/useAuth';
+import { syncCurrentUserToSupabase, syncUserStreak } from '../api/syncService';
 import { logActiveChallengeDay } from './useChallenge';
 import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
 import { TierRow } from '../game/tierUnlocks';
-import { resolveWeeklyRank } from '../game/weeklyRank';
+import { carryWeeklyProgress } from '../game/weeklyRank';
 import { dailyBonusStarsForPoints } from '../config/constants';
 import { crossedStreakMilestone, type StreakMilestone } from '../game/streakMilestones';
 
@@ -98,27 +98,23 @@ async function getCarryOverTierId(
   userId: number,
   tiers: FullTierRow[],
   currentWeekStart: string,
-): Promise<number | null> {
+): Promise<{ tierId: number | null; weeklyStars: number; peakStars: number }> {
   const sorted = [...tiers].sort((a, b) => a.tier_order - b.tier_order);
-  const lowestTier = sorted[0];
 
-  const lastWeek = await db.getFirstAsync<{ weekly_stars: number; current_tier_id: number | null }>(
-    `SELECT weekly_stars, current_tier_id FROM weekly_summary
+  const lastWeek = await db.getFirstAsync<{ weekly_stars: number; peak_stars: number; current_tier_id: number | null }>(
+    `SELECT weekly_stars, peak_stars, current_tier_id FROM weekly_summary
      WHERE user_id = ? AND week_start < ?
      ORDER BY week_start DESC LIMIT 1`,
     [userId, currentWeekStart],
   );
 
-  if (!lastWeek) return null;
-  if (lastWeek.current_tier_id === null) return resolveWeeklyRank(null, lastWeek.weekly_stars, sorted).tierId;
-
-  const lastTier = sorted.find(t => t.id === lastWeek.current_tier_id);
-  if (!lastTier) return lowestTier.id;
-
-  // No inactivity — carry over
-
-  // Inactivity penalty: demote 1 tier
-  return resolveWeeklyRank(lastTier.id, lastWeek.weekly_stars, sorted).tierId;
+  if (!lastWeek) return { tierId: null, weeklyStars: 0, peakStars: 0 };
+  const carry = carryWeeklyProgress({
+    weeklyStars: lastWeek.weekly_stars,
+    peakStars: lastWeek.peak_stars,
+    currentTierId: lastWeek.current_tier_id,
+  }, sorted);
+  return { tierId: carry.currentTierId, weeklyStars: carry.weeklyStars, peakStars: carry.peakStars };
 }
 
 async function updateTreatPool(
@@ -335,14 +331,14 @@ export function useLogTask(userId: number) {
           `SELECT COALESCE(MAX(streak_count), 0) AS best FROM daily_summary WHERE user_id = ?`,
           [userId],
         );
-        const weeklyRow = await db.getFirstAsync<{ weekly_stars: number; current_tier_id: number | null }>(
-          `SELECT weekly_stars, current_tier_id FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
+        const weeklyRow = await db.getFirstAsync<{ weekly_stars: number; peak_stars: number; current_tier_id: number | null }>(
+          `SELECT weekly_stars, peak_stars, current_tier_id FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
           [userId, weekStart]
         );
         // Carry-over: compute starting tier for new weeks; reuse existing for ongoing weeks.
-        const carryOverTierId = weeklyRow === null
+        const carry = weeklyRow === null
           ? await getCarryOverTierId(db, userId, tiers, weekStart)
-          : weeklyRow.current_tier_id;
+          : { tierId: weeklyRow.current_tier_id, weeklyStars: weeklyRow.weekly_stars, peakStars: weeklyRow.peak_stars };
 
         const { todayStreak, streakResult: sr } = await computeTodayStreak(db, userId, today, yesterdayDate, daily);
         streakResult = sr;
@@ -377,8 +373,8 @@ export function useLogTask(userId: number) {
              total_points = total_points + ?,
              weekly_stars = weekly_stars + ?,
              peak_stars = MAX(peak_stars, weekly_stars + ?)`,
-          [userId, weekStart, activityRow.points_earned, totalStarsDelta,
-           Math.max(0, totalStarsDelta), carryOverTierId,
+          [userId, weekStart, activityRow.points_earned, carry.weeklyStars + totalStarsDelta,
+           Math.max(carry.peakStars, carry.weeklyStars + totalStarsDelta), carry.tierId,
            activityRow.points_earned, totalStarsDelta, totalStarsDelta]
         );
 
@@ -402,9 +398,12 @@ export function useLogTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['challenge'] });
       qc.invalidateQueries({ queryKey: ['achievements'] });
       // Fire-and-forget streak sync — non-fatal if Supabase absent or table not migrated
-      getStoredGoogleUserEmail()
-        .then(email => { if (email) return syncUserStreak(email, data.newStreak); })
-        .catch(() => {});
+      getStoredGoogleUser()
+        .then(user => user && Promise.all([
+          syncUserStreak(user.email, data.newStreak),
+          syncCurrentUserToSupabase(),
+        ]))
+        .catch(error => console.warn('[sync] activity log sync failed:', error));
     },
   });
 }

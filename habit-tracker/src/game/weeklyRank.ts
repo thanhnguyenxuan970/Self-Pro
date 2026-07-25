@@ -1,4 +1,5 @@
 export type WeeklyRankTier = { id: number; tier_order: number; stars_required: number };
+export type WeeklyProgress = { weeklyStars: number; peakStars: number; currentTierId: number | null };
 
 export function resolveWeeklyRank(previousTierId: number | null, previousStars: number, tiers: WeeklyRankTier[]) {
   const sorted = [...tiers].sort((a, b) => a.tier_order - b.tier_order);
@@ -14,4 +15,15 @@ export function resolveWeeklyRank(previousTierId: number | null, previousStars: 
   if (next && previousStars >= next.stars_required) return { tierId: next.id, promotedTierId: next.id };
   if (previousStars === 0) return { tierId: sorted.find(tier => tier.tier_order === current.tier_order - 1)?.id ?? lowest.id, promotedTierId: null };
   return { tierId: current.id, promotedTierId: null };
+}
+
+export function carryWeeklyProgress(previous: WeeklyProgress | null, tiers: WeeklyRankTier[]) {
+  const weeklyStars = previous?.weeklyStars ?? 0;
+  const transition = resolveWeeklyRank(previous?.currentTierId ?? null, weeklyStars, tiers);
+  return {
+    weeklyStars,
+    peakStars: Math.max(previous?.peakStars ?? 0, weeklyStars),
+    currentTierId: transition.tierId,
+    promotedTierId: transition.promotedTierId,
+  };
 }

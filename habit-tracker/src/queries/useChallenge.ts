@@ -3,7 +3,7 @@ import * as Sentry from '@sentry/react-native';
 import { getDb } from '../db/client';
 import { challengeDate, challengeStreak, computeRollover, currentDayIndex, computeProgress, isComplete, DayEntryState as ChallengeLogState, ChallengeStatus, ChallengeMode } from '../lib/challenge';
 import {
-  weekWindows, currentWeekWindow, weekSessionsDone, computePace, computeWeeklyRollover,
+  weekWindows, currentWeekWindow, weekSessionsDone, sessionsDoneThrough, computePace, computeWeeklyRollover,
   perfectWeekCount, isOverachieverWeek, type PaceState,
 } from '../lib/challengeWeekly';
 import { deriveLinkedDoneDates, clampThreshold, type ActivityLogRow } from '../lib/challengeLinked';
@@ -12,6 +12,7 @@ import { PHAO_COUNT, computeChallengeReward } from '../config/challenges.config'
 import { computeTierUnlocks, type TierRow } from '../game/tierUnlocks';
 import { getWeekStart } from '../utils/formatters';
 import { scheduleChallengeReminder, cancelChallengeReminder } from '../utils/notifications';
+import { syncCurrentUserToSupabase } from '../api/syncService';
 
 export interface ActiveChallenge {
   id: number;
@@ -37,6 +38,7 @@ export interface ActiveChallenge {
   weekStart: string | null;
   weekEnd: string | null;
   weekSessionsDone: number | null;
+  weekSessionsRequired: number | null;
   weekPaceState: PaceState | null;
   weekDaysRemaining: number | null;
   weekSessionsRemaining: number | null;
@@ -403,7 +405,7 @@ async function loadChallengeWithLog(db: SQLiteDatabase, row: ChallengeRow, today
     return {
       ...base,
       weeklyTarget: null, totalWeeks: null, weekIndex: null, weekStart: null, weekEnd: null,
-      weekSessionsDone: null, weekPaceState: null, weekDaysRemaining: null, weekSessionsRemaining: null,
+      weekSessionsDone: null, weekSessionsRequired: null, weekPaceState: null, weekDaysRemaining: null, weekSessionsRemaining: null,
       perfectWeeks: null, overachieverThisWeek: false,
     };
   }
@@ -412,16 +414,17 @@ async function loadChallengeWithLog(db: SQLiteDatabase, row: ChallengeRow, today
   const windows = weekWindows(row.start_date, row.total_weeks);
   const activeWindow = currentWeekWindow(row.start_date, row.total_weeks, today)
     ?? windows[windows.length - 1];
-  const sessionsThisWeek = weekSessionsDone(doneDates, activeWindow);
+  const sessionsThisWeek = sessionsDoneThrough(doneDates, row.start_date, today);
+  const sessionsRequired = row.weekly_target * activeWindow.weekIndex;
   const pace = computePace({
-    weeklyTarget: row.weekly_target,
+    weeklyTarget: sessionsRequired,
     sessionsDone: sessionsThisWeek,
     today,
     weekEnd: activeWindow.end,
   });
   const elapsedOutcomes = windows
     .filter(w => w.end < today)
-    .map(w => ({ hit: weekSessionsDone(doneDates, w) >= row.weekly_target! }));
+    .map(w => ({ hit: sessionsDoneThrough(doneDates, row.start_date, w.end) >= row.weekly_target! * w.weekIndex }));
 
   return {
     ...base,
@@ -431,11 +434,12 @@ async function loadChallengeWithLog(db: SQLiteDatabase, row: ChallengeRow, today
     weekStart: activeWindow.start,
     weekEnd: activeWindow.end,
     weekSessionsDone: sessionsThisWeek,
+    weekSessionsRequired: sessionsRequired,
     weekPaceState: pace.state,
     weekDaysRemaining: pace.daysRemaining,
     weekSessionsRemaining: pace.sessionsRemaining,
     perfectWeeks: perfectWeekCount(elapsedOutcomes),
-    overachieverThisWeek: isOverachieverWeek(sessionsThisWeek, row.weekly_target),
+    overachieverThisWeek: isOverachieverWeek(weekSessionsDone(doneDates, activeWindow), row.weekly_target),
   };
 }
 
@@ -653,24 +657,17 @@ async function rolloverWeeklyChallenge(
   );
   // Linked challenges derive done-dates from activity_log (no persisted
   // 'done' challenge_log write); challenge_log is still used for the
-  // week-end miss markers below (freeze/reset), which are an outcome
+  // window-end miss markers below (reset), which are an outcome
   // ledger, not raw completion data, for both linked and manual challenges.
   const doneDates = row.task_type_id != null
     ? new Set(await getDoneDates(txn, userId, row))
     : new Set(logRows.filter(r => r.state === 'done').map(r => r.local_date));
-  // Weekly mode only ever writes a challenge_log row at a week's END date for
-  // a miss (state 'freeze'/'reset') -- any non-'done' row is by construction
-  // an already-processed week marker, never a daily fill.
-  const markedWeekEnds = new Set(logRows.filter(r => r.state !== 'done').map(r => r.local_date));
-
   const result = computeWeeklyRollover({
     startDate: row.start_date,
     totalWeeks: row.total_weeks,
     weeklyTarget: row.weekly_target,
     today,
     doneDates,
-    markedWeekEnds,
-    freezesLeft: row.freezes_left,
   });
   if (result.fillWeeks.length === 0 && !result.done) return;
 
@@ -681,11 +678,6 @@ async function rolloverWeeklyChallenge(
       [row.id, week.weekEnd, week.state],
     );
   }
-  const usedFreeze = result.fillWeeks.some(w => w.state === 'freeze');
-  await txn.runAsync(
-    `UPDATE challenges SET freezes_left = ?, freeze_used = CASE WHEN ? THEN 1 ELSE freeze_used END WHERE id = ?`,
-    [result.freezesLeft, usedFreeze ? 1 : 0, row.id],
-  );
   if (result.failed) {
     await txn.runAsync(`UPDATE challenges SET status = 'failed' WHERE id = ?`, [row.id]);
   } else if (result.done) {
@@ -722,6 +714,7 @@ export function useLogChallengeDay(userId: number) {
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['treats'] });
       qc.invalidateQueries({ queryKey: ['achievements'] });
+      syncCurrentUserToSupabase().catch(error => console.warn('[sync] activity log sync failed:', error));
     },
   });
 }
@@ -863,10 +856,14 @@ export function useRestartChallenge(userId: number) {
 export function useDeleteChallenge(userId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (challengeId: number): Promise<void> => {
+    mutationFn: async (challengeIds: number | number[]): Promise<void> => {
+      const ids = Array.isArray(challengeIds) ? challengeIds : [challengeIds];
+      if (ids.length === 0) return;
       const db = await getDb();
       await db.withExclusiveTransactionAsync(async txn => {
-        await deleteChallengeById(txn as unknown as SQLiteDatabase, userId, challengeId);
+        for (const challengeId of ids) {
+          await deleteChallengeById(txn as unknown as SQLiteDatabase, userId, challengeId);
+        }
       });
     },
     onSuccess: () => {

@@ -52,9 +52,9 @@ describe('deleteChallengeById', () => {
     expect(db.runAsync).toHaveBeenCalledWith('DELETE FROM challenges WHERE id = ? AND user_id = ?', [11, 5]);
   });
 
-  it('deletes an active challenge without touching challenge reward rows', async () => {
+  it('deletes a failed challenge without touching completion reward rows', async () => {
     const db = createDeleteDb({
-      challenge: { status: 'active', completed_at: null },
+      challenge: { status: 'failed', completed_at: null },
     });
 
     await deleteChallengeById(db, 5, 12);

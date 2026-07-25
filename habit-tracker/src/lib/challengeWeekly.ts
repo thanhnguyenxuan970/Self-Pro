@@ -9,30 +9,15 @@ function dateFromDayNumber(n: number): string {
   return new Date(n * DAY_MS).toISOString().slice(0, 10);
 }
 
-/** Mon=1 .. Sun=7 (ISO weekday), computed from a plain YYYY-MM-DD string. */
-function isoWeekday(dateStr: string): number {
-  const jsDay = new Date(dateStr + 'T00:00:00Z').getUTCDay(); // Sun=0..Sat=6
-  return jsDay === 0 ? 7 : jsDay;
-}
-
-function weekEndFor(dateStr: string): string {
-  return dateFromDayNumber(dayNumber(dateStr) + (7 - isoWeekday(dateStr)));
-}
-
 export type WeekWindow = { weekIndex: number; start: string; end: string };
 
-/** Week 1 is a partial calendar week (start_date -> the following Sunday);
- *  every week after that is a full Mon-Sun window. Weeks always align to the
- *  calendar grid, never to a challenge-relative 7-day offset. */
+/** Each window is seven days from the challenge start, never a calendar week. */
 export function weekWindows(startDate: string, totalWeeks: number): WeekWindow[] {
   const windows: WeekWindow[] = [];
-  const firstEnd = weekEndFor(startDate);
-  windows.push({ weekIndex: 1, start: startDate, end: firstEnd });
-  let cursor = dateFromDayNumber(dayNumber(firstEnd) + 1);
-  for (let i = 2; i <= totalWeeks; i++) {
-    const end = dateFromDayNumber(dayNumber(cursor) + 6);
-    windows.push({ weekIndex: i, start: cursor, end });
-    cursor = dateFromDayNumber(dayNumber(end) + 1);
+  const startDay = dayNumber(startDate);
+  for (let weekIndex = 1; weekIndex <= totalWeeks; weekIndex++) {
+    const start = dateFromDayNumber(startDay + (weekIndex - 1) * 7);
+    windows.push({ weekIndex, start, end: dateFromDayNumber(startDay + weekIndex * 7 - 1) });
   }
   return windows;
 }
@@ -45,6 +30,10 @@ export function weekSessionsDone(doneDates: ReadonlySet<string>, window: Pick<We
   let count = 0;
   for (const date of doneDates) if (date >= window.start && date <= window.end) count++;
   return count;
+}
+
+export function sessionsDoneThrough(doneDates: ReadonlySet<string>, startDate: string, endDate: string): number {
+  return weekSessionsDone(doneDates, { start: startDate, end: endDate });
 }
 
 export type PaceState = 'on_pace' | 'behind' | 'impossible';
@@ -66,31 +55,21 @@ export function computePace(params: {
   return { state, sessionsRemaining, daysRemaining };
 }
 
-export type WeekOutcome = { weekIndex: number; weekEnd: string; hit: boolean; sessionsDone: number };
-/** A miss that needs a synthetic challenge_log row written (state 'freeze' or
- *  'reset', dated at weekEnd) so a future rollover call can tell "already
- *  processed" apart from "not yet elapsed" -- hit weeks need no marker since
- *  they're harmlessly re-derivable from doneDates every time. */
-export type WeeklyFillWeek = { weekEnd: string; state: 'freeze' | 'reset' };
+export type WeekOutcome = { weekIndex: number; weekEnd: string; hit: boolean; sessionsDone: number; sessionsRequired: number };
+/** A miss is recorded at the window end for history. */
+export type WeeklyFillWeek = { weekEnd: string; state: 'reset' };
 
-/** Weekly-mode rollover: finalizes every week window that has fully elapsed
- *  and isn't already marked. Mirrors computeRollover's freeze-then-fail shape,
- *  but at weekly (not daily) granularity -- a week's quota can only be judged
- *  "hụt" once the week has ended, never mid-week. Idempotent: safe to call on
- *  every mount since already-marked misses are skipped, and hit weeks never
- *  mutate freezesLeft/status so recomputing them is a no-op. */
+/** Finalizes elapsed creation-anchored windows. A missed cumulative target
+ * fails immediately; completed windows are harmlessly re-derived on mount. */
 export function computeWeeklyRollover(input: {
   startDate: string;
   totalWeeks: number;
   weeklyTarget: number;
   today: string;
   doneDates: ReadonlySet<string>;
-  markedWeekEnds: ReadonlySet<string>;
-  freezesLeft: number;
 }): {
   outcomes: WeekOutcome[];
   fillWeeks: WeeklyFillWeek[];
-  freezesLeft: number;
   failed: boolean;
   failedAtWeek?: number;
   done: boolean;
@@ -98,32 +77,26 @@ export function computeWeeklyRollover(input: {
   const windows = weekWindows(input.startDate, input.totalWeeks);
   const outcomes: WeekOutcome[] = [];
   const fillWeeks: WeeklyFillWeek[] = [];
-  let freezesLeft = input.freezesLeft;
   let failed = false;
   let failedAtWeek: number | undefined;
 
   for (const window of windows) {
     if (input.today <= window.end) break; // week not finished yet
-    const sessionsDone = weekSessionsDone(input.doneDates, window);
-    const hit = sessionsDone >= input.weeklyTarget;
-    outcomes.push({ weekIndex: window.weekIndex, weekEnd: window.end, hit, sessionsDone });
+    const sessionsDone = sessionsDoneThrough(input.doneDates, input.startDate, window.end);
+    const sessionsRequired = input.weeklyTarget * window.weekIndex;
+    const hit = sessionsDone >= sessionsRequired;
+    outcomes.push({ weekIndex: window.weekIndex, weekEnd: window.end, hit, sessionsDone, sessionsRequired });
     if (hit) continue;
-    if (input.markedWeekEnds.has(window.end)) continue; // already processed in a prior rollover
-    if (freezesLeft > 0) {
-      freezesLeft--;
-      fillWeeks.push({ weekEnd: window.end, state: 'freeze' });
-    } else {
-      failed = true;
-      failedAtWeek = window.weekIndex;
-      fillWeeks.push({ weekEnd: window.end, state: 'reset' });
-      break;
-    }
+    failed = true;
+    failedAtWeek = window.weekIndex;
+    fillWeeks.push({ weekEnd: window.end, state: 'reset' });
+    break;
   }
 
   const lastWindow = windows[windows.length - 1];
   const done = !failed && input.today > lastWindow.end;
 
-  return { outcomes, fillWeeks, freezesLeft, failed, failedAtWeek, done };
+  return { outcomes, fillWeeks, failed, failedAtWeek, done };
 }
 
 export function perfectWeekCount(outcomes: ReadonlyArray<Pick<WeekOutcome, 'hit'>>): number {

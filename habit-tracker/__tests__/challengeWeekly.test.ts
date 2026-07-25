@@ -4,23 +4,22 @@ import {
 } from '../src/lib/challengeWeekly';
 import { computeChallengeReward, weeklyChallengeCompletionStars } from '../src/config/challenges.config';
 
-// Challenge created Wed 2026-07-08 -> week 1 is the partial calendar week
-// (Wed-Sun), week 2+ are full Mon-Sun windows.
+// Challenge created Wed 2026-07-08 -> every week is a creation-anchored 7-day window.
 const START = '2026-07-08';
 
 describe('weekWindows', () => {
-  it('week 1 is a partial calendar week (creation day -> following Sunday)', () => {
+  it('starts every seven-day window on the creation-day offset', () => {
     const windows = weekWindows(START, 3);
     expect(windows).toEqual([
-      { weekIndex: 1, start: '2026-07-08', end: '2026-07-12' },
-      { weekIndex: 2, start: '2026-07-13', end: '2026-07-19' },
-      { weekIndex: 3, start: '2026-07-20', end: '2026-07-26' },
+      { weekIndex: 1, start: '2026-07-08', end: '2026-07-14' },
+      { weekIndex: 2, start: '2026-07-15', end: '2026-07-21' },
+      { weekIndex: 3, start: '2026-07-22', end: '2026-07-28' },
     ]);
   });
 
-  it('a challenge created on a Monday has a full-length week 1', () => {
-    const windows = weekWindows('2026-07-13', 2);
-    expect(windows[0]).toEqual({ weekIndex: 1, start: '2026-07-13', end: '2026-07-19' });
+  it('keeps a Saturday start instead of snapping to Monday', () => {
+    const windows = weekWindows('2026-07-11', 2);
+    expect(windows[0]).toEqual({ weekIndex: 1, start: '2026-07-11', end: '2026-07-17' });
   });
 });
 
@@ -61,53 +60,55 @@ describe('computePace', () => {
 });
 
 describe('computeWeeklyRollover', () => {
-  const base = { startDate: START, totalWeeks: 3, weeklyTarget: 4, freezesLeft: 1 };
+  const base = { startDate: START, totalWeeks: 3, weeklyTarget: 4 };
 
   it('does nothing while the current week is still in progress', () => {
     const result = computeWeeklyRollover({
-      ...base, today: '2026-07-10', doneDates: new Set(['2026-07-08']), markedWeekEnds: new Set(),
+      ...base, today: '2026-07-10', doneDates: new Set(['2026-07-08']),
     });
     expect(result.outcomes).toEqual([]);
     expect(result.fillWeeks).toEqual([]);
   });
 
-  it('consumes a freeze on a missed week and keeps the challenge active', () => {
+  it('fails when the creation-anchored week misses its target', () => {
     const result = computeWeeklyRollover({
-      ...base, today: '2026-07-13', doneDates: new Set(['2026-07-08']), markedWeekEnds: new Set(),
+      ...base, today: '2026-07-15', doneDates: new Set(['2026-07-08']),
     });
-    expect(result.outcomes).toEqual([{ weekIndex: 1, weekEnd: '2026-07-12', hit: false, sessionsDone: 1 }]);
-    expect(result.fillWeeks).toEqual([{ weekEnd: '2026-07-12', state: 'freeze' }]);
-    expect(result.freezesLeft).toBe(0);
-    expect(result.failed).toBe(false);
+    expect(result.outcomes).toEqual([{ weekIndex: 1, weekEnd: '2026-07-14', hit: false, sessionsDone: 1, sessionsRequired: 4 }]);
+    expect(result.fillWeeks).toEqual([{ weekEnd: '2026-07-14', state: 'reset' }]);
+    expect(result.failedAtWeek).toBe(1);
   });
 
-  it('fails the challenge on a second missed week with no freeze left', () => {
+  it('fails without evaluating a later window when week 1 did not pass', () => {
     const result = computeWeeklyRollover({
-      ...base, freezesLeft: 0, today: '2026-07-13', doneDates: new Set(['2026-07-08']), markedWeekEnds: new Set(),
+      ...base, today: '2026-07-22', doneDates: new Set(['2026-07-08']),
     });
     expect(result.failed).toBe(true);
     expect(result.failedAtWeek).toBe(1);
-    expect(result.fillWeeks).toEqual([{ weekEnd: '2026-07-12', state: 'reset' }]);
-  });
-
-  it('is idempotent -- a week already marked is not re-processed on a later call', () => {
-    const result = computeWeeklyRollover({
-      ...base, today: '2026-07-20', doneDates: new Set(['2026-07-08']),
-      markedWeekEnds: new Set(['2026-07-12']), // week 1's miss already recorded
-    });
-    // week 1 skipped (already marked); week 2 (07-13..07-19) is a fresh miss
-    expect(result.fillWeeks).toEqual([{ weekEnd: '2026-07-19', state: 'freeze' }]);
-    expect(result.freezesLeft).toBe(0);
+    expect(result.fillWeeks).toEqual([{ weekEnd: '2026-07-14', state: 'reset' }]);
   });
 
   it('marks the challenge done once every week has elapsed without failing', () => {
     const doneDates = new Set(['2026-07-08', '2026-07-09', '2026-07-10', '2026-07-11',
-      '2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16',
-      '2026-07-20', '2026-07-21', '2026-07-22', '2026-07-23']);
-    const result = computeWeeklyRollover({ ...base, today: '2026-07-27', doneDates, markedWeekEnds: new Set() });
+      '2026-07-15', '2026-07-16', '2026-07-17', '2026-07-18',
+      '2026-07-22', '2026-07-23', '2026-07-24', '2026-07-25']);
+    const result = computeWeeklyRollover({ ...base, today: '2026-07-29', doneDates });
     expect(result.done).toBe(true);
     expect(result.failed).toBe(false);
     expect(perfectWeekCount(result.outcomes)).toBe(3);
+  });
+
+  it('requires the cumulative target in week 2 after week 1 passes', () => {
+    const result = computeWeeklyRollover({
+      ...base,
+      today: '2026-07-22',
+      doneDates: new Set(['2026-07-08', '2026-07-09', '2026-07-10', '2026-07-11', '2026-07-15', '2026-07-16', '2026-07-17']),
+    });
+    expect(result.outcomes).toEqual([
+      { weekIndex: 1, weekEnd: '2026-07-14', hit: true, sessionsDone: 4, sessionsRequired: 4 },
+      { weekIndex: 2, weekEnd: '2026-07-21', hit: false, sessionsDone: 7, sessionsRequired: 8 },
+    ]);
+    expect(result.failedAtWeek).toBe(2);
   });
 });
 
