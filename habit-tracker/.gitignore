@@ -55,3 +55,8 @@ replay_pid*.log
 .visual-verify/
 .audit/
 metro-*.log
+/*.png
+/*.mp4
+*.zip
+/repomix-output.xml
+/src/config/i18n-patch.txt

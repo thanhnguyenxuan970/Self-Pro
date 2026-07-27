@@ -11,3 +11,7 @@ AGENTS.override.md
 # JVM crash dumps
 hs_err_pid*.log
 replay_pid*.log
+
+# repomix context dumps (generated, not source)
+repomix-output.xml
+**/repomix-output.xml
