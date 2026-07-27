@@ -20,6 +20,10 @@ export interface ComputeInput {
   loggedAt: Date;
   localDate: string;
   weekStart: string;
+  /** Multiplier Boost rate active at log time (1 = no boost). Applies only
+   * to the base per-task stars, never to the daily-points bonus or BAD-log
+   * penalties. */
+  multiplier?: number;
 }
 
 export interface ActivityRow {
@@ -46,13 +50,15 @@ export function computeLogTaskRows(input: ComputeInput): ComputeResult {
   let pointsEarned: number;
   let starsDelta: number;
 
+  const multiplier = input.multiplier ?? 1;
+
   if (input.kind === 'GOOD') {
     if (input.isTimeBased) {
       pointsEarned = Math.max(1, Math.ceil((input.durationMin ?? 0) / TIME_UNIT_MINUTES));
-      starsDelta = STARS_PER_TASK;
+      starsDelta = STARS_PER_TASK * multiplier;
     } else {
       pointsEarned = POINTS_PER_UNTIMED_ACTIVITY;
-      starsDelta = STARS_PER_TASK;
+      starsDelta = STARS_PER_TASK * multiplier;
     }
   } else {
     pointsEarned = 0;

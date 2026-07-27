@@ -613,7 +613,26 @@ async function v23(db: SQLiteDatabase): Promise<void> {
   );
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23];
+// v23 -> v24: Multiplier Boost — one row per user per local day. claimed_at/
+// expires_at/dismissed_at start NULL (available); set on claim/expiry/dismiss.
+async function v24(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS boost_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      local_date TEXT NOT NULL,
+      multiplier INTEGER NOT NULL,
+      claim_deadline INTEGER NOT NULL,
+      claimed_at INTEGER,
+      expires_at INTEGER,
+      dismissed_at INTEGER,
+      created_at INTEGER NOT NULL,
+      UNIQUE(user_id, local_date)
+    );
+  `);
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

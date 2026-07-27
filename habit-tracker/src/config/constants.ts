@@ -19,6 +19,13 @@ export const SOURCE_TASK = 'TASK';
 export const SOURCE_DAILY_BONUS = 'DAILY_BONUS';
 const SOURCE_PENALTY = 'PENALTY';
 
+// Multiplier Boost: limited-time daily event, multiplies stars earned from
+// logging (not the daily-points bonus, not BAD-log penalties).
+export const BOOST_MULTIPLIERS = [2, 3] as const;
+export const BOOST_RARE_CHANCE = 0.15; // odds the daily roll is x3 instead of x2
+export const BOOST_CLAIM_DEADLINE_HOUR = 10; // must claim before 10:00 local, else no boost that day
+export const BOOST_EXPIRING_THRESHOLD_SECS = 300; // <5:00 left => urgency treatment
+
 const DEFAULT_VALUE_PER_STAR = 1000;
 const STREAK_FREEZE_COST = 10; // stars (1★ = DEFAULT_VALUE_PER_STAR VND)
 
