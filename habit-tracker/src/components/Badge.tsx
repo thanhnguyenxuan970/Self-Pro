@@ -36,7 +36,7 @@ const RARITY_GLOW: Record<Tier, [string, number, number]> = {
   diamond: ['#7fd6e8', 0.52, 12],
 };
 
-export function Badge({ tier, emblem, label, sub, progress, locked, size = 96, colors }: Props) {
+export const Badge = React.memo(function Badge({ tier, emblem, label, sub, progress, locked, size = 96, colors }: Props) {
   const ramp = TIER_COINS[tier];
   const t = useMemo(() => (locked ? (ramp.map(desaturate) as typeof ramp) : ramp), [ramp, locked]);
   const tint = locked ? desaturate(EMBLEM_TINT[emblem]) : EMBLEM_TINT[emblem];
@@ -149,7 +149,7 @@ export function Badge({ tier, emblem, label, sub, progress, locked, size = 96, c
       {!!sub && <Text style={styles.sub} numberOfLines={1}>{sub}</Text>}
     </View>
   );
-}
+});
 
 function makeStyles(colors: AppColors) {
   return StyleSheet.create({

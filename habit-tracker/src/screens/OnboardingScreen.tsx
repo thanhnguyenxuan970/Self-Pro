@@ -14,6 +14,7 @@ import {
   Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useLanguage } from '../hooks/useSettings';
 import { RankMascot } from '../components/RankMascot';
@@ -95,7 +96,8 @@ export function OnboardingScreen({ onComplete }: Props) {
   const benefits = [t.onboardHeroBenefit1, t.onboardHeroBenefit2, t.onboardHeroBenefit3];
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bgBase }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgBase }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.scroll}
@@ -205,7 +207,8 @@ export function OnboardingScreen({ onComplete }: Props) {
           )}
         </Animated.View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

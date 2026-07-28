@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RankMascot, type RankMascotHandle } from './RankMascot';
 import { getRankConfigByTierOrder } from '../config/ranks.config';
-import { AppColors, FontFamily, Radii, Spacing } from '../config/theme';
+import { AppColors, Colors, DarkColors, FontFamily, Radii, Spacing } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { shouldRunCelebrationBurst } from '../lib/rankPresentation';
@@ -30,6 +31,7 @@ const REVEAL_MARKS: Record<number, string[]> = {
 export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklyStars, onDismiss }: Props) {
   const t = useTranslations();
   const { colors } = useTheme();
+  const { bottom } = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const reduceMotion = useReduceMotion();
   const cfg = getRankConfigByTierOrder(tierOrder);
@@ -160,7 +162,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklySt
             </View>
           </View>
         </Animated.View>
-        <Animated.View style={[styles.ctaWrap, riseStyle(cta)]}>
+        <Animated.View style={[styles.ctaWrap, { paddingBottom: bottom }, riseStyle(cta)]}>
           <TouchableOpacity style={styles.cta} onPress={onDismiss} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={t.levelUpContinueCta}>
             <Text style={styles.ctaText}>{t.levelUpContinueCta}</Text>
           </TouchableOpacity>
@@ -172,7 +174,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklySt
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: '#0F1410', alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, overflow: 'hidden' },
+    screen: { flex: 1, backgroundColor: DarkColors.bgBase, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, overflow: 'hidden' },
     wash: { position: 'absolute', width: 420, height: 420, borderRadius: 210, top: '50%', left: '50%', marginTop: -210, marginLeft: -210, opacity: 0.2 },
     flash: { ...StyleSheet.absoluteFill, backgroundColor: '#FFFFFF' },
     eyebrow: { borderRadius: Radii.pill, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 18 },
@@ -184,7 +186,7 @@ function makeStyles(C: AppColors) {
     revealMark: { position: 'absolute', fontFamily: FontFamily.extraBold, fontSize: 24 },
     copy: { alignItems: 'center', maxWidth: '100%' },
     nameRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
-    rankName: { color: '#F5F6F5', fontFamily: FontFamily.extraBold, fontSize: 40, lineHeight: 47, letterSpacing: -1.8, textAlign: 'center' },
+    rankName: { color: Colors.bgBase, fontFamily: FontFamily.extraBold, fontSize: 40, lineHeight: 47, letterSpacing: -1.8, textAlign: 'center' },
     starChip: { backgroundColor: `${C.starGold}24`, borderWidth: 1, borderColor: `${C.starGold}4D`, borderRadius: Radii.pill, paddingHorizontal: 16, paddingVertical: 8 },
     starChipText: { color: C.starGold, fontFamily: FontFamily.extraBold, fontSize: 13 },
     ctaWrap: { alignSelf: 'stretch', marginTop: 30 },

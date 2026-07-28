@@ -49,6 +49,7 @@ export function TrophyShelfScreen() {
     [stats]
   );
   const earnedCount = items.filter(i => i.earned).length;
+  const filteredItems = useMemo(() => items.filter(i => matchesFilter(i, filter)), [items, filter]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -108,7 +109,7 @@ export function TrophyShelfScreen() {
         </View>
 
         <View style={styles.grid}>
-          {items.filter(i => matchesFilter(i, filter)).map(i => (
+          {filteredItems.map(i => (
             <TouchableOpacity
               key={i.id}
               style={styles.cell}

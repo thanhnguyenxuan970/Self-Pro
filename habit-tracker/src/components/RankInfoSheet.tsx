@@ -100,7 +100,7 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
 
 function makeStyles(C: AppColors, bottomInset: number) {
   return StyleSheet.create({
-    wrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+    wrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: C.scrim },
     sheet: { backgroundColor: C.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: Spacing.lg, paddingBottom: Spacing.md + BOTTOM_TAB_BAR_HEIGHT + bottomInset, maxHeight: '86%' },
     grip: { width: 38, height: 4, borderRadius: 2, backgroundColor: C.line2, alignSelf: 'center', marginBottom: 12 },
     head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },

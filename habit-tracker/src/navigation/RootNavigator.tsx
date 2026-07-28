@@ -118,7 +118,7 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.faint,
-        tabBarAllowFontScaling: false,
+        tabBarAllowFontScaling: true,
         tabBarShowLabel: width >= 360,
         tabBarLabelStyle: { fontSize: 10, fontFamily: FontFamily.bold, marginTop: 4 },
       }}

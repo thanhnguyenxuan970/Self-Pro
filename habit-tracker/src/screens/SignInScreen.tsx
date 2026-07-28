@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Animated, Easing } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { GoogleUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
@@ -21,6 +22,7 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 // frame directly.
 const BRAND = '#25B36E'; // logo is always brand green, independent of accent
 const GOLD = '#E0A93B';
+const GOOGLE_BLUE = '#1967D2'; // Google's brand blue, darkened from #4285F4 to clear WCAG AA on the button surface
 
 function useSignInIntro(reduceMotion: boolean) {
   const ringDraw = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
@@ -103,7 +105,7 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.card}>
         <Animated.View style={[styles.logoContainer, { opacity: markOpacity, transform: [{ scale: logoPop }] }]}>
           <Svg width={96} height={96} viewBox="0 0 100 100">
@@ -148,7 +150,7 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
           <Text style={styles.hint}>{t.signInHint}</Text>
         </Animated.View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -188,7 +190,7 @@ function makeStyles(C: AppColors) {
       borderColor: C.line,
       ...Shadows.light,
     },
-    googleIcon: { fontSize: 18, fontFamily: FontFamily.bold, color: '#4285F4', marginRight: 10 },
+    googleIcon: { fontSize: 18, fontFamily: FontFamily.bold, color: GOOGLE_BLUE, marginRight: 10 },
     googleButtonText: { color: C.inkDark, fontFamily: FontFamily.semiBold, fontSize: 16 },
     hint: {
       ...Typography.caption,

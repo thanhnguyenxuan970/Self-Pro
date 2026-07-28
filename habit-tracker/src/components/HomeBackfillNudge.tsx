@@ -71,7 +71,7 @@ function makeStyles(C: AppColors) {
     cappedIcon: { backgroundColor: C.starSoft }, iconText: { fontSize: 25 },
     copy: { flex: 1 },
     eyebrow: { color: C.primary, fontFamily: FontFamily.bold, fontSize: 11, letterSpacing: 0.5, marginBottom: 3 },
-    cappedText: { color: C.starGold },
+    cappedText: { color: C.starGoldText },
     title: { color: C.inkDark, fontFamily: FontFamily.bold, fontSize: 15, lineHeight: 21 },
     subtitle: { color: C.ink2, fontFamily: FontFamily.regular, fontSize: 12, lineHeight: 18, marginTop: 4 },
     weekStrip: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },

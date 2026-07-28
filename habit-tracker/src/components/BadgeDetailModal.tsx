@@ -94,7 +94,7 @@ export function BadgeDetailModal({ visible, achievement, earnedDate, onClose }: 
 
 function makeStyles(C: AppColors, bottomInset: number) {
   return StyleSheet.create({
-    backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
+    backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: C.scrim },
     sheet: {
       backgroundColor: C.surface, borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl,
       paddingHorizontal: Spacing.xl, paddingTop: 12, paddingBottom: Spacing.xl + BOTTOM_TAB_BAR_HEIGHT + bottomInset, alignItems: 'center',

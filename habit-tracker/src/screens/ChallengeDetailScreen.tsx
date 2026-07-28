@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, TextInput, Share } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, TextInput, Share, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { pickSquareImage } from '../utils/pickImage';
@@ -396,7 +396,7 @@ export function ChallengeDetailScreen() {
         </View>
       )}
       <Modal visible={editingName} transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={() => setEditingName(false)}>
-        <View style={styles.editOverlay}>
+        <KeyboardAvoidingView style={styles.editOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.editCard}>
             <Text style={styles.editTitle}>{t.editActivity}</Text>
             <TextInput value={nameDraft} onChangeText={setNameDraft} style={styles.editInput} autoFocus maxLength={80} selectTextOnFocus accessibilityLabel={t.editActivity} />
@@ -405,7 +405,7 @@ export function ChallengeDetailScreen() {
               <TouchableOpacity style={styles.editAction} onPress={saveName} disabled={updateChallengeName.isPending}><Text style={styles.editSave}>{t.editSave}</Text></TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -486,7 +486,7 @@ function makeStyles(C: AppColors) {
     claimedChip: { ...Typography.caption, color: C.primary, backgroundColor: C.primarySoft, borderRadius: Radii.pill, paddingHorizontal: Spacing.sm, paddingVertical: 2, fontFamily: FontFamily.semiBold },
     lockedChip: { ...Typography.caption, color: C.muted, backgroundColor: C.surface2, borderRadius: Radii.pill, paddingHorizontal: Spacing.sm, paddingVertical: 2, fontFamily: FontFamily.semiBold },
     rewardRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 6 },
-    rewardIcon: { fontSize: 22, color: C.starGold },
+    rewardIcon: { fontSize: 22, color: C.starGoldText },
     rewardTextCol: { flex: 1 },
     rewardValue: { ...Typography.bodyStrong, color: C.inkDark, fontSize: 18 },
     rewardLabel: { ...Typography.secondary, color: C.ink2 },

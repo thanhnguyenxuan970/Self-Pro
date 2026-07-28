@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
@@ -41,7 +41,7 @@ function ResetCountdownChip({
   );
 }
 
-function LeaderboardSection({ leaderboard, lbLoading, styles, colors, youLabel, emptyNote, currentUserEntry }: LeaderboardSectionProps) {
+const LeaderboardSection = React.memo(function LeaderboardSection({ leaderboard, lbLoading, styles, colors, youLabel, emptyNote, currentUserEntry }: LeaderboardSectionProps) {
   if (lbLoading) {
     return <View style={styles.lbEmpty}><ActivityIndicator color={colors.primary} /></View>;
   }
@@ -68,7 +68,7 @@ function LeaderboardSection({ leaderboard, lbLoading, styles, colors, youLabel, 
       {leaderboard.length === 0 ? <Text style={styles.lbEmptyTxt}>{emptyNote}</Text> : null}
     </>
   );
-}
+});
 
 // fallow-ignore-next-line complexity
 export function RankScreen() {
@@ -127,13 +127,13 @@ export function RankScreen() {
   const rankLabel = t.rankNameMap[cfg.name] ?? cfg.name;
   const nextRankLabel = nextCfg ? (t.rankNameMap[nextCfg.name] ?? nextCfg.name) : (t.rankNameMap[nextTier?.rank_name ?? ''] ?? nextTier?.rank_name ?? '');
   const resetCountdown = getTimeUntilWeeklyReset(now);
-  const currentUserEntry: LBEntry = {
+  const currentUserEntry: LBEntry = useMemo(() => ({
     userEmail: googleUser?.email ?? 'current-user',
     displayName: googleUser?.name ?? t.leaderboardYou,
     weeklyStars: currentStars,
     rank: 1,
     isCurrentUser: true,
-  };
+  }), [googleUser?.email, googleUser?.name, currentStars, t.leaderboardYou]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>

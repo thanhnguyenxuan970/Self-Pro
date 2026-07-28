@@ -148,8 +148,9 @@ export function ChallengeHubScreen() {
                         onLongPress={() => enterSelection(h.id)}
                         delayLongPress={300}
                         activeOpacity={0.7}
-                        accessibilityRole="button"
+                        accessibilityRole={selectionMode ? 'checkbox' : 'button'}
                         accessibilityLabel={h.name}
+                        accessibilityState={selectionMode ? { checked: selectedIds.has(h.id) } : undefined}
                       >
                         {selectionMode && (
                           <View style={[styles.checkbox, selectedIds.has(h.id) && styles.checkboxSelected]}>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform,
   StyleSheet, ActivityIndicator, Alert,
@@ -50,7 +50,7 @@ interface TaskPickerListProps {
   styles: ReturnType<typeof makeStyles>;
 }
 
-function TaskPickerList({ tasks, selectedTaskId, onSelect, emptyText, colors, styles }: TaskPickerListProps) {
+const TaskPickerList = React.memo(function TaskPickerList({ tasks, selectedTaskId, onSelect, emptyText, colors, styles }: TaskPickerListProps) {
   if (tasks.length === 0) {
     return (
       <View style={styles.emptyState}>
@@ -74,7 +74,7 @@ function TaskPickerList({ tasks, selectedTaskId, onSelect, emptyText, colors, st
       })}
     </View>
   );
-}
+});
 
 interface EntryListProps {
   entries: DraftEntry[];
@@ -93,7 +93,7 @@ function formatEntryMeta(entry: DraftEntry, formatDuration: (mins: number) => st
   return entry.durationMin == null ? '' : formatDuration(entry.durationMin);
 }
 
-function EntryList({ entries, editingEntryId, locked, onEdit, onRemove, colors, styles, editLabel, removeLabel, formatDuration }: EntryListProps) {
+const EntryList = React.memo(function EntryList({ entries, editingEntryId, locked, onEdit, onRemove, colors, styles, editLabel, removeLabel, formatDuration }: EntryListProps) {
   if (entries.length === 0) return null;
   return (
     <View style={styles.entryList}>
@@ -127,7 +127,7 @@ function EntryList({ entries, editingEntryId, locked, onEdit, onRemove, colors, 
       })}
     </View>
   );
-}
+});
 
 interface Props {
   visible: boolean;
@@ -179,11 +179,11 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
     return `${dow}, ${day}/${m}`;
   }
 
-  function handleSelectTask(id: number | null) {
+  const handleSelectTask = useCallback((id: number | null) => {
     const task = tasks.find(item => item.id === id);
     if (!task) return;
     setEntries(prev => [...prev, { id: String(nextEntryId.current++), taskTypeId: task.id, name: task.name, icon: task.icon, kind: task.kind as 'GOOD' | 'BAD', isTimeBased: !!task.is_time_based, basePoints: task.base_points, starPenalty: task.star_penalty, durationMin: task.is_time_based ? 30 : null }]);
-  }
+  }, [tasks]);
 
   function handleAddOrUpdate() {
     if (!selectedTask) return;
@@ -207,11 +207,11 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
     setEditingEntryId(null);
   }
 
-  function handleEditEntry(id: string) {
+  const handleEditEntry = useCallback((id: string) => {
     const entry = entries.find(e => e.id === id);
     const task = tasks.find(item => item.id === entry?.taskTypeId);
     if (task) setEditTask(task as unknown as Task);
-  }
+  }, [entries, tasks]);
 
   async function saveEditedTask(taskId: number, name: string, isTimeBased: boolean, durationMin: number | null) {
     await updateTaskName.mutateAsync({ taskId, name, isTimeBased });
@@ -219,14 +219,14 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
     setEditTask(null);
   }
 
-  function handleRemoveEntry(id: string) {
+  const handleRemoveEntry = useCallback((id: string) => {
     setEntries(prev => prev.filter(e => e.id !== id));
     if (editingEntryId === id) {
       setEditingEntryId(null);
       setSelectedTaskId(null);
       setSelectedTimed(false);
     }
-  }
+  }, [editingEntryId]);
 
   async function addSuggestion(s: TemplateTask) {
     try {

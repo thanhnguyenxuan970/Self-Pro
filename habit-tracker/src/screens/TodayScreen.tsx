@@ -463,7 +463,7 @@ export function TodayScreen() {
         tierName={rankDisplayName}
       />
       <View style={styles.topbar}>
-        <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile' as never)} activeOpacity={0.85} accessibilityLabel={t.openProfile} accessibilityRole="button">
+        <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile' as never)} activeOpacity={0.85} hitSlop={3} accessibilityLabel={t.openProfile} accessibilityRole="button">
           <Text style={styles.avatarText}>{avatarInitial}</Text>
         </TouchableOpacity>
         <View style={styles.greet}>
@@ -535,7 +535,7 @@ export function TodayScreen() {
 
         <View style={styles.taskListHeader}>
           <Text style={styles.sectionLabel}>{t.sectionToday}</Text>
-          {!selectionMode && <TouchableOpacity style={styles.scoringGuideButton} onPress={() => setShowScoringGuide(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t.scoringGuideTitle}><Text style={styles.scoringGuideText}>?</Text></TouchableOpacity>}
+          {!selectionMode && <TouchableOpacity style={styles.scoringGuideButton} onPress={() => setShowScoringGuide(true)} hitSlop={15} accessibilityRole="button" accessibilityLabel={t.scoringGuideTitle}><Text style={styles.scoringGuideText}>?</Text></TouchableOpacity>}
           {selectionMode && (
             <View style={styles.selActions}>
               <TouchableOpacity onPress={selectAll} style={styles.selBtn}>
@@ -644,7 +644,7 @@ function makeStyles(C: AppColors) {
     date: { fontSize: 12, fontFamily: FontFamily.bold, color: C.ink2, marginBottom: 1 },
     topbarActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     starChip: { backgroundColor: C.surface2, borderRadius: Radii.pill, paddingHorizontal: 13, paddingVertical: 10 },
-    starChipText: { color: C.starGold, fontSize: 15, fontFamily: FontFamily.extraBold },
+    starChipText: { color: C.starGoldText, fontSize: 15, fontFamily: FontFamily.extraBold },
     iconBtn: {
       width: 44, height: 44, borderRadius: 22,
       justifyContent: 'center', alignItems: 'center',

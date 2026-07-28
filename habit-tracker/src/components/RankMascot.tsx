@@ -107,7 +107,7 @@ function renderEl(el: SvgEl, i: number) {
 export interface RankMascotHandle { playRankUp: () => void; }
 interface Props { tier: number; size?: number; loop?: boolean; reduceMotion?: boolean; ambient?: boolean; }
 
-export const RankMascot = forwardRef<RankMascotHandle, Props>(
+export const RankMascot = React.memo(forwardRef<RankMascotHandle, Props>(
   ({ tier, size = 120, loop = true, reduceMotion = false, ambient = false }, ref) => {
     const rank = getRankConfigByTier(tier);
     const t = useTranslations();
@@ -288,4 +288,4 @@ export const RankMascot = forwardRef<RankMascotHandle, Props>(
       </View>
     );
   },
-);
+));

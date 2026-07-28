@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity,
   Alert, StyleSheet, ActivityIndicator, Animated, useWindowDimensions, ScrollView,
@@ -25,18 +25,18 @@ interface Props { visible: boolean; onClose: () => void; presetName?: string | n
 type SuggestionChipProps = {
   s: TemplateTask;
   isSelected: boolean;
-  onPress: () => void;
+  onPress: (s: TemplateTask) => void;
   t: Record<string, unknown>;
   styles: ReturnType<typeof makeStyles>;
 };
 
-function SuggestionChip({ s, isSelected, onPress, t, styles }: SuggestionChipProps) {
+const SuggestionChip = React.memo(function SuggestionChip({ s, isSelected, onPress, t, styles }: SuggestionChipProps) {
   const label = (t[s.nameKey] as string) ?? s.name;
   return (
     <TouchableOpacity
       key={s.nameKey}
       style={[styles.chip, isSelected && styles.chipSelected]}
-      onPress={onPress}
+      onPress={() => onPress(s)}
       activeOpacity={0.7}
       accessibilityRole="button"
       accessibilityState={{ selected: isSelected }}
@@ -46,21 +46,21 @@ function SuggestionChip({ s, isSelected, onPress, t, styles }: SuggestionChipPro
       </Text>
     </TouchableOpacity>
   );
-}
+});
 
-function PickerTaskRow({ task, onPress, onPin, styles, t }: {
-  task: PickerTask; onPress: () => void; onPin: () => void; styles: ReturnType<typeof makeStyles>; t: Strings;
+const PickerTaskRow = React.memo(function PickerTaskRow({ task, onPress, onPin, styles, t }: {
+  task: PickerTask; onPress: (task: PickerTask) => void; onPin: (task: PickerTask) => void; styles: ReturnType<typeof makeStyles>; t: Strings;
 }) {
   return <View style={styles.pickerRow}>
-    <TouchableOpacity style={styles.pickerTask} onPress={onPress} activeOpacity={0.7} accessibilityRole="button">
+    <TouchableOpacity style={styles.pickerTask} onPress={() => onPress(task)} activeOpacity={0.7} accessibilityRole="button">
       <Text style={styles.pickerTaskName} numberOfLines={1}>{task.icon ? `${task.icon} ` : ''}{resolveTaskDisplayName(task.name, t, task.is_template === 1)}</Text>
       {task.archived === 1 ? <Text style={styles.hiddenBadge}>{t.activityHidden}</Text> : null}
     </TouchableOpacity>
-    <TouchableOpacity style={styles.pinButton} onPress={onPin} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={task.is_pinned === 1 ? t.activityUnpin : t.activityPin} accessibilityState={{ selected: task.is_pinned === 1 }}>
+    <TouchableOpacity style={styles.pinButton} onPress={() => onPin(task)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={task.is_pinned === 1 ? t.activityUnpin : t.activityPin} accessibilityState={{ selected: task.is_pinned === 1 }}>
       <Text style={[styles.pinText, task.is_pinned === 1 && styles.pinTextActive]}>{task.is_pinned === 1 ? '★' : '☆'}</Text>
     </TouchableOpacity>
   </View>;
-}
+});
 
 type DurationStepProps = {
   pendingTaskName: string;
@@ -143,6 +143,8 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
   const { data: pickerTasks = [] } = useActivityPickerTasks(userId);
   const setTaskPinned = useSetTaskPinned(userId);
   const restoreTask = useRestoreTask(userId);
+  const { mutateAsync: setTaskPinnedMutateAsync } = setTaskPinned;
+  const { mutateAsync: restoreTaskMutateAsync } = restoreTask;
 
   const [name, setName] = useState('');
   const [selectedSuggestion, setSelectedSuggestion] = useState<TemplateTask | null>(null);
@@ -212,29 +214,29 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
     });
   }
 
-  function handleSuggestionTap(task: TemplateTask) {
+  const handleSuggestionTap = useCallback((task: TemplateTask) => {
     setName((t as Record<string, unknown>)[task.nameKey] as string ?? task.name);
     setSelectedSuggestion(task);
     setSelectedExistingTask(null);
-  }
+  }, [t]);
 
-  async function handlePickerTask(task: PickerTask) {
-    if (task.archived === 1) await restoreTask.mutateAsync(task.id);
+  const handlePickerTask = useCallback(async (task: PickerTask) => {
+    if (task.archived === 1) await restoreTaskMutateAsync(task.id);
     setName(task.name);
     setSelectedSuggestion(null);
     setSelectedExistingTask({ ...task, archived: 0 });
-  }
+  }, [restoreTaskMutateAsync]);
 
-  async function handlePin(task: PickerTask) {
+  const handlePin = useCallback(async (task: PickerTask) => {
     try {
-      await setTaskPinned.mutateAsync({ taskId: task.id, pinned: task.is_pinned === 0 });
+      await setTaskPinnedMutateAsync({ taskId: task.id, pinned: task.is_pinned === 0 });
     } catch (error) {
       if (error instanceof Error && error.message === 'PIN_LIMIT') Alert.alert(t.error, t.activityPinLimit);
     }
-  }
+  }, [setTaskPinnedMutateAsync, t]);
 
   function renderPickerTaskRow(task: PickerTask) {
-    return <PickerTaskRow key={task.id} task={task} onPress={() => void handlePickerTask(task)} onPin={() => void handlePin(task)} styles={styles} t={t} />;
+    return <PickerTaskRow key={task.id} task={task} onPress={handlePickerTask} onPin={handlePin} styles={styles} t={t} />;
   }
 
   // fallow-ignore-next-line complexity
@@ -321,6 +323,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
   const pinnedTasks = useMemo(() => activePickerTasks.filter(task => task.is_pinned === 1), [activePickerTasks]);
   const recentTasks = useMemo(() => activePickerTasks.filter(task => task.is_pinned === 0 && task.last_used_date !== null), [activePickerTasks]);
   const searchTasks = useMemo(() => query ? pickerTasks.filter(task => activityMatches(task, query)) : [], [pickerTasks, query]);
+  const matchingSuggestions = useMemo(() => suggestions.filter(task => activityMatches(task, query)), [suggestions, query]);
   const groupedTasks = useMemo(() => activePickerTasks.reduce<Record<string, PickerTask[]>>((groups, task) => {
     const group = activityGroup(task.name);
     (groups[group] ??= []).push(task);
@@ -370,7 +373,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
                   <>
                     <Text style={styles.suggestionsLabel}>{t.activitySearch}</Text>
                     {searchTasks.map(renderPickerTaskRow)}
-                    <View style={styles.chipsWrap}>{suggestions.filter(task => activityMatches(task, query)).map(task => <SuggestionChip key={task.nameKey} s={task} isSelected={false} onPress={() => handleSuggestionTap(task)} t={t as Record<string, unknown>} styles={styles} />)}</View>
+                    <View style={styles.chipsWrap}>{matchingSuggestions.map(task => { const label = (t as Record<string, unknown>)[task.nameKey] as string ?? task.name; return <SuggestionChip key={task.nameKey} s={task} isSelected={name === label} onPress={handleSuggestionTap} t={t as Record<string, unknown>} styles={styles} />; })}</View>
                   </>
                 )}
 
@@ -409,7 +412,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
                             key={s.nameKey}
                             s={s}
                             isSelected={name === label}
-                            onPress={() => handleSuggestionTap(s)}
+                            onPress={handleSuggestionTap}
                             t={t as Record<string, unknown>}
                             styles={styles}
                           />
@@ -514,7 +517,7 @@ function makeStyles(C: AppColors) {
     pickerTaskName: { flexShrink: 1, color: C.inkDark, fontSize: 14, fontFamily: FontFamily.semiBold },
     hiddenBadge: { color: C.muted, backgroundColor: C.surface2, borderRadius: Radii.pill, overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 3, fontSize: 9, fontFamily: FontFamily.extraBold },
     pinButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-    pinText: { color: C.faint, fontSize: 22 }, pinTextActive: { color: C.starGold },
+    pinText: { color: C.faint, fontSize: 22 }, pinTextActive: { color: C.starGoldText },
     browseButton: { minHeight: 44, justifyContent: 'center', alignItems: 'center', marginTop: Spacing.sm },
     browseText: { color: C.primary, fontFamily: FontFamily.bold, fontSize: 14 },
     groupHeader: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.sm },

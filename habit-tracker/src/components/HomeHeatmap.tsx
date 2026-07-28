@@ -54,7 +54,7 @@ function ProgressRing({ progress, colors, animKey, reduceMotion }: { progress: n
 // box starts empty, then its shade pops in (opacity + scale), delayed by its
 // distance from the top-left corner (col + row). Replayed on focus via animKey.
 // Reduce-motion shows every cell filled at rest.
-function AnimatedWeeks({ weeks, styles, shades, today, pointsByDate, onSelect, animKey, reduceMotion }: {
+const AnimatedWeeks = React.memo(function AnimatedWeeks({ weeks, styles, shades, today, pointsByDate, onSelect, animKey, reduceMotion }: {
   weeks: ReturnType<typeof buildHeatmapWeeks>; styles: ReturnType<typeof makeStyles>;
   shades: string[]; today: string; pointsByDate: Map<string, number>;
   onSelect: (date: string) => void; animKey: number; reduceMotion: boolean;
@@ -90,7 +90,7 @@ function AnimatedWeeks({ weeks, styles, shades, today, pointsByDate, onSelect, a
           <TouchableOpacity
             key={cell.date}
             style={[styles.cell, { backgroundColor: shades[0] }, cell.date === today && styles.todayCell]}
-            onPress={() => onSelect(cell.date)} hitSlop={1}
+            onPress={() => onSelect(cell.date)} hitSlop={15}
             accessibilityRole="button" accessibilityLabel={`${cell.date}: ${pointsByDate.get(cell.date) ?? 0} points`}
           >
             {cell.level > 0 && (
@@ -104,7 +104,7 @@ function AnimatedWeeks({ weeks, styles, shades, today, pointsByDate, onSelect, a
       })}
     </View>
   ))}</View>;
-}
+});
 
 export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji, weeklyStars, rankName, streakRef, scoringGuideVisible = false, onScoringGuideClose }: Props) {
   const scrollRef = useRef<ScrollView>(null);
@@ -120,7 +120,7 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
   const weeks = useMemo(() => buildHeatmapWeeks(days), [days]);
   const activeDays = days.filter(day => day.total_points > 0).length;
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const shades = heatmapShades(colors);
+  const shades = useMemo(() => heatmapShades(colors), [colors]);
   const pointsByDate = useMemo(() => new Map(days.map(day => [day.local_date, day.total_points])), [days]);
   const starsByDate = useMemo(() => new Map(days.map(day => [day.local_date, day.stars ?? 0])), [days]);
   const now = new Date();
@@ -139,7 +139,7 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
       </View>
       <View style={styles.headerActions}>
         <View style={styles.yearWrap}>
-          <TouchableOpacity style={styles.legendButton} hitSlop={10} onPress={() => setShowLegend(true)} accessibilityRole="button" accessibilityLabel={t.heatmapLegendTitle}>
+          <TouchableOpacity style={styles.legendButton} hitSlop={16} onPress={() => setShowLegend(true)} accessibilityRole="button" accessibilityLabel={t.heatmapLegendTitle}>
             <Text style={styles.legendButtonText}>?</Text>
           </TouchableOpacity>
           <Text style={styles.yearText}>{now.getFullYear()} ▾</Text>

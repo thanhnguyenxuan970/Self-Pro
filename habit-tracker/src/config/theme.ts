@@ -1,7 +1,7 @@
 // src/theme.ts
 import { AccentKey, ACCENTS, DEFAULT_ACCENT } from './accents';
 
-const Colors = {
+export const Colors = {
   primary: '#25B36E',
   primaryHover: '#1E9B5E',
   primaryPress: '#177A49',
@@ -20,6 +20,7 @@ const Colors = {
   heatmapGold3: '#D0740F',
   heatmapGold4: '#8F4E0C',
   starGoldText: '#8A6110',
+  starGoldMuted: '#76672A',
   rewardCta: '#FFD54F',
   starSoft: '#FBEFD3',
   chartBar: '#E57D00',
@@ -34,7 +35,7 @@ const Colors = {
   white: '#FFFFFF',
 };
 
-const DarkColors = {
+export const DarkColors = {
   primary: '#25B36E',
   primaryHover: '#1E9B5E',
   primaryPress: '#5EC69A',
@@ -53,6 +54,7 @@ const DarkColors = {
   heatmapGold3: '#D97C13',
   heatmapGold4: '#A25B0A',
   starGoldText: '#E0A93B',
+  starGoldMuted: '#C9A227',
   rewardCta: '#FFD54F',
   starSoft: '#3D2E0F',
   chartBar: '#E57D00',

@@ -51,12 +51,13 @@ function AnimatedFill({ axis, to, delay = 0, duration = 720, animKey, reduceMoti
 }
 
 // fallow-ignore-next-line complexity
-function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, enterSelection, bonusDay, timeLocale, t, styles }: {
+const ProgressLogRow = React.memo(function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, enterSelection, bonusDay, timeLocale, t, styles }: {
   item: ActivityLogEntry; isLast: boolean; selectionMode: boolean; selected: boolean;
   toggleSelect: (id: number) => void; enterSelection: (id: number) => void;
   bonusDay: string; timeLocale: string; t: ProgTranslations; styles: ProgStyles;
 }) {
   const timeStr = new Date(item.logged_at).toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' });
+  const name = item.source === 'DAILY_BONUS' ? bonusDay : item.task_name != null ? resolveTaskDisplayName(item.task_name, t, item.is_template === 1) : item.source;
   return (
     <TouchableOpacity
       style={[styles.logRow, isLast && styles.logRowLast, selected && styles.logRowSelected]}
@@ -64,6 +65,9 @@ function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, e
       onLongPress={() => enterSelection(item.id)}
       delayLongPress={300}
       activeOpacity={0.7}
+      accessibilityRole={selectionMode ? 'checkbox' : undefined}
+      accessibilityLabel={name}
+      accessibilityState={selectionMode ? { checked: selected } : undefined}
     >
       {selectionMode && (
         <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
@@ -72,7 +76,7 @@ function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, e
       )}
       <View style={styles.logBody}>
         <Text style={styles.logName} numberOfLines={1}>
-          {item.source === 'DAILY_BONUS' ? bonusDay : item.task_name != null ? resolveTaskDisplayName(item.task_name, t, item.is_template === 1) : item.source}
+          {name}
         </Text>
         <Text style={styles.logDate}>{item.local_date} · {timeStr}</Text>
       </View>
@@ -81,7 +85,7 @@ function ProgressLogRow({ item, isLast, selectionMode, selected, toggleSelect, e
       </Text>
     </TouchableOpacity>
   );
-}
+});
 
 function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, cancelSelection, enterSelection, toggleSelect, handleDeleteSelected, deleteLogs, onAddActivity, filterDate, onFilterPress, onFilterClear, t, styles }: {
   actLogs: ActivityLogEntry[]; selectionMode: boolean; selectedIds: Set<number>;
