@@ -83,23 +83,26 @@ export function useProgressData(userId: number, range: 'D' | 'W' | 'M' | 'Y', of
 export type PointChartBucket = { bucket: string; points: number };
 
 /** Returns non-zero daily point totals for the selected analytics range. */
-export function useAnalyticsPointsData(userId: number, range: 'W' | 'M') {
+export function useAnalyticsPointsData(userId: number, range: 'W' | 'M' | 'Y') {
   const weekStart = getLocalDateOffset(-6);
   const today = getLocalDate();
   const month = getMonthOffset(0);
+  const year = getYearOffset(0);
 
   return useQuery({
-    queryKey: ['progress', 'points-chart', userId, range, weekStart, month],
+    queryKey: ['progress', 'points-chart', userId, range, weekStart, month, year],
     queryFn: async (): Promise<PointChartBucket[]> => {
       const db = await getDb();
-      const where = range === 'W'
-        ? ['local_date >= ? AND local_date <= ?', [weekStart, today]]
-        : ["substr(local_date, 1, 7) = ?", [month]];
+      const [bucket, where, params] = range === 'W'
+        ? ['local_date', 'local_date >= ? AND local_date <= ?', [weekStart, today]]
+        : range === 'M'
+          ? ["printf('W%d', CAST((CAST(substr(local_date, 9, 2) AS INTEGER) - 1) / 7 AS INTEGER) + 1)", "substr(local_date, 1, 7) = ?", [month]]
+          : ['substr(local_date, 1, 7)', "substr(local_date, 1, 4) = ?", [year]];
       return db.getAllAsync<PointChartBucket>(
-        `SELECT local_date AS bucket, total_points AS points FROM daily_summary
-         WHERE user_id = ? AND ${where[0]} AND total_points > 0
-         ORDER BY local_date`,
-        [userId, ...where[1]],
+        `SELECT ${bucket} AS bucket, SUM(total_points) AS points FROM daily_summary
+         WHERE user_id = ? AND ${where} AND total_points > 0
+         GROUP BY bucket ORDER BY bucket`,
+        [userId, ...params],
       );
     },
   });

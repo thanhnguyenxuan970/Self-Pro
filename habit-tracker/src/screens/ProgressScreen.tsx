@@ -19,7 +19,7 @@ import { useHeatmapData } from '../queries/useCalendar';
 import { useRankData } from '../queries/useRank';
 import { getRankConfigByTierOrder } from '../config/ranks.config';
 
-type Range = 'W' | 'M';
+type Range = 'W' | 'M' | 'Y';
 
 type ProgStyles = ReturnType<typeof makeStyles>;
 type ProgTranslations = ReturnType<typeof useTranslations>;
@@ -155,13 +155,14 @@ function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, ca
   );
 }
 
-function formatBucketLabel(bucket: string, r: Range, dayAbbr: string[]): string {
+function formatBucketLabel(bucket: string, r: Range, dayAbbr: string[], dateStr: (day: number, month: number) => string): string {
   if (r === 'W') {
     const d = new Date(bucket + 'T00:00:00');
     return dayAbbr[d.getDay()] ?? bucket;
   }
-  if (r === 'M') return bucket.slice(8);
-  return bucket;
+  if (r === 'M') return bucket;
+  const month = Number(bucket.slice(5, 7));
+  return dateStr(1, month).startsWith('1 ') ? `T${month}` : dateStr(1, month).split(' ')[0];
 }
 
 function openDateFilter(filterDate: string | null, setFilterDate: (d: string) => void) {
@@ -285,11 +286,12 @@ export function ProgressScreen() {
   const RANGES = useMemo(() => [
     { key: 'W' as Range, label: t.rangeWeek },
     { key: 'M' as Range, label: t.rangeMonth },
-  ], [t.rangeWeek, t.rangeMonth]);
+    { key: 'Y' as Range, label: t.rangeYear },
+  ], [t.rangeWeek, t.rangeMonth, t.rangeYear]);
 
   const formatBucket = useCallback(
-    (bucket: string, r: Range) => formatBucketLabel(bucket, r, t.dayAbbr),
-    [t.dayAbbr],
+    (bucket: string, r: Range) => formatBucketLabel(bucket, r, t.dayAbbr, t.dateStr),
+    [t.dayAbbr, t.dateStr],
   );
 
   const yearStats = useMemo(
@@ -350,7 +352,7 @@ export function ProgressScreen() {
         {/* Chart card */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{range === 'W' ? t.chartLast7Days : t.chartPointsThisMonth}</Text>
+            <Text style={styles.cardTitle}>{range === 'W' ? t.chartLast7Days : range === 'M' ? t.chartPointsThisMonth : t.chartPointsThisYear}</Text>
           </View>
           <View style={styles.chartWrap}>
             <ProgressChartContent
