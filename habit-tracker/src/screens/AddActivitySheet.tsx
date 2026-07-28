@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity,
-  Alert, StyleSheet, ActivityIndicator, Animated, Dimensions, ScrollView,
+  Alert, StyleSheet, ActivityIndicator, Animated, useWindowDimensions, ScrollView,
   KeyboardAvoidingView, Keyboard, Platform,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -21,8 +21,6 @@ import { DurationPresetChips } from '../components/DurationPresetChips';
 import { clockMinutes } from '../utils/durationClock';
 
 interface Props { visible: boolean; onClose: () => void; presetName?: string | null; }
-
-const SHEET_HIDDEN_Y = Dimensions.get('window').height;
 
 type SuggestionChipProps = {
   s: TemplateTask;
@@ -58,7 +56,7 @@ function PickerTaskRow({ task, onPress, onPin, styles, t }: {
       <Text style={styles.pickerTaskName} numberOfLines={1}>{task.icon ? `${task.icon} ` : ''}{resolveTaskDisplayName(task.name, t, task.is_template === 1)}</Text>
       {task.archived === 1 ? <Text style={styles.hiddenBadge}>{t.activityHidden}</Text> : null}
     </TouchableOpacity>
-    <TouchableOpacity style={styles.pinButton} onPress={onPin} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.activityPinned}>
+    <TouchableOpacity style={styles.pinButton} onPress={onPin} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={task.is_pinned === 1 ? t.activityUnpin : t.activityPin} accessibilityState={{ selected: task.is_pinned === 1 }}>
       <Text style={[styles.pinText, task.is_pinned === 1 && styles.pinTextActive]}>{task.is_pinned === 1 ? '★' : '☆'}</Text>
     </TouchableOpacity>
   </View>;
@@ -138,6 +136,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
   const t = useTranslations();
   const reduceMotion = useReduceMotion();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { height: sheetHiddenY } = useWindowDimensions();
 
   const createTask = useCreateTask(userId);
   const logTask = useLogTask(userId);
@@ -157,7 +156,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
   const [pendingTask, setPendingTask] = useState<PendingTask | null>(null);
 
   const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const sheetTranslateY = useRef(new Animated.Value(SHEET_HIDDEN_Y)).current;
+  const sheetTranslateY = useRef(new Animated.Value(sheetHiddenY)).current;
 
   useEffect(() => {
     if (visible && presetName) {
@@ -187,7 +186,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
     cueModalClose();
     if (reduceMotion) {
       backdropOpacity.setValue(0);
-        sheetTranslateY.setValue(SHEET_HIDDEN_Y);
+        sheetTranslateY.setValue(sheetHiddenY);
       setName('');
       setSelectedSuggestion(null);
       setSelectedExistingTask(null);
@@ -199,7 +198,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
     }
     Animated.parallel([
       Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-      Animated.timing(sheetTranslateY, { toValue: SHEET_HIDDEN_Y, duration: 220, useNativeDriver: true }),
+      Animated.timing(sheetTranslateY, { toValue: sheetHiddenY, duration: 220, useNativeDriver: true }),
     ]).start(() => {
       setName('');
       setSelectedSuggestion(null);
@@ -209,7 +208,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
       submittingRef.current = false;
       onClose();
       backdropOpacity.setValue(0);
-      sheetTranslateY.setValue(SHEET_HIDDEN_Y);
+      sheetTranslateY.setValue(sheetHiddenY);
     });
   }
 
@@ -333,7 +332,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose} statusBarTranslucent navigationBarTranslucent>
-      <KeyboardAvoidingView style={styles.kav} behavior="padding" enabled={Platform.OS === 'ios'}>
+      <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.backdrop}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim, opacity: backdropOpacity }]}>
           <TouchableOpacity

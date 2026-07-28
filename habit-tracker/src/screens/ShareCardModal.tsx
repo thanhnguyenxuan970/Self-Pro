@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, StyleSheet,
-  ActivityIndicator, ScrollView, Dimensions, Alert,
+  ActivityIndicator, ScrollView, useWindowDimensions, Alert,
 } from 'react-native';
 import { pickSquareImage } from '../utils/pickImage';
 import * as Sharing from 'expo-sharing';
@@ -12,11 +12,6 @@ import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useProStatus } from '../hooks/useProStatus';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
-
-const { width: SCREEN_W } = Dimensions.get('window');
-const PREVIEW_SCALE = (SCREEN_W - 48) / CARD_W;
-const MARGIN_H = CARD_W * (PREVIEW_SCALE - 1) / 2;   // negative — shrinks layout
-const MARGIN_V = CARD_H * (PREVIEW_SCALE - 1) / 2;   // negative — shrinks layout
 
 interface Props {
   visible: boolean;
@@ -37,6 +32,10 @@ export function ShareCardModal({
   const t = useTranslations();
   const { bottom } = useSafeAreaInsets();
   const { isPro } = useProStatus();
+  const { width: screenW } = useWindowDimensions();
+  const previewScale = (screenW - 48) / CARD_W;
+  const marginH = CARD_W * (previewScale - 1) / 2;   // negative — shrinks layout
+  const marginV = CARD_H * (previewScale - 1) / 2;   // negative — shrinks layout
   const [beforeUri, setBeforeUri] = useState<string | undefined>();
   const [afterUri, setAfterUri] = useState<string | undefined>();
   const [capturing, setCapturing] = useState(false);
@@ -73,7 +72,7 @@ export function ShareCardModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose} statusBarTranslucent navigationBarTranslucent>
       <View style={[styles.backdrop, { backgroundColor: C.scrim }]}>
         <View style={[styles.sheet, { backgroundColor: C.surface, paddingBottom: Spacing.xl + BOTTOM_TAB_BAR_HEIGHT + bottom }]}>
           {/* Header */}
@@ -94,7 +93,7 @@ export function ShareCardModal({
             contentContainerStyle={styles.scrollContent}
           >
             {/* Card preview — scaled to fit screen width */}
-            <View style={styles.previewContainer}>
+            <View style={[styles.previewContainer, { marginHorizontal: marginH, marginVertical: marginV, transform: [{ scale: previewScale }] }]}>
               <ShareCard
                 ref={cardRef}
                 streakCount={streakCount}
@@ -209,10 +208,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
   },
   previewContainer: {
-    // negative margins absorb the layout space the transform leaves behind
-    marginHorizontal: MARGIN_H,
-    marginVertical: MARGIN_V,
-    transform: [{ scale: PREVIEW_SCALE }],
+    // margin/scale are computed per-render from useWindowDimensions and applied inline
     alignSelf: 'center',
   },
   photoPickerRow: {

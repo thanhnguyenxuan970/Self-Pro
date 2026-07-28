@@ -266,7 +266,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   const ctaDisabled = entries.length === 0 || isPending || locked;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel={t.close} />
         <View style={styles.sheet}>

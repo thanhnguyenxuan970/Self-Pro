@@ -107,7 +107,7 @@ export function ChallengeDetailScreen() {
           onPress={handleMenu}
           disabled={challengeId == null}
           accessibilityRole="button"
-          accessibilityLabel={t.screenChallengeDetail}
+          accessibilityLabel={t.challengeMenuOptions}
           style={styles.headerMenuButton}
         >
           <Text style={styles.headerMenuText}>⋯</Text>

@@ -102,10 +102,10 @@ type Props = {
   isSelected: boolean; selectionMode: boolean; justLogged: boolean;
   totalDurationMin?: number; starsEarned?: number; pointsEarned?: number; logPending: boolean;
   colors: AppColors;
-  onPress: () => void; onLongPress: () => void; onEdit?: () => void;
+  onPress: (item: Task) => void; onLongPress: (item: Task) => void; onEdit?: (item: Task) => void;
 };
 
-export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, starsEarned, pointsEarned, onPress, onLongPress, onEdit, logPending, colors }: Props) {
+function TaskRowComponent({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, starsEarned, pointsEarned, onPress, onLongPress, onEdit, logPending, colors }: Props) {
   const t = useTranslations();
   const styles = useMemo(() => makeTaskRowStyles(colors), [colors]);
   const { fadeAnim, scaleAnim, checkScaleAnim } = useTaskRowAnimation(justLogged, done);
@@ -114,8 +114,8 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
     <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
       <TouchableOpacity
         style={[styles.task, isLast && styles.taskLast, done && !isBad && styles.taskDone, isSelected && styles.taskSelected]}
-        onPress={onPress}
-        onLongPress={onLongPress}
+        onPress={() => onPress(item)}
+        onLongPress={() => onLongPress(item)}
         delayLongPress={300}
         disabled={!selectionMode && logPending}
         activeOpacity={0.7}
@@ -137,7 +137,7 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
         {(done || (!selectionMode && onEdit)) ? <View style={styles.rightCol}>
           {!selectionMode && onEdit ? (
             <TouchableOpacity
-              onPress={onEdit}
+              onPress={() => onEdit(item)}
               hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
               accessibilityLabel={t.editActivity}
               accessibilityRole="button"
@@ -153,6 +153,8 @@ export function TaskRow({ item, done, isBad, isLast, isSelected, selectionMode, 
     </Animated.View>
   );
 }
+
+export const TaskRow = React.memo(TaskRowComponent);
 
 function makeTaskRowStyles(C: AppColors) {
   return StyleSheet.create({
@@ -176,7 +178,7 @@ function makeTaskRowStyles(C: AppColors) {
     tBody: { flex: 1, minWidth: 0 },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     tName: { flexShrink: 1, fontSize: 14.5, lineHeight: 20, fontFamily: FontFamily.semiBold, color: C.inkDark },
-    tNameDone: { color: C.muted, textDecorationLine: 'line-through' },
+    tNameDone: { color: C.ink2, textDecorationLine: 'line-through' },
     titleIcon: { fontSize: 13, lineHeight: 20 },
     tMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
     tMetaText: { fontSize: 11.5, lineHeight: 17, color: C.muted },

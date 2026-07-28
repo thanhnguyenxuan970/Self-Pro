@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, Modal, Alert, Animated,
@@ -47,6 +47,7 @@ import { getLocalDate, getWeekStart } from '../utils/formatters';
 import type { StreakMilestone } from '../game/streakMilestones';
 
 const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑', 8: '👾', 9: '😇' };
+const SHARE_MILESTONES = [7, 30, 90];
 
 function SuggestionEntranceWrapper({ index, reduceMotion, children }: { index: number; reduceMotion: boolean; children: React.ReactNode }) {
   const fadeAnim = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
@@ -295,9 +296,7 @@ export function TodayScreen() {
     });
   }, [tasks, loggedIds]);
 
-  const SHARE_MILESTONES = [7, 30, 90];
-
-  function showStreakToast(newStreak: number, prevStreak: number, milestone: StreakMilestone | null) {
+  const showStreakToast = useCallback((newStreak: number, prevStreak: number, milestone: StreakMilestone | null) => {
     if (newStreak === 1 && prevStreak > 1) {
       Toast.show({ type: 'error', text1: t.streakBreakTitle, text2: t.streakBreakMsg(prevStreak), visibilityTime: 3000 });
     } else if (newStreak > 1 && newStreak > prevStreak) {
@@ -311,24 +310,24 @@ export function TodayScreen() {
         setTimeout(() => setShowShareCard(true), 1500);
       }
     }
-  }
+  }, [t]);
 
-  async function tryUnlog(task: Task) {
+  const tryUnlog = useCallback(async (task: Task) => {
     try {
       await unlogTask.mutateAsync({ taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD' });
     } catch { Alert.alert(t.error, t.cantLog); }
-  }
+  }, [unlogTask, t]);
 
-  async function logNonTimedTask(task: { id: number; kind: string; base_points: number; star_penalty: number }) {
+  const logNonTimedTask = useCallback(async (task: { id: number; kind: string; base_points: number; star_penalty: number }) => {
     const result = await logTask.mutateAsync({
       taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD',
       isTimeBased: false, basePoints: task.base_points, starPenalty: task.star_penalty,
     });
     showStreakToast(result.newStreak, result.prevStreak, result.milestone);
     return result;
-  }
+  }, [logTask, showStreakToast]);
 
-  async function handleLog(task: Task) {
+  const handleLog = useCallback(async (task: Task) => {
     if (loggedIds?.has(task.id)) {
       await tryUnlog(task);
       return;
@@ -345,7 +344,16 @@ export function TodayScreen() {
       setTimeout(() => setJustLoggedIds(prev => { const n = new Set(prev); n.delete(task.id); return n; }), 1500);
     } catch { Alert.alert(t.error, t.cantLog); }
     finally { pendingLogTaskIds.current.delete(task.id); }
-  }
+  }, [loggedIds, justLoggedIds, tryUnlog, logNonTimedTask, t]);
+
+  const handleTaskPress = useCallback((task: Task) => {
+    if (selectionMode) toggleSelect(task.id);
+    else handleLog(task);
+  }, [selectionMode, toggleSelect, handleLog]);
+
+  const handleTaskLongPress = useCallback((task: Task) => {
+    enterSelection(task.id);
+  }, [enterSelection]);
 
   async function handleLogTime(mins: number) {
     if (!modalTask) return;
@@ -571,9 +579,9 @@ export function TodayScreen() {
                   totalDurationMin={totalDurations?.get(item.id)?.duration}
                   starsEarned={totalDurations?.get(item.id)?.stars}
                   pointsEarned={totalDurations?.get(item.id)?.points}
-                  onPress={() => selectionMode ? toggleSelect(item.id) : handleLog(item)}
-                  onLongPress={() => enterSelection(item.id)}
-                  onEdit={() => setEditTask(item)}
+                  onPress={handleTaskPress}
+                  onLongPress={handleTaskLongPress}
+                  onEdit={setEditTask}
                   logPending={logTask.isPending || unlogTask.isPending}
                   colors={colors}
                 />
