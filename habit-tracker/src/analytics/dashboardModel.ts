@@ -41,7 +41,7 @@ export function buildAnalyticsDashboard(daily: AnalyticsDaily[], logs: Analytics
     : range === 'M' ? new Date(previousStart.getFullYear(), previousStart.getMonth(), date.getDate()) : addDays(previousStart, Math.round((date.getTime() - start.getTime()) / 86400000)));
   const labels = currentDates.map(date => range === 'W'
     ? ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][date.getDay()]
-    : range === 'M' ? `W${Math.floor((date.getDate() - 1) / 7) + 1}`
+    : range === 'M' ? (date.getDate() % 7 === 1 ? String(date.getDate()) : '')
     : date.toLocaleString('en-US', { month: 'short' }));
   const monthTotal = (month: Date, from: Date, to: Date) => sum(daily.filter(row => {
     const date = new Date(`${row.local_date}T00:00:00`);

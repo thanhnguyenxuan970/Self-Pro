@@ -28,6 +28,12 @@ describe('buildAnalyticsDashboard', () => {
     expect(result.daysAtGoal).toBe(1);
   });
 
+  it('labels only weekly landmarks in the month chart', () => {
+    const result = buildAnalyticsDashboard([], [], 'M', new Date(2026, 6, 28));
+
+    expect(result.bars.map(bar => bar.label).filter(Boolean)).toEqual(['1', '8', '15', '22']);
+  });
+
   it('pairs current and previous week data and aggregates dashboard totals', () => {
     const today = new Date(2026, 6, 28);
     const result = buildAnalyticsDashboard(
