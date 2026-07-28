@@ -10,7 +10,7 @@ export type CalendarDay = {
   is_milestone: boolean;
 };
 
-export type HeatmapDay = { local_date: string; total_points: number; stars: number };
+type HeatmapDay = { local_date: string; total_points: number; stars: number };
 
 const MILESTONE_STREAKS = [3, 7, 14, 30, 100];
 

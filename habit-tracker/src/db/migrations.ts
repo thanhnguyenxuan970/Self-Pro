@@ -2,6 +2,16 @@
 
 type MigrationFn = (db: SQLiteDatabase) => Promise<void>;
 
+// SQLite has no `ADD COLUMN IF NOT EXISTS`; re-running a migration after a
+// partial upgrade must tolerate the column already existing.
+async function addColumnIfMissing(db: SQLiteDatabase, alterSql: string): Promise<void> {
+  try {
+    await db.runAsync(alterSql);
+  } catch (e: any) {
+    if (!e?.message?.includes('duplicate column')) throw e;
+  }
+}
+
 // v0 -> v1: initial schema + seed data
 async function v1(db: SQLiteDatabase): Promise<void> {
   await db.execAsync(`
@@ -157,9 +167,7 @@ async function v2(db: SQLiteDatabase): Promise<void> {
     `ALTER TABLE users ADD COLUMN penalty_hits_treats INTEGER NOT NULL DEFAULT 1`,
     `ALTER TABLE task_types ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0`,
   ]) {
-    try { await db.runAsync(sql); } catch (e: any) {
-      if (!e?.message?.includes('duplicate column')) throw e;
-    }
+    await addColumnIfMissing(db, sql);
   }
 }
 
@@ -284,8 +292,7 @@ async function v8(db: SQLiteDatabase): Promise<void> {
 
 // v8 -> v9: backfill support — is_backfill flag + quota index
 async function v9(db: SQLiteDatabase): Promise<void> {
-  try { await db.runAsync(`ALTER TABLE activity_log ADD COLUMN is_backfill INTEGER NOT NULL DEFAULT 0`); }
-  catch (e: any) { if (!e?.message?.includes('duplicate column')) throw e; }
+  await addColumnIfMissing(db, `ALTER TABLE activity_log ADD COLUMN is_backfill INTEGER NOT NULL DEFAULT 0`);
   await db.execAsync(`
     CREATE INDEX IF NOT EXISTS idx_activity_user_week_bf
       ON activity_log(user_id, week_start, is_backfill)
@@ -342,9 +349,7 @@ async function v12(db: SQLiteDatabase): Promise<void> {
     `ALTER TABLE challenges ADD COLUMN streak_current INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE challenges ADD COLUMN completed_at TEXT`,
   ]) {
-    try { await db.runAsync(sql); } catch (e: any) {
-      if (!e?.message?.includes('duplicate column')) throw e;
-    }
+    await addColumnIfMissing(db, sql);
   }
 
   await db.execAsync(`
@@ -432,9 +437,7 @@ async function v14(db: SQLiteDatabase): Promise<void> {
     `ALTER TABLE challenges ADD COLUMN notifications_enabled INTEGER NOT NULL DEFAULT 1`,
     `ALTER TABLE challenges ADD COLUMN notification_id TEXT`,
   ]) {
-    try { await db.runAsync(sql); } catch (e: any) {
-      if (!e?.message?.includes('duplicate column')) throw e;
-    }
+    await addColumnIfMissing(db, sql);
   }
 }
 
@@ -519,9 +522,7 @@ async function v17(db: SQLiteDatabase): Promise<void> {
     `ALTER TABLE challenges ADD COLUMN min_duration INTEGER`,
     `ALTER TABLE challenges ADD COLUMN min_count INTEGER`,
   ]) {
-    try { await db.runAsync(sql); } catch (e: any) {
-      if (!e?.message?.includes('duplicate column')) throw e;
-    }
+    await addColumnIfMissing(db, sql);
   }
 }
 
@@ -534,30 +535,18 @@ async function v17(db: SQLiteDatabase): Promise<void> {
 // does not claw back a reward already granted before the flag arrives (see
 // TODOS.md for the deferred full-clawback follow-up).
 async function v18(db: SQLiteDatabase): Promise<void> {
-  try {
-    await db.runAsync(`ALTER TABLE activity_log ADD COLUMN is_clock_suspect INTEGER DEFAULT 0`);
-  } catch (e: any) {
-    if (!e?.message?.includes('duplicate column')) throw e;
-  }
+  await addColumnIfMissing(db, `ALTER TABLE activity_log ADD COLUMN is_clock_suspect INTEGER DEFAULT 0`);
 }
 
 // v18 -> v19: stable, user-controlled pins for the activity picker.
 async function v19(db: SQLiteDatabase): Promise<void> {
-  try {
-    await db.runAsync(`ALTER TABLE task_types ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0`);
-  } catch (e: any) {
-    if (!e?.message?.includes('duplicate column')) throw e;
-  }
+  await addColumnIfMissing(db, `ALTER TABLE task_types ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0`);
   await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_task_types_picker ON task_types(user_id, archived, is_pinned)`);
 }
 
 // v19 -> v20: translate only activities created from built-in templates.
 async function v20(db: SQLiteDatabase): Promise<void> {
-  try {
-    await db.runAsync(`ALTER TABLE task_types ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0`);
-  } catch (e: any) {
-    if (!e?.message?.includes('duplicate column')) throw e;
-  }
+  await addColumnIfMissing(db, `ALTER TABLE task_types ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0`);
   await db.runAsync(`UPDATE task_types SET is_template = 1 WHERE name IN ('Running', 'Gym', 'Reading', 'Language Learning', 'Homework', 'Studying', 'Cleaning', 'Cooking', 'Work', 'Study', 'Family', 'Relationship', 'Sports', 'Chạy bộ', 'Đọc sách', 'Học ngoại ngữ', 'Làm bài tập', 'Ôn bài', 'Dọn dẹp', 'Nấu ăn')`);
 }
 

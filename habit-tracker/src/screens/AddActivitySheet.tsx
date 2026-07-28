@@ -17,6 +17,7 @@ import { Strings } from '../config/i18n';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 import { activityGroup, activityMatches, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../utils/activityPicker';
 import { DurationClockInput } from '../components/DurationClockInput';
+import { DurationPresetChips } from '../components/DurationPresetChips';
 import { clockMinutes } from '../utils/durationClock';
 
 interface Props { visible: boolean; onClose: () => void; presetName?: string | null; }
@@ -100,28 +101,14 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onBack, onClo
         <Text style={[styles.durationLabel, { marginTop: 4 }]}>{t.addActivityHowLong}</Text>
 
         {!customDuration ? (
-          <View style={styles.presetChipsRow}>
-            {([{ label: '30m', mins: 30 }, { label: '45m', mins: 45 }, { label: '1h', mins: 60 }] as const).map(p => (
-              <TouchableOpacity
-                key={p.label}
-                style={styles.presetChip}
-                onPress={() => onLogDuration(p.mins)}
-                disabled={isPending}
-                activeOpacity={0.75}
-                accessibilityRole="button"
-              >
-                <Text style={styles.presetChipText}>{p.label}</Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity
-              style={[styles.presetChip, styles.presetChipCustom]}
-              onPress={() => setCustomDuration(true)}
-              activeOpacity={0.75}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.presetChipText, styles.presetChipCustomText]}>{t.durationCustom}</Text>
-            </TouchableOpacity>
-          </View>
+          <DurationPresetChips
+            colors={colors}
+            disabled={isPending}
+            onSelectPreset={onLogDuration}
+            onCustom={() => setCustomDuration(true)}
+            customLabel={t.durationCustom}
+            rowStyle={{ marginTop: Spacing.md }}
+          />
         ) : (
           <>
             <DurationClockInput value={clock} onChange={setClock} colors={colors} />
@@ -245,6 +232,10 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
     } catch (error) {
       if (error instanceof Error && error.message === 'PIN_LIMIT') Alert.alert(t.error, t.activityPinLimit);
     }
+  }
+
+  function renderPickerTaskRow(task: PickerTask) {
+    return <PickerTaskRow key={task.id} task={task} onPress={() => void handlePickerTask(task)} onPin={() => void handlePin(task)} styles={styles} t={t} />;
   }
 
   // fallow-ignore-next-line complexity
@@ -379,7 +370,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
                 {presetName == null && query.length > 0 && (
                   <>
                     <Text style={styles.suggestionsLabel}>{t.activitySearch}</Text>
-                    {searchTasks.map(task => <PickerTaskRow key={task.id} task={task} onPress={() => void handlePickerTask(task)} onPin={() => void handlePin(task)} styles={styles} t={t} />)}
+                    {searchTasks.map(renderPickerTaskRow)}
                     <View style={styles.chipsWrap}>{suggestions.filter(task => activityMatches(task, query)).map(task => <SuggestionChip key={task.nameKey} s={task} isSelected={false} onPress={() => handleSuggestionTap(task)} t={t as Record<string, unknown>} styles={styles} />)}</View>
                   </>
                 )}
@@ -387,14 +378,14 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
                 {presetName == null && query.length === 0 && pinnedTasks.length > 0 && (
                   <>
                     <View style={styles.sectionHeader}><Text style={styles.suggestionsLabel}>{t.activityPinned} · {pinnedTasks.length}/{MAX_PINNED_ACTIVITIES}</Text></View>
-                    {pinnedTasks.map(task => <PickerTaskRow key={task.id} task={task} onPress={() => void handlePickerTask(task)} onPin={() => void handlePin(task)} styles={styles} t={t} />)}
+                    {pinnedTasks.map(renderPickerTaskRow)}
                   </>
                 )}
 
                 {presetName == null && query.length === 0 && recentTasks.length > 0 && (
                   <>
                     <Text style={styles.suggestionsLabel}>{t.activityRecent}</Text>
-                    {recentTasks.slice(0, 6).map(task => <PickerTaskRow key={task.id} task={task} onPress={() => void handlePickerTask(task)} onPin={() => void handlePin(task)} styles={styles} t={t} />)}
+                    {recentTasks.slice(0, 6).map(renderPickerTaskRow)}
                   </>
                 )}
 
@@ -403,7 +394,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
                     <TouchableOpacity style={styles.browseButton} onPress={() => setShowAll(value => !value)} accessibilityRole="button"><Text style={styles.browseText}>{showAll ? t.activityHideAll : t.activityBrowseAll}</Text></TouchableOpacity>
                     {showAll && Object.entries(groupedTasks).map(([group, tasks]) => <View key={group}>
                       <TouchableOpacity style={styles.groupHeader} onPress={() => setCollapsedGroups(value => ({ ...value, [group]: !value[group] }))} accessibilityRole="button"><Text style={styles.groupTitle}>{group}</Text><Text style={styles.groupToggle}>{collapsedGroups[group] ? '⌄' : '⌃'}</Text></TouchableOpacity>
-                      {!collapsedGroups[group] && tasks.map(task => <PickerTaskRow key={task.id} task={task} onPress={() => void handlePickerTask(task)} onPin={() => void handlePin(task)} styles={styles} t={t} />)}
+                      {!collapsedGroups[group] && tasks.map(renderPickerTaskRow)}
                     </View>)}
                   </>
                 )}
@@ -574,14 +565,5 @@ function makeStyles(C: AppColors) {
     backButton: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', marginTop: Spacing.xs },
     backText: { color: C.primary, fontSize: 14, fontFamily: FontFamily.bold },
     durationStepTitle: { fontSize: 19, fontFamily: FontFamily.extraBold, color: C.inkDark, marginBottom: 2 },
-    presetChipsRow: { flexDirection: 'row', gap: 10, marginTop: Spacing.md, marginBottom: Spacing.md, flexWrap: 'wrap' },
-    presetChip: {
-      flex: 1, minWidth: 60, backgroundColor: C.primary,
-      borderRadius: Radii.md, paddingVertical: 16,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    presetChipCustom: { backgroundColor: C.surface2, borderWidth: 1.5, borderColor: C.line2 },
-    presetChipText: { color: C.white, fontSize: 16, fontFamily: FontFamily.extraBold },
-    presetChipCustomText: { color: C.inkDark },
   });
 }

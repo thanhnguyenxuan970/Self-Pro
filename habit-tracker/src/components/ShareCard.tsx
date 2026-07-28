@@ -13,7 +13,7 @@ const MUTED = 'rgba(241,247,243,0.6)';
 const FAINT = 'rgba(241,247,243,0.25)';
 const CARD_BG: readonly [string, string, string] = ['#123f2e', '#0E3527', '#0B2C20'];
 
-export interface ShareCardProps {
+interface ShareCardProps {
   streakCount: number;
   daysDone: number;
   percentile: number;

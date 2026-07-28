@@ -349,6 +349,7 @@ const vi = {
   challengeLoggedToday: 'Đã ghi nhận hôm nay',
   challengeLogNowCta: 'Ghi ngay',
   challengeLinkedHint: (taskName: string) => `Thử thách này tự hoàn thành khi bạn ghi "${taskName}".`,
+  // fallow-ignore-next-line code-duplication -- vi/en locale parity, wording diverges independently
   challengeLinkedHintThreshold: (minDuration: number | null, minCount: number | null) => {
     const parts: string[] = [];
     if (minDuration != null) parts.push(`tối thiểu ${minDuration} phút`);
@@ -357,6 +358,7 @@ const vi = {
   },
   challengeStatusEnded: 'Đã kết thúc',
   challengeResetBadge: (day: number) => `↻ Đã reset · ngày ${day}`,
+  // fallow-ignore-next-line code-duplication -- vi/en locale parity, wording diverges independently
   challengeWeekBadge: (weekIndex: number, totalWeeks: number) => `● Tuần ${weekIndex}/${totalWeeks}`,
   challengeWeekOf: (weekIndex: number, totalWeeks: number) => `Tuần ${weekIndex} / ${totalWeeks}`,
   challengeSessionsThisWeek: (done: number, target: number) => `buổi ${done} / ${target}`,
@@ -1063,6 +1065,7 @@ const en: typeof vi = {
   challengeLoggedToday: 'Completed today',
   challengeLogNowCta: 'Complete now',
   challengeLinkedHint: (taskName: string) => `This challenge auto-completes when you complete "${taskName}".`,
+  // fallow-ignore-next-line code-duplication -- vi/en locale parity, wording diverges independently
   challengeLinkedHintThreshold: (minDuration: number | null, minCount: number | null) => {
     const parts: string[] = [];
     if (minDuration != null) parts.push(`min ${minDuration} min`);
@@ -1071,6 +1074,7 @@ const en: typeof vi = {
   },
   challengeStatusEnded: 'Ended',
   challengeResetBadge: (day) => `↻ Reset · day ${day}`,
+  // fallow-ignore-next-line code-duplication -- vi/en locale parity, wording diverges independently
   challengeWeekBadge: (weekIndex: number, totalWeeks: number) => `● Week ${weekIndex}/${totalWeeks}`,
   challengeWeekOf: (weekIndex: number, totalWeeks: number) => `Week ${weekIndex} of ${totalWeeks}`,
   challengeSessionsThisWeek: (done: number, target: number) => `${done} / ${target} sessions`,

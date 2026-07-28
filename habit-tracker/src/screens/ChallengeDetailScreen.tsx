@@ -2,7 +2,7 @@ import React, { useLayoutEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, TextInput, Share } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import * as ImagePicker from 'expo-image-picker';
+import { pickSquareImage } from '../utils/pickImage';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
@@ -58,21 +58,6 @@ export function ChallengeDetailScreen() {
     requestAddActivity({ name });
   }
 
-  async function pickAfterPhoto() {
-    if (!challenge) return;
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.9,
-      allowsEditing: true,
-      aspect: [1, 1],
-    });
-    if (!result.canceled && result.assets[0]) {
-      setAfterPhoto.mutate({ challengeId: challenge.id, uri: result.assets[0].uri });
-    }
-  }
-
   async function handleShare() {
     if (!challenge) return;
     try {
@@ -86,16 +71,12 @@ export function ChallengeDetailScreen() {
     }
   }
 
-  async function pickBeforePhoto() {
+  async function pickChallengePhoto(slot: 'before' | 'after') {
     if (!challenge) return;
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'], quality: 0.9, allowsEditing: true, aspect: [1, 1],
-    });
-    if (!result.canceled && result.assets[0]) {
-      setBeforePhoto.mutate({ challengeId: challenge.id, uri: result.assets[0].uri });
-    }
+    const uri = await pickSquareImage();
+    if (!uri) return;
+    if (slot === 'before') setBeforePhoto.mutate({ challengeId: challenge.id, uri });
+    else setAfterPhoto.mutate({ challengeId: challenge.id, uri });
   }
 
   function handleMenu() {
@@ -333,10 +314,10 @@ export function ChallengeDetailScreen() {
           <>
             <Text style={styles.sectionLabel}>{t.challengeJourneyTitle}</Text>
             <View style={styles.photoSection}>
-              <PhotoSlot uri={challenge.beforePhoto} label={t.challengeBeforePhotoLabel} actionLabel={t.challengeAddPhoto} onPress={pickBeforePhoto} />
+              <PhotoSlot uri={challenge.beforePhoto} label={t.challengeBeforePhotoLabel} actionLabel={t.challengeAddPhoto} onPress={() => pickChallengePhoto('before')} />
               <PhotoSlot uri={challenge.afterPhoto} label={t.challengeAfterPhotoLabel}
                 actionLabel={t.challengeAddPhoto}
-                onPress={pickAfterPhoto} />
+                onPress={() => pickChallengePhoto('after')} />
             </View>
           </>
         )}
@@ -351,7 +332,7 @@ export function ChallengeDetailScreen() {
         )}
         {active && !isWeekly && (
           <View style={styles.photoSection}>
-            <PhotoSlot uri={challenge.beforePhoto} label={t.challengeBeforePhotoLabel} actionLabel={t.challengeAddPhoto} onPress={pickBeforePhoto} />
+            <PhotoSlot uri={challenge.beforePhoto} label={t.challengeBeforePhotoLabel} actionLabel={t.challengeAddPhoto} onPress={() => pickChallengePhoto('before')} />
             <PhotoSlot uri={challenge.afterPhoto} label={t.challengeAfterPhotoLabel}
               locked
               actionLabel={t.challengeAfterPhotoLocked} />

@@ -38,8 +38,9 @@ import { useHeatmapData } from '../queries/useCalendar';
 import { useBackfillStatus } from '../queries/useBackfillStatus';
 import { HomeHeatmap } from '../components/HomeHeatmap';
 import { HomeBackfillNudge } from '../components/HomeBackfillNudge';
-import { BackfillSheet } from '../components/BackfillSheet';
+import { BackfillFlow } from '../components/BackfillFlow';
 import { DurationClockInput } from '../components/DurationClockInput';
+import { DurationPresetChips } from '../components/DurationPresetChips';
 import { clockMinutes } from '../utils/durationClock';
 import { getHomeBackfillNudge } from '../game/homeBackfillNudge';
 import { getLocalDate, getWeekStart } from '../utils/formatters';
@@ -125,16 +126,13 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
           <Text style={styles.modalTitle}>{labels.taskDisplayName}</Text>
           <Text style={styles.modalSub}>{labels.addActivityHowLong}</Text>
           {!customDuration ? (
-            <View style={styles.presetChipsRow}>
-              {([{ label: '30m', mins: 30 }, { label: '45m', mins: 45 }, { label: '1h', mins: 60 }] as const).map(p => (
-                <TouchableOpacity key={p.label} style={styles.presetChip} onPress={() => onLog(p.mins)} disabled={logPending} activeOpacity={0.75} accessibilityRole="button">
-                  <Text style={styles.presetChipText}>{p.label}</Text>
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity style={[styles.presetChip, styles.presetChipCustom]} onPress={() => setCustomDuration(true)} activeOpacity={0.75} accessibilityRole="button">
-                <Text style={[styles.presetChipText, styles.presetChipCustomText]}>{labels.durationCustom}</Text>
-              </TouchableOpacity>
-            </View>
+            <DurationPresetChips
+              colors={colors}
+              disabled={logPending}
+              onSelectPreset={onLog}
+              onCustom={() => setCustomDuration(true)}
+              customLabel={labels.durationCustom}
+            />
           ) : (
             <>
               <DurationClockInput value={clock} onChange={setClock} colors={colors} />
@@ -321,6 +319,15 @@ export function TodayScreen() {
     } catch { Alert.alert(t.error, t.cantLog); }
   }
 
+  async function logNonTimedTask(task: { id: number; kind: string; base_points: number; star_penalty: number }) {
+    const result = await logTask.mutateAsync({
+      taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD',
+      isTimeBased: false, basePoints: task.base_points, starPenalty: task.star_penalty,
+    });
+    showStreakToast(result.newStreak, result.prevStreak, result.milestone);
+    return result;
+  }
+
   async function handleLog(task: Task) {
     if (loggedIds?.has(task.id)) {
       await tryUnlog(task);
@@ -333,11 +340,7 @@ export function TodayScreen() {
     if (justLoggedIds.has(task.id) || pendingLogTaskIds.current.has(task.id)) return;
     pendingLogTaskIds.current.add(task.id);
     try {
-      const result = await logTask.mutateAsync({
-        taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD',
-        isTimeBased: false, basePoints: task.base_points, starPenalty: task.star_penalty,
-      });
-      showStreakToast(result.newStreak, result.prevStreak, result.milestone);
+      await logNonTimedTask(task);
       setJustLoggedIds(prev => new Set(prev).add(task.id));
       setTimeout(() => setJustLoggedIds(prev => { const n = new Set(prev); n.delete(task.id); return n; }), 1500);
     } catch { Alert.alert(t.error, t.cantLog); }
@@ -363,11 +366,7 @@ export function TodayScreen() {
       return;
     }
     try {
-      const result = await logTask.mutateAsync({
-        taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD',
-        isTimeBased: false, basePoints: task.base_points, starPenalty: task.star_penalty,
-      });
-      showStreakToast(result.newStreak, result.prevStreak, result.milestone);
+      await logNonTimedTask(task);
       setDismissedSuggestions(prev => new Set(prev).add(task.id));
     } catch { Alert.alert(t.error, t.cantLog); }
   }
@@ -607,16 +606,12 @@ export function TodayScreen() {
         milestone={pendingLevelUp === null ? pendingStreakMilestone : null}
         onDismiss={() => setPendingStreakMilestone(null)}
       />
-      <BackfillSheet
-        visible={!!backfillDate}
-        date={backfillDate ?? ''}
-        backfillsUsedThisWeek={backfillStatus?.backfillsUsedThisWeek ?? 0}
+      <BackfillFlow
+        backfillDate={backfillDate}
+        setBackfillDate={setBackfillDate}
+        backfillsUsedThisWeek={backfillStatus?.backfillsUsedThisWeek}
         userId={userId}
-        onMilestone={(milestone) => {
-          setBackfillDate(null);
-          setPendingStreakMilestone(milestone);
-        }}
-        onClose={() => setBackfillDate(null)}
+        setPendingStreakMilestone={setPendingStreakMilestone}
       />
     </SafeAreaView>
   );
@@ -716,15 +711,6 @@ function makeStyles(C: AppColors) {
     },
     modalTitle: { fontSize: 19, fontFamily: FontFamily.extraBold, color: C.inkDark, marginBottom: 4 },
     modalSub: { fontSize: 13, color: C.muted, marginBottom: Spacing.md },
-    presetChipsRow: { flexDirection: 'row', gap: 10, marginBottom: Spacing.md, flexWrap: 'wrap' },
-    presetChip: {
-      flex: 1, minWidth: 60, backgroundColor: C.primary,
-      borderRadius: Radii.md, paddingVertical: 16,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    presetChipCustom: { backgroundColor: C.surface2, borderWidth: 1.5, borderColor: C.line2 },
-    presetChipText: { color: C.white, fontSize: 16, fontFamily: FontFamily.extraBold },
-    presetChipCustomText: { color: C.inkDark },
     btn: { backgroundColor: C.primary, padding: 15, borderRadius: Radii.md, alignItems: 'center', marginBottom: 8 },
     btnText: { color: C.white, fontSize: 15, fontFamily: FontFamily.bold },
     cancel: { textAlign: 'center', color: C.muted, padding: 8 },

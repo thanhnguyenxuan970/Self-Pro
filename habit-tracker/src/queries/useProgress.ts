@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { dailyBonusStarsForPoints } from '../config/constants';
-import { getLocalDate, getWeekStart, getLocalDateOffset, getWeekStartOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
+import { getLocalDate, getWeekStart, getLocalDateOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
 import { AnalyticsDashboard, AnalyticsRange, AnalyticsDaily, AnalyticsLog, analyticsDemo, buildAnalyticsDashboard } from '../analytics/dashboardModel';
 
 export type ActivityLogEntry = {
@@ -16,72 +16,7 @@ export type ActivityLogEntry = {
   source: string;
 };
 
-type ChartBucket = { bucket: string; goodStars: number; badStars: number };
-
-/** Returns bucketed chart data for D/W/M/Y range, with optional period offset (0=current, -1=previous, etc.) */
-export function useProgressData(userId: number, range: 'D' | 'W' | 'M' | 'Y', offset: number = 0) {
-  const effectiveDate = offset === 0 ? getLocalDate() : getLocalDateOffset(offset);
-  const effectiveWeekStart = getWeekStartOffset(offset);
-  const effectiveMonth = getMonthOffset(offset);
-  const effectiveYear = getYearOffset(offset);
-
-  return useQuery({
-    queryKey: ['progress', 'chart', userId, range, offset],
-    queryFn: async (): Promise<ChartBucket[]> => {
-      const db = await getDb();
-
-      let sql: string;
-      let params: (string | number)[];
-
-      if (range === 'D') {
-        sql = `
-          SELECT
-            strftime('%H', datetime(logged_at/1000, 'unixepoch', 'localtime')) AS bucket,
-            COALESCE(SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END), 0) AS goodStars,
-            COALESCE(SUM(CASE WHEN stars_delta < 0 THEN ABS(stars_delta) ELSE 0 END), 0) AS badStars
-          FROM activity_log
-          WHERE user_id = ? AND local_date = ?
-          GROUP BY bucket ORDER BY bucket`;
-        params = [userId, effectiveDate];
-      } else if (range === 'W') {
-        sql = `
-          SELECT
-            local_date AS bucket,
-            COALESCE(SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END), 0) AS goodStars,
-            COALESCE(SUM(CASE WHEN stars_delta < 0 THEN ABS(stars_delta) ELSE 0 END), 0) AS badStars
-          FROM activity_log
-          WHERE user_id = ? AND week_start = ?
-          GROUP BY local_date ORDER BY local_date`;
-        params = [userId, effectiveWeekStart];
-      } else if (range === 'M') {
-        sql = `
-          SELECT
-            local_date AS bucket,
-            COALESCE(SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END), 0) AS goodStars,
-            COALESCE(SUM(CASE WHEN stars_delta < 0 THEN ABS(stars_delta) ELSE 0 END), 0) AS badStars
-          FROM activity_log
-          WHERE user_id = ? AND substr(local_date, 1, 7) = ?
-          GROUP BY local_date ORDER BY local_date`;
-        params = [userId, effectiveMonth];
-      } else {
-        sql = `
-          SELECT
-            substr(local_date, 1, 4) AS bucket,
-            COALESCE(SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END), 0) AS goodStars,
-            COALESCE(SUM(CASE WHEN stars_delta < 0 THEN ABS(stars_delta) ELSE 0 END), 0) AS badStars
-          FROM activity_log
-          WHERE user_id = ?
-          GROUP BY bucket ORDER BY bucket`;
-        params = [userId];
-      }
-
-      const rows = await db.getAllAsync<ChartBucket>(sql, params);
-      return padBuckets(rows, range, { effectiveWeekStart, effectiveMonth, effectiveYear, offset });
-    },
-  });
-}
-
-export type PointChartBucket = { bucket: string; points: number };
+type PointChartBucket = { bucket: string; points: number };
 
 /** Returns non-zero daily point totals for the selected analytics range. */
 export function useAnalyticsPointsData(userId: number, range: 'W' | 'M' | 'Y') {
@@ -129,60 +64,6 @@ export function useAnalyticsDashboard(userId: number, range: AnalyticsRange) {
   });
 }
 
-function fmtDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function padBuckets(
-  rows: ChartBucket[],
-  range: 'D' | 'W' | 'M' | 'Y',
-  ctx: { effectiveWeekStart: string; effectiveMonth: string; effectiveYear: string; offset: number }
-): ChartBucket[] {
-  const empty = (bucket: string): ChartBucket => ({ bucket, goodStars: 0, badStars: 0 });
-
-  if (range === 'W') {
-    const map = new Map(rows.map(r => [r.bucket, r]));
-    const [y, m, d] = ctx.effectiveWeekStart.split('-').map(Number);
-    return Array.from({ length: 7 }, (_, i) => {
-      const key = fmtDate(new Date(y, m - 1, d + i));
-      return map.get(key) ?? empty(key);
-    });
-  }
-
-  if (range === 'D') {
-    const map = new Map(rows.map(r => [r.bucket, r]));
-    const maxHour = ctx.offset === 0 ? new Date().getHours() : 23;
-    return Array.from({ length: maxHour + 1 }, (_, h) => {
-      const key = String(h).padStart(2, '0');
-      return map.get(key) ?? empty(key);
-    });
-  }
-
-  if (range === 'M') {
-    const map = new Map(rows.map(r => [r.bucket, r]));
-    const [y, mo] = ctx.effectiveMonth.split('-').map(Number);
-    const daysInMonth = new Date(y, mo, 0).getDate();
-    const maxDay = ctx.offset === 0 ? Math.min(new Date().getDate(), daysInMonth) : daysInMonth;
-    return Array.from({ length: maxDay }, (_, i) => {
-      const key = `${y}-${String(mo).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
-      return map.get(key) ?? empty(key);
-    });
-  }
-
-  // 'Y' — from app launch year (2026) to current year
-  const map = new Map(rows.map(r => [r.bucket, r]));
-  const currentYear = Number(ctx.effectiveYear);
-  const fromYear = 2026;
-  const numYears = Math.max(1, currentYear - fromYear + 1);
-  return Array.from({ length: numYears }, (_, i) => {
-    const key = String(fromYear + i);
-    return map.get(key) ?? empty(key);
-  });
-}
-
 /** Today's streak count from daily_summary */
 export function useStreakCount(userId: number) {
   const today = getLocalDate();
@@ -195,32 +76,6 @@ export function useStreakCount(userId: number) {
         [userId, today]
       );
       return row?.streak_count ?? 0;
-    },
-  });
-}
-
-/** Stars needed to reach next tier */
-export function useStarsToNextTier(userId: number) {
-  const weekStart = getWeekStart();
-  return useQuery({
-    queryKey: ['progress', 'next-tier', userId, weekStart],
-    queryFn: async () => {
-      const db = await getDb();
-      const weekly = await db.getFirstAsync<{ weekly_stars: number }>(
-        `SELECT weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
-        [userId, weekStart]
-      );
-      const currentStars = weekly?.weekly_stars ?? 0;
-      const nextTier = await db.getFirstAsync<{ stars_required: number; rank_name: string }>(
-        `SELECT stars_required, rank_name FROM tiers
-         WHERE stars_required > ? ORDER BY stars_required ASC LIMIT 1`,
-        [currentStars]
-      );
-      return {
-        currentStars,
-        nextTierName: nextTier?.rank_name ?? null,
-        starsNeeded: nextTier ? nextTier.stars_required - currentStars : 0,
-      };
     },
   });
 }

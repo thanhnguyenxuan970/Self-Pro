@@ -3,7 +3,7 @@ import {
   Modal, View, Text, TouchableOpacity, StyleSheet,
   ActivityIndicator, ScrollView, Dimensions, Alert,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import { pickSquareImage } from '../utils/pickImage';
 import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
 import { ShareCard, CARD_W, CARD_H } from '../components/ShareCard';
@@ -43,18 +43,10 @@ export function ShareCardModal({
   const cardRef = useRef<View>(null);
 
   async function pickPhoto(slot: 'before' | 'after') {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.9,
-      allowsEditing: true,
-      aspect: [1, 1],
-    });
-    if (!result.canceled && result.assets[0]) {
-      if (slot === 'before') setBeforeUri(result.assets[0].uri);
-      else setAfterUri(result.assets[0].uri);
-    }
+    const uri = await pickSquareImage();
+    if (!uri) return;
+    if (slot === 'before') setBeforeUri(uri);
+    else setAfterUri(uri);
   }
 
   async function handleShare() {

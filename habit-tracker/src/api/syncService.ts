@@ -3,7 +3,7 @@ import { SQLiteDatabase } from 'expo-sqlite';
 import { supabase } from './supabase';
 import { getDb } from '../db/client';
 import { selectClockSuspectLocalIds } from '../lib/clockSuspect';
-import { getStoredGoogleUser } from '../hooks/useAuth';
+import { getStoredGoogleUser } from '../lib/googleUserStorage';
 
 const KEY_LAST_ACTIVITY = 'habit_sync_last_activity_id';
 const KEY_LAST_FUND = 'habit_sync_last_fund_id';

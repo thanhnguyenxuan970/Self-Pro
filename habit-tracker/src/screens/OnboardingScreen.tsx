@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,9 +15,9 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
-import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
+import { useLanguage } from '../hooks/useSettings';
 import { RankMascot } from '../components/RankMascot';
-import { useReduceMotion } from '../hooks/useReduceMotion';
+import { useThemedScreenState } from '../hooks/useThemedScreenState';
 
 const GENDER_KEY = 'habit_gender';
 const BIRTH_YEAR_KEY = 'habit_birth_year';
@@ -30,11 +30,7 @@ export function OnboardingScreen({ onComplete }: Props) {
   const [gender, setGender] = useState<Gender | null>(null);
   const [birthYear, setBirthYear] = useState('');
   const [lang, setLanguage] = useLanguage();
-  const [loading, setLoading] = useState(false);
-  const { colors } = useTheme();
-  const t = useTranslations();
-  const reduceMotion = useReduceMotion();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { loading, setLoading, colors, t, reduceMotion, styles } = useThemedScreenState(makeStyles);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;

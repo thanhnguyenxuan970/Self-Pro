@@ -14,7 +14,7 @@ import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
 import { AppColors, Radii, Spacing, FontFamily, Shadows } from '../config/theme';
 import { AnimatedFireIcon, AnimatedStarIcon, AnimatedBurningStarIcon } from '../components/CalendarIcons';
-import { BackfillSheet } from '../components/BackfillSheet';
+import { BackfillFlow } from '../components/BackfillFlow';
 import { StreakMilestoneCelebrationModal } from '../components/StreakMilestoneCelebrationModal';
 import { canBackfill } from '../game/backfill';
 import type { StreakMilestone } from '../game/streakMilestones';
@@ -258,16 +258,12 @@ export function CalendarScreen() {
       </View>
     </ScrollView>
 
-    <BackfillSheet
-      visible={!!backfillDate}
-      date={backfillDate ?? ''}
-      backfillsUsedThisWeek={backfillStatus?.backfillsUsedThisWeek ?? 0}
+    <BackfillFlow
+      backfillDate={backfillDate}
+      setBackfillDate={setBackfillDate}
+      backfillsUsedThisWeek={backfillStatus?.backfillsUsedThisWeek}
       userId={userId}
-      onMilestone={(milestone) => {
-        setBackfillDate(null);
-        setPendingStreakMilestone(milestone);
-      }}
-      onClose={() => setBackfillDate(null)}
+      setPendingStreakMilestone={setPendingStreakMilestone}
     />
     <StreakMilestoneCelebrationModal milestone={pendingStreakMilestone} onDismiss={() => setPendingStreakMilestone(null)} />
     </SafeAreaView>

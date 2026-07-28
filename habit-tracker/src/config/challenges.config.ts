@@ -1,11 +1,11 @@
 export const CHALLENGE_DURATIONS = [7, 30, 60, 100] as const;
-export type ChallengeDuration = (typeof CHALLENGE_DURATIONS)[number];
+type ChallengeDuration = (typeof CHALLENGE_DURATIONS)[number];
 
 export const WEEKLY_TARGETS = [3, 4, 5, 6] as const;
-export type WeeklyTarget = (typeof WEEKLY_TARGETS)[number];
+type WeeklyTarget = (typeof WEEKLY_TARGETS)[number];
 
 export const TOTAL_WEEKS_OPTIONS = [2, 4, 8, 12] as const;
-export type TotalWeeks = (typeof TOTAL_WEEKS_OPTIONS)[number];
+type TotalWeeks = (typeof TOTAL_WEEKS_OPTIONS)[number];
 
 export const THRESHOLD_DURATIONS = [15, 30, 45, 60] as const;
 export const THRESHOLD_COUNTS = [1, 2, 3] as const;

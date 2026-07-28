@@ -315,17 +315,52 @@ export function ProgressScreen() {
   const displayCurrentStars = Math.round(rankData?.currentStars ?? 0);
   const isEmpty = allTimeStats?.totalActivities === 0;
 
+  const rangeSegmentedControl = (
+    <View style={styles.segbar}>
+      {RANGES.map(({ key, label }) => (
+        <TouchableOpacity
+          key={key}
+          style={[styles.segBtn, range === key && styles.segBtnActive]}
+          onPress={() => setRange(key)}
+          accessibilityRole="tab"
+          accessibilityLabel={label}
+          accessibilityState={{ selected: range === key }}
+        >
+          <Text style={[styles.segTxt, range === key && styles.segTxtActive]}>{label}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  const activityLogSection = (
+    <ActivityLogSection
+      actLogs={actLogs}
+      selectionMode={selectionMode}
+      selectedIds={selectedIds}
+      selectAll={selectAll}
+      cancelSelection={cancelSelection}
+      enterSelection={enterSelection}
+      toggleSelect={toggleSelect}
+      handleDeleteSelected={() => confirmDeleteSelected(Array.from(selectedIds), cancelSelection, deleteLogs, t)}
+      deleteLogs={deleteLogs}
+      onAddActivity={() => setAddSheetVisible(true)}
+      filterDate={filterDate}
+      onFilterPress={() => openDateFilter(filterDate, setFilterDate)}
+      onFilterClear={() => setFilterDate(null)}
+      t={t}
+      styles={styles}
+    />
+  );
+
   if (dashboard) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
           <Text style={styles.title}>{t.analyticsTitle}</Text>
           <Text style={styles.dashboardSubtitle}>{range === 'W' ? t.filterLast7Days : range === 'M' ? t.periodThisMonth : t.periodThisYear}</Text>
-          <View style={styles.segbar}>
-            {RANGES.map(({ key, label }) => <TouchableOpacity key={key} style={[styles.segBtn, range === key && styles.segBtnActive]} onPress={() => setRange(key)} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: range === key }}><Text style={[styles.segTxt, range === key && styles.segTxtActive]}>{label}</Text></TouchableOpacity>)}
-          </View>
+          {rangeSegmentedControl}
           <View style={styles.dashboardWrap}><AnalyticsDashboardView data={dashboard} colors={colors} isDark={isDark} language={language} range={range} reduceMotion={reduceMotion} animationKey={focusKey} /></View>
-          <ActivityLogSection actLogs={actLogs} selectionMode={selectionMode} selectedIds={selectedIds} selectAll={selectAll} cancelSelection={cancelSelection} enterSelection={enterSelection} toggleSelect={toggleSelect} handleDeleteSelected={() => confirmDeleteSelected(Array.from(selectedIds), cancelSelection, deleteLogs, t)} deleteLogs={deleteLogs} onAddActivity={() => setAddSheetVisible(true)} filterDate={filterDate} onFilterPress={() => openDateFilter(filterDate, setFilterDate)} onFilterClear={() => setFilterDate(null)} t={t} styles={styles} />
+          {activityLogSection}
         </ScrollView>
         <AddActivitySheet visible={addSheetVisible} onClose={() => setAddSheetVisible(false)} />
       </SafeAreaView>
@@ -356,20 +391,7 @@ export function ProgressScreen() {
         </View>
 
         {/* Segmented control */}
-        <View style={styles.segbar}>
-          {RANGES.map(({ key, label }) => (
-            <TouchableOpacity
-              key={key}
-              style={[styles.segBtn, range === key && styles.segBtnActive]}
-              onPress={() => setRange(key)}
-              accessibilityRole="tab"
-              accessibilityLabel={label}
-              accessibilityState={{ selected: range === key }}
-            >
-              <Text style={[styles.segTxt, range === key && styles.segTxtActive]}>{label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {rangeSegmentedControl}
 
         {/* Chart card */}
         <View style={styles.card}>
@@ -420,23 +442,7 @@ export function ProgressScreen() {
         {isEmpty && <Text style={styles.emptyEncouragement}>{t.progressEmptyEncouragement}</Text>}
 
         {/* Keep the existing log management surface; this redesign does not replace it. */}
-        <ActivityLogSection
-          actLogs={actLogs}
-          selectionMode={selectionMode}
-          selectedIds={selectedIds}
-          selectAll={selectAll}
-          cancelSelection={cancelSelection}
-          enterSelection={enterSelection}
-          toggleSelect={toggleSelect}
-          handleDeleteSelected={() => confirmDeleteSelected(Array.from(selectedIds), cancelSelection, deleteLogs, t)}
-          deleteLogs={deleteLogs}
-          onAddActivity={() => setAddSheetVisible(true)}
-          filterDate={filterDate}
-          onFilterPress={() => openDateFilter(filterDate, setFilterDate)}
-          onFilterClear={() => setFilterDate(null)}
-          t={t}
-          styles={styles}
-        />
+        {activityLogSection}
       </ScrollView>
       <AddActivitySheet visible={addSheetVisible} onClose={() => setAddSheetVisible(false)} />
     </SafeAreaView>

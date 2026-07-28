@@ -14,7 +14,7 @@ import { getWeekStart } from '../utils/formatters';
 import { scheduleChallengeReminder, cancelChallengeReminder } from '../utils/notifications';
 import { syncCurrentUserToSupabase } from '../api/syncService';
 
-export interface ActiveChallenge {
+interface ActiveChallenge {
   id: number;
   name: string;
   taskTypeId: number | null;
@@ -255,6 +255,28 @@ async function awardChallengeCompletion(
   );
 }
 
+async function completeStreakChallenge(
+  db: ChallengeLogDb,
+  row: Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days' | 'mode' | 'weekly_target' | 'total_weeks'>,
+  params: { userId: number; localDate: string },
+  daysDone: number,
+): Promise<void> {
+  await db.runAsync(
+    `UPDATE challenges SET status = 'done', streak_current = ?, completed_at = ? WHERE id = ?`,
+    [daysDone, params.localDate, row.id],
+  );
+  await awardChallengeCompletion(db, {
+    userId: params.userId,
+    challengeId: row.id,
+    taskTypeId: row.task_type_id,
+    localDate: params.localDate,
+    mode: row.mode,
+    targetDays: row.target_days,
+    weeklyTarget: row.weekly_target,
+    totalWeeks: row.total_weeks,
+  });
+}
+
 export async function logActiveChallengeDay(
   db: ChallengeLogDb,
   params: { userId: number; localDate: string; taskTypeId?: number | null },
@@ -281,20 +303,7 @@ export async function logActiveChallengeDay(
     const doneDates = await getDoneDates(db, params.userId, row);
     const daysDone = doneDates.length;
     if (row.mode === 'streak' && isComplete(daysDone, row.target_days)) {
-      await db.runAsync(
-        `UPDATE challenges SET status = 'done', streak_current = ?, completed_at = ? WHERE id = ?`,
-        [daysDone, params.localDate, row.id],
-      );
-      await awardChallengeCompletion(db, {
-        userId: params.userId,
-        challengeId: row.id,
-        taskTypeId: row.task_type_id,
-        localDate: params.localDate,
-        mode: row.mode,
-        targetDays: row.target_days,
-        weeklyTarget: row.weekly_target,
-        totalWeeks: row.total_weeks,
-      });
+      await completeStreakChallenge(db, row, params, daysDone);
     } else {
       await db.runAsync(`UPDATE challenges SET streak_current = ? WHERE id = ?`, [daysDone, row.id]);
     }
@@ -332,20 +341,7 @@ export async function logActiveChallengeDay(
   // whole) can't be judged complete until it has fully elapsed, so only
   // streak mode can complete inline here on a same-day log.
   if (row.mode === 'streak' && isComplete(daysDone, row.target_days)) {
-    await db.runAsync(
-      `UPDATE challenges SET status = 'done', streak_current = ?, completed_at = ? WHERE id = ?`,
-      [streakCurrent, params.localDate, row.id],
-    );
-    await awardChallengeCompletion(db, {
-      userId: params.userId,
-      challengeId: row.id,
-      taskTypeId: row.task_type_id,
-      localDate: params.localDate,
-      mode: row.mode,
-      targetDays: row.target_days,
-      weeklyTarget: row.weekly_target,
-      totalWeeks: row.total_weeks,
-    });
+    await completeStreakChallenge(db, row, params, streakCurrent);
   } else {
     await db.runAsync(`UPDATE challenges SET streak_current = ? WHERE id = ?`, [streakCurrent, row.id]);
   }

@@ -8,7 +8,7 @@ import {
   setLastSeenNewsId,
 } from '../utils/news';
 
-export type NewsItem = {
+type NewsItem = {
   id: number;
   version: string;
   title: string;
