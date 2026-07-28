@@ -120,7 +120,7 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
   }
 
   return (
-    <Modal visible={!!task} transparent animationType="fade">
+    <Modal visible={!!task} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.modalBg}>
         <Animated.View style={[styles.modalBox, { opacity: boxFadeAnim, transform: [{ scale: boxScaleAnim }] }]}>

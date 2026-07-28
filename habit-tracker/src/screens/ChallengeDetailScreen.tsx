@@ -395,7 +395,7 @@ export function ChallengeDetailScreen() {
           </TouchableOpacity>
         </View>
       )}
-      <Modal visible={editingName} transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={() => setEditingName(false)}>
+      <Modal visible={editingName} transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={() => setEditingName(false)} statusBarTranslucent navigationBarTranslucent>
         <KeyboardAvoidingView style={styles.editOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.editCard}>
             <Text style={styles.editTitle}>{t.editActivity}</Text>

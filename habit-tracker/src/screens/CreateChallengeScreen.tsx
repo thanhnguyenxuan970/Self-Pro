@@ -184,7 +184,7 @@ export function CreateChallengeScreen() {
 
       <View style={styles.sticky}><TouchableOpacity style={[styles.startBtn, submitting && styles.startBtnDisabled]} onPress={handleStart} disabled={submitting} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={startLabel}>{submitting ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.startBtnText} numberOfLines={1}>{startLabel}</Text>}</TouchableOpacity></View>
 
-      <Modal visible={customField !== null || customDuration} transparent animationType="fade" onRequestClose={() => { setCustomField(null); setCustomDuration(false); }}>
+      <Modal visible={customField !== null || customDuration} transparent animationType="fade" onRequestClose={() => { setCustomField(null); setCustomDuration(false); }} statusBarTranslucent navigationBarTranslucent>
         <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}><View style={styles.customSheet}><Text style={styles.customTitle}>{customDuration ? t.challengeThresholdDurationLabel : customField === 'days' ? t.challengeDurationLabel : t.challengeTotalWeeksLabel}</Text>{customDuration ? <DurationClockInput value={durationClock} onChange={setDurationClock} colors={colors} /> : <TextInput style={styles.customInput} value={customValue} onChangeText={setCustomValue} keyboardType="number-pad" placeholder={t.challengeCustomPlaceholder} placeholderTextColor={colors.muted} autoFocus />}<TouchableOpacity style={styles.customSave} onPress={customDuration ? saveCustomDuration : saveCustom} accessibilityRole="button"><Text style={styles.customSaveText}>{t.challengeCustomSave}</Text></TouchableOpacity></View></KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>

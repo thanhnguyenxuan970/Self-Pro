@@ -106,7 +106,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklySt
   };
 
   return (
-    <Modal visible={visible} animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onDismiss}>
+    <Modal visible={visible} animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onDismiss} statusBarTranslucent navigationBarTranslucent>
       <View style={styles.screen} accessibilityViewIsModal>
         {!reduceMotion && <Animated.View pointerEvents="none" style={[styles.flash, flashStyle]} />}
         <Animated.View style={[styles.eyebrow, { backgroundColor: `${cfg.color}24` }, riseStyle(eyebrow)]}>

@@ -214,7 +214,7 @@ export function CalendarScreen() {
           );
           if (isEligible) {
             return (
-              <TouchableOpacity key={idx} style={cellStyle} onPress={() => setBackfillDate(dateStr)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={`${t.backfillEligible} ${dateStr}`}>
+              <TouchableOpacity key={idx} style={cellStyle} onPress={() => setBackfillDate(dateStr)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={`${t.backfillEligible} ${dateStr}`} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
                 {cellContent}
               </TouchableOpacity>
             );

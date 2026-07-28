@@ -77,7 +77,7 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
           <Text style={ph.trophyChevron}>{'>'}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={onSignOut} activeOpacity={0.8}><Text style={styles.logoutBtnText}>{t.signOut}</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.logoutBtn} onPress={onSignOut} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t.signOut}><Text style={styles.logoutBtnText}>{t.signOut}</Text></TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );

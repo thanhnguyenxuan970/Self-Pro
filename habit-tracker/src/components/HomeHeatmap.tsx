@@ -168,7 +168,7 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
       </ScrollView>
     </View>
     <View style={styles.legend}><Text style={styles.legendLabel}>{t.heatmapLess}</Text>{shades.map((color, i) => <View key={i} style={[styles.legendCell, { backgroundColor: color }]} />)}<Text style={styles.legendLabel}>{t.heatmapMore}</Text></View>
-    <Modal visible={showLegend} transparent animationType="fade" onRequestClose={() => setShowLegend(false)}>
+    <Modal visible={showLegend} transparent animationType="fade" onRequestClose={() => setShowLegend(false)} statusBarTranslucent navigationBarTranslucent>
       <View style={styles.legendModal}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setShowLegend(false)} accessibilityRole="button" accessibilityLabel={t.close} />
         <View style={styles.legendSheet}>
@@ -190,7 +190,7 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
         </View>
       </View>
     </Modal>
-    <Modal visible={scoringGuideVisible} transparent animationType="fade" onRequestClose={onScoringGuideClose}>
+    <Modal visible={scoringGuideVisible} transparent animationType="fade" onRequestClose={onScoringGuideClose} statusBarTranslucent navigationBarTranslucent>
       <View style={styles.legendModal}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onScoringGuideClose} accessibilityRole="button" accessibilityLabel={t.close} />
         <View style={styles.scoringSheetContainer}>
@@ -217,7 +217,7 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
         <Text style={styles.todayLabel}>{t.pointsLabel}</Text>
       </View>
     </View>}
-    <Modal visible={selectedDate !== null} transparent animationType="fade" onRequestClose={() => setSelectedDate(null)}>
+    <Modal visible={selectedDate !== null} transparent animationType="fade" onRequestClose={() => setSelectedDate(null)} statusBarTranslucent navigationBarTranslucent>
       <View style={styles.modal}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setSelectedDate(null)} accessibilityLabel={t.close} accessibilityRole="button" />
         <View style={styles.sheet}>

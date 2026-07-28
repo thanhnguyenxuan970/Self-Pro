@@ -83,7 +83,7 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
   const nextLabel = isLast ? t.tutDone : t.tutNext;
 
   return (
-    <Modal visible transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onSkip} statusBarTranslucent>
+    <Modal visible transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onSkip} statusBarTranslucent navigationBarTranslucent>
       <View
         ref={overlayRef}
         style={StyleSheet.absoluteFill}

@@ -59,7 +59,7 @@ export function StreakMilestoneCelebrationModal({ milestone, onDismiss }: { mile
   const flameStyle = { transform: [{ translateY: flame.interpolate({ inputRange: [0, 1], outputRange: [0, -9] }) }, { rotate: flame.interpolate({ inputRange: [0, 1], outputRange: ['-3deg', '3deg'] }) }] };
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onDismiss} statusBarTranslucent>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onDismiss} statusBarTranslucent navigationBarTranslucent>
       <Animated.View style={[styles.backdrop, { opacity: backdrop }]} accessibilityViewIsModal>
         <View pointerEvents="none" style={styles.glow} />
         {!reduceMotion && Array.from({ length: 24 }, (_, index) => {
