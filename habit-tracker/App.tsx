@@ -9,22 +9,17 @@ import {
   BeVietnamPro_800ExtraBold,
 } from '@expo-google-fonts/be-vietnam-pro';
 import { ActivityIndicator, AppState, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { queryClient } from './src/queries/queryClient';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { getDb } from './src/db/client';
-import { getWeekStart } from './src/utils/formatters';
-import { shouldShowWeekResetToast } from './src/utils/weekReset';
 import { useAuth, resolveUserRow, UserIdContext, GoogleUserContext } from './src/hooks/useAuth';
 import { syncToSupabase } from './src/api/syncService';
 import { SettingsProvider } from './src/contexts/SettingsContext';
 import { useTheme } from './src/hooks/useSettings';
 import { FontFamily } from './src/config/theme';
-import { LevelUpCelebrationModal } from './src/components/LevelUpCelebrationModal';
-import { PENDING_LEVELUP_KEY } from './src/queries/useToday';
 import { TutorialProvider } from './src/hooks/useTutorial';
 import { rolloverChallenge } from './src/queries/useChallenge';
 
@@ -82,8 +77,6 @@ function AppInner() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  const [weekReset, setWeekReset] = useState(false);
-  const [celebrationData, setCelebrationData] = useState<{ tierOrder: number; tierName: string } | null>(null);
   const { colors } = useTheme();
   const retryInit = useCallback(() => {
     setDbError(null);
@@ -118,35 +111,6 @@ function AppInner() {
         syncToSupabase(googleUser.sub, googleUser.email).catch(() => {});
       }
 
-      const currentWeekStart = getWeekStart();
-      await db.runAsync(
-        `UPDATE weekly_summary SET finalized = 1
-         WHERE user_id = ? AND finalized = 0 AND week_start < ?`,
-        [resolvedUserId, currentWeekStart]
-      );
-
-      const user = await db.getFirstAsync<{ last_seen_week_start: string | null }>(
-        'SELECT last_seen_week_start FROM users WHERE id = ?',
-        [resolvedUserId]
-      );
-      if (shouldShowWeekResetToast(currentWeekStart, user?.last_seen_week_start ?? null)) {
-        setWeekReset(true);
-        await db.runAsync(
-          'UPDATE users SET last_seen_week_start = ? WHERE id = ?',
-          [currentWeekStart, resolvedUserId]
-        );
-      }
-
-      // Show level-up celebration on first login after rank promotion
-      try {
-        const raw = await AsyncStorage.getItem(PENDING_LEVELUP_KEY);
-        if (raw) {
-          const stored = JSON.parse(raw) as { tierOrder: number; tierName: string; weekStart: string };
-          setCelebrationData({ tierOrder: stored.tierOrder, tierName: stored.tierName });
-          await AsyncStorage.removeItem(PENDING_LEVELUP_KEY);
-        }
-      } catch {}
-
       setDbReady(true);
     }
     init().catch(err => {
@@ -157,20 +121,6 @@ function AppInner() {
   // settles. Fresh sign-ins resolve userId via signInWithGoogle() instead.
   // retryCount bumped by retryInit() to re-trigger this effect after user taps Retry.
   }, [authLoading, retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (dbReady && weekReset) {
-      const id = setTimeout(() => {
-        Toast.show({
-          type: 'success',
-          text1: 'Week Reset! 🎉',
-          text2: 'New week, fresh stars. Keep grinding!',
-          visibilityTime: 4000,
-        });
-      }, 500);
-      return () => clearTimeout(id);
-    }
-  }, [dbReady, weekReset]);
 
   useEffect(() => {
     if (!dbReady) return;
@@ -225,14 +175,6 @@ function AppInner() {
           onDeleteAccount={deleteAccount}
         />
         <Toast />
-        {celebrationData && (
-          <LevelUpCelebrationModal
-            visible
-            tierOrder={celebrationData.tierOrder}
-            tierName={celebrationData.tierName}
-            onDismiss={() => setCelebrationData(null)}
-          />
-        )}
       </TutorialProvider>
     </GoogleUserContext.Provider>
     </UserIdContext.Provider>

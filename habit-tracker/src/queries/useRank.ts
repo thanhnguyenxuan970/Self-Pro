@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDb } from '../db/client';
-import { getWeekStart } from '../utils/formatters';
 
 export type TierRow = {
   id: number;
@@ -14,24 +13,25 @@ export function visibleTierId(currentTierId: number | null, currentStars: number
   return tier && currentStars >= tier.stars_required ? tier.id : null;
 }
 
+/** Lifetime rank state — reads users.lifetime_stars/current_tier_id, not the
+ * (weekly, now rank-unrelated) weekly_summary table. */
 export function useRankData(userId: number) {
-  const weekStart = getWeekStart();
   return useQuery({
-    queryKey: ['rank', userId, weekStart],
+    queryKey: ['rank', userId],
     queryFn: async () => {
       const db = await getDb();
 
-      const weekly = await db.getFirstAsync<{ weekly_stars: number; current_tier_id: number | null }>(
-        `SELECT weekly_stars, current_tier_id FROM weekly_summary WHERE user_id=? AND week_start=?`,
-        [userId, weekStart]
+      const user = await db.getFirstAsync<{ lifetime_stars: number; current_tier_id: number | null }>(
+        `SELECT lifetime_stars, current_tier_id FROM users WHERE id = ?`,
+        [userId]
       );
       const tiers = await db.getAllAsync<TierRow>(
         `SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY tier_order`
       );
-      const currentStars = weekly?.weekly_stars ?? 0;
+      const currentStars = user?.lifetime_stars ?? 0;
       return {
         currentStars,
-        currentTierId: visibleTierId(weekly?.current_tier_id ?? null, currentStars, tiers),
+        currentTierId: visibleTierId(user?.current_tier_id ?? null, currentStars, tiers),
         tiers,
       };
     },

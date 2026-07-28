@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { getStoredGoogleUserEmail } from '../hooks/useAuth';
@@ -8,6 +7,9 @@ import { logActiveChallengeDay } from './useChallenge';
 import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
 import { computeTierUnlocks, TierRow } from '../game/tierUnlocks';
+import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
+import type { LifetimeTierCrossing } from '../game/lifetimeRank';
+import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { DAILY_BONUS_THRESHOLD, DAILY_BONUS_STARS } from '../config/constants';
 
@@ -180,8 +182,6 @@ async function revertTreatStarsUnlog(
   }
 }
 
-export const PENDING_LEVELUP_KEY = 'pending_levelup_celebration';
-
 export function useTodayTasks(userId: number) {
   return useQuery({
     queryKey: ['today', 'tasks', userId],
@@ -306,7 +306,7 @@ export function useLogTask(userId: number) {
       basePoints: number;
       starPenalty: number;
       durationMin?: number;
-    }): Promise<{ newStreak: number; prevStreak: number; didRankUp: boolean; newTier: { tier_order: number; rank_name: string } | null }> => {
+    }): Promise<{ newStreak: number; prevStreak: number; lifetimeCrossings: LifetimeTierCrossing[] }> => {
       const db = await getDb();
       const today = getLocalDate();
       const weekStart = getWeekStart();
@@ -323,8 +323,7 @@ export function useLogTask(userId: number) {
       );
 
       let streakResult = { newStreak: 1, prevStreak: 0 };
-      let didRankUp = false;
-      let newTier: { tier_order: number; rank_name: string } | null = null;
+      let lifetimeCrossings: LifetimeTierCrossing[] = [];
 
       // All volatile reads + computation + writes inside one transaction.
       // This prevents TOCTOU: two concurrent mutateAsync calls can no longer
@@ -395,19 +394,26 @@ export function useLogTask(userId: number) {
            activityRow.points_earned, totalStarsDelta, totalStarsDelta]
         );
 
-        const unlockResult = await handleTierUnlocks(db, tiers, newUnlocks, userId, weekStart);
-        didRankUp = unlockResult.didRankUp;
-        newTier = unlockResult.newTier;
+        // Legacy weekly tier-unlock bookkeeping — superseded by the lifetime rollup
+        // below for rank display/celebration purposes. Left running (writes to
+        // weekly_summary.current_tier_id / reward_unlocks) because other weekly_summary
+        // columns (total_points, weekly_stars) still serve non-rank consumers in this
+        // same table; nothing reads current_tier_id/reward_unlocks for rank anymore.
+        // TODO(cleanup): remove once weekly_summary is split from rank state entirely.
+        await handleTierUnlocks(db, tiers, newUnlocks, userId, weekStart);
+
+        lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, totalStarsDelta, tiers)).crossings;
 
         await updateTreatPool(db, userId, params.kind, totalStarsDelta, nowMs);
-        await logActiveChallengeDay(db, {
+        const challengeResult = await logActiveChallengeDay(db, {
           userId,
           localDate: today,
           taskTypeId: params.taskTypeId,
         });
+        lifetimeCrossings = [...lifetimeCrossings, ...challengeResult.lifetimeCrossings];
       });
 
-      return { ...streakResult, didRankUp, newTier };
+      return { ...streakResult, lifetimeCrossings };
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['today'] });
@@ -418,15 +424,10 @@ export function useLogTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['rank'] });
       qc.invalidateQueries({ queryKey: ['challenge'] });
       qc.invalidateQueries({ queryKey: ['achievements'] });
-      if (data.didRankUp) rankMascotBridge.ref?.current?.playRankUp();
-      if (data.didRankUp && data.newTier) rankMascotBridge.onRankUp?.(data.newTier);
-      if (data.didRankUp && data.newTier) {
-        const weekStart = getWeekStart();
-        AsyncStorage.setItem(PENDING_LEVELUP_KEY, JSON.stringify({
-          tierOrder: data.newTier.tier_order,
-          tierName: data.newTier.rank_name,
-          weekStart,
-        })).catch(() => {});
+      if (data.lifetimeCrossings.length > 0) {
+        rankMascotBridge.ref?.current?.playRankUp();
+        rankMascotBridge.onRankUp?.(data.lifetimeCrossings);
+        enqueuePendingLevelUps(data.lifetimeCrossings).catch(() => {});
       }
       // Fire-and-forget streak sync — non-fatal if Supabase absent or table not migrated
       getStoredGoogleUserEmail()
@@ -457,10 +458,16 @@ export function useTodayTaskTotalDurations(userId: number) {
 export function useUnlogTask(userId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (params: { taskTypeId: number; kind: 'GOOD' | 'BAD' }) => {
+    mutationFn: async (params: { taskTypeId: number; kind: 'GOOD' | 'BAD' }): Promise<{ lifetimeCrossings: LifetimeTierCrossing[] }> => {
       const db = await getDb();
       const today = getLocalDate();
       const weekStart = getWeekStart();
+      let lifetimeCrossings: LifetimeTierCrossing[] = [];
+
+      // tiers is a static lookup — never written, safe to read outside transaction
+      const tiers = await db.getAllAsync<FullTierRow>(
+        `SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY stars_required ASC`
+      );
 
       // fallow-ignore-next-line complexity
       await db.withTransactionAsync(async () => {
@@ -523,15 +530,28 @@ export function useUnlogTask(userId: number) {
           [userId, weekStart, newWeeklyStars]
         );
 
+        // Negative delta = removal (the common case). Undoing a BAD/penalty
+        // entry can itself be a net gain (removing a penalty restores stars),
+        // which can cross a tier threshold upward — handled by the same
+        // signed-delta function, tier still never demotes.
+        lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, -totalStarsDelta, tiers)).crossings;
+
         await revertTreatStarsUnlog(db, userId, params.kind, totalStarsDelta, taskStars);
       });
+
+      return { lifetimeCrossings };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
+      if (data.lifetimeCrossings.length > 0) {
+        rankMascotBridge.ref?.current?.playRankUp();
+        rankMascotBridge.onRankUp?.(data.lifetimeCrossings);
+        enqueuePendingLevelUps(data.lifetimeCrossings).catch(() => {});
+      }
     },
   });
 }

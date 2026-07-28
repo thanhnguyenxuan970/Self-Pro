@@ -25,11 +25,13 @@ const DEFAULT_PENALTY_STARS     = 50;    // bad habit = -50 Stars
 ```sql
 -- 1. USERS (multi-user ready; one row for personal use)
 CREATE TABLE users (
-  id          INTEGER PRIMARY KEY,
-  username    TEXT NOT NULL,
-  timezone    TEXT NOT NULL DEFAULT 'Asia/Ho_Chi_Minh', -- drives Monday 00:00 reset
-  carry_debt  INTEGER NOT NULL DEFAULT 1,   -- 1 = negative balance carries to next week
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  id              INTEGER PRIMARY KEY,
+  username        TEXT NOT NULL,
+  timezone        TEXT NOT NULL DEFAULT 'Asia/Ho_Chi_Minh', -- drives Monday 00:00 reset
+  carry_debt      INTEGER NOT NULL DEFAULT 1,   -- 1 = negative balance carries to next week
+  lifetime_stars  REAL NOT NULL DEFAULT 0,      -- migration v21: lifetime rank state, never resets
+  current_tier_id INTEGER REFERENCES tiers(id), -- high-water-mark: only ever advances
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- 2. TASK TYPES (catalog of trackable activities)
@@ -85,7 +87,11 @@ CREATE TABLE daily_summary (
   UNIQUE(user_id, local_date)
 );
 
--- 6. WEEKLY SUMMARY (drives ranks; resets Monday 00:00)
+-- 6. WEEKLY SUMMARY (weekly stats/challenge-pacing only as of migration v21 —
+--    rank/tier/leaderboard moved to users.lifetime_stars/current_tier_id above,
+--    which never resets; current_tier_id/reward_unlocks writes below are now
+--    dead weight for rank purposes, kept only because other columns in this
+--    table still serve non-rank weekly consumers)
 CREATE TABLE weekly_summary (
   id              INTEGER PRIMARY KEY,
   user_id         INTEGER NOT NULL REFERENCES users(id),

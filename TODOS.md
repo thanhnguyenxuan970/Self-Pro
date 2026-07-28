@@ -20,6 +20,21 @@ Surfaced during `/plan-ceo-review` of the Challenge Weekly & Share plan (2026-07
 ### Wire PaywallScreen into navigation
 `src/screens/PaywallScreen.tsx` exists and is polished (TouchableOpacity, a11y labels, CTA guard) but is not registered in `RootNavigator.tsx`. Needs: register the screen in the auth stack, decide trigger condition (free-trial expiry? specific SKU?), wire `onSubscribe`/`onRestore`/`onClose` callbacks to a subscription hook.
 
+### Server-side Supabase aggregate view/RPC for the global leaderboard (P3)
+Surfaced during `/autoplan` (CEO + Eng review) of the Leaderboard & Level-Up Logic Update plan (2026-07-27; design doc `Admin-feature-challenge-daily-reminders-design-20260725-161143.md`). That plan drops the `week_start`/tier-band filters from `useLeaderboard.ts`, so the existing `.limit(10000)` client-side aggregation scaling hack (already flagged in a code comment) now scans more rows sooner than before. Proper fix: a Postgres view or RPC (`SUM(stars_delta) GROUP BY user_email ORDER BY total DESC`) replacing client-side aggregation entirely. Deferred because it's new Supabase-side infra, overkill at current user count. Effort: L (human) → M with CC+gstack. Priority: P3. Depends on: none, but re-evaluate once user count grows or the leaderboard query gets slow.
+
+### "You climbed past a rival" overtake push notification (P3)
+Surfaced during `/autoplan` CEO review of the Leaderboard & Level-Up Logic Update plan (2026-07-27). Once the leaderboard is global/lifetime, a notification when another player overtakes you would be a strong re-engagement hook — doubly relevant since that same review found the existing `ResetCountdownChip` (the screen's only recurring re-engagement trigger) gets deleted as part of that plan. Needs new notification-scheduling infra (reuse `scheduleChallengeReminder`-style patterns) and a trigger condition (poll on each leaderboard fetch? server-side webhook?). Effort: M (human) → S with CC+gstack. Priority: P3.
+
+### Animated leaderboard row reordering on rank change (P3)
+Surfaced during `/autoplan` CEO review of the Leaderboard & Level-Up Logic Update plan (2026-07-27). Cosmetic delight item — smooth transition when a player's leaderboard row moves position, instead of a hard re-render. Deferred as unrequested UI scope beyond the plan's 3 stated requirements. Effort: S (human) → S with CC+gstack. Priority: P3.
+
+### Leaderboard rank-delta indicator ("↑12 today") (P3)
+Surfaced during `/autoplan` CEO review of the Leaderboard & Level-Up Logic Update plan (2026-07-27). Requires a new "yesterday's rank" snapshot concept that doesn't exist today — more than a trivial addition, deferred rather than bundled into the leaderboard rewrite. Effort: M (human) → S with CC+gstack. Priority: P3. Depends on: the global leaderboard rewrite (this plan) shipping first.
+
+### Float-threshold epsilon tolerance for tier-crossing comparisons (P3)
+Surfaced during `/autoplan` Eng review of the Leaderboard & Level-Up Logic Update plan (2026-07-27). `stars_delta`/`stars_required` are `REAL` (boost multipliers produce fractional stars); `>=` threshold comparisons in the new tier walk-forward function risk a missed or double-fired crossing at floating-point boundary values. Rare edge, not blocking the initial ship, but should get an epsilon-tolerant comparison rather than a raw `>=`. Effort: S (human) → S with CC+gstack. Priority: P3. Depends on: the tier walk-forward function (this plan) landing first.
+
 ---
 
 ## Completed

@@ -1,24 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../api/supabase';
-import { getWeekStart } from '../utils/formatters';
 
-type LeaderboardEntry = {
+export type LeaderboardEntry = {
   userEmail: string;
   displayName: string;
-  weeklyStars: number;
+  lifetimeStars: number;
   rank: number;
   isCurrentUser: boolean;
 };
 
-type TierDef = { tier_order: number; stars_required: number };
-
-function emailPrefix(email: string): string {
+export function emailPrefix(email: string): string {
   const at = email.indexOf('@');
   if (at < 0) return email;
   return email.slice(0, at);
 }
 
-function aggregateStarsByEmail(rows: { user_email: string; stars_delta: number | null }[]): Map<string, number> {
+export function aggregateStarsByEmail(rows: { user_email: string; stars_delta: number | null }[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const row of rows) {
     map.set(row.user_email, (map.get(row.user_email) ?? 0) + (row.stars_delta ?? 0));
@@ -26,66 +23,57 @@ function aggregateStarsByEmail(rows: { user_email: string; stars_delta: number |
   return map;
 }
 
-function computeTierBand(tiers: TierDef[], currentTierOrder: number): { tierMin: number; tierMax: number } | null {
-  const sorted = [...tiers].sort((a, b) => a.stars_required - b.stars_required);
-  const myTier = sorted.find(t => t.tier_order === currentTierOrder);
-  if (!myTier) return null;
-  const tierMin = myTier.stars_required;
-  const nextTier = sorted.find(t => t.stars_required > tierMin);
-  return { tierMin, tierMax: nextTier?.stars_required ?? Infinity };
-}
-
 function buildLeaderboardEntries(
   starsByEmail: Map<string, number>,
-  tierMin: number, tierMax: number,
   currentUserEmail: string | null,
 ): Omit<LeaderboardEntry, 'rank'>[] {
   const entries: Omit<LeaderboardEntry, 'rank'>[] = [];
   for (const [email, stars] of starsByEmail) {
-    const cappedStars = Math.min(stars, 5);
-    if (cappedStars >= tierMin && cappedStars < tierMax) {
-      entries.push({ userEmail: email, displayName: emailPrefix(email), weeklyStars: cappedStars, isCurrentUser: email === currentUserEmail });
-    }
+    entries.push({ userEmail: email, displayName: emailPrefix(email), lifetimeStars: Math.max(0, stars), isCurrentUser: email === currentUserEmail });
   }
   return entries;
 }
 
 /**
- * Fetch leaderboard for the current user's tier.
- * Queries Supabase activity_log for current week, groups by user_email,
- * filters to users whose weekly star total falls in the same tier band.
+ * Sorts strictly by lifetime score descending (rank 1 = highest); ties break
+ * on userEmail ascending for a stable, deterministic order across identical
+ * repeated queries.
  */
-export function useLeaderboard(
+export function buildRankedLeaderboard(
+  starsByEmail: Map<string, number>,
   currentUserEmail: string | null,
-  currentTierOrder: number,
-  tiers: TierDef[],
-) {
-  const weekStart = getWeekStart();
+): LeaderboardEntry[] {
+  const entries = buildLeaderboardEntries(starsByEmail, currentUserEmail);
+  entries.sort((a, b) => b.lifetimeStars - a.lifetimeStars || a.userEmail.localeCompare(b.userEmail));
+  return entries.map((e, i) => ({ ...e, rank: i + 1 }));
+}
+
+/**
+ * Global lifetime leaderboard — every player, sorted strictly by lifetime
+ * score descending (rank 1 = highest). No week filter, no tier band: this is
+ * the single unified ranking, visible to everyone regardless of their own tier.
+ * Ties break on userEmail ascending for a stable, deterministic order.
+ */
+export function useLeaderboard(currentUserEmail: string | null) {
   return useQuery({
-    queryKey: ['leaderboard', weekStart, currentTierOrder],
-    enabled: !!supabase && currentTierOrder > 0 && tiers.length > 0,
+    queryKey: ['leaderboard'],
+    enabled: !!supabase,
     staleTime: 60_000,
     queryFn: async (): Promise<LeaderboardEntry[]> => {
       if (!supabase) return [];
 
-      // 10 000 row ceiling — well above expected weekly activity for current user base.
-      // Proper fix: server-side aggregate view (SUM stars_delta GROUP BY user_email).
+      // 10 000 row ceiling — pre-existing scaling limit, tracked in TODOS.md
+      // as follow-up scope (server-side aggregate view/RPC). Not fixed here.
       const { data, error } = await supabase
         .from('activity_log')
         .select('user_email, stars_delta')
-        .eq('week_start', weekStart)
         .limit(10000);
 
       if (error) throw error;
       if (!data?.length) return [];
 
       const starsByEmail = aggregateStarsByEmail(data);
-      const band = computeTierBand(tiers, currentTierOrder);
-      if (!band) return [];
-
-      const entries = buildLeaderboardEntries(starsByEmail, band.tierMin, band.tierMax, currentUserEmail);
-      entries.sort((a, b) => b.weeklyStars - a.weeklyStars);
-      return entries.map((e, i) => ({ ...e, rank: i + 1 }));
+      return buildRankedLeaderboard(starsByEmail, currentUserEmail);
     },
   });
 }

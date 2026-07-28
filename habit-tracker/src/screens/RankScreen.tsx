@@ -12,43 +12,53 @@ import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { RankInfoSheet } from '../components/RankInfoSheet';
 import { RankEmptyState } from '../components/RankEmptyState';
 import { SkeletonRow } from '../components/SkeletonRow';
-import { getTimeUntilWeeklyReset } from '../utils/weekReset';
 
 type LBEntry = NonNullable<ReturnType<typeof useLeaderboard>['data']>[number];
 
 type LeaderboardSectionProps = {
   leaderboard: LBEntry[];
   lbLoading: boolean;
+  lbError: boolean;
   styles: ReturnType<typeof makeStyles>;
   colors: AppColors;
   youLabel: string;
   emptyNote: string;
+  noSyncNote: string;
   currentUserEntry: LBEntry;
 };
 
-function ResetCountdownChip({
-  styles,
-  label,
-}: {
-  styles: ReturnType<typeof makeStyles>;
-  label: string;
-}) {
-  return (
-    <View style={styles.resetChip}>
-      <Text style={styles.resetChipLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function LeaderboardSection({ leaderboard, lbLoading, styles, colors, youLabel, emptyNote, currentUserEntry }: LeaderboardSectionProps) {
+function LeaderboardSection({ leaderboard, lbLoading, lbError, styles, colors, youLabel, emptyNote, noSyncNote, currentUserEntry }: LeaderboardSectionProps) {
   if (lbLoading) {
     return <View style={styles.lbEmpty}><ActivityIndicator color={colors.primary} /></View>;
   }
-  const entries = leaderboard.length ? leaderboard : [currentUserEntry];
+  // Loading and error are distinct from "confirmed zero global entries" — never
+  // fabricate the current user's rank as #1 on a fetch failure.
+  if (lbError) {
+    return <Text style={styles.lbEmptyTxt}>{noSyncNote}</Text>;
+  }
+  if (leaderboard.length === 0) {
+    return (
+      <>
+        <View
+          key={currentUserEntry.userEmail}
+          style={[styles.lbRow, styles.lbRowLast, styles.lbRowMe]}
+        >
+          <Text style={[styles.lbRank, styles.lbRankTop]}>#{currentUserEntry.rank}</Text>
+          <View style={styles.lbInfo}>
+            <Text style={styles.lbName} numberOfLines={1}>
+              {currentUserEntry.displayName} ({youLabel})
+            </Text>
+          </View>
+          <Text style={styles.lbStars}>{currentUserEntry.lifetimeStars} ★</Text>
+        </View>
+        <Text style={styles.lbEmptyTxt}>{emptyNote}</Text>
+      </>
+    );
+  }
   return (
     <>
-      {entries.map((entry, idx) => {
-        const isLast = idx === entries.length - 1;
+      {leaderboard.map((entry, idx) => {
+        const isLast = idx === leaderboard.length - 1;
         return (
           <View
             key={entry.userEmail}
@@ -60,11 +70,10 @@ function LeaderboardSection({ leaderboard, lbLoading, styles, colors, youLabel, 
                 {entry.displayName}{entry.isCurrentUser ? ` (${youLabel})` : ''}
               </Text>
             </View>
-            <Text style={styles.lbStars}>{entry.weeklyStars} ★</Text>
+            <Text style={styles.lbStars}>{entry.lifetimeStars} ★</Text>
           </View>
         );
       })}
-      {leaderboard.length === 0 ? <Text style={styles.lbEmptyTxt}>{emptyNote}</Text> : null}
     </>
   );
 }
@@ -82,22 +91,11 @@ export function RankScreen() {
     return () => { rankMascotBridge.ref = null; };
   }, []);
 
-  const currentTierOrder = data
-    ? (data.currentTierId ? (data.tiers.find(t => t.id === data.currentTierId)?.tier_order ?? 0) : 0)
-    : 0;
-  const { data: leaderboard = [], isLoading: lbLoading } = useLeaderboard(
+  const { data: leaderboard = [], isLoading: lbLoading, isError: lbError } = useLeaderboard(
     googleUser?.email ?? null,
-    currentTierOrder,
-    data?.tiers ?? [],
   );
 
   const [infoVisible, setInfoVisible] = useState(false);
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 60_000);
-    return () => clearInterval(timer);
-  }, []);
 
   if (isLoading || !data) {
     return (
@@ -122,11 +120,10 @@ export function RankScreen() {
   const nextCfg = nextTier ? getRankConfigByTierOrder(nextTier.tier_order) : null;
   const rankLabel = t.rankNameMap[cfg.name] ?? cfg.name;
   const nextRankLabel = nextCfg ? (t.rankNameMap[nextCfg.name] ?? nextCfg.name) : (t.rankNameMap[nextTier?.rank_name ?? ''] ?? nextTier?.rank_name ?? '');
-  const resetCountdown = getTimeUntilWeeklyReset(now);
   const currentUserEntry: LBEntry = {
     userEmail: googleUser?.email ?? 'current-user',
     displayName: googleUser?.name ?? t.leaderboardYou,
-    weeklyStars: currentStars,
+    lifetimeStars: currentStars,
     rank: 1,
     isCurrentUser: true,
   };
@@ -148,7 +145,7 @@ export function RankScreen() {
             <Text style={styles.rankNm} numberOfLines={2}>{rankLabel}</Text>
             <Text style={styles.rankEn} numberOfLines={2}>{t.rankQuoteMap[currentTier?.rank_name ?? ''] ?? cfg.descriptor}</Text>
             <View style={styles.rankWk}>
-              <Text style={styles.rankWkTxt}>{t.weekStars(currentStars)}</Text>
+              <Text style={styles.rankWkTxt}>{t.starsTotal(currentStars)}</Text>
             </View>
             <View style={styles.bar}>
               <View style={[styles.barFill, { width: `${Math.round(progressPct * 100)}%` as `${number}%` }]} />
@@ -169,24 +166,20 @@ export function RankScreen() {
           </View>
         )}
 
-        <ResetCountdownChip styles={styles} label={t.resetCountdownLabel(resetCountdown.days, resetCountdown.hours, resetCountdown.minutes)} />
-
-        {currentTierOrder > 0 && (
-          <>
-            <Text style={styles.sectionLabel}>{t.leaderboardSection}</Text>
-            <View style={styles.card}>
-              <LeaderboardSection
-                leaderboard={leaderboard}
-                lbLoading={lbLoading}
-                styles={styles}
-                colors={colors}
-                youLabel={t.leaderboardYou}
-                emptyNote={t.leaderboardEmpty}
-                currentUserEntry={currentUserEntry}
-              />
-            </View>
-          </>
-        )}
+        <Text style={styles.sectionLabel}>{t.leaderboardSection}</Text>
+        <View style={styles.card}>
+          <LeaderboardSection
+            leaderboard={leaderboard}
+            lbLoading={lbLoading}
+            lbError={lbError}
+            styles={styles}
+            colors={colors}
+            youLabel={t.leaderboardYou}
+            emptyNote={t.leaderboardEmpty}
+            noSyncNote={t.leaderboardNoSync}
+            currentUserEntry={currentUserEntry}
+          />
+        </View>
 
       </ScrollView>
       <RankInfoSheet
@@ -230,13 +223,6 @@ function makeStyles(C: AppColors) {
     bar: { width: '100%', height: 8, backgroundColor: C.surface2, borderRadius: Radii.pill, marginTop: 14, overflow: 'hidden' },
     barFill: { height: '100%', backgroundColor: C.primary, borderRadius: Radii.pill },
     nextCap: { fontSize: 12, color: C.muted, marginTop: 13, fontFamily: FontFamily.semiBold, textAlign: 'center' },
-    resetChip: {
-      marginHorizontal: Spacing.lg, marginTop: 12,
-      alignItems: 'center', justifyContent: 'center',
-      backgroundColor: C.surface2, borderRadius: Radii.md, paddingVertical: 12, paddingHorizontal: 16,
-    },
-    resetChipLabel: { fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2 },
-    resetChipCountdown: { fontSize: 22, fontFamily: FontFamily.extraBold, color: C.inkDark, letterSpacing: 1, marginTop: 4, fontVariant: ['tabular-nums'] },
 
     sectionLabel: {
       fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2,

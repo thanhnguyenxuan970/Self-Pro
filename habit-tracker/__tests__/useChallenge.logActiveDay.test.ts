@@ -72,7 +72,7 @@ describe('logActiveChallengeDay -- linked challenges (task_type_id set)', () => 
       taskTypeId: 42,
     });
 
-    expect(result).toBe('logged');
+    expect(result.status).toBe('logged');
     expect(db.runAsync).not.toHaveBeenCalledWith(
       `INSERT INTO challenge_log (challenge_id, local_date, state) VALUES (?, ?, 'done')`,
       expect.anything(),
@@ -98,7 +98,7 @@ describe('logActiveChallengeDay -- linked challenges (task_type_id set)', () => 
 
     const result = await logActiveChallengeDay(db, { userId: 5, localDate: '2026-07-06', taskTypeId: 42 });
 
-    expect(result).toBe('logged');
+    expect(result.status).toBe('logged');
     expect(db.runAsync).toHaveBeenCalledWith(
       `UPDATE challenges SET streak_current = ? WHERE id = ?`,
       [1, 8], // one done-date, not two
@@ -113,7 +113,7 @@ describe('logActiveChallengeDay -- linked challenges (task_type_id set)', () => 
 
     const result = await logActiveChallengeDay(db, { userId: 5, localDate: '2026-07-06', taskTypeId: 42 });
 
-    expect(result).toBe('logged');
+    expect(result.status).toBe('logged');
     expect(db.runAsync).toHaveBeenCalledWith(
       `UPDATE challenges SET streak_current = ? WHERE id = ?`,
       [0, 9],
@@ -159,7 +159,7 @@ describe('logActiveChallengeDay -- manual challenges (task_type_id null)', () =>
 
     const result = await logActiveChallengeDay(db, { userId: 5, localDate: '2026-07-06' });
 
-    expect(result).toBe('logged');
+    expect(result.status).toBe('logged');
     expect(db.runAsync).toHaveBeenCalledWith(
       `INSERT INTO challenge_log (challenge_id, local_date, state) VALUES (?, ?, 'done')`,
       [7, '2026-07-06'],
@@ -182,7 +182,7 @@ describe('logActiveChallengeDay -- manual challenges (task_type_id null)', () =>
 
     const result = await logActiveChallengeDay(db, { userId: 5, localDate: '2026-07-06' });
 
-    expect(result).toBe('already_logged');
+    expect(result.status).toBe('already_logged');
     expect(db.runAsync).not.toHaveBeenCalledWith(
       `INSERT INTO challenge_log (challenge_id, local_date, state) VALUES (?, ?, 'done')`,
       expect.anything(),
@@ -194,7 +194,7 @@ describe('logActiveChallengeDay -- manual challenges (task_type_id null)', () =>
 
     const result = await logActiveChallengeDay(db, { userId: 5, localDate: '2026-07-06' });
 
-    expect(result).toBe('no_active_challenge');
+    expect(result.status).toBe('no_active_challenge');
     expect(db.runAsync).not.toHaveBeenCalled();
   });
 });

@@ -11,11 +11,12 @@ interface Props {
   visible: boolean;
   tierOrder: number;
   tierName: string;
-  weeklyStars?: number;
+  /** Lifetime star total as it stood when this tier was crossed — not a live/weekly count. */
+  starsAtCrossing?: number;
   onDismiss: () => void;
 }
 
-export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklyStars, onDismiss }: Props) {
+export function LevelUpCelebrationModal({ visible, tierOrder, tierName, starsAtCrossing, onDismiss }: Props) {
   const t = useTranslations();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -103,7 +104,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklySt
           <Text style={[styles.descriptor, { color: cfg.color }]} numberOfLines={2}>{cfg.descriptor}</Text>
         </Animated.View>
         <Animated.View style={[styles.starChip, riseStyle(starChip)]}>
-          <Text style={styles.starChipText}>{t.weekStars(weeklyStars ?? cfg.stars)}</Text>
+          <Text style={styles.starChipText}>{t.starsTotal(starsAtCrossing ?? cfg.stars)}</Text>
         </Animated.View>
         <Animated.View style={[styles.ctaWrap, riseStyle(cta)]}>
           <TouchableOpacity style={styles.cta} onPress={onDismiss} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={t.levelUpContinueCta}>
