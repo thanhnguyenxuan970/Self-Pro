@@ -10,8 +10,8 @@ keeping activity-log management below it.
 - Header: `Analytics`, range subtitle, and Week / Month / Year segmented tabs.
 - Volume: Points, Stars, and Days at goal; each shows the selected range and
   comparison with the preceding equivalent range.
-- Chart: paired bars for current versus previous range, daily for Week,
-  weekly for Month, and monthly for Year. The current series is yellow and the
+- Chart: paired bars for current versus previous range, daily for Week and
+  Month, and monthly for Year. The current series is yellow and the
   comparison is muted. The goal line, labels, and summary follow the reference.
 - Consistency: three rings for this week, 30 days, and all time.
 - Rhythm: weekday distribution plus hourly distribution.
@@ -25,7 +25,12 @@ keeping activity-log management below it.
 
 Production data is aggregated from local SQLite: `daily_summary` supplies
 points and active days; `activity_log` supplies stars, logs, hours, and habit
-composition. Values must reconcile with the plotted bars.
+composition. Values must reconcile with the plotted bars. The goal is the
+highest daily `total_points` in the available data (zero when there is no
+activity), not a hard-coded threshold.
+
+Only the selected tab, chart bars, and consistency rings animate. They use the
+existing reduced-motion preference and render immediately when it is enabled.
 
 `EXPO_PUBLIC_ANALYTICS_DEMO=1` enables a development-only fixture with the
 reference's stress-case distribution. It never runs in production and does not
@@ -40,7 +45,7 @@ logic.
 
 ## Verification
 
-- Unit-test aggregation, range padding, comparison deltas, localization, and
+- Unit-test aggregation, dynamic-goal calculation, range padding, comparison deltas, localization, and
   demo-fixture isolation.
 - TypeScript, Jest, and diff check pass.
 - Android emulator: rapid range switching, cold starts, English/Vietnamese,
