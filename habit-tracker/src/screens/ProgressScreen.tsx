@@ -324,7 +324,7 @@ export function ProgressScreen() {
           <View style={styles.segbar}>
             {RANGES.map(({ key, label }) => <TouchableOpacity key={key} style={[styles.segBtn, range === key && styles.segBtnActive]} onPress={() => setRange(key)} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: range === key }}><Text style={[styles.segTxt, range === key && styles.segTxtActive]}>{label}</Text></TouchableOpacity>)}
           </View>
-          <View style={styles.dashboardWrap}><AnalyticsDashboardView data={dashboard} colors={colors} isDark={isDark} language={language} /></View>
+          <View style={styles.dashboardWrap}><AnalyticsDashboardView data={dashboard} colors={colors} isDark={isDark} language={language} range={range} reduceMotion={reduceMotion} animationKey={focusKey} /></View>
           <ActivityLogSection actLogs={actLogs} selectionMode={selectionMode} selectedIds={selectedIds} selectAll={selectAll} cancelSelection={cancelSelection} enterSelection={enterSelection} toggleSelect={toggleSelect} handleDeleteSelected={() => confirmDeleteSelected(Array.from(selectedIds), cancelSelection, deleteLogs, t)} deleteLogs={deleteLogs} onAddActivity={() => setAddSheetVisible(true)} filterDate={filterDate} onFilterPress={() => openDateFilter(filterDate, setFilterDate)} onFilterClear={() => setFilterDate(null)} t={t} styles={styles} />
         </ScrollView>
         <AddActivitySheet visible={addSheetVisible} onClose={() => setAddSheetVisible(false)} />
