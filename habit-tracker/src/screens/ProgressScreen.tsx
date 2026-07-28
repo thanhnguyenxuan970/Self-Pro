@@ -4,7 +4,7 @@ import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  useAnalyticsPointsData, useStreakCount,
+  useAnalyticsDashboard, useAnalyticsPointsData, useStreakCount,
   useRecentActivityLogs, useDeleteActivityLogs, useWeeklyConsistency, useTopActivities, useAllTimeStats,
   ActivityLogEntry,
 } from '../queries/useProgress';
@@ -18,6 +18,8 @@ import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
 import { useHeatmapData } from '../queries/useCalendar';
 import { useRankData } from '../queries/useRank';
 import { getRankConfigByTierOrder } from '../config/ranks.config';
+import { AnalyticsDashboardView } from '../components/analytics/AnalyticsDashboardView';
+import { useLanguage } from '../hooks/useSettings';
 
 type Range = 'W' | 'M' | 'Y';
 
@@ -251,7 +253,8 @@ function ProgressChartContent({ isLoading, chartData, range, formatBucket, color
 
 export function ProgressScreen() {
   const userId = useAuthUser();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const [language] = useLanguage();
   const t = useTranslations();
   const reduceMotion = useReduceMotion();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -265,6 +268,7 @@ export function ProgressScreen() {
   );
 
   const [range, setRange] = useState<Range>('W');
+  const { data: dashboard, isLoading: isDashboardLoading } = useAnalyticsDashboard(userId, range);
   const { data: chartData = [], isLoading } = useAnalyticsPointsData(userId, range);
   const { data: streak = 0 } = useStreakCount(userId);
   const { data: heatmapDays = [] } = useHeatmapData(userId);
@@ -310,6 +314,24 @@ export function ProgressScreen() {
   const rankName = getRankConfigByTierOrder(currentTier?.tier_order ?? 1).nameVi;
   const displayCurrentStars = Math.round(rankData?.currentStars ?? 0);
   const isEmpty = allTimeStats?.totalActivities === 0;
+
+  if (dashboard) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
+          <Text style={styles.title}>{t.analyticsTitle}</Text>
+          <Text style={styles.dashboardSubtitle}>{range === 'W' ? t.filterLast7Days : range === 'M' ? t.periodThisMonth : t.periodThisYear}</Text>
+          <View style={styles.segbar}>
+            {RANGES.map(({ key, label }) => <TouchableOpacity key={key} style={[styles.segBtn, range === key && styles.segBtnActive]} onPress={() => setRange(key)} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: range === key }}><Text style={[styles.segTxt, range === key && styles.segTxtActive]}>{label}</Text></TouchableOpacity>)}
+          </View>
+          <View style={styles.dashboardWrap}><AnalyticsDashboardView data={dashboard} colors={colors} isDark={isDark} language={language} /></View>
+          <ActivityLogSection actLogs={actLogs} selectionMode={selectionMode} selectedIds={selectedIds} selectAll={selectAll} cancelSelection={cancelSelection} enterSelection={enterSelection} toggleSelect={toggleSelect} handleDeleteSelected={() => confirmDeleteSelected(Array.from(selectedIds), cancelSelection, deleteLogs, t)} deleteLogs={deleteLogs} onAddActivity={() => setAddSheetVisible(true)} filterDate={filterDate} onFilterPress={() => openDateFilter(filterDate, setFilterDate)} onFilterClear={() => setFilterDate(null)} t={t} styles={styles} />
+        </ScrollView>
+        <AddActivitySheet visible={addSheetVisible} onClose={() => setAddSheetVisible(false)} />
+      </SafeAreaView>
+    );
+  }
+  if (isDashboardLoading) return <SafeAreaView style={styles.safeArea}><ActivityIndicator color={colors.primary} /></SafeAreaView>;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -426,6 +448,8 @@ function makeStyles(C: AppColors) {
     safeArea: { flex: 1, backgroundColor: C.bgBase },
     container: { flex: 1 },
     title: { fontSize: 28, fontFamily: FontFamily.extraBold, letterSpacing: -0.7, color: C.inkDark, marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
+    dashboardSubtitle: { color: C.muted, fontFamily: FontFamily.regular, fontSize: 12, marginHorizontal: Spacing.lg, marginTop: -8 },
+    dashboardWrap: { marginHorizontal: Spacing.lg },
 
     segbar: { flexDirection: 'row', marginHorizontal: Spacing.lg, marginBottom: 14 },
     segBtn: {

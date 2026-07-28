@@ -3,6 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { dailyBonusStarsForPoints } from '../config/constants';
 import { getLocalDate, getWeekStart, getLocalDateOffset, getWeekStartOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
+import { AnalyticsDashboard, AnalyticsRange, AnalyticsDaily, AnalyticsLog, analyticsDemo, buildAnalyticsDashboard } from '../analytics/dashboardModel';
 
 export type ActivityLogEntry = {
   id: number;
@@ -104,6 +105,26 @@ export function useAnalyticsPointsData(userId: number, range: 'W' | 'M' | 'Y') {
          GROUP BY bucket ORDER BY bucket`,
         [userId, ...params],
       );
+    },
+  });
+}
+
+/** One SQLite-backed view model for the reference Analytics dashboard. */
+export function useAnalyticsDashboard(userId: number, range: AnalyticsRange) {
+  const today = getLocalDate();
+  return useQuery({
+    queryKey: ['progress', 'dashboard', userId, range, today],
+    queryFn: async (): Promise<AnalyticsDashboard> => {
+      if (__DEV__ && process.env.EXPO_PUBLIC_ANALYTICS_DEMO === '1') return analyticsDemo;
+      const db = await getDb();
+      const [daily, logs] = await Promise.all([
+        db.getAllAsync<AnalyticsDaily>(`SELECT local_date, total_points FROM daily_summary WHERE user_id = ?`, [userId]),
+        db.getAllAsync<AnalyticsLog>(`
+          SELECT a.local_date, a.logged_at, a.points_earned, a.stars_delta, tt.name AS task_name
+          FROM activity_log a LEFT JOIN task_types tt ON tt.id = a.task_type_id
+          WHERE a.user_id = ? AND a.source = 'TASK'`, [userId]),
+      ]);
+      return buildAnalyticsDashboard(daily, logs, range);
     },
   });
 }

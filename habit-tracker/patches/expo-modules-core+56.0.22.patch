@@ -1,0 +1,27 @@
+diff --git a/node_modules/expo-modules-core/android/CMakeLists.txt b/node_modules/expo-modules-core/android/CMakeLists.txt
+--- a/node_modules/expo-modules-core/android/CMakeLists.txt
++++ b/node_modules/expo-modules-core/android/CMakeLists.txt
+@@ -1,6 +1,9 @@
+ cmake_minimum_required(VERSION 3.16)
+ set(CMAKE_VERBOSE_MAKEFILE ON)
+ set(CMAKE_CXX_STANDARD 20)
++# ponytail: serialize NDK r27 C++ compilation; increase only after native builds stop exhausting memory.
++set_property(GLOBAL PROPERTY JOB_POOLS expo_compile=1)
++set(CMAKE_JOB_POOL_COMPILE expo_compile)
+ 
+ project(expo-modules-core)
+ 
+diff --git a/node_modules/expo-modules-core/android/cmake/common.cmake b/node_modules/expo-modules-core/android/cmake/common.cmake
+--- a/node_modules/expo-modules-core/android/cmake/common.cmake
++++ b/node_modules/expo-modules-core/android/cmake/common.cmake
+@@ -1,9 +1,4 @@
+ add_library(EXPO_COMMON INTERFACE)
+ 
+-target_precompile_headers(
+-  EXPO_COMMON
+-  INTERFACE
+-  ${CMAKE_SOURCE_DIR}/src/main/cpp/ExpoHeader.pch
+-)
++# ponytail: disable PCH while NDK r27 Clang crashes consuming ExpoHeader.pch; restore after upgrading the NDK.
+ 
+ target_compile_options(

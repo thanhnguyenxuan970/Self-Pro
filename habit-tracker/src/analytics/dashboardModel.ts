@@ -1,0 +1,70 @@
+export type AnalyticsRange = 'W' | 'M' | 'Y';
+
+export type AnalyticsDaily = { local_date: string; total_points: number };
+export type AnalyticsLog = { local_date: string; logged_at: number; points_earned: number; stars_delta: number; task_name: string | null };
+export type AnalyticsBar = { label: string; current: number; previous: number };
+export type AnalyticsDashboard = {
+  bars: AnalyticsBar[];
+  points: number; previousPoints: number; stars: number; previousStars: number;
+  daysAtGoal: number; possibleDays: number;
+  consistency: { week: number; month: number; all: number };
+  weekday: { label: string; value: number }[];
+  hours: { label: string; value: number }[];
+  composition: { name: string; count: number; previous: number }[];
+};
+
+const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const addDays = (date: Date, days: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+const sum = (items: number[]) => items.reduce((total, value) => total + value, 0);
+
+function windowFor(range: AnalyticsRange, today: Date) {
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (range === 'W') return { start: addDays(end, -6), previousStart: addDays(end, -13), count: 7 };
+  if (range === 'M') {
+    const start = new Date(end.getFullYear(), end.getMonth(), 1);
+    return { start, previousStart: new Date(end.getFullYear(), end.getMonth() - 1, 1), count: end.getDate() };
+  }
+  return { start: new Date(end.getFullYear(), 0, 1), previousStart: new Date(end.getFullYear() - 1, 0, 1), count: end.getMonth() + 1 };
+}
+
+export function buildAnalyticsDashboard(daily: AnalyticsDaily[], logs: AnalyticsLog[], range: AnalyticsRange, today = new Date(), goal = 50): AnalyticsDashboard {
+  const { start, previousStart, count } = windowFor(range, today);
+  const dayMap = new Map(daily.map(row => [row.local_date, row.total_points]));
+  const currentDates = Array.from({ length: count }, (_, index) => range === 'Y'
+    ? new Date(start.getFullYear(), index, 1)
+    : addDays(start, index));
+  const previousDates = currentDates.map(date => range === 'Y'
+    ? new Date(previousStart.getFullYear(), date.getMonth(), 1)
+    : range === 'M' ? new Date(previousStart.getFullYear(), previousStart.getMonth(), date.getDate()) : addDays(previousStart, Math.round((date.getTime() - start.getTime()) / 86400000)));
+  const labels = currentDates.map(date => range === 'W'
+    ? ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][date.getDay()]
+    : range === 'M' ? `W${Math.floor((date.getDate() - 1) / 7) + 1}`
+    : date.toLocaleString('en-US', { month: 'short' }));
+  const bars = currentDates.map((date, index) => ({ label: labels[index], current: dayMap.get(dateKey(date)) ?? 0, previous: dayMap.get(dateKey(previousDates[index])) ?? 0 }));
+  const inWindow = (date: string, from: Date, to: Date) => date >= dateKey(from) && date <= dateKey(to);
+  const currentEnd = range === 'Y' ? new Date(start.getFullYear(), count - 1, 31) : today;
+  const previousEnd = range === 'Y' ? new Date(previousStart.getFullYear(), count - 1, 31) : addDays(previousStart, count - 1);
+  const currentLogs = logs.filter(log => inWindow(log.local_date, start, currentEnd));
+  const previousLogs = logs.filter(log => inWindow(log.local_date, previousStart, previousEnd));
+  const points = sum(bars.map(bar => bar.current));
+  const previousPoints = sum(bars.map(bar => bar.previous));
+  const stars = sum(currentLogs.map(log => Math.max(0, log.stars_delta)));
+  const previousStars = sum(previousLogs.map(log => Math.max(0, log.stars_delta)));
+  const last = (days: number) => daily.filter(row => row.local_date >= dateKey(addDays(today, -days + 1)) && row.local_date <= dateKey(today));
+  const pct = (items: AnalyticsDaily[], divisor: number) => Math.round((items.filter(row => row.total_points >= goal).length / Math.max(1, divisor)) * 100);
+  const weekday = Array.from({ length: 7 }, (_, day) => ({ label: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][day], value: sum(currentLogs.filter(log => new Date(log.local_date + 'T00:00:00').getDay() === day).map(log => log.points_earned)) }));
+  const hours = [0, 4, 8, 12, 16, 20].map(hour => ({ label: String(hour), value: sum(currentLogs.filter(log => new Date(log.logged_at).getHours() >= hour && new Date(log.logged_at).getHours() < hour + 4).map(log => log.points_earned)) }));
+  const countByTask = (items: AnalyticsLog[]) => items.reduce((map, log) => { if (log.task_name) map.set(log.task_name, (map.get(log.task_name) ?? 0) + 1); return map; }, new Map<string, number>());
+  const currentTasks = countByTask(currentLogs), previousTasks = countByTask(previousLogs);
+  const composition = [...currentTasks.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([name, taskCount]) => ({ name, count: taskCount, previous: previousTasks.get(name) ?? 0 }));
+  return { bars, points, previousPoints, stars, previousStars, daysAtGoal: bars.filter(bar => bar.current >= goal).length, possibleDays: bars.length, consistency: { week: pct(last(7), 7), month: pct(last(30), 30), all: pct(daily, Math.max(1, daily.length)) }, weekday, hours, composition };
+}
+
+export const analyticsDemo: AnalyticsDashboard = {
+  bars: [['Mo', 60, 0], ['Tu', 45, 50], ['We', 78, 52], ['Th', 50, 39], ['Fr', 92, 61], ['Sa', 34, 42], ['Su', 0, 33]].map(([label, current, previous]) => ({ label: String(label), current: Number(current), previous: Number(previous) })),
+  points: 412, previousPoints: 324, stars: 17, previousStars: 13, daysAtGoal: 4, possibleDays: 7,
+  consistency: { week: 57, month: 64, all: 58 },
+  weekday: [['Mo', 58], ['Tu', 44], ['We', 73], ['Th', 51], ['Fr', 78], ['Sa', 30], ['Su', 40]].map(([label, value]) => ({ label: String(label), value: Number(value) })),
+  hours: [['0', 4], ['4', 18], ['8', 36], ['12', 22], ['16', 30], ['20', 58]].map(([label, value]) => ({ label: String(label), value: Number(value) })),
+  composition: [{ name: 'Cleaning', count: 12, previous: 9 }, { name: 'Gym', count: 9, previous: 8 }, { name: 'Chạy bộ', count: 7, previous: 9 }, { name: 'Reading', count: 5, previous: 5 }],
+};
