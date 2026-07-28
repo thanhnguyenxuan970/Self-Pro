@@ -11,7 +11,8 @@ interface Props {
   visible: boolean;
   tierOrder: number;
   tierName: string;
-  weeklyStars?: number;
+  /** Lifetime star total as it stood when this tier was crossed — not a live/weekly count. */
+  starsAtCrossing?: number;
   onDismiss: () => void;
 }
 
@@ -27,7 +28,7 @@ const REVEAL_MARKS: Record<number, string[]> = {
   9: ['✦', '✦', '✦', '✦'],
 };
 
-export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklyStars, onDismiss }: Props) {
+export function LevelUpCelebrationModal({ visible, tierOrder, tierName, starsAtCrossing, onDismiss }: Props) {
   const t = useTranslations();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -156,7 +157,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, weeklySt
           <View style={styles.nameRow}>
             <Text style={styles.rankName} numberOfLines={2}>{rankLabel}</Text>
             <View style={styles.starChip}>
-              <Text style={styles.starChipText}>★ {Math.round(weeklyStars ?? cfg.stars)}</Text>
+              <Text style={styles.starChipText}>{t.starsTotal(Math.round(starsAtCrossing ?? cfg.stars))}</Text>
             </View>
           </View>
         </Animated.View>

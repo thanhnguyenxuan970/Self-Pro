@@ -264,7 +264,8 @@ export function useAuth() {
         await db.runAsync(sql, [uid]);
       }
       await db.runAsync(
-        `UPDATE users SET treat_stars = 0, treat_stars_lifetime = 0, carry_debt = 0 WHERE id = ?`,
+        `UPDATE users SET treat_stars = 0, treat_stars_lifetime = 0, carry_debt = 0,
+           lifetime_stars = 0, current_tier_id = NULL WHERE id = ?`,
         [uid],
       );
     });

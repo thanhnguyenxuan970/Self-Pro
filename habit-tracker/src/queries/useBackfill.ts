@@ -4,6 +4,10 @@ import { canBackfill, computeBackfillSession, computeStreakCounts, type Backfill
 import { getLocalDate, getLocalDateFor, getWeekStart, getWeekStartFor } from '../utils/formatters';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { crossedStreakMilestone, type StreakMilestone } from '../game/streakMilestones';
+import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
+import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
+import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
+import { rankMascotBridge } from '../lib/rankMascotBridge';
 
 export type BackfillEntryParams = BackfillSessionEntry;
 
@@ -95,7 +99,7 @@ async function runBackfillTx(
   db: SQLiteDatabase, entries: BackfillEntryParams[],
   userId: number, backfillDate: string,
   backfillWeekStart: string, currentWeekStart: string, today: string,
-): Promise<{ newStreak: number; milestone: StreakMilestone | null }> {
+): Promise<{ newStreak: number; milestone: StreakMilestone | null; lifetimeCrossings: LifetimeTierCrossing[] }> {
   const now = new Date();
   const nowMs = now.getTime();
   const previousBest = await db.getFirstAsync<{ best: number }>(
@@ -168,6 +172,7 @@ async function runBackfillTx(
     if (result.changes > 0) milestone = candidate;
   }
 
+  let lifetimeCrossings: LifetimeTierCrossing[] = [];
   if (session.rankPointsDelta !== 0 || session.rankStarsDelta !== 0) {
     await db.runAsync(
       `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars, peak_stars, current_tier_id)
@@ -180,16 +185,23 @@ async function runBackfillTx(
        Math.max(0, session.rankStarsDelta), userId, currentWeekStart,
        session.rankPointsDelta, session.rankStarsDelta, session.rankStarsDelta],
     );
+
+    if (session.rankStarsDelta !== 0) {
+      const tiers = await db.getAllAsync<LifetimeTierRow>(
+        `SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY stars_required ASC`
+      );
+      lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, session.rankStarsDelta, tiers)).crossings;
+    }
   }
 
-  return { newStreak, milestone };
+  return { newStreak, milestone, lifetimeCrossings };
 }
 
 export function useBackfillDay(userId: number) {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: BackfillDayParams): Promise<{ newStreak: number; milestone: StreakMilestone | null }> => {
+    mutationFn: async (params: BackfillDayParams): Promise<{ newStreak: number; milestone: StreakMilestone | null; lifetimeCrossings: LifetimeTierCrossing[] }> => {
       const db = await getDb();
       const today = getLocalDate();
       const currentWeekStart = getWeekStart();
@@ -213,21 +225,32 @@ export function useBackfillDay(userId: number) {
       }
       if (params.entries.length === 0) throw new Error('EMPTY_SESSION');
 
-      let result = { newStreak: 0, milestone: null as StreakMilestone | null };
+      let newStreak = 0;
+      let milestone: StreakMilestone | null = null;
+      let lifetimeCrossings: LifetimeTierCrossing[] = [];
       await db.withExclusiveTransactionAsync(async (txn) => {
-        result = await runBackfillTx(
+        const result = await runBackfillTx(
           txn, params.entries, userId, backfillDate, backfillWeekStart, currentWeekStart, today,
         );
+        newStreak = result.newStreak;
+        milestone = result.milestone;
+        lifetimeCrossings = result.lifetimeCrossings;
       });
-      return result;
+      return { newStreak, milestone, lifetimeCrossings };
     },
 
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['backfill'] });
+      qc.invalidateQueries({ queryKey: ['rank'] });
+      if (data.lifetimeCrossings.length > 0) {
+        rankMascotBridge.ref?.current?.playRankUp();
+        rankMascotBridge.onRankUp?.(data.lifetimeCrossings);
+        enqueuePendingLevelUps(data.lifetimeCrossings).catch(() => {});
+      }
     },
 
     onError: (_err) => {

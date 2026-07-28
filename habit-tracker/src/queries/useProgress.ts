@@ -3,6 +3,10 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { dailyBonusStarsForPoints } from '../config/constants';
 import { getLocalDate, getWeekStart, getLocalDateOffset, getWeekStartOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
+import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
+import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
+import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
+import { rankMascotBridge } from '../lib/rankMascotBridge';
 
 export type ActivityLogEntry = {
   id: number;
@@ -317,10 +321,15 @@ async function revertWeeklySummariesForDelete(
 export function useDeleteActivityLogs(userId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (ids: number[]) => {
-      if (ids.length === 0) return;
+    mutationFn: async (ids: number[]): Promise<{ lifetimeCrossings: LifetimeTierCrossing[] }> => {
+      if (ids.length === 0) return { lifetimeCrossings: [] };
       const db = await getDb();
       const placeholders = ids.map(() => '?').join(',');
+      let lifetimeCrossings: LifetimeTierCrossing[] = [];
+
+      const tiers = await db.getAllAsync<LifetimeTierRow>(
+        `SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY stars_required ASC`
+      );
 
       await db.withTransactionAsync(async () => {
         const rows = await db.getAllAsync<DeleteRow>(
@@ -347,18 +356,30 @@ export function useDeleteActivityLogs(userId: number) {
           );
         }
 
+        // Removing these rows changes lifetime stars by the negated net of what
+        // they contributed (deleting a BAD/penalty row is a net gain — undoing
+        // it can, in principle, cross a tier upward; tier never demotes).
+        lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, badPenaltyAmt - goodStarsDelta, tiers)).crossings;
+
         await db.runAsync(
           `DELETE FROM activity_log WHERE user_id = ? AND id IN (${placeholders})`,
           [userId, ...ids]
         );
       });
+
+      return { lifetimeCrossings };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['progress', 'actlog', userId] });
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
+      if (data?.lifetimeCrossings?.length) {
+        rankMascotBridge.ref?.current?.playRankUp();
+        rankMascotBridge.onRankUp?.(data.lifetimeCrossings);
+        enqueuePendingLevelUps(data.lifetimeCrossings).catch(() => {});
+      }
     },
   });
 }

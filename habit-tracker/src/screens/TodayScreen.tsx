@@ -6,14 +6,17 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   useTodayTasks, useDailySummary, useWeeklySummary,
   useLogTask, useUnlogTask, useTodayLoggedTaskIds, useConsecutiveSuggestions,
-  useTodayTaskTotalDurations, PENDING_LEVELUP_KEY,
+  useTodayTaskTotalDurations,
 } from '../queries/useToday';
+import {
+  readPendingLevelUpQueue, writePendingLevelUpQueue, type PendingLevelUpItem,
+} from '../game/pendingLevelUpQueue';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { useArchiveTask, useUpdateTaskName } from '../queries/useTasks';
 import { useRankData } from '../queries/useRank';
@@ -197,7 +200,8 @@ export function TodayScreen() {
   const [justLoggedIds, setJustLoggedIds] = useState<Set<number>>(new Set());
   const pendingLogTaskIds = useRef(new Set<number>());
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set());
-  const [pendingLevelUp, setPendingLevelUp] = useState<{ tierOrder: number; tierName: string } | null>(null);
+  const [levelUpQueue, setLevelUpQueue] = useState<PendingLevelUpItem[]>([]);
+  const pendingLevelUp = levelUpQueue[0] ?? null;
   const [pendingStreakMilestone, setPendingStreakMilestone] = useState<StreakMilestone | null>(null);
   const [levelUpChecked, setLevelUpChecked] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
@@ -208,29 +212,18 @@ export function TodayScreen() {
   const { data: shareCardData } = useShareCardData(userId);
 
   useEffect(() => {
-    rankMascotBridge.onRankUp = (rank) => setPendingLevelUp({ tierOrder: rank.tier_order, tierName: rank.rank_name });
+    rankMascotBridge.onRankUp = (crossings) => {
+      setLevelUpQueue(q => [
+        ...q,
+        ...crossings.map(c => ({ tierOrder: c.tierOrder, tierName: c.rankName, starsAtCrossing: c.starsAtCrossing })),
+      ]);
+    };
     return () => { rankMascotBridge.onRankUp = null; };
   }, []);
 
   useEffect(() => {
-    if (!rankData?.promotion) return;
-    const next = { tierOrder: rankData.promotion.tier_order, tierName: rankData.promotion.rank_name };
-    setPendingLevelUp(next);
-    AsyncStorage.setItem(PENDING_LEVELUP_KEY, JSON.stringify(next)).catch(() => {});
-  }, [rankData?.promotion]);
-
-  useEffect(() => {
-    AsyncStorage.getItem(PENDING_LEVELUP_KEY).then(raw => {
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (typeof parsed?.tierOrder === 'number' && typeof parsed?.tierName === 'string') {
-            setPendingLevelUp({ tierOrder: parsed.tierOrder, tierName: parsed.tierName });
-            setLevelUpChecked(true);
-            return;
-          }
-        } catch {}
-      }
+    readPendingLevelUpQueue().then(queue => {
+      setLevelUpQueue(queue);
       setLevelUpChecked(true);
     }).catch(() => { setLevelUpChecked(true); });
   }, []);
@@ -438,10 +431,13 @@ export function TodayScreen() {
         visible={pendingLevelUp !== null}
         tierOrder={pendingLevelUp?.tierOrder ?? 1}
         tierName={t.rankNameMap[pendingLevelUp?.tierName ?? ''] ?? pendingLevelUp?.tierName ?? ''}
-        weeklyStars={weeklyStars}
+        starsAtCrossing={pendingLevelUp?.starsAtCrossing ?? weeklyStars}
         onDismiss={() => {
-          setPendingLevelUp(null);
-          AsyncStorage.removeItem(PENDING_LEVELUP_KEY).catch(() => {});
+          setLevelUpQueue(q => {
+            const next = q.slice(1);
+            writePendingLevelUpQueue(next).catch(() => {});
+            return next;
+          });
         }}
       />
       <ShareCardModal

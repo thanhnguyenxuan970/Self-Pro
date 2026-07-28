@@ -197,7 +197,7 @@ const vi = {
   noRankTitle: 'Bắt đầu leo hạng!',
   noRankDesc: 'Tích đủ 5 ★ để mở rank đầu tiên',
   noRankRemaining: (n: number, name: string) => `Còn ${parseFloat(n.toFixed(1))} ★ để mở ${name}`,
-  weekStars: (n: number) => `★ ${n} · Tuần này`,
+  starsTotal: (n: number) => `★ ${n}`,
   nextRank: (n: number, name: string) => `Sắp lên hạng ${name} · chỉ còn ${n} ★ nữa!`,
   rankPathYou: 'bạn ở đây',
   rankPathNext: (n: number) => `còn ${n} ★`,
@@ -598,16 +598,13 @@ const vi = {
   addReminder: '+ Thêm nhắc nhở',
   clearReminder: 'Xoá nhắc nhở',
 
-  // RankScreen countdown
-  resetCountdownLabel: (days: number, hours: number, minutes: number) => `♻ Còn ${days ? `${days} ngày ` : ''}${hours} giờ ${minutes} phút`,
-
   // Duration picker
   durationCustom: '1h+',
 
-  // Leaderboard
-  leaderboardSection: 'NGƯỜI CÙNG HẠNG',
+  // Leaderboard (global, lifetime — no weekly reset)
+  leaderboardSection: 'BẢNG XẾP HẠNG TOÀN CẦU',
   leaderboardYou: 'Bạn',
-  leaderboardEmpty: 'Bảng mới toanh tuần này — ghi hoạt động mỗi ngày để giữ ngôi đầu và lên hạng.',
+  leaderboardEmpty: 'Chưa có ai trên bảng xếp hạng — hãy là người đầu tiên!',
   leaderboardNoSync: 'Kết nối mạng để xem bảng xếp hạng',
 
   // AddActivitySheet step 2 — time picker
@@ -911,7 +908,7 @@ const en: typeof vi = {
   noRankTitle: 'Start climbing!',
   noRankDesc: 'Earn 5 ★ to unlock your first rank',
   noRankRemaining: (n: number, name: string) => `${parseFloat(n.toFixed(1))} ★ more to unlock ${name}`,
-  weekStars: (n) => `★ ${n} · This week`,
+  starsTotal: (n) => `★ ${n}`,
   nextRank: (n, name) => `Almost at ${name} · just ${n} ★ more!`,
   rankPathYou: 'you are here',
   rankPathNext: (n: number) => `${n} ★ to go`,
@@ -1310,16 +1307,13 @@ const en: typeof vi = {
   addReminder: '+ Add reminder',
   clearReminder: 'Clear reminder',
 
-  // RankScreen countdown
-  resetCountdownLabel: (days: number, hours: number, minutes: number) => `♻ ${days ? `${days} day${days === 1 ? '' : 's'} ` : ''}${hours}h ${minutes}m remaining`,
-
   // Duration picker
   durationCustom: '1h+',
 
-  // Leaderboard
-  leaderboardSection: 'PEERS IN YOUR RANK',
+  // Leaderboard (global, lifetime — no weekly reset)
+  leaderboardSection: 'GLOBAL LEADERBOARD',
   leaderboardYou: 'You',
-  leaderboardEmpty: 'Fresh board this week — complete an activity daily to hold first place and climb higher.',
+  leaderboardEmpty: 'No one on the leaderboard yet — be the first!',
   leaderboardNoSync: 'Connect to the internet to view the leaderboard',
 
   // AddActivitySheet step 2 — time picker
