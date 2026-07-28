@@ -197,4 +197,34 @@ describe('logActiveChallengeDay -- manual challenges (task_type_id null)', () =>
     expect(result.status).toBe('no_active_challenge');
     expect(db.runAsync).not.toHaveBeenCalled();
   });
+
+  it('completing a streak challenge threads the lifetime tier crossing through to the result (regression: completeStreakChallenge used to discard it)', async () => {
+    const tiers = [{ id: 1, tier_order: 1, rank_name: 'Delulu', stars_required: 1 }];
+    const getFirstAsync = jest.fn(async (sql: string) => {
+      if (sql.includes('FROM challenges') && sql.includes("status = 'active'")) {
+        return { id: 7, task_type_id: null, target_days: 7, mode: 'streak' };
+      }
+      if (sql.includes('FROM challenge_log WHERE challenge_id = ? AND local_date = ?')) return null;
+      if (sql.includes("COUNT(*) AS n FROM challenge_log") && sql.includes("state = 'done'")) return { n: 7 };
+      if (sql.includes("COUNT(*) AS n FROM challenge_log") && sql.includes("state != 'reset'")) return { n: 7 };
+      if (sql.includes('FROM weekly_summary WHERE user_id = ? AND week_start = ?')) return { weekly_stars: 0, current_tier_id: null };
+      if (sql.includes('FROM users WHERE id = ?')) return { lifetime_stars: 0, current_tier_id: null };
+      return null;
+    });
+    const getAllAsync = jest.fn(async (sql: string) => {
+      if (sql.includes('FROM tiers ORDER BY stars_required ASC')) return tiers;
+      if (sql.includes('FROM reward_unlocks WHERE user_id = ? AND week_start = ?')) return [];
+      return [];
+    });
+    const runAsync = jest.fn(async () => ({ changes: 1 }));
+    const db = { getFirstAsync, getAllAsync, runAsync } as unknown as SQLiteDatabase;
+
+    const result = await logActiveChallengeDay(db, { userId: 5, localDate: '2026-07-06' });
+
+    expect(result.status).toBe('logged');
+    // target_days=7 rewards 1 star; a fresh user (0 lifetime stars) crossing a
+    // 1-star tier must surface exactly that crossing, not an empty array.
+    expect(result.lifetimeCrossings).toHaveLength(1);
+    expect(result.lifetimeCrossings[0].tierId).toBe(1);
+  });
 });
