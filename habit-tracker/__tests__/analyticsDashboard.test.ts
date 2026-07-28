@@ -1,7 +1,7 @@
 import { buildAnalyticsDashboard } from '../src/analytics/dashboardModel';
 
 describe('buildAnalyticsDashboard', () => {
-  it('uses the highest available daily points as the goal', () => {
+  it('uses the fixed 25-point daily goal', () => {
     const result = buildAnalyticsDashboard(
       [{ local_date: '2026-07-27', total_points: 92 }, { local_date: '2026-07-28', total_points: 60 }],
       [],
@@ -9,23 +9,25 @@ describe('buildAnalyticsDashboard', () => {
       new Date(2026, 6, 28),
     );
 
-    expect(result.goal).toBe(92);
-    expect(result.daysAtGoal).toBe(1);
+    expect(result.goal).toBe(25);
+    expect(result.daysAtGoal).toBe(2);
   });
 
-  it('does not count empty days as being at a zero-point goal', () => {
+  it('keeps the daily goal when there is no activity', () => {
     const result = buildAnalyticsDashboard([], [], 'W', new Date(2026, 6, 28));
 
-    expect(result.goal).toBe(0);
+    expect(result.goal).toBe(25);
     expect(result.daysAtGoal).toBe(0);
   });
 
-  it('uses twelve monthly bars and 365 days for the year range', () => {
+  it('uses January through the current month for the year range', () => {
     const result = buildAnalyticsDashboard([{ local_date: '2026-07-28', total_points: 92 }], [], 'Y', new Date(2026, 6, 28));
 
     expect(result.bars).toHaveLength(12);
-    expect(result.possibleDays).toBe(365);
+    expect(result.possibleDays).toBe(209);
     expect(result.daysAtGoal).toBe(1);
+    expect(result.bars.map(bar => bar.label)).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']);
+    expect(result.bars[6].current).toBe(92);
   });
 
   it('labels only weekly landmarks in the month chart', () => {

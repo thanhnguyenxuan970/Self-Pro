@@ -14,6 +14,7 @@ export type AnalyticsDashboard = {
   composition: { name: string; count: number; previous: number }[];
 };
 
+const ANALYTICS_DAILY_GOAL = 25;
 const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const addDays = (date: Date, days: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 const sum = (items: number[]) => items.reduce((total, value) => total + value, 0);
@@ -25,12 +26,12 @@ function windowFor(range: AnalyticsRange, today: Date) {
     const start = new Date(end.getFullYear(), end.getMonth(), 1);
     return { start, previousStart: new Date(end.getFullYear(), end.getMonth() - 1, 1), count: end.getDate() };
   }
-  const start = addDays(end, -364);
-  return { start, previousStart: addDays(start, -365), count: 365 };
+  const start = new Date(end.getFullYear(), 0, 1);
+  return { start, previousStart: new Date(end.getFullYear() - 1, 0, 1), count: Math.round((end.getTime() - start.getTime()) / 86400000) + 1 };
 }
 
 export function buildAnalyticsDashboard(daily: AnalyticsDaily[], logs: AnalyticsLog[], range: AnalyticsRange, today = new Date()): AnalyticsDashboard {
-  const goal = Math.max(0, ...daily.map(row => row.total_points));
+  const goal = ANALYTICS_DAILY_GOAL;
   const { start, previousStart, count } = windowFor(range, today);
   const dayMap = new Map(daily.map(row => [row.local_date, row.total_points]));
   const currentDates = Array.from({ length: range === 'Y' ? 12 : count }, (_, index) => range === 'Y'
@@ -50,7 +51,9 @@ export function buildAnalyticsDashboard(daily: AnalyticsDaily[], logs: Analytics
   const bars = currentDates.map((date, index) => ({ label: labels[index], current: range === 'Y' ? monthTotal(date, start, today) : dayMap.get(dateKey(date)) ?? 0, previous: range === 'Y' ? monthTotal(previousDates[index], previousStart, addDays(start, -1)) : dayMap.get(dateKey(previousDates[index])) ?? 0 }));
   const inWindow = (date: string, from: Date, to: Date) => date >= dateKey(from) && date <= dateKey(to);
   const currentEnd = today;
-  const previousEnd = range === 'Y' ? addDays(start, -1) : addDays(previousStart, count - 1);
+  const previousEnd = range === 'Y'
+    ? new Date(today.getFullYear() - 1, today.getMonth(), today.getDate())
+    : addDays(previousStart, count - 1);
   const currentLogs = logs.filter(log => inWindow(log.local_date, start, currentEnd));
   const previousLogs = logs.filter(log => inWindow(log.local_date, previousStart, previousEnd));
   const points = sum(bars.map(bar => bar.current));
@@ -65,7 +68,7 @@ export function buildAnalyticsDashboard(daily: AnalyticsDaily[], logs: Analytics
   const currentTasks = countByTask(currentLogs), previousTasks = countByTask(previousLogs);
   const composition = [...currentTasks.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([name, taskCount]) => ({ name, count: taskCount, previous: previousTasks.get(name) ?? 0 }));
   const daysAtGoal = goal > 0 ? daily.filter(row => inWindow(row.local_date, start, currentEnd) && row.total_points >= goal).length : 0;
-  return { bars, goal, points, previousPoints, stars, previousStars, daysAtGoal, possibleDays: range === 'Y' ? 365 : bars.length, consistency: { week: pct(last(7), 7), month: pct(last(30), 30), all: pct(daily, Math.max(1, daily.length)) }, weekday, hours, composition };
+  return { bars, goal, points, previousPoints, stars, previousStars, daysAtGoal, possibleDays: range === 'Y' ? count : bars.length, consistency: { week: pct(last(7), 7), month: pct(last(30), 30), all: pct(daily, Math.max(1, daily.length)) }, weekday, hours, composition };
 }
 
 export const analyticsDemo: AnalyticsDashboard = {
