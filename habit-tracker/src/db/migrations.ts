@@ -594,17 +594,54 @@ async function v22(db: SQLiteDatabase): Promise<void> {
   }
 }
 
-// v22 -> v23: tier 9 rebrand Singularity -> Cosmic (Mock A chosen).
-// Covers devices whose DB already ran the original v22.
+// v22 -> v23: lifetime rank state, replacing the weekly-reset rank/leaderboard model.
+// lifetime_stars/current_tier_id live on `users` (same pattern as the existing
+// treat_stars_lifetime column) rather than on weekly_summary, which stays untouched
+// for its other (non-rank) weekly stats/challenge-pacing consumers.
 async function v23(db: SQLiteDatabase): Promise<void> {
+  try {
+    await db.runAsync(`ALTER TABLE users ADD COLUMN lifetime_stars REAL NOT NULL DEFAULT 0`);
+  } catch (e: any) {
+    if (!e?.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    await db.runAsync(`ALTER TABLE users ADD COLUMN current_tier_id INTEGER`);
+  } catch (e: any) {
+    if (!e?.message?.includes('duplicate column')) throw e;
+  }
+
+  // Backfill from activity_log (the source of truth), not from weekly_summary sums,
+  // since activity_log is authoritative and this is a one-time derivation, not a
+  // reconciliation against potentially-drifted weekly rollups.
+  const users = await db.getAllAsync<{ id: number }>(`SELECT id FROM users`);
+  const tiers = await db.getAllAsync<{ id: number; tier_order: number; stars_required: number }>(
+    `SELECT id, tier_order, stars_required FROM tiers ORDER BY tier_order ASC`,
+  );
+  for (const user of users) {
+    const totals = await db.getFirstAsync<{ total: number | null }>(
+      `SELECT SUM(stars_delta) AS total FROM activity_log WHERE user_id = ?`,
+      [user.id],
+    );
+    const lifetimeStars = Math.max(0, totals?.total ?? 0);
+    const reachedTier = [...tiers].reverse().find(t => t.stars_required <= lifetimeStars) ?? null;
+    await db.runAsync(
+      `UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?`,
+      [lifetimeStars, reachedTier?.id ?? null, user.id],
+    );
+  }
+}
+
+// v23 -> v24: tier 9 rebrand Singularity -> Cosmic (Mock A chosen).
+// Covers devices whose DB already ran the original v22-lineage v23.
+async function v24(db: SQLiteDatabase): Promise<void> {
   await db.runAsync(
     `UPDATE tiers SET rank_name = 'Cosmic' WHERE tier_order = 10 AND rank_name = 'Singularity'`,
   );
 }
 
-// v23 -> v24: Multiplier Boost — one row per user per local day. claimed_at/
+// v24 -> v25: Multiplier Boost — one row per user per local day. claimed_at/
 // expires_at/dismissed_at start NULL (available); set on claim/expiry/dismiss.
-async function v24(db: SQLiteDatabase): Promise<void> {
+async function v25(db: SQLiteDatabase): Promise<void> {
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS boost_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -621,7 +658,7 @@ async function v24(db: SQLiteDatabase): Promise<void> {
   `);
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24];
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

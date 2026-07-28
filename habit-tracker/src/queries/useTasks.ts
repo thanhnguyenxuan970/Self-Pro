@@ -3,6 +3,10 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { dailyBonusStarsForPoints } from '../config/constants';
 import { MAX_PINNED_ACTIVITIES, PickerTask } from '../utils/activityPicker';
+import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
+import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
+import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
+import { rankMascotBridge } from '../lib/rankMascotBridge';
 
 interface TaskFormParams {
   name: string;
@@ -250,8 +254,13 @@ async function recomputeStreaks(db: SQLiteDatabase, userId: number): Promise<voi
 export function useArchiveTask(userId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (taskId: number) => {
+    mutationFn: async (taskId: number): Promise<{ lifetimeCrossings: LifetimeTierCrossing[] }> => {
       const db = await getDb();
+      let lifetimeCrossings: LifetimeTierCrossing[] = [];
+
+      const tiers = await db.getAllAsync<LifetimeTierRow>(
+        `SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY stars_required ASC`
+      );
 
       await db.withTransactionAsync(async () => {
         // Archiving hard-deletes this task_type's activity_log rows below --
@@ -284,6 +293,11 @@ export function useArchiveTask(userId: number) {
           await revertWeeklySummaries(db, userId, byWeek);
           await revertTreatStars(db, userId, kind, allLogs, totalTreatDelta);
           await recomputeStreaks(db, userId);
+
+          // Archiving hard-deletes every historical row for this task —
+          // reverse their net lifetime contribution the same way (negated).
+          const totalStarsDelta = allLogs.reduce((s, r) => s + r.stars_delta, 0);
+          lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, -totalStarsDelta, tiers)).crossings;
         }
 
         await db.runAsync(
@@ -291,13 +305,20 @@ export function useArchiveTask(userId: number) {
           [taskId, userId]
         );
       });
+
+      return { lifetimeCrossings };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['activity-picker', userId] });
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
+      if (data?.lifetimeCrossings?.length) {
+        rankMascotBridge.ref?.current?.playRankUp();
+        rankMascotBridge.onRankUp?.(data.lifetimeCrossings);
+        enqueuePendingLevelUps(data.lifetimeCrossings).catch(() => {});
+      }
     },
   });
 }

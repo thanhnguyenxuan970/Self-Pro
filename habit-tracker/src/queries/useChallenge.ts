@@ -10,6 +10,10 @@ import { deriveLinkedDoneDates, clampThreshold, type ActivityLogRow } from '../l
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { PHAO_COUNT, computeChallengeReward } from '../config/challenges.config';
 import { computeTierUnlocks, type TierRow } from '../game/tierUnlocks';
+import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
+import type { LifetimeTierCrossing } from '../game/lifetimeRank';
+import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
+import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { getWeekStart } from '../utils/formatters';
 import { scheduleChallengeReminder, cancelChallengeReminder } from '../utils/notifications';
 import { syncCurrentUserToSupabase } from '../api/syncService';
@@ -189,7 +193,7 @@ async function awardChallengeCompletion(
     userId: number; challengeId: number; taskTypeId: number | null; localDate: string;
     mode: ChallengeMode; targetDays: number; weeklyTarget: number | null; totalWeeks: number | null;
   },
-): Promise<void> {
+): Promise<LifetimeTierCrossing[]> {
   const { stars: rewardStars } = params.mode === 'streak'
     ? computeChallengeReward({ mode: 'streak', targetDays: params.targetDays })
     : computeChallengeReward({ mode: 'weekly', weeklyTarget: params.weeklyTarget!, totalWeeks: params.totalWeeks! });
@@ -235,7 +239,13 @@ async function awardChallengeCompletion(
        peak_stars = MAX(peak_stars, weekly_stars + ?)`,
     [params.userId, weekStart, rewardStars, Math.max(0, rewardStars), carryOverTierId, rewardStars, rewardStars],
   );
+  // Legacy weekly tier-unlock bookkeeping — superseded by the lifetime rollup
+  // below for rank display/celebration purposes. See the matching comment in
+  // useToday.ts's useLogTask for why this still runs.
   await handleTierUnlocks(db, tiers, params.userId, weekStart, newUnlocks);
+
+  const { crossings } = await applyLifetimeStarsDelta(db, params.userId, rewardStars, tiers);
+
   await db.runAsync(
     `UPDATE users
      SET treat_stars = treat_stars + ?, treat_stars_lifetime = treat_stars_lifetime + ?
@@ -253,6 +263,7 @@ async function awardChallengeCompletion(
       params.challengeId,
     ],
   );
+  return crossings;
 }
 
 async function completeStreakChallenge(
@@ -260,12 +271,12 @@ async function completeStreakChallenge(
   row: Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days' | 'mode' | 'weekly_target' | 'total_weeks'>,
   params: { userId: number; localDate: string },
   daysDone: number,
-): Promise<void> {
+): Promise<LifetimeTierCrossing[]> {
   await db.runAsync(
     `UPDATE challenges SET status = 'done', streak_current = ?, completed_at = ? WHERE id = ?`,
     [daysDone, params.localDate, row.id],
   );
-  await awardChallengeCompletion(db, {
+  return awardChallengeCompletion(db, {
     userId: params.userId,
     challengeId: row.id,
     taskTypeId: row.task_type_id,
@@ -277,10 +288,15 @@ async function completeStreakChallenge(
   });
 }
 
+export type LogActiveChallengeDayResult = {
+  status: 'logged' | 'already_logged' | 'no_active_challenge';
+  lifetimeCrossings: LifetimeTierCrossing[];
+};
+
 export async function logActiveChallengeDay(
   db: ChallengeLogDb,
   params: { userId: number; localDate: string; taskTypeId?: number | null },
-): Promise<'logged' | 'already_logged' | 'no_active_challenge'> {
+): Promise<LogActiveChallengeDayResult> {
   const row = params.taskTypeId == null
     ? await db.getFirstAsync<Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days' | 'mode' | 'weekly_target' | 'total_weeks' | 'start_date' | 'min_duration' | 'min_count'>>(
       `SELECT id, task_type_id, target_days, mode, weekly_target, total_weeks, start_date, min_duration, min_count FROM challenges WHERE user_id = ? AND status = 'active'`,
@@ -292,7 +308,7 @@ export async function logActiveChallengeDay(
        WHERE user_id = ? AND status = 'active' AND task_type_id = ?`,
       [params.userId, params.taskTypeId],
     );
-  if (!row) return 'no_active_challenge';
+  if (!row) return { status: 'no_active_challenge', lifetimeCrossings: [] };
 
   // Linked challenges (task_type_id set): completion is derived query-time
   // from activity_log, no parallel challenge_log/challenge_days write
@@ -302,19 +318,20 @@ export async function logActiveChallengeDay(
   if (row.task_type_id != null) {
     const doneDates = await getDoneDates(db, params.userId, row);
     const daysDone = doneDates.length;
+    let lifetimeCrossings: LifetimeTierCrossing[] = [];
     if (row.mode === 'streak' && isComplete(daysDone, row.target_days)) {
-      await completeStreakChallenge(db, row, params, daysDone);
+      lifetimeCrossings = await completeStreakChallenge(db, row, params, daysDone);
     } else {
       await db.runAsync(`UPDATE challenges SET streak_current = ? WHERE id = ?`, [daysDone, row.id]);
     }
-    return 'logged';
+    return { status: 'logged', lifetimeCrossings };
   }
 
   const already = await db.getFirstAsync<{ id: number }>(
     `SELECT id FROM challenge_log WHERE challenge_id = ? AND local_date = ?`,
     [row.id, params.localDate],
   );
-  if (already) return 'already_logged';
+  if (already) return { status: 'already_logged', lifetimeCrossings: [] };
 
   await db.runAsync(
     `INSERT INTO challenge_log (challenge_id, local_date, state) VALUES (?, ?, 'done')`,
@@ -340,13 +357,14 @@ export async function logActiveChallengeDay(
   // Weekly-mode completion is rollover-only -- a week (and the challenge as a
   // whole) can't be judged complete until it has fully elapsed, so only
   // streak mode can complete inline here on a same-day log.
+  let lifetimeCrossings: LifetimeTierCrossing[] = [];
   if (row.mode === 'streak' && isComplete(daysDone, row.target_days)) {
-    await completeStreakChallenge(db, row, params, streakCurrent);
+    lifetimeCrossings = await completeStreakChallenge(db, row, params, streakCurrent);
   } else {
     await db.runAsync(`UPDATE challenges SET streak_current = ? WHERE id = ?`, [streakCurrent, row.id]);
   }
 
-  return 'logged';
+  return { status: 'logged', lifetimeCrossings };
 }
 
 async function loadChallengeWithLog(db: SQLiteDatabase, row: ChallengeRow, today: string, userId: number): Promise<ActiveChallenge> {
@@ -566,6 +584,7 @@ export function useChallengeRollover(userId: number) {
 export async function rolloverChallenge(userId: number): Promise<void> {
       const db = await getDb();
       const today = challengeDate();
+      let lifetimeCrossings: LifetimeTierCrossing[] = [];
       await db.withExclusiveTransactionAsync(async (txn) => {
         const row = await txn.getFirstAsync<ChallengeRow>(
           `SELECT ${CHALLENGE_COLUMNS}
@@ -575,7 +594,7 @@ export async function rolloverChallenge(userId: number): Promise<void> {
         if (!row) return;
 
         if (row.mode === 'weekly' && row.weekly_target != null && row.total_weeks != null) {
-          await rolloverWeeklyChallenge(txn, userId, row as ChallengeRow & { weekly_target: number; total_weeks: number }, today);
+          lifetimeCrossings = await rolloverWeeklyChallenge(txn, userId, row as ChallengeRow & { weekly_target: number; total_weeks: number }, today);
           return;
         }
 
@@ -639,6 +658,12 @@ export async function rolloverChallenge(userId: number): Promise<void> {
           await txn.runAsync(`UPDATE challenges SET status = 'failed' WHERE id = ?`, [row.id]);
         }
       });
+
+      if (lifetimeCrossings.length > 0) {
+        rankMascotBridge.ref?.current?.playRankUp();
+        rankMascotBridge.onRankUp?.(lifetimeCrossings);
+        enqueuePendingLevelUps(lifetimeCrossings).catch(() => {});
+      }
 }
 
 async function rolloverWeeklyChallenge(
@@ -646,7 +671,7 @@ async function rolloverWeeklyChallenge(
   userId: number,
   row: ChallengeRow & { weekly_target: number; total_weeks: number },
   today: string,
-): Promise<void> {
+): Promise<LifetimeTierCrossing[]> {
   const logRows = await txn.getAllAsync<{ local_date: string; state: ChallengeLogState }>(
     `SELECT local_date, state FROM challenge_log WHERE challenge_id = ?`,
     [row.id],
@@ -665,7 +690,7 @@ async function rolloverWeeklyChallenge(
     today,
     doneDates,
   });
-  if (result.fillWeeks.length === 0 && !result.done) return;
+  if (result.fillWeeks.length === 0 && !result.done) return [];
 
   for (const week of result.fillWeeks) {
     await txn.runAsync(
@@ -676,9 +701,11 @@ async function rolloverWeeklyChallenge(
   }
   if (result.failed) {
     await txn.runAsync(`UPDATE challenges SET status = 'failed' WHERE id = ?`, [row.id]);
-  } else if (result.done) {
+    return [];
+  }
+  if (result.done) {
     await txn.runAsync(`UPDATE challenges SET status = 'done', completed_at = ? WHERE id = ?`, [today, row.id]);
-    await awardChallengeCompletion(txn, {
+    return awardChallengeCompletion(txn, {
       userId,
       challengeId: row.id,
       taskTypeId: row.task_type_id,
@@ -689,21 +716,25 @@ async function rolloverWeeklyChallenge(
       totalWeeks: row.total_weeks,
     });
   }
+  return [];
 }
 
 export function useLogChallengeDay(userId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (): Promise<void> => {
+    mutationFn: async (): Promise<{ lifetimeCrossings: LifetimeTierCrossing[] }> => {
       const db = await getDb();
       const today = challengeDate();
+      let lifetimeCrossings: LifetimeTierCrossing[] = [];
       await db.withExclusiveTransactionAsync(async (txn) => {
         const result = await logActiveChallengeDay(txn, { userId, localDate: today });
-        if (result === 'no_active_challenge') throw new Error('NO_ACTIVE_CHALLENGE');
-        if (result === 'already_logged') throw new Error('ALREADY_LOGGED_TODAY');
+        if (result.status === 'no_active_challenge') throw new Error('NO_ACTIVE_CHALLENGE');
+        if (result.status === 'already_logged') throw new Error('ALREADY_LOGGED_TODAY');
+        lifetimeCrossings = result.lifetimeCrossings;
       });
+      return { lifetimeCrossings };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
@@ -711,6 +742,11 @@ export function useLogChallengeDay(userId: number) {
       qc.invalidateQueries({ queryKey: ['treats'] });
       qc.invalidateQueries({ queryKey: ['achievements'] });
       syncCurrentUserToSupabase().catch(error => console.warn('[sync] activity log sync failed:', error));
+      if (data.lifetimeCrossings.length > 0) {
+        rankMascotBridge.ref?.current?.playRankUp();
+        rankMascotBridge.onRankUp?.(data.lifetimeCrossings);
+        enqueuePendingLevelUps(data.lifetimeCrossings).catch(() => {});
+      }
     },
   });
 }

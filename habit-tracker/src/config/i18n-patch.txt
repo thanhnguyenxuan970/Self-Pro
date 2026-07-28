@@ -1,0 +1,7 @@
+# i18n patch — add ONE line to each locale block in src/config/i18n.ts
+
+# In the Vietnamese (vi) block, next to the other streakMilestone* keys (~line 37):
+  streakMilestoneBoost: (m: number) => `⚡ ${m}× sao hôm nay`,
+
+# In the English (en) block, next to the other streakMilestone* keys (~line 748):
+  streakMilestoneBoost: (m: number) => `⚡ ${m}× stars today`,
