@@ -4,14 +4,26 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
-## [Unreleased]
+## [2.0.0.0] - 2026-07-29
 
 ### Added
-- **Lifetime rank & global leaderboard** (replaces the weekly-reset rank system): rank/tier state now lives on `users.lifetime_stars`/`current_tier_id` (migration v23, backfilled from `activity_log`) and never resets — `current_tier_id` is a high-water-mark that only advances, even if stars later drop. The leaderboard (`useLeaderboard.ts`) is now a single global ranking of every player sorted strictly by lifetime score (ties break on email), with no weekly or tier-band filtering. The Level-Up celebration now fires in real time off this lifetime rollup from every star-changing action (log, unlog, challenge reward, backfill, task archive/delete) and queues one celebration per tier crossed if a single action crosses several thresholds at once (`pendingLevelUpQueue.ts`)
-- **Tier 9 Singularity**: extended the weekly rank ladder to 2560 stars with its flat cosmic mascot, bilingual labels, level-up presentation, and SQLite migration v22.
+- **Lifetime rank & global leaderboard** (replaces the weekly-reset rank system): rank/tier state now lives on `users.lifetime_stars`/`current_tier_id` (migration v23, backfilled from `activity_log`) and never resets — `current_tier_id` is a high-water-mark that only advances, even if stars later drop. The leaderboard (`useLeaderboard.ts`) is now a single global ranking of every player sorted strictly by lifetime score (ties break on email), with no weekly or tier-band filtering. The Level-Up celebration now fires in real time off this lifetime rollup from every star-changing action (log, unlog, challenge reward, backfill, task archive/delete) and queues one celebration per tier crossed if a single action crosses several thresholds at once (`pendingLevelUpQueue.ts`). The old countdown-to-Monday-reset chip on the Rank screen is gone — there's nothing left to count down to
+- **Tier 9 Cosmic**: extended the rank ladder to 2560 stars with its flat cosmic mascot, bilingual labels, and level-up presentation
+- **Multiplier Boost**: a once-daily claimable star multiplier that applies to logs made within its claim window
+- **Analytics dashboard**: a redesigned Progress screen analytics view with Week/Month/Year ranges, period totals, day-by-day charts, and streak-consistency rings
+- **Daily reminders for Session/Week challenges**: challenge notifications now nudge you every day instead of a Monday-only ping
 
 ### Fixed
-- **Weekly/session challenges — reminder now actually fires daily**: `scheduleChallengeReminder('weekly')` was scheduling a once-a-week Monday-only local notification, while both the notification body ("...hôm nay!"/"...today!") and the Create-challenge toggle copy (`challengeNotifyWeeklyLabel`/`Desc`: "Weekly reminder" / "Nudges you when you are falling behind the weekly pace") implied a recurring daily nudge. `scheduleChallengeReminder` now schedules the same `DAILY` trigger for both `'streak'` and `'weekly'` modes (dropping the now-dead iOS `CALENDAR` vs Android `WEEKLY` branch), and the weekly-mode toggle copy (VI + EN) was corrected to describe the real daily behavior instead of a pace-aware nudge that was never implemented. Note: this is a plain unconditional daily reminder, not the pace-conditional "nudge only when falling behind, capped at once/week" notification described in the still-open TODOS.md item below — that remains unbuilt.
+- **Log-duration screen could trap you**: the "how long?" picker shown every time you log a timed habit — the single most-used interaction in the app — ignored the Android back button/gesture entirely. Back now closes it, same as tapping Cancel
+- **Several modals didn't extend under the status/nav bar**: the rank-up celebration, streak-milestone celebration, onboarding tooltips, heatmap detail sheets, and a couple of challenge dialogs showed a stray system-bar-colored seam at the top or bottom instead of rendering edge-to-edge
+- **Sign Out button wasn't announced by screen readers**: it's now exposed as a proper button with a label
+- **A couple of touch targets on Calendar and the accent-color picker** were slightly under the recommended 48dp minimum on Android; nudged both up
+- **Real-time activity sync could push data across accounts on shared devices**: sync now scopes strictly to the signed-in user
+- **Weekly/session challenges — reminder now actually fires daily**: `scheduleChallengeReminder('weekly')` was scheduling a once-a-week Monday-only local notification, while both the notification body and the Create-challenge toggle copy implied a recurring daily nudge. Now both match the real daily behavior. Note: this is a plain unconditional daily reminder, not the pace-conditional "nudge only when falling behind" notification described in a still-open TODOS.md item — that remains unbuilt
+- **Contrast, memoization, and accessibility sweep**: two prior full-tree audit passes fixed dozens of smaller issues across nearly every screen — dark-mode contrast regressions, missing accessibility labels/roles, unnecessary re-renders on the Today/Rank/Progress screens, and inconsistent Android keyboard/inset handling across sheets and modals
+
+### Changed
+- **Internal cleanup**: removed dead code, a duplicated helper, and a circular module dependency in the health/rank tracking layer; no user-facing behavior change
 
 ## [1.1.4] - 2026-07-16
 
