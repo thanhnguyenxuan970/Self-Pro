@@ -272,6 +272,7 @@ export function ProgressScreen() {
   );
 
   const [range, setRange] = useState<Range>('W');
+  const dashboardScrollRef = useRef<ScrollView>(null);
   const { data: dashboard, isLoading: isDashboardLoading } = useAnalyticsDashboard(userId, range);
   const { data: chartData = [], isLoading } = useAnalyticsPointsData(userId, range);
   const { data: streak = 0 } = useStreakCount(userId);
@@ -325,7 +326,8 @@ export function ProgressScreen() {
         <TouchableOpacity
           key={key}
           style={[styles.segBtn, range === key && styles.segBtnActive]}
-          onPress={() => setRange(key)}
+          onPress={() => { setRange(key); dashboardScrollRef.current?.scrollTo({ y: 0, animated: false }); }}
+          hitSlop={6}
           accessibilityRole="tab"
           accessibilityLabel={label}
           accessibilityState={{ selected: range === key }}
@@ -362,10 +364,14 @@ export function ProgressScreen() {
   if (dashboard) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
-          <Text style={styles.title}>{t.analyticsTitle}</Text>
-          <Text style={styles.dashboardSubtitle}>{range === 'W' ? t.filterLast7Days : range === 'M' ? t.periodThisMonth : t.periodThisYear}</Text>
-          {rangeSegmentedControl}
+        <ScrollView ref={dashboardScrollRef} style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
+          <View style={styles.dashboardHeader}>
+            <View style={styles.dashboardTitleGroup}>
+              <Text style={styles.title}>{t.analyticsTitle}</Text>
+              <Text style={styles.dashboardSubtitle}>{range === 'W' ? t.filterLast7Days : range === 'M' ? t.periodThisMonth : t.periodThisYear}</Text>
+            </View>
+            {rangeSegmentedControl}
+          </View>
           <View style={styles.dashboardWrap}><AnalyticsDashboardView data={dashboard} colors={colors} isDark={isDark} language={language} range={range} reduceMotion={reduceMotion} animationKey={focusKey} /></View>
           {activityLogSection}
         </ScrollView>
@@ -460,19 +466,21 @@ function makeStyles(C: AppColors) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.bgBase },
     container: { flex: 1 },
-    title: { fontSize: 28, fontFamily: FontFamily.extraBold, letterSpacing: -0.7, color: C.inkDark, marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
-    dashboardSubtitle: { color: C.muted, fontFamily: FontFamily.regular, fontSize: 12, marginHorizontal: Spacing.lg, marginTop: -8 },
+    title: { fontSize: 28, fontFamily: FontFamily.extraBold, letterSpacing: -0.7, color: C.inkDark, marginTop: 10 },
+    dashboardHeader: { alignItems: 'center', flexDirection: 'row', gap: Spacing.sm, marginHorizontal: Spacing.lg, marginBottom: 14 },
+    dashboardTitleGroup: { flex: 1, minWidth: 0 },
+    dashboardSubtitle: { color: C.muted, fontFamily: FontFamily.bold, fontSize: 11, marginTop: -2 },
     dashboardWrap: { marginHorizontal: Spacing.lg },
 
-    segbar: { flexDirection: 'row', marginHorizontal: Spacing.lg, marginBottom: 14 },
+    segbar: { backgroundColor: C.surface2, borderRadius: Radii.pill, flexDirection: 'row', padding: 4, width: 210 },
     segBtn: {
-      flex: 1, minHeight: 38, justifyContent: 'center', borderRadius: Radii.pill, alignItems: 'center',
+      flex: 1, minHeight: 36, justifyContent: 'center', borderRadius: Radii.pill, alignItems: 'center',
     },
     segBtnActive: {
-      backgroundColor: C.surface,
+      backgroundColor: C.primary,
       ...Shadows.light,
     },
-    segTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.ink2 },
+    segTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.muted },
     segTxtActive: { color: C.inkDark },
 
     card: {
