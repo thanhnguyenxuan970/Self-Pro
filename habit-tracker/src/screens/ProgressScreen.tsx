@@ -87,19 +87,19 @@ const ProgressLogRow = React.memo(function ProgressLogRow({ item, isLast, select
   );
 });
 
-function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, cancelSelection, enterSelection, toggleSelect, handleDeleteSelected, deleteLogs, onAddActivity, filterDate, onFilterPress, onFilterClear, t, styles }: {
+function ActivityLogSection({ actLogs, selectionMode, selectedIds, selectAll, cancelSelection, enterSelection, toggleSelect, handleDeleteSelected, deleteLogs, onAddActivity, filterDate, onFilterPress, onFilterClear, t, styles, headerStyle }: {
   actLogs: ActivityLogEntry[]; selectionMode: boolean; selectedIds: Set<number>;
   selectAll: () => void; cancelSelection: () => void;
   enterSelection: (id: number) => void; toggleSelect: (id: number) => void;
   handleDeleteSelected: () => void; deleteLogs: { isPending: boolean };
   onAddActivity: () => void; filterDate: string | null;
   onFilterPress: () => void; onFilterClear: () => void;
-  t: ProgTranslations; styles: ProgStyles;
+  t: ProgTranslations; styles: ProgStyles; headerStyle?: object;
 }) {
   return (
     <>
       <View style={styles.logHeader}>
-        <Text style={[styles.sectionLabel, { marginHorizontal: 0 }]}>{t.activityLogSection}</Text>
+        <Text style={[styles.sectionLabel, { marginHorizontal: 0 }, headerStyle]}>{t.activityLogSection}</Text>
         {selectionMode ? (
           <View style={styles.logActions}>
             <TouchableOpacity onPress={selectAll} style={styles.logActionBtn} accessibilityRole="button" accessibilityLabel={t.all}>
@@ -353,6 +353,9 @@ export function ProgressScreen() {
       onFilterClear={() => setFilterDate(null)}
       t={t}
       styles={styles}
+      headerStyle={dashboard ? {
+        color: colors.starGoldText, fontFamily: FontFamily.bold, letterSpacing: 0.3, textTransform: 'uppercase',
+      } : undefined}
     />
   );
 
