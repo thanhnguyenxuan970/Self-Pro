@@ -19,6 +19,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **Sign Out button wasn't announced by screen readers**: it's now exposed as a proper button with a label
 - **A couple of touch targets on Calendar and the accent-color picker** were slightly under the recommended 48dp minimum on Android; nudged both up
 - **Real-time activity sync could push data across accounts on shared devices**: sync now scopes strictly to the signed-in user
+- **Analytics consistency rings showed nothing**: the "this week / 30 days / all time" rings under CONSISTENCY had a percentage text style defined but never rendered — sighted users saw three bare circles. Now shows the actual percentage
+- **Activity log header didn't match the redesigned Analytics dashboard above it**: a visible style seam between the new gold/uppercase section headers and the older log-history heading right below them
 - **Weekly/session challenges — reminder now actually fires daily**: `scheduleChallengeReminder('weekly')` was scheduling a once-a-week Monday-only local notification, while both the notification body and the Create-challenge toggle copy implied a recurring daily nudge. Now both match the real daily behavior. Note: this is a plain unconditional daily reminder, not the pace-conditional "nudge only when falling behind" notification described in a still-open TODOS.md item — that remains unbuilt
 - **Contrast, memoization, and accessibility sweep**: two prior full-tree audit passes fixed dozens of smaller issues across nearly every screen — dark-mode contrast regressions, missing accessibility labels/roles, unnecessary re-renders on the Today/Rank/Progress screens, and inconsistent Android keyboard/inset handling across sheets and modals
 
