@@ -1,12 +1,14 @@
 import React, { useLayoutEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, TextInput, Share, KeyboardAvoidingView, Platform } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useHeaderHeight } from '@react-navigation/elements';
+import Toast from 'react-native-toast-message';
 import { pickSquareImage } from '../utils/pickImage';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
-import { useChallengeById, useLogChallengeDay, useRestartChallenge, useSetChallengeAfterPhoto, useSetChallengeBeforePhoto, useUpdateChallengeName } from '../queries/useChallenge';
+import { useChallengeById, useLogChallengeDay, useRestartChallenge, useRetryChallengeReminder, useSetChallengeAfterPhoto, useSetChallengeBeforePhoto, useUpdateChallengeName } from '../queries/useChallenge';
 import { useTodayTasks } from '../queries/useToday';
 import { requestAddActivity } from '../hooks/useAddActivityIntent';
 import { challengeDate, isComplete } from '../lib/challenge';
@@ -20,7 +22,7 @@ import { PhotoSlot } from '../components/PhotoSlot';
 
 export function ChallengeDetailScreen() {
   const { userId, colors, t, styles } = useScreenCommons(makeStyles);
-  const { top: topInset } = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const reduceMotion = useReduceMotion();
   const navigation = useNavigation();
   const route = useRoute();
@@ -32,6 +34,7 @@ export function ChallengeDetailScreen() {
   const setAfterPhoto = useSetChallengeAfterPhoto(userId);
   const setBeforePhoto = useSetChallengeBeforePhoto(userId);
   const restartChallenge = useRestartChallenge(userId);
+  const retryReminder = useRetryChallengeReminder(userId);
   const updateChallengeName = useUpdateChallengeName(userId);
   const [menuVisible, setMenuVisible] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -42,8 +45,21 @@ export function ChallengeDetailScreen() {
   const today = challengeDate();
 
   async function handleRestart() {
-    const id = await restartChallenge.mutateAsync(challengeId!);
+    const { id, notificationDenied } = await restartChallenge.mutateAsync(challengeId!);
+    if (notificationDenied) {
+      Toast.show({ type: 'error', text1: t.reminderScheduleFailed, visibilityTime: 3500 });
+    }
     (navigation as any).replace('ChallengeDetail', { challengeId: id });
+  }
+
+  async function handleRetryReminder() {
+    if (challengeId == null) return;
+    const ok = await retryReminder.mutateAsync(challengeId);
+    Toast.show({
+      type: ok ? 'success' : 'error',
+      text1: ok ? t.challengeReminderRetrySuccess : t.challengeReminderRetryFailed,
+      visibilityTime: 3000,
+    });
   }
 
   async function handleLogToday() {
@@ -92,8 +108,13 @@ export function ChallengeDetailScreen() {
 
   async function saveName() {
     if (challengeId == null) return;
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      Alert.alert(t.error, t.challengeNameRequired);
+      return;
+    }
     try {
-      await updateChallengeName.mutateAsync({ challengeId, name: nameDraft });
+      await updateChallengeName.mutateAsync({ challengeId, name: trimmed });
       setEditingName(false);
     } catch {
       Alert.alert(t.error, t.editNameLabel);
@@ -106,6 +127,7 @@ export function ChallengeDetailScreen() {
         <TouchableOpacity
           onPress={handleMenu}
           disabled={challengeId == null}
+          hitSlop={4}
           accessibilityRole="button"
           accessibilityLabel={t.challengeMenuOptions}
           style={styles.headerMenuButton}
@@ -148,14 +170,14 @@ export function ChallengeDetailScreen() {
           {active && (
             <View style={styles.runningChip}>
               <View style={styles.runningDot} />
-              <Text style={styles.runningChipText}>
+              <Text style={styles.runningChipText} numberOfLines={1}>
                 {isWeekly ? t.challengeWeekBadge(challenge.weekIndex ?? 0, challenge.totalWeeks ?? 0) : t.challengeRunningBadge}
               </Text>
             </View>
           )}
           {failed && (
             <View style={[styles.runningChip, styles.mutedChip]}>
-              <Text style={[styles.runningChipText, { color: colors.ink2 }]}>{t.challengeResetBadge(challenge.daysDone)}</Text>
+              <Text style={[styles.runningChipText, { color: colors.ink2 }]} numberOfLines={1}>{t.challengeResetBadge(challenge.daysDone)}</Text>
             </View>
           )}
         </View>
@@ -178,6 +200,25 @@ export function ChallengeDetailScreen() {
             />
             <Text style={styles.weekSubLabel}>{t.challengeWeekOf(challenge.weekIndex ?? 0, challenge.totalWeeks ?? 0)}</Text>
           </View>
+        )}
+
+        {active && challenge.notificationsEnabled && (
+          challenge.notificationId ? (
+            <Text style={styles.reminderOkText}>{t.challengeReminderOnLabel}</Text>
+          ) : (
+            <TouchableOpacity
+              style={styles.reminderFailedChip}
+              onPress={handleRetryReminder}
+              disabled={retryReminder.isPending}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t.challengeReminderFailedLabel}
+            >
+              {retryReminder.isPending
+                ? <ActivityIndicator size="small" color={colors.danger} />
+                : <Text style={styles.reminderFailedText}>{t.challengeReminderFailedLabel}</Text>}
+            </TouchableOpacity>
+          )
         )}
 
         {active && !isWeekly && calendarDaysLeft > 0 && (
@@ -340,7 +381,7 @@ export function ChallengeDetailScreen() {
         )}
 
       </ScrollView>
-      <Modal visible={menuVisible && active} transparent animationType="none" onRequestClose={() => setMenuVisible(false)}>
+      <Modal visible={menuVisible && active} transparent animationType="none" onRequestClose={() => setMenuVisible(false)} statusBarTranslucent navigationBarTranslucent>
         <View style={styles.menuModalRoot}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
@@ -349,7 +390,7 @@ export function ChallengeDetailScreen() {
             accessibilityRole="button"
             accessibilityLabel={t.cancel}
           />
-          <View style={[styles.menu, { top: topInset + 56 + Spacing.xs }]} accessibilityViewIsModal>
+          <View style={[styles.menu, { top: headerHeight + Spacing.xs }]} accessibilityViewIsModal>
             {active && (
               <TouchableOpacity style={styles.menuRow} onPress={openNameEditor} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.editActivity}>
                 <Text style={styles.menuEdit}>🖊️ {t.editActivity}</Text>
@@ -401,8 +442,8 @@ export function ChallengeDetailScreen() {
             <Text style={styles.editTitle}>{t.editActivity}</Text>
             <TextInput value={nameDraft} onChangeText={setNameDraft} style={styles.editInput} autoFocus maxLength={80} selectTextOnFocus accessibilityLabel={t.editActivity} />
             <View style={styles.editActions}>
-              <TouchableOpacity style={styles.editAction} onPress={() => setEditingName(false)}><Text style={styles.editCancel}>{t.cancel}</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.editAction} onPress={saveName} disabled={updateChallengeName.isPending}><Text style={styles.editSave}>{t.editSave}</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.editAction} onPress={() => setEditingName(false)} accessibilityRole="button" accessibilityLabel={t.cancel}><Text style={styles.editCancel}>{t.cancel}</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.editAction} onPress={saveName} disabled={updateChallengeName.isPending} accessibilityRole="button" accessibilityLabel={t.editSave}><Text style={styles.editSave}>{t.editSave}</Text></TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -427,7 +468,7 @@ function makeStyles(C: AppColors) {
     menuRow: { minHeight: 48, justifyContent: 'center', paddingHorizontal: Spacing.md },
     menuEdit: { ...Typography.bodyStrong, color: C.inkDark },
     editOverlay: { flex: 1, backgroundColor: C.scrim, justifyContent: 'center', padding: Spacing.lg },
-    editCard: { backgroundColor: C.surface, borderRadius: Radii.lg, padding: Spacing.lg, gap: Spacing.md },
+    editCard: { backgroundColor: C.surface, borderRadius: Radii.lg, padding: Spacing.lg, gap: Spacing.md, alignSelf: 'center', width: '100%', maxWidth: 480 },
     editTitle: { ...Typography.subheading, color: C.inkDark },
     editInput: { ...Typography.body, color: C.inkDark, borderWidth: 1, borderColor: C.line, borderRadius: Radii.md, minHeight: 48, paddingHorizontal: Spacing.md },
     editActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm },
@@ -446,6 +487,12 @@ function makeStyles(C: AppColors) {
     runningChipText: { ...Typography.caption, fontFamily: FontFamily.bold, color: C.primary },
     ringWrap: { paddingVertical: Spacing.md, alignItems: 'center' },
     weekSubLabel: { ...Typography.caption, color: C.ink2, marginTop: 4 },
+    reminderOkText: { ...Typography.caption, color: C.ink2, alignSelf: 'center' },
+    reminderFailedChip: {
+      alignSelf: 'center', minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      backgroundColor: C.dangerSoft, borderRadius: Radii.pill, paddingVertical: 6, paddingHorizontal: 14,
+    },
+    reminderFailedText: { ...Typography.caption, fontFamily: FontFamily.semiBold, color: C.danger },
     daysLeftPill: {
       alignSelf: 'center', backgroundColor: C.surface2, borderRadius: Radii.pill,
       paddingVertical: 6, paddingHorizontal: 14, marginTop: -Spacing.sm,

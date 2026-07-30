@@ -16,6 +16,10 @@ import { SkeletonRow } from '../components/SkeletonRow';
 
 type LBEntry = NonNullable<ReturnType<typeof useLeaderboard>['data']>[number];
 
+// Render ceiling for the leaderboard list, which lives inside the screen's
+// outer ScrollView (so it can't be its own virtualized FlatList).
+const LEADERBOARD_ROW_CAP = 50;
+
 type LeaderboardSectionProps = {
   leaderboard: LBEntry[];
   lbLoading: boolean;
@@ -56,10 +60,25 @@ const LeaderboardSection = React.memo(function LeaderboardSection({ leaderboard,
       </>
     );
   }
+  // Cap rendered rows so this section (nested inside the screen's outer
+  // ScrollView, so it can't be its own FlatList) never mounts an unbounded
+  // number of rows -- always keep the current user visible even if they
+  // rank outside the cap.
+  const visible = leaderboard.length > LEADERBOARD_ROW_CAP ? leaderboard.slice(0, LEADERBOARD_ROW_CAP) : leaderboard;
+  const currentUserVisible = visible.some(entry => entry.isCurrentUser);
+  const matchedCurrentUserRow = !currentUserVisible ? leaderboard.find(entry => entry.isCurrentUser) : undefined;
+  // The synced leaderboard can omit users with zero lifetime stars entirely.
+  // When that happens (not just "outside the render cap"), fall back to the
+  // live currentUserEntry -- but its `rank: 1` placeholder is only valid for
+  // the truly-empty-leaderboard case above, so show an honest "unranked"
+  // label instead of a fabricated rank number.
+  const unrankedCurrentUserRow = !currentUserVisible && !matchedCurrentUserRow ? currentUserEntry : undefined;
+  const currentUserRow = matchedCurrentUserRow ?? unrankedCurrentUserRow;
+
   return (
     <>
-      {leaderboard.map((entry, idx) => {
-        const isLast = idx === leaderboard.length - 1;
+      {visible.map((entry, idx) => {
+        const isLast = idx === visible.length - 1 && !currentUserRow;
         return (
           <View
             key={entry.userEmail}
@@ -75,6 +94,19 @@ const LeaderboardSection = React.memo(function LeaderboardSection({ leaderboard,
           </View>
         );
       })}
+      {currentUserRow && (
+        <View style={[styles.lbRow, styles.lbRowLast, styles.lbRowMe]}>
+          <Text style={[styles.lbRank, !unrankedCurrentUserRow && currentUserRow.rank <= 3 && styles.lbRankTop]}>
+            {unrankedCurrentUserRow ? '—' : `#${currentUserRow.rank}`}
+          </Text>
+          <View style={styles.lbInfo}>
+            <Text style={styles.lbName} numberOfLines={1}>
+              {currentUserRow.displayName} ({youLabel})
+            </Text>
+          </View>
+          <Text style={styles.lbStars}>{currentUserRow.lifetimeStars} ★</Text>
+        </View>
+      )}
     </>
   );
 });
@@ -154,7 +186,12 @@ export function RankScreen() {
             <View style={styles.rankWk}>
               <Text style={styles.rankWkTxt}>{t.starsTotal(currentStars)}</Text>
             </View>
-            <View style={styles.bar}>
+            <View
+              style={styles.bar}
+              accessibilityRole="progressbar"
+              accessibilityLabel={starsToNext > 0 ? t.rankProgress(Math.round(currentStars), Math.round(nextTierStars), nextRankLabel) : t.maxRank}
+              accessibilityValue={{ min: 0, max: 100, now: Math.round(progressPct * 100) }}
+            >
               <View style={[styles.barFill, { width: `${Math.round(progressPct * 100)}%` as `${number}%` }]} />
             </View>
             {starsToNext > 0 ? (
@@ -178,6 +215,7 @@ export function RankScreen() {
           <View style={styles.previewGrid}>
             {RANKS.map(rank => {
               const unlocked = rank.tier < currentTierOrder;
+              const displayName = t.rankNameMap[rank.name] ?? rank.name;
               return (
                 <TouchableOpacity
                   key={rank.tier}
@@ -186,10 +224,10 @@ export function RankScreen() {
                   style={[styles.progressionTier, { borderColor: unlocked ? rank.edge : colors.line }, !unlocked && styles.lockedTier]}
                   accessibilityRole="button"
                   accessibilityState={{ disabled: !unlocked }}
-                  accessibilityLabel={unlocked ? `Xem lại thăng cấp ${rank.name}` : `${rank.name} khóa đến ${rank.stars} sao`}
+                  accessibilityLabel={unlocked ? t.rankPreviewLabel(displayName) : t.rankLockedLabel(displayName, rank.stars)}
                 >
-                  {unlocked ? <RankMascot tier={rank.tier} size={76} loop reduceMotion={reduceMotion} ambient /> : <Text style={styles.lockedMark}>🔒</Text>}
-                  <Text style={[styles.previewTierText, { color: unlocked ? colors.inkDark : colors.muted }]} numberOfLines={1}>{rank.tier + 1} · {rank.name}</Text>
+                  {unlocked ? <RankMascot tier={rank.tier} size={76} loop={false} reduceMotion={reduceMotion} /> : <Text style={styles.lockedMark}>🔒</Text>}
+                  <Text style={[styles.previewTierText, { color: unlocked ? colors.inkDark : colors.muted }]} numberOfLines={2}>{rank.tier + 1} · {displayName}</Text>
                   {!unlocked && <Text style={styles.lockedRequirement}>{rank.stars} ★</Text>}
                 </TouchableOpacity>
               );

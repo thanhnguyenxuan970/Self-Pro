@@ -28,6 +28,7 @@ export function ChallengeCard({ name, targetDays, dayIndex, fraction, streak, on
             style={styles.strictBadge}
             onPress={() => setShowRule(open => !open)}
             activeOpacity={0.8}
+            hitSlop={{ top: 11, bottom: 11, left: 11, right: 11 }}
             accessibilityRole="button"
             accessibilityLabel={t.challengeStrictBadge}
             accessibilityState={{ expanded: showRule }}

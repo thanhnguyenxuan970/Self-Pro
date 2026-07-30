@@ -33,7 +33,8 @@ export function ShareCardModal({
   const { bottom } = useSafeAreaInsets();
   const { isPro } = useProStatus();
   const { width: screenW } = useWindowDimensions();
-  const previewScale = (screenW - 48) / CARD_W;
+  const sheetW = Math.min(screenW, 480); // matches styles.sheet's maxWidth cap
+  const previewScale = (sheetW - 48) / CARD_W;
   const marginH = CARD_W * (previewScale - 1) / 2;   // negative — shrinks layout
   const marginV = CARD_H * (previewScale - 1) / 2;   // negative — shrinks layout
   const [beforeUri, setBeforeUri] = useState<string | undefined>();
@@ -182,6 +183,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.xl,
     maxHeight: '92%',
+    alignSelf: 'center', width: '100%', maxWidth: 480,
   },
   header: {
     flexDirection: 'row',

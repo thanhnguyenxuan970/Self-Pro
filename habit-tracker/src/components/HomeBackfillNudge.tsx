@@ -17,7 +17,7 @@ type Props = {
   onDismiss: () => void;
 };
 
-export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors, t, onPress, onDatePress, opensCalendar, onDismiss }: Props) {
+export const HomeBackfillNudge = React.memo(function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors, t, onPress, onDatePress, opensCalendar, onDismiss }: Props) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   if (nudge.state === 'HIDDEN') return null;
   const fixable = Math.min(nudge.pendingDates.length, nudge.remaining);
@@ -25,6 +25,7 @@ export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors
   const ctaLabel = opensCalendar ? t.calendarTitle : t.homeBackfillCta(fixable);
   const title = capped ? t.homeBackfillCappedTitle(nudge.pendingDates.length, fixable) : t.homeBackfillTitle(nudge.pendingDates.length);
   const active = new Set(activeDates);
+  const pendingSet = new Set(nudge.pendingDates);
   const dates = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(`${weekStart}T12:00:00`);
     date.setDate(date.getDate() + index);
@@ -41,7 +42,7 @@ export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors
     </View>
     <View style={styles.weekStrip}>
       {dates.map((date, index) => {
-        const pending = nudge.pendingDates.includes(date);
+        const pending = pendingSet.has(date);
         const isToday = date === today;
         const future = date > today;
         const cell = <View style={[styles.day, active.has(date) && styles.dayDone, pending && styles.dayPending, isToday && styles.dayToday, future && styles.dayFuture]}>
@@ -49,7 +50,7 @@ export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors
         </View>;
         return <View key={date} style={styles.dayWrap}>
           <Text style={styles.dayLabel}>{t.calDow[index]}</Text>
-          {pending ? <TouchableOpacity onPress={() => onDatePress(date)} accessibilityRole="button" accessibilityLabel={`${t.backfillEligible} ${date}`}>{cell}</TouchableOpacity> : cell}
+          {pending ? <TouchableOpacity onPress={() => onDatePress(date)} hitSlop={10} accessibilityRole="button" accessibilityLabel={`${t.backfillEligible} ${date}`}>{cell}</TouchableOpacity> : cell}
         </View>;
       })}
     </View>
@@ -60,7 +61,7 @@ export function HomeBackfillNudge({ nudge, activeDates, today, weekStart, colors
       <Text style={styles.ctaText}>{ctaLabel}</Text>
     </TouchableOpacity><View style={styles.quota}><Text style={styles.quotaText}>{t.homeBackfillQuota(nudge.remaining)}</Text>{[0, 1].map(i => <View key={i} style={[styles.dot, i >= nudge.remaining && styles.dotOff]} />)}</View></View>
   </View>;
-}
+});
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({

@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import Toast from 'react-native-toast-message';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useTodayTasks } from '../queries/useToday';
@@ -18,6 +19,7 @@ type CustomField = 'days' | 'weeks' | null;
 
 export function CreateChallengeScreen() {
   const { userId, colors, t, styles } = useScreenCommons(makeStyles);
+  const { bottom: bottomInset } = useSafeAreaInsets();
   const navigation = useNavigation();
   const { data: tasks = [] } = useTodayTasks(userId);
   const createChallenge = useCreateChallenge(userId);
@@ -76,13 +78,16 @@ export function CreateChallengeScreen() {
     if (!trimmed) return Alert.alert(t.error, t.challengeNameRequired);
     setSubmitting(true);
     try {
-      await createChallenge.mutateAsync(mode === 'streak' ? {
+      const { notificationDenied } = await createChallenge.mutateAsync(mode === 'streak' ? {
         name: trimmed, taskTypeId, mode: 'streak', targetDays, freezesLeft: PHAO_COUNT,
         notificationsEnabled, minDuration, minCount,
       } : {
         name: trimmed, taskTypeId, mode: 'weekly', weeklyTarget, totalWeeks, freezesLeft: 0,
         notificationsEnabled, minDuration, minCount,
       });
+      if (notificationDenied) {
+        Toast.show({ type: 'error', text1: t.reminderScheduleFailed, visibilityTime: 3500 });
+      }
       navigation.goBack();
     } catch (e: any) {
       Alert.alert(t.error, e?.message === 'ACTIVE_EXISTS' ? t.challengeAlreadyActive : t.cantLog);
@@ -185,7 +190,7 @@ export function CreateChallengeScreen() {
       <View style={styles.sticky}><TouchableOpacity style={[styles.startBtn, submitting && styles.startBtnDisabled]} onPress={handleStart} disabled={submitting} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={startLabel}>{submitting ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.startBtnText} numberOfLines={1}>{startLabel}</Text>}</TouchableOpacity></View>
 
       <Modal visible={customField !== null || customDuration} transparent animationType="fade" onRequestClose={() => { setCustomField(null); setCustomDuration(false); }} statusBarTranslucent navigationBarTranslucent>
-        <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}><View style={styles.customSheet}><Text style={styles.customTitle}>{customDuration ? t.challengeThresholdDurationLabel : customField === 'days' ? t.challengeDurationLabel : t.challengeTotalWeeksLabel}</Text>{customDuration ? <DurationClockInput value={durationClock} onChange={setDurationClock} colors={colors} /> : <TextInput style={styles.customInput} value={customValue} onChangeText={setCustomValue} keyboardType="number-pad" placeholder={t.challengeCustomPlaceholder} placeholderTextColor={colors.muted} autoFocus />}<TouchableOpacity style={styles.customSave} onPress={customDuration ? saveCustomDuration : saveCustom} accessibilityRole="button"><Text style={styles.customSaveText}>{t.challengeCustomSave}</Text></TouchableOpacity></View></KeyboardAvoidingView>
+        <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}><View style={[styles.customSheet, { paddingBottom: Spacing.lg + bottomInset }]}><Text style={styles.customTitle}>{customDuration ? t.challengeThresholdDurationLabel : customField === 'days' ? t.challengeDurationLabel : t.challengeTotalWeeksLabel}</Text>{customDuration ? <DurationClockInput value={durationClock} onChange={setDurationClock} colors={colors} /> : <TextInput style={styles.customInput} value={customValue} onChangeText={setCustomValue} keyboardType="number-pad" placeholder={t.challengeCustomPlaceholder} placeholderTextColor={colors.muted} autoFocus />}<TouchableOpacity style={styles.customSave} onPress={customDuration ? saveCustomDuration : saveCustom} accessibilityRole="button"><Text style={styles.customSaveText}>{t.challengeCustomSave}</Text></TouchableOpacity></View></KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -203,6 +208,6 @@ function makeStyles(C: AppColors) {
     rewardCard: { backgroundColor: C.surface, borderRadius: Radii.lg, borderWidth: 1, borderColor: C.starGold, padding: Spacing.md, marginTop: Spacing.lg }, rewardTitle: { ...Typography.sectionLabel, color: C.starGoldText, marginBottom: Spacing.sm }, rewardRow: { flexDirection: 'row', gap: Spacing.sm }, rewardItem: { flex: 1, minWidth: 0, borderRadius: Radii.md, backgroundColor: C.surface2, padding: Spacing.sm }, rewardValue: { ...Typography.bodyStrong, color: C.inkDark }, rewardLabel: { ...Typography.caption, color: C.ink2 },
     rulesWrap: { marginTop: Spacing.lg }, rulesHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.xs }, rulesTitle: { ...Typography.bodyStrong, color: C.inkDark }, ruleTag: { ...Typography.caption, color: C.primary, fontFamily: FontFamily.bold, borderWidth: 1, borderColor: C.primary, borderRadius: Radii.pill, paddingHorizontal: Spacing.xs }, rulesCard: { flexDirection: 'row', gap: Spacing.sm, backgroundColor: C.surface2, borderRadius: Radii.lg, padding: Spacing.md }, rulesIcon: { fontSize: 20 }, rulesBody: { ...Typography.secondary, color: C.ink2, flex: 1, lineHeight: 19 },
     sticky: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: C.bgBase, borderTopWidth: 1, borderTopColor: C.line }, startBtn: { minHeight: 52, backgroundColor: C.primary, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center', ...Shadows.medium }, startBtnDisabled: { opacity: 0.65 }, startBtnText: { ...Typography.bodyStrong, color: C.onAccent, fontSize: 16 },
-    modalBackdrop: { flex: 1, backgroundColor: C.scrim, justifyContent: 'flex-end', padding: Spacing.lg }, customSheet: { backgroundColor: C.surface, borderRadius: Radii.xl, padding: Spacing.lg, gap: Spacing.md }, customTitle: { ...Typography.subheading, color: C.inkDark }, customInput: { ...Typography.body, color: C.inkDark, borderWidth: 1, borderColor: C.line, borderRadius: Radii.md, paddingHorizontal: Spacing.md, paddingVertical: 12 }, customSave: { minHeight: 48, borderRadius: Radii.md, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' }, customSaveText: { ...Typography.bodyStrong, color: C.onAccent },
+    modalBackdrop: { flex: 1, backgroundColor: C.scrim, justifyContent: 'flex-end', padding: Spacing.lg }, customSheet: { backgroundColor: C.surface, borderRadius: Radii.xl, padding: Spacing.lg, gap: Spacing.md, alignSelf: 'center', width: '100%', maxWidth: 480 }, customTitle: { ...Typography.subheading, color: C.inkDark }, customInput: { ...Typography.body, color: C.inkDark, borderWidth: 1, borderColor: C.line, borderRadius: Radii.md, paddingHorizontal: Spacing.md, paddingVertical: 12 }, customSave: { minHeight: 48, borderRadius: Radii.md, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' }, customSaveText: { ...Typography.bodyStrong, color: C.onAccent },
   });
 }

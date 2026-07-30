@@ -2,6 +2,7 @@ import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { ACCENTS, AccentKey } from '../config/accents';
 import { AppColors } from '../config/theme';
+import { useTranslations } from '../hooks/useSettings';
 
 type Props = {
   accent: AccentKey;
@@ -10,6 +11,11 @@ type Props = {
 };
 
 export function AccentPicker({ accent, onSelect, colors }: Props) {
+  const t = useTranslations();
+  const accentLabel: Record<AccentKey, string> = {
+    green: t.accentGreen, indigo: t.accentIndigo, rose: t.accentRose,
+    sky: t.accentSky, violet: t.accentViolet, honey: t.accentHoney,
+  };
   return (
     <View style={styles.row}>
       {(Object.keys(ACCENTS) as AccentKey[]).map((key) => {
@@ -21,7 +27,7 @@ export function AccentPicker({ accent, onSelect, colors }: Props) {
             onPress={() => onSelect(key)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="radio"
-            accessibilityLabel={key}
+            accessibilityLabel={accentLabel[key]}
             accessibilityState={{ checked: isActive }}
             style={[
               styles.swatch,

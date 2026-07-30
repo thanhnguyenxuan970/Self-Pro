@@ -87,15 +87,15 @@ function makeStyles(C: AppColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: C.bgBase },
     scroll: { paddingBottom: 40 },
-    logoutBtn: { marginHorizontal: Spacing.lg, marginTop: 32, marginBottom: 12, paddingVertical: 15, borderRadius: Radii.md, borderWidth: 1.5, borderColor: C.danger, alignItems: 'center' },
-    logoutBtnText: { color: C.danger, fontSize: 15, fontFamily: FontFamily.bold },
+    logoutBtn: { marginHorizontal: Spacing.lg, marginTop: 32, marginBottom: 12, paddingVertical: 15, borderRadius: Radii.md, borderWidth: 1.5, borderColor: C.line2, alignItems: 'center' },
+    logoutBtnText: { color: C.ink2, fontSize: 15, fontFamily: FontFamily.bold },
   });
 }
 
 function makePhStyles(C: AppColors) {
   return StyleSheet.create({
     head: { paddingVertical: 14, paddingHorizontal: Spacing.lg, alignItems: 'center' },
-    avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: C.primarySoft, borderWidth: 1, borderColor: C.line, shadowColor: C.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 10, elevation: 4 },
+    avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: C.primarySoft, borderWidth: 1, borderColor: C.line, ...Shadows.medium, shadowColor: C.primary },
     avatarFallback: { alignItems: 'center', justifyContent: 'center' },
     avatarInitial: { fontSize: 32, fontFamily: FontFamily.extraBold, color: C.primaryPress },
     name: { fontSize: 20, fontFamily: FontFamily.extraBold, letterSpacing: -0.3, color: C.inkDark, marginTop: 10 },

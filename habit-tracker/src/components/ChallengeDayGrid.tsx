@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { AppColors, FontFamily, Radii, Spacing } from '../config/theme';
-import { useTheme } from '../hooks/useSettings';
+import { useTheme, useTranslations } from '../hooks/useSettings';
 import { currentDayIndex } from '../lib/challenge';
 import type { DayEntryState as ChallengeLogState } from '../lib/challenge';
 
@@ -51,8 +51,17 @@ function dayCellStates(startDate: string, targetDays: number, log: { date: strin
 
 export function ChallengeDayGrid({ targetDays, startDate, log, today }: Props) {
   const { colors: C } = useTheme();
+  const t = useTranslations();
   const styles = useMemo(() => makeStyles(C), [C]);
   const cells = useMemo(() => dayCellStates(startDate, targetDays, log, today), [startDate, targetDays, log, today]);
+
+  const stateLabel: Record<CellState, string> = {
+    done: t.challengeDayStateDone,
+    freeze: t.challengeDayStateFreeze,
+    today: t.challengeDayStateToday,
+    future: t.challengeDayStateFuture,
+    reset: t.challengeDayStateReset,
+  };
 
   function cellColor(state: CellState): string {
     switch (state) {
@@ -84,7 +93,7 @@ export function ChallengeDayGrid({ targetDays, startDate, log, today }: Props) {
             key={cell.label}
             style={[styles.cell, { backgroundColor: cellColor(cell.state) }, cell.state === 'today' && { borderWidth: 2, borderColor: C.primary }]}
             accessible
-            accessibilityLabel={`${cell.label}: ${cell.state}`}
+            accessibilityLabel={`${cell.label}: ${stateLabel[cell.state]}`}
           >
             {glyph
               ? <Text style={[styles.cellGlyphMain, onTint && { color: C.white }]}>{glyph}</Text>

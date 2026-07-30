@@ -44,9 +44,9 @@ export function buildAnalyticsDashboard(daily: AnalyticsDaily[], logs: Analytics
     ? new Date(date.getFullYear() - 1, date.getMonth(), 1)
     : range === 'M' && date.getDate() > new Date(previousStart.getFullYear(), previousStart.getMonth() + 1, 0).getDate() ? null
     : range === 'M' ? new Date(previousStart.getFullYear(), previousStart.getMonth(), date.getDate()) : addDays(previousStart, Math.round((date.getTime() - start.getTime()) / 86400000)));
-  const labels = currentDates.map(date => range === 'W'
+  const labels = currentDates.map((date, index) => range === 'W'
     ? ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][date.getDay()]
-    : range === 'M' ? (date.getDate() % 7 === 1 ? String(date.getDate()) : '')
+    : range === 'M' ? (index === currentDates.length - 1 || (date.getDate() % 7 === 1 && index <= currentDates.length - 5) ? String(date.getDate()) : '')
     : date.toLocaleString('en-US', { month: 'short' }));
   const monthTotal = (month: Date, from: Date, to: Date) => sum(daily.filter(row => {
     const date = new Date(`${row.local_date}T00:00:00`);
@@ -66,8 +66,15 @@ export function buildAnalyticsDashboard(daily: AnalyticsDaily[], logs: Analytics
   const previousStars = sum(previousLogs.map(log => Math.max(0, log.stars_delta)));
   const last = (days: number) => daily.filter(row => row.local_date >= dateKey(addDays(today, -days + 1)) && row.local_date <= dateKey(today));
   const pct = (items: AnalyticsDaily[], divisor: number) => Math.round((items.filter(row => row.total_points >= goal).length / Math.max(1, divisor)) * 100);
-  const weekday = Array.from({ length: 7 }, (_, day) => ({ label: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][day], dayOfWeek: day, value: sum(currentLogs.filter(log => new Date(log.local_date + 'T00:00:00').getDay() === day).map(log => log.points_earned)) }));
-  const hours = [0, 4, 8, 12, 16, 20].map(hour => ({ label: String(hour), value: sum(currentLogs.filter(log => new Date(log.logged_at).getHours() >= hour && new Date(log.logged_at).getHours() < hour + 4).map(log => log.points_earned)) }));
+  // Single pass over currentLogs instead of 7 + 6 separate .filter() scans.
+  const weekdayTotals = new Array(7).fill(0);
+  const hourBucketTotals = new Array(6).fill(0);
+  for (const log of currentLogs) {
+    weekdayTotals[new Date(log.local_date + 'T00:00:00').getDay()] += log.points_earned;
+    hourBucketTotals[Math.floor(new Date(log.logged_at).getHours() / 4)] += log.points_earned;
+  }
+  const weekday = [1, 2, 3, 4, 5, 6, 0].map(day => ({ label: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][day], dayOfWeek: day, value: weekdayTotals[day] }));
+  const hours = [0, 4, 8, 12, 16, 20].map((hour, index) => ({ label: String(hour), value: hourBucketTotals[index] }));
   const countByTask = (items: AnalyticsLog[]) => items.reduce((map, log) => { if (log.task_name) map.set(log.task_name, (map.get(log.task_name) ?? 0) + 1); return map; }, new Map<string, number>());
   const currentTasks = countByTask(currentLogs), previousTasks = countByTask(previousLogs);
   const composition = [...currentTasks.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([name, taskCount]) => ({ name, count: taskCount, previous: previousTasks.get(name) ?? 0 }));

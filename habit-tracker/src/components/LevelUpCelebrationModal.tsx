@@ -3,7 +3,7 @@ import { Animated, Easing, Modal, StyleSheet, Text, TouchableOpacity, View } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RankMascot, type RankMascotHandle } from './RankMascot';
 import { getRankConfigByTierOrder } from '../config/ranks.config';
-import { AppColors, Colors, DarkColors, FontFamily, Radii, Spacing } from '../config/theme';
+import { AppColors, FontFamily, Radii, Spacing } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { shouldRunCelebrationBurst } from '../lib/rankPresentation';
@@ -111,7 +111,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, starsAtC
       <View style={styles.screen} accessibilityViewIsModal>
         {!reduceMotion && <Animated.View pointerEvents="none" style={[styles.flash, flashStyle]} />}
         <Animated.View style={[styles.eyebrow, { backgroundColor: `${cfg.color}24` }, riseStyle(eyebrow)]}>
-          <Text style={[styles.eyebrowText, { color: cfg.glow ?? cfg.color }]}>✦ {t.levelUpTitle}</Text>
+          <Text style={styles.eyebrowText}>✦ {t.levelUpTitle}</Text>
         </Animated.View>
         <View style={styles.mascotStage}>
           <View style={[styles.wash, { backgroundColor: cfg.color }]} pointerEvents="none" />
@@ -175,11 +175,14 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, starsAtC
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: DarkColors.bgBase, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, overflow: 'hidden' },
+    screen: { flex: 1, backgroundColor: C.bgBase, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, overflow: 'hidden' },
     wash: { position: 'absolute', width: 420, height: 420, borderRadius: 210, top: '50%', left: '50%', marginTop: -210, marginLeft: -210, opacity: 0.2 },
-    flash: { ...StyleSheet.absoluteFill, backgroundColor: '#FFFFFF' },
+    flash: { ...StyleSheet.absoluteFill, backgroundColor: C.white },
     eyebrow: { borderRadius: Radii.pill, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 18 },
-    eyebrowText: { fontFamily: FontFamily.extraBold, fontSize: 12, letterSpacing: 0.7 },
+    // Static ink, not a per-tier color: several rank colors (verified via
+    // contrast math) fail WCAG AA against their own tinted eyebrow pill --
+    // the mascot below already carries the per-tier brand color at full size.
+    eyebrowText: { color: C.inkDark, fontFamily: FontFamily.extraBold, fontSize: 12, letterSpacing: 0.7 },
     mascotStage: { width: 220, height: 190, alignItems: 'center', justifyContent: 'center' },
     mascotWrap: { width: 168, height: 168, alignItems: 'center', justifyContent: 'center' },
     mascotLayer: { position: 'absolute' },
@@ -187,9 +190,9 @@ function makeStyles(C: AppColors) {
     revealMark: { position: 'absolute', fontFamily: FontFamily.extraBold, fontSize: 24 },
     copy: { alignItems: 'center', maxWidth: '100%' },
     nameRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
-    rankName: { color: Colors.bgBase, fontFamily: FontFamily.extraBold, fontSize: 40, lineHeight: 47, letterSpacing: -1.8, textAlign: 'center' },
+    rankName: { color: C.inkDark, fontFamily: FontFamily.extraBold, fontSize: 40, lineHeight: 47, letterSpacing: -1.8, textAlign: 'center' },
     starChip: { backgroundColor: `${C.starGold}24`, borderWidth: 1, borderColor: `${C.starGold}4D`, borderRadius: Radii.pill, paddingHorizontal: 16, paddingVertical: 8 },
-    starChipText: { color: C.starGold, fontFamily: FontFamily.extraBold, fontSize: 13 },
+    starChipText: { color: C.starGoldText, fontFamily: FontFamily.extraBold, fontSize: 13 },
     ctaWrap: { alignSelf: 'stretch', marginTop: 30 },
     cta: { minHeight: 54, borderRadius: 16, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
     ctaText: { color: C.onAccent, fontFamily: FontFamily.extraBold, fontSize: 16 },

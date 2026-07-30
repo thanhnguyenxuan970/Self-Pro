@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, LayoutChangeEvent } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
-import { FontFamily } from '../config/theme';
+import { FontFamily, Shadows } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 
@@ -152,11 +152,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
     borderRadius: 18,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
-    elevation: 10,
+    ...Shadows.hero,
   },
   title: { fontSize: 17, fontFamily: FontFamily.bold },
   body: { fontSize: 13, fontFamily: FontFamily.regular, marginTop: 6, lineHeight: 18 },

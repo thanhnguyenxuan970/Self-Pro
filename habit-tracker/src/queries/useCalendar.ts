@@ -61,14 +61,17 @@ export function useHeatmapData(userId: number) {
     queryFn: async (): Promise<HeatmapDay[]> => {
       const db = await getDb();
       return db.getAllAsync<HeatmapDay>(
-        `SELECT ds.local_date, ds.total_points,
-                COALESCE((SELECT SUM(CASE WHEN al.stars_delta > 0 THEN CAST(al.stars_delta AS INTEGER) ELSE 0 END)
-                          FROM activity_log al
-                          WHERE al.user_id = ds.user_id AND al.local_date = ds.local_date), 0) AS stars
+        `SELECT ds.local_date, ds.total_points, COALESCE(al.stars, 0) AS stars
          FROM daily_summary ds
+         LEFT JOIN (
+           SELECT local_date, SUM(CASE WHEN stars_delta > 0 THEN CAST(stars_delta AS INTEGER) ELSE 0 END) AS stars
+           FROM activity_log
+           WHERE user_id = ? AND local_date >= date('now', '-1 year')
+           GROUP BY local_date
+         ) al ON al.local_date = ds.local_date
          WHERE ds.user_id = ? AND ds.local_date >= date('now', '-1 year')
          ORDER BY ds.local_date`,
-        [userId],
+        [userId, userId],
       );
     },
   });

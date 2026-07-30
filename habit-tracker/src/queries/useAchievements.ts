@@ -33,13 +33,21 @@ export function useWeeklyOverachieverCount(userId: number) {
         `SELECT id, start_date, weekly_target, total_weeks FROM challenges WHERE user_id = ? AND mode = 'weekly'`,
         [userId],
       );
+      if (challenges.length === 0) return 0;
+      // Batched into one query instead of one round-trip per challenge.
+      const placeholders = challenges.map(() => '?').join(',');
+      const logRows = await db.getAllAsync<{ challenge_id: number; local_date: string }>(
+        `SELECT challenge_id, local_date FROM challenge_log WHERE challenge_id IN (${placeholders}) AND state = 'done'`,
+        challenges.map(c => c.id),
+      );
+      const doneDatesByChallenge = new Map<number, Set<string>>();
+      for (const row of logRows) {
+        if (!doneDatesByChallenge.has(row.challenge_id)) doneDatesByChallenge.set(row.challenge_id, new Set());
+        doneDatesByChallenge.get(row.challenge_id)!.add(row.local_date);
+      }
       let count = 0;
       for (const c of challenges) {
-        const logRows = await db.getAllAsync<{ local_date: string }>(
-          `SELECT local_date FROM challenge_log WHERE challenge_id = ? AND state = 'done'`,
-          [c.id],
-        );
-        const doneDates = new Set(logRows.map(r => r.local_date));
+        const doneDates = doneDatesByChallenge.get(c.id) ?? new Set<string>();
         for (const window of weekWindows(c.start_date, c.total_weeks)) {
           if (window.start > today) break;
           if (weekSessionsDone(doneDates, window) > c.weekly_target) count++;

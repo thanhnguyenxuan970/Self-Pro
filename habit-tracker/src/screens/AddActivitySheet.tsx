@@ -39,6 +39,7 @@ const SuggestionChip = React.memo(function SuggestionChip({ s, isSelected, onPre
       onPress={() => onPress(s)}
       activeOpacity={0.7}
       accessibilityRole="button"
+      accessibilityLabel={label}
       accessibilityState={{ selected: isSelected }}
     >
       <Text style={[styles.chipName, isSelected && styles.chipNameSelected]}>
@@ -52,11 +53,11 @@ const PickerTaskRow = React.memo(function PickerTaskRow({ task, onPress, onPin, 
   task: PickerTask; onPress: (task: PickerTask) => void; onPin: (task: PickerTask) => void; styles: ReturnType<typeof makeStyles>; t: Strings;
 }) {
   return <View style={styles.pickerRow}>
-    <TouchableOpacity style={styles.pickerTask} onPress={() => onPress(task)} activeOpacity={0.7} accessibilityRole="button">
+    <TouchableOpacity style={styles.pickerTask} onPress={() => onPress(task)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={resolveTaskDisplayName(task.name, t, task.is_template === 1)}>
       <Text style={styles.pickerTaskName} numberOfLines={1}>{task.icon ? `${task.icon} ` : ''}{resolveTaskDisplayName(task.name, t, task.is_template === 1)}</Text>
       {task.archived === 1 ? <Text style={styles.hiddenBadge}>{t.activityHidden}</Text> : null}
     </TouchableOpacity>
-    <TouchableOpacity style={styles.pinButton} onPress={() => onPin(task)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={task.is_pinned === 1 ? t.activityUnpin : t.activityPin} accessibilityState={{ selected: task.is_pinned === 1 }}>
+    <TouchableOpacity style={styles.pinButton} onPress={() => onPin(task)} activeOpacity={0.7} hitSlop={4} accessibilityRole="button" accessibilityLabel={task.is_pinned === 1 ? t.activityUnpin : t.activityPin} accessibilityState={{ selected: task.is_pinned === 1 }}>
       <Text style={[styles.pinText, task.is_pinned === 1 && styles.pinTextActive]}>{task.is_pinned === 1 ? '★' : '☆'}</Text>
     </TouchableOpacity>
   </View>;
@@ -348,7 +349,6 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
         </Animated.View>
 
         <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}>
-          <View style={styles.handle} />
 
           {step === 'create' ? (
             <>
@@ -367,6 +367,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
                   returnKeyType="done"
                   maxLength={50}
                   editable={presetName == null}
+                  accessibilityLabel={t.addActivityNameLabel}
                 />
 
                 {presetName == null && query.length > 0 && (
@@ -486,13 +487,9 @@ function makeStyles(C: AppColors) {
     sheet: {
       backgroundColor: C.surface,
       borderRadius: Radii.xxl,
-      maxHeight: '80%',
+      maxHeight: '80%', alignSelf: 'center', width: '100%', maxWidth: 480,
       ...Shadows.hero,
       shadowColor: C.primary,
-    },
-    handle: {
-      width: 40, height: 4, backgroundColor: C.line2,
-      borderRadius: Radii.pill, alignSelf: 'center', marginTop: 10, marginBottom: 4,
     },
     title: {
       ...Typography.bodyStrong, color: C.inkDark, textAlign: 'center',

@@ -216,7 +216,7 @@ const RANK_DATA: BaseRank[] = [
   {
     tier: 6,
     name: 'GOATED',
-    nameVi: 'Vượt Mức Pickleball',
+    nameVi: 'Đỉnh Chóp',
     stars: 320,
     descriptor: 'infinite W',
     color: '#F4C842',

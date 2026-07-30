@@ -21,7 +21,7 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 // screen mounts only in the signed-out stack). Reduce-motion paints the final
 // frame directly.
 const BRAND = '#25B36E'; // logo is always brand green, independent of accent
-const GOLD = '#E0A93B';
+const GOLD = '#E0A93B'; // logo star is always gold, independent of accent (matches Colors.starGold)
 const GOOGLE_BLUE = '#1967D2'; // Google's brand blue, darkened from #4285F4 to clear WCAG AA on the button surface
 
 function useSignInIntro(reduceMotion: boolean) {

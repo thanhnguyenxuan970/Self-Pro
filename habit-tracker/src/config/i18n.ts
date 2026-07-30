@@ -150,6 +150,7 @@ const vi = {
   periodThisMonth: 'Tháng này',
   periodThisYear: 'Năm nay',
   activityLogSection: 'Lịch sử',
+  progressLogRowHint: 'Nhấn giữ để chọn nhiều mục',
   filterLast7Days: '7 ngày qua',
   filterClear: 'Xoá bộ lọc',
   deleteLogTitle: 'Xoá nhật ký',
@@ -234,6 +235,9 @@ const vi = {
     'Ascended':       'god mode: on',
     'Cosmic':         'left the chat',
   } as Record<string, string>,
+  rankPreviewLabel: (name: string) => `Xem lại thăng cấp ${name}`,
+  rankLockedLabel: (name: string, stars: number) => `${name} khóa đến ${stars} sao`,
+  rankHiddenTier: '??? · còn giấu',
 
   // LogActivitySheet
   logSheetTitle: 'Ghi nhận hoạt động',
@@ -250,6 +254,7 @@ const vi = {
   durationEnterMins: 'Nhập số phút',
   chipA11yEscape: 'Nhập thời lượng dài hơn',
   chipA11yLog: (label: string, stars: number) => `Ghi ${label}, ${stars} sao`,
+  presetMinutesA11y: (mins: number) => `${mins} phút`,
 
   // Navigation labels
   tabHome: 'Trang chủ',
@@ -336,11 +341,20 @@ const vi = {
   challengeNotifyDesc: 'Nhận thông báo để ghi lại thử thách này đúng giờ đã đặt',
   challengeNotifyWeeklyLabel: 'Nhắc mỗi ngày',
   challengeNotifyWeeklyDesc: 'Nhận thông báo mỗi ngày để ghi nhận buổi tập cho thử thách này',
+  challengeReminderOnLabel: '🔔 Đang nhắc mỗi ngày lúc 20:00',
+  challengeReminderFailedLabel: '⚠️ Nhắc nhở chưa hoạt động — chạm để thử lại',
+  challengeReminderRetrySuccess: 'Đã bật lại nhắc nhở.',
+  challengeReminderRetryFailed: 'Vẫn không đặt được nhắc nhở. Kiểm tra quyền thông báo trong Cài đặt hệ thống.',
   challengeRewardPreviewTitle: 'HOÀN THÀNH ĐỂ NHẬN',
   challengeRewardStars: 'sao thưởng',
   challengeRewardBadge: 'huy hiệu mới',
   challengeStartCta: 'Bắt đầu',
   challengeRunningBadge: 'Đang chạy',
+  challengeDayStateDone: 'hoàn thành',
+  challengeDayStateFreeze: 'đóng băng',
+  challengeDayStateToday: 'hôm nay',
+  challengeDayStateFuture: 'sắp tới',
+  challengeDayStateReset: 'đã reset',
   challengeDaysLeft: (n: number) => `còn ${n} ngày`,
   challengeLogSection: (total: number) => `Nhật ký ${total} ngày`,
   challengeBeforeAfterSection: 'Before · After',
@@ -465,6 +479,7 @@ const vi = {
   openProfile: 'Mở hồ sơ',
   openSettings: 'Mở cài đặt',
   openNews: 'Mở tin mới',
+  openNewsUnread: (n: number) => `Mở tin mới, ${n} tin chưa đọc`,
   dismissSuggestion: 'Bỏ qua gợi ý',
   rankInfo: 'Thông tin xếp hạng',
   rankInfoTitle: 'Rank là gì?',
@@ -604,6 +619,10 @@ const vi = {
   // Notifications
   addReminder: '+ Thêm nhắc nhở',
   clearReminder: 'Xoá nhắc nhở',
+  reminderTimeLabel: (time: string) => `Nhắc lúc ${time}, chạm để đổi giờ`,
+  reminderScheduleFailed: 'Không đặt được nhắc nhở. Kiểm tra quyền thông báo trong Cài đặt hệ thống.',
+  challengeReminderNotifBody: (name: string) => `Đừng quên ghi nhận "${name}" hôm nay!`,
+  habitReminderNotifBody: 'Đến giờ ghi nhận thói quen rồi!',
 
   // Duration picker
   durationCustom: '1h+',
@@ -622,6 +641,11 @@ const vi = {
   levelUpSubtitle: (name: string) => `Tuần trước bạn đã đạt hạng ${name}!\nTiếp tục chinh phục! 💪`,
   levelUpContinueCta: 'Tiếp tục',
   levelUpDismiss: 'Tuyệt! 🚀',
+
+  // Badge unlock celebration
+  badgeUnlockEyebrow: 'HUY HIỆU MỞ KHOÁ ✨',
+  badgeUnlockNextCta: 'Tiếp →',
+  badgeUnlockDismissCta: 'Tuyệt! 🎉',
 
   // Template task names
   tmplRunning: 'Chạy bộ',
@@ -868,6 +892,7 @@ const en: typeof vi = {
   periodThisMonth: 'This month',
   periodThisYear: 'This year',
   activityLogSection: 'History',
+  progressLogRowHint: 'Long-press to select multiple',
   filterLast7Days: 'Past 7 days',
   filterClear: 'Clear filter',
   deleteLogTitle: 'Delete entry',
@@ -950,6 +975,9 @@ const en: typeof vi = {
     'Ascended':       '"god mode: on"',
     'Cosmic':         '"left the chat"',
   } as Record<string, string>,
+  rankPreviewLabel: (name: string) => `Review ${name}'s level-up`,
+  rankLockedLabel: (name: string, stars: number) => `${name}, locked until ${stars} stars`,
+  rankHiddenTier: '??? · hidden',
 
   // LogActivitySheet
   logSheetTitle: 'Complete activity',
@@ -966,6 +994,7 @@ const en: typeof vi = {
   durationEnterMins: 'Enter minutes',
   chipA11yEscape: 'Enter longer duration',
   chipA11yLog: (label, stars) => `Complete ${label}, ${stars} stars`,
+  presetMinutesA11y: (mins: number) => `${mins} minutes`,
 
   // Navigation labels
   tabHome: 'Home',
@@ -1052,11 +1081,20 @@ const en: typeof vi = {
   challengeNotifyDesc: 'Get a daily notification',
   challengeNotifyWeeklyLabel: 'Daily reminder',
   challengeNotifyWeeklyDesc: 'Get a daily notification to log a session for this challenge',
+  challengeReminderOnLabel: '🔔 Daily reminder set for 8:00 PM',
+  challengeReminderFailedLabel: '⚠️ Reminder isn’t active — tap to retry',
+  challengeReminderRetrySuccess: 'Reminder turned back on.',
+  challengeReminderRetryFailed: 'Still couldn’t set the reminder. Check notification permissions in system Settings.',
   challengeRewardPreviewTitle: 'FINISH THIS TO EARN',
   challengeRewardStars: 'bonus stars',
   challengeRewardBadge: 'new badge',
   challengeStartCta: 'Start',
   challengeRunningBadge: 'Running',
+  challengeDayStateDone: 'done',
+  challengeDayStateFreeze: 'freeze',
+  challengeDayStateToday: 'today',
+  challengeDayStateFuture: 'upcoming',
+  challengeDayStateReset: 'reset',
   challengeDaysLeft: (n: number) => `${n} days left`,
   challengeLogSection: (total: number) => `${total}-day history`,
   challengeBeforeAfterSection: 'Before · After',
@@ -1181,6 +1219,7 @@ const en: typeof vi = {
   openProfile: 'Open profile',
   openSettings: 'Open settings',
   openNews: 'Open news',
+  openNewsUnread: (n: number) => `Open news, ${n} unread`,
   dismissSuggestion: 'Dismiss suggestion',
   rankInfo: 'Rank information',
   rankInfoTitle: 'What is Rank?',
@@ -1320,6 +1359,10 @@ const en: typeof vi = {
   // Notifications
   addReminder: '+ Add reminder',
   clearReminder: 'Clear reminder',
+  reminderTimeLabel: (time: string) => `Reminder at ${time}, tap to change time`,
+  reminderScheduleFailed: 'Couldn’t set the reminder. Check notification permissions in system Settings.',
+  challengeReminderNotifBody: (name: string) => `Don't forget to log "${name}" today!`,
+  habitReminderNotifBody: 'Time to log your tasks!',
 
   // Duration picker
   durationCustom: '1h+',
@@ -1338,6 +1381,11 @@ const en: typeof vi = {
   levelUpSubtitle: (name: string) => `Last week you reached ${name}!\nKeep pushing! 💪`,
   levelUpContinueCta: 'Continue',
   levelUpDismiss: "Let's go! 🚀",
+
+  // Badge unlock celebration
+  badgeUnlockEyebrow: 'BADGE UNLOCKED ✨',
+  badgeUnlockNextCta: 'Next →',
+  badgeUnlockDismissCta: 'Awesome! 🎉',
 
   // Template task names
   tmplRunning: 'Running',

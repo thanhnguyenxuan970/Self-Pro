@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Alert,
-  KeyboardAvoidingView, Platform, Image,
+  KeyboardAvoidingView, Platform, Image, ScrollView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import Toast from 'react-native-toast-message';
@@ -11,7 +11,6 @@ import { useGoogleUser } from '../hooks/useAuth';
 import { submitFeedback } from '../api/feedbackService';
 import { FeedbackType, FEEDBACK_MAX_LENGTH, validateFeedbackMessage } from '../utils/feedbackLogic';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
 
 interface Props { visible: boolean; onClose: () => void; }
 
@@ -99,6 +98,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Text style={styles.title}>{t.feedbackTitle}</Text>
 
           <View style={styles.typeRow}>
@@ -127,6 +127,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
             multiline
             maxLength={FEEDBACK_MAX_LENGTH}
             textAlignVertical="top"
+            accessibilityLabel={t.feedbackPlaceholder}
           />
           <Text style={styles.counter}>{message.trim().length}/{FEEDBACK_MAX_LENGTH}</Text>
 
@@ -173,6 +174,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
           <TouchableOpacity style={styles.cancelBtn} onPress={handleClose} disabled={sending} accessibilityRole="button" accessibilityLabel={t.cancel}>
             <Text style={styles.cancel}>{t.cancel}</Text>
           </TouchableOpacity>
+          </ScrollView>
         </View>
       </View>
       </KeyboardAvoidingView>
@@ -184,8 +186,9 @@ function makeStyles(C: AppColors, bottomInset: number) {
   return StyleSheet.create({
     backdrop: { flex: 1, backgroundColor: C.scrim, justifyContent: 'flex-end' },
     sheet: {
+      maxHeight: '90%', alignSelf: 'center', width: '100%', maxWidth: 480,
       backgroundColor: C.surface, paddingTop: Spacing.xl, paddingHorizontal: Spacing.xl,
-      paddingBottom: Spacing.xl + BOTTOM_TAB_BAR_HEIGHT + bottomInset,
+      paddingBottom: Spacing.xl + bottomInset,
       borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl,
     },
     handle: {

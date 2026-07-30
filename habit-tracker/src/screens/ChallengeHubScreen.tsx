@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import Toast from 'react-native-toast-message';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useActiveChallenge, useChallengeHistory, useChallengeRollover, useDeleteChallenge, useRestartChallenge } from '../queries/useChallenge';
@@ -42,8 +43,8 @@ export function ChallengeHubScreen() {
   }, []);
 
   const isLoading = activeLoading || historyLoading;
-  const month = (date: string) => new Intl.DateTimeFormat(t.timeLocale, { month: 'short' })
-    .format(new Date(`${date}T00:00:00`)).replace('.', '');
+  const monthFmt = useMemo(() => new Intl.DateTimeFormat(t.timeLocale, { month: 'short' }), [t.timeLocale]);
+  const month = (date: string) => monthFmt.format(new Date(`${date}T00:00:00`)).replace('.', '');
 
   if (isLoading) {
     return (
@@ -63,19 +64,21 @@ export function ChallengeHubScreen() {
             onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('MainTabs' as never)}
             style={styles.backButton}
             activeOpacity={0.8}
+            hitSlop={4}
             accessibilityRole="button"
             accessibilityLabel={t.back}
           >
             <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
-          <View>
+          <View style={styles.headerTitleGroup}>
             <Text style={styles.brand}>HABI</Text>
-            <Text style={styles.title}>{t.screenChallengeHub}</Text>
+            <Text style={styles.title} numberOfLines={1}>{t.screenChallengeHub}</Text>
           </View>
           <TouchableOpacity
             onPress={() => navigation.navigate('CreateChallenge' as never)}
             style={styles.addButton}
             activeOpacity={0.8}
+            hitSlop={4}
             accessibilityRole="button"
             accessibilityLabel={t.challengeCreateCta}
           >
@@ -178,7 +181,10 @@ export function ChallengeHubScreen() {
                       ) : !selectionMode ? (
                         <TouchableOpacity
                           onPress={async () => {
-                            const challengeId = await restartChallenge.mutateAsync(h.id);
+                            const { id: challengeId, notificationDenied } = await restartChallenge.mutateAsync(h.id);
+                            if (notificationDenied) {
+                              Toast.show({ type: 'error', text1: t.reminderScheduleFailed, visibilityTime: 3500 });
+                            }
                             (navigation as any).navigate('ChallengeDetail', { challengeId });
                           }}
                           disabled={active != null || restartChallenge.isPending}
@@ -194,6 +200,7 @@ export function ChallengeHubScreen() {
                           onPress={() => confirmDelete([h.id])}
                           disabled={deleteChallenges.isPending}
                           style={styles.historyDeleteButton}
+                          hitSlop={4}
                           accessibilityRole="button"
                           accessibilityLabel={t.challengeDeleteCta}
                         >
@@ -218,6 +225,7 @@ function makeStyles(C: AppColors) {
     loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     scrollContent: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.xl, gap: Spacing.lg },
     header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+    headerTitleGroup: { flexShrink: 1, minWidth: 0 },
     backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     backButtonText: { ...Typography.title, color: C.inkDark },
     brand: { ...Typography.caption, color: C.muted, fontFamily: FontFamily.bold, letterSpacing: 0.8 },

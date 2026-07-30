@@ -6,7 +6,6 @@ import {
 import Toast from 'react-native-toast-message';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
 import { useCreateTask } from '../queries/useTasks';
 import { useUpdateTaskName } from '../queries/useTasks';
 import { useTodayTasks } from '../queries/useToday';
@@ -325,7 +324,14 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
                     colors={colors}
                     styles={styles}
                   />
-                  {tasks.length === 0 && <View style={styles.suggestions}>{TEMPLATE_CATEGORIES.flatMap(c => c.tasks).map(s => <TouchableOpacity key={s.nameKey} style={styles.suggestion} onPress={() => void addSuggestion(s)}><Text style={styles.suggestionText}>{s.icon} {(t as Record<string, unknown>)[s.nameKey] as string ?? s.name}</Text></TouchableOpacity>)}</View>}
+                  {tasks.length === 0 && <View style={styles.suggestions}>{TEMPLATE_CATEGORIES.flatMap(c => c.tasks).map(s => {
+                    const label = (t as Record<string, unknown>)[s.nameKey] as string ?? s.name;
+                    return (
+                      <TouchableOpacity key={s.nameKey} style={styles.suggestion} onPress={() => void addSuggestion(s)} accessibilityRole="button" accessibilityLabel={label}>
+                        <Text style={styles.suggestionText}>{s.icon} {label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}</View>}
 
                   <TouchableOpacity
                     style={styles.addBtn}
@@ -390,9 +396,9 @@ function makeStyles(colors: AppColors, bottomInset: number) {
       borderTopLeftRadius: Radii.xl,
       borderTopRightRadius: Radii.xl,
       paddingHorizontal: Spacing.lg,
-      paddingBottom: 36 + BOTTOM_TAB_BAR_HEIGHT + bottomInset,
+      paddingBottom: 36 + bottomInset,
       paddingTop: 12,
-      maxHeight: '85%',
+      maxHeight: '85%', alignSelf: 'center', width: '100%', maxWidth: 480,
     },
     scrollContent: { paddingBottom: Spacing.md },
     grip: {

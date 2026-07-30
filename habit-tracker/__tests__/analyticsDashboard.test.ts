@@ -30,10 +30,10 @@ describe('buildAnalyticsDashboard', () => {
     expect(result.bars[6].current).toBe(92);
   });
 
-  it('labels only weekly landmarks in the month chart', () => {
+  it('anchors the final month label to the final bar', () => {
     const result = buildAnalyticsDashboard([], [], 'M', new Date(2026, 6, 28));
 
-    expect(result.bars.map(bar => bar.label).filter(Boolean)).toEqual(['1', '8', '15', '22']);
+    expect(result.bars.map(bar => bar.label).filter(Boolean)).toEqual(['1', '8', '15', '22', '28']);
   });
 
   it('does not carry a current-month day into a shorter previous month', () => {
@@ -85,5 +85,22 @@ describe('buildAnalyticsDashboard', () => {
     expect(result.stars).toBe(3);
     expect(result.composition).toEqual([{ name: 'Gym', count: 1, previous: 0 }]);
     expect(result.hours.find(hour => hour.label === '20')?.value).toBe(60);
+  });
+
+  it('sums points per weekday and per hour bucket across multiple logs on the same day', () => {
+    const today = new Date(2026, 6, 28); // Tuesday
+    const result = buildAnalyticsDashboard(
+      [],
+      [
+        { local_date: '2026-07-28', logged_at: new Date(2026, 6, 28, 9).getTime(), points_earned: 10, stars_delta: 1, task_name: 'Read' },
+        { local_date: '2026-07-28', logged_at: new Date(2026, 6, 28, 10).getTime(), points_earned: 20, stars_delta: 1, task_name: 'Gym' },
+        { local_date: '2026-07-27', logged_at: new Date(2026, 6, 27, 9).getTime(), points_earned: 5, stars_delta: 1, task_name: 'Read' },
+      ],
+      'W', today,
+    );
+    expect(result.weekday.find(w => w.dayOfWeek === 2)?.value).toBe(30); // Tuesday = both 07-28 logs
+    expect(result.weekday.find(w => w.dayOfWeek === 1)?.value).toBe(5); // Monday = the 07-27 log
+    expect(result.weekday.map(day => day.dayOfWeek)).toEqual([1, 2, 3, 4, 5, 6, 0]);
+    expect(result.hours.find(hour => hour.label === '8')?.value).toBe(35); // 8-12 bucket = all three logs (9am, 10am, and the 07-27 9am log)
   });
 });

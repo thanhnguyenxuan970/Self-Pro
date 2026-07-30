@@ -12,6 +12,7 @@ import {
   useNotificationTime2, useSetNotificationTime2,
   useNotificationTime3, useSetNotificationTime3,
 } from '../queries/useSettings';
+import Toast from 'react-native-toast-message';
 import { scheduleAllHabitReminders } from '../utils/notifications';
 import { FeedbackSheet } from './FeedbackSheet';
 import { AccentPicker } from '../components/AccentPicker';
@@ -87,13 +88,15 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
   function handleSetReminder(idx: number, time: string) {
     notifMutations[idx].mutate(time);
     const updated = savedTimes.map((v, i) => (i === idx ? time : v));
-    scheduleAllHabitReminders(updated).catch(() => {});
+    scheduleAllHabitReminders(updated, lang).then(ok => {
+      if (!ok) Toast.show({ type: 'error', text1: t.reminderScheduleFailed });
+    }).catch(() => Toast.show({ type: 'error', text1: t.reminderScheduleFailed }));
   }
 
   function handleClearReminder(idx: number) {
     notifMutations[idx].mutate(null);
     const updated = savedTimes.map((v, i) => (i === idx ? null : v));
-    scheduleAllHabitReminders(updated).catch(() => {});
+    scheduleAllHabitReminders(updated, lang).catch(() => {});
   }
 
   function handleOpenPicker(idx: number) {
@@ -201,14 +204,15 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
                   onPress={() => handleOpenPicker(idx)}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel={time}
+                  accessibilityLabel={t.reminderTimeLabel(time)}
                 >
                   <Text style={styles.rowIc} importantForAccessibility="no">🔔</Text>
                   <Text style={[styles.rowLabel, styles.reminderTime]}>{time}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
+                  style={styles.reminderClearBtn}
                   onPress={() => handleClearReminder(idx)}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel={t.clearReminder}
@@ -224,6 +228,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
               onPress={handleAddReminder}
               activeOpacity={0.7}
               accessibilityRole="button"
+              accessibilityLabel={t.addReminder}
             >
               <Text style={[styles.rowLabel, styles.addReminderText]}>{t.addReminder}</Text>
             </TouchableOpacity>
@@ -315,17 +320,22 @@ function makeStyles(C: AppColors) {
       color: C.ink2,
       lineHeight: 18,
     },
-    reminderMain: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+    reminderMain: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center' },
     reminderTime: {
       fontSize: 17,
       fontFamily: FontFamily.bold,
       color: C.primary,
     },
+    reminderClearBtn: {
+      minWidth: 48,
+      minHeight: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     reminderClear: {
       fontSize: 16,
       color: C.muted,
       fontFamily: FontFamily.bold,
-      paddingHorizontal: 4,
     },
     addReminderText: {
       color: C.primary,

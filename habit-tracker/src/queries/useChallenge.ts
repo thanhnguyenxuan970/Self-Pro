@@ -17,6 +17,7 @@ import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { getWeekStart } from '../utils/formatters';
 import { scheduleChallengeReminder, cancelChallengeReminder } from '../utils/notifications';
 import { syncCurrentUserToSupabase } from '../api/syncService';
+import { useLanguage } from '../hooks/useSettings';
 
 interface ActiveChallenge {
   id: number;
@@ -50,6 +51,8 @@ interface ActiveChallenge {
   overachieverThisWeek: boolean;
   minDuration: number | null;
   minCount: number | null;
+  notificationsEnabled: boolean;
+  notificationId: string | null;
 }
 
 interface ChallengeRow {
@@ -68,13 +71,15 @@ interface ChallengeRow {
   total_weeks: number | null;
   min_duration: number | null;
   min_count: number | null;
+  notifications_enabled: number;
+  notification_id: string | null;
 }
 
 interface ChallengeHistoryRow extends ChallengeRow {
   reset_day: number | null;
 }
 
-const CHALLENGE_COLUMNS = `id, name, task_type_id, target_days, start_date, status, streak_current, freezes_left, before_photo, after_photo, mode, weekly_target, total_weeks, min_duration, min_count`;
+const CHALLENGE_COLUMNS = `id, name, task_type_id, target_days, start_date, status, streak_current, freezes_left, before_photo, after_photo, mode, weekly_target, total_weeks, min_duration, min_count, notifications_enabled, notification_id`;
 
 type ChallengeDeleteRow = {
   status: ChallengeStatus;
@@ -412,6 +417,8 @@ async function loadChallengeWithLog(db: SQLiteDatabase, row: ChallengeRow, today
     log: logRows.map(r => ({ date: r.local_date, state: r.state })),
     minDuration: row.min_duration,
     minCount: row.min_count,
+    notificationsEnabled: !!row.notifications_enabled,
+    notificationId: row.notification_id,
     mode: row.mode,
   };
 
@@ -538,11 +545,18 @@ export function useChallengeHistory(userId: number) {
     queryFn: async (): Promise<ChallengeHistoryRow[]> => {
       const db = await getDb();
       return db.getAllAsync<ChallengeHistoryRow>(
-        `SELECT ${CHALLENGE_COLUMNS},
-          (SELECT CAST(julianday(MIN(local_date)) - julianday(challenges.start_date) + 1 AS INTEGER)
-           FROM challenge_log
-           WHERE challenge_id = challenges.id AND state = 'reset') AS reset_day
-         FROM challenges WHERE user_id = ? AND status != 'active' ORDER BY created_at DESC LIMIT 50`,
+        `SELECT ${CHALLENGE_COLUMNS}, resets.reset_day
+         FROM challenges
+         LEFT JOIN (
+           SELECT cl.challenge_id AS challenge_id,
+                  CAST(julianday(MIN(cl.local_date)) - julianday(c.start_date) + 1 AS INTEGER) AS reset_day
+           FROM challenge_log cl
+           JOIN challenges c ON c.id = cl.challenge_id
+           WHERE cl.state = 'reset'
+           GROUP BY cl.challenge_id, c.start_date
+         ) resets ON resets.challenge_id = challenges.id
+         WHERE challenges.user_id = ? AND challenges.status != 'active'
+         ORDER BY challenges.created_at DESC LIMIT 50`,
         [userId],
       );
     },
@@ -764,8 +778,9 @@ type CreateChallengeParams = {
 
 export function useCreateChallenge(userId: number) {
   const qc = useQueryClient();
+  const [lang] = useLanguage();
   return useMutation({
-    mutationFn: async (params: CreateChallengeParams): Promise<void> => {
+    mutationFn: async (params: CreateChallengeParams): Promise<{ notificationDenied: boolean }> => {
       const db = await getDb();
       const today = challengeDate();
       const targetDays = params.mode === 'streak' ? params.targetDays : params.totalWeeks * 7;
@@ -785,20 +800,45 @@ export function useCreateChallenge(userId: number) {
         if (e?.message?.includes('UNIQUE constraint failed')) throw new Error('ACTIVE_EXISTS');
         throw e;
       }
+      let notificationDenied = false;
       if (params.notificationsEnabled) {
         try {
-          const notificationId = await scheduleChallengeReminder(params.name, params.mode);
+          const notificationId = await scheduleChallengeReminder(params.name, params.mode, lang);
           if (notificationId) {
             await db.runAsync(`UPDATE challenges SET notification_id = ? WHERE id = ?`, [notificationId, challengeId]);
+          } else {
+            notificationDenied = true;
           }
         } catch (e) {
+          notificationDenied = true;
           Sentry.captureException(e);
         }
       }
+      return { notificationDenied };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
     },
+  });
+}
+
+export function useRetryChallengeReminder(userId: number) {
+  const qc = useQueryClient();
+  const [lang] = useLanguage();
+  return useMutation({
+    mutationFn: async (challengeId: number): Promise<boolean> => {
+      const db = await getDb();
+      const row = await db.getFirstAsync<{ name: string; mode: ChallengeMode }>(
+        `SELECT name, mode FROM challenges WHERE id = ? AND user_id = ?`,
+        [challengeId, userId],
+      );
+      if (!row) return false;
+      const notificationId = await scheduleChallengeReminder(row.name, row.mode, lang);
+      if (!notificationId) return false;
+      await db.runAsync(`UPDATE challenges SET notification_id = ? WHERE id = ?`, [notificationId, challengeId]);
+      return true;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['challenge'] }),
   });
 }
 
@@ -845,16 +885,17 @@ export function useUpdateChallengeName(userId: number) {
 
 export function useRestartChallenge(userId: number) {
   const qc = useQueryClient();
+  const [lang] = useLanguage();
   return useMutation({
-    mutationFn: async (challengeId: number): Promise<number> => {
+    mutationFn: async (challengeId: number): Promise<{ id: number; notificationDenied: boolean }> => {
       const db = await getDb();
       let newId = 0;
       let notificationsEnabled = false;
       let challengeName = '';
       let challengeMode: ChallengeMode = 'streak';
       await db.withExclusiveTransactionAsync(async txn => {
-        const previous = await txn.getFirstAsync<ChallengeRow & { notifications_enabled: number }>(
-          `SELECT ${CHALLENGE_COLUMNS}, notifications_enabled
+        const previous = await txn.getFirstAsync<ChallengeRow>(
+          `SELECT ${CHALLENGE_COLUMNS}
            FROM challenges WHERE id = ? AND user_id = ? AND status != 'active'`,
           [challengeId, userId],
         );
@@ -869,17 +910,21 @@ export function useRestartChallenge(userId: number) {
         challengeName = previous.name;
         challengeMode = previous.mode;
       });
+      let notificationDenied = false;
       if (notificationsEnabled) {
         try {
-          const notificationId = await scheduleChallengeReminder(challengeName, challengeMode);
+          const notificationId = await scheduleChallengeReminder(challengeName, challengeMode, lang);
           if (notificationId) {
             await db.runAsync(`UPDATE challenges SET notification_id = ? WHERE id = ?`, [notificationId, newId]);
+          } else {
+            notificationDenied = true;
           }
         } catch (e) {
+          notificationDenied = true;
           Sentry.captureException(e);
         }
       }
-      return newId;
+      return { id: newId, notificationDenied };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['challenge'] }),
   });

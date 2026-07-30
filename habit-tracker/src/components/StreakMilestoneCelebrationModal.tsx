@@ -85,6 +85,10 @@ export function StreakMilestoneCelebrationModal({ milestone, onDismiss }: { mile
           <Text style={styles.subline}>{t.streakMilestoneSubline}</Text>
         </Animated.View>
         <TouchableOpacity style={styles.cta} onPress={onDismiss} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.streakMilestoneCta}>
+          {/* Not C.onAccent: that token is a flat white per accent and fails AA
+              against dark-mode's lighter accent primaries (verified ~1.4-3:1 for
+              5/6 accents -- see TODOS.md's "Per-theme onAccent ink color" item).
+              This ink/white split is the working stopgap until that's fixed. */}
           <Text style={[styles.ctaText, { color: isDark ? '#141816' : '#FFFFFF' }]}>{t.streakMilestoneCta}</Text>
         </TouchableOpacity>
       </Animated.View>
@@ -103,7 +107,7 @@ function makeStyles(C: AppColors, bottom: number) {
     eyebrow: { color: C.muted, fontFamily: FontFamily.extraBold, fontSize: 15, letterSpacing: 2, marginTop: 10, textAlign: 'center' },
     headline: { color: C.inkDark, fontFamily: FontFamily.extraBold, fontSize: 21, lineHeight: 28, letterSpacing: -0.3, marginTop: 22, textAlign: 'center' },
     rewardChip: { backgroundColor: C.starSoft, borderRadius: Radii.pill, marginTop: 16, paddingHorizontal: 18, paddingVertical: 10 },
-    rewardText: { color: C.starGold, fontFamily: FontFamily.extraBold, fontSize: 20, lineHeight: 25, includeFontPadding: false },
+    rewardText: { color: C.starGoldText, fontFamily: FontFamily.extraBold, fontSize: 20, lineHeight: 25, includeFontPadding: false },
     boostChip: { backgroundColor: C.primarySoft, borderRadius: Radii.pill, marginTop: 10, paddingHorizontal: 18, paddingVertical: 8 },
     boostText: { color: C.primary, fontFamily: FontFamily.extraBold, fontSize: 16, lineHeight: 20, includeFontPadding: false },
     subline: { color: C.muted, fontFamily: FontFamily.semiBold, fontSize: 13, lineHeight: 18, marginTop: 10, textAlign: 'center' },

@@ -120,6 +120,7 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.surface,
       borderRadius: Radii.xl,
       padding: Spacing.lg,
+      alignSelf: 'center', width: '100%', maxWidth: 480,
     },
     title: { ...Typography.subheading, color: C.inkDark, marginBottom: Spacing.md },
     label: { ...Typography.caption, color: C.ink2, marginBottom: 4, marginTop: Spacing.sm },

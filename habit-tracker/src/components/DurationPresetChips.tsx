@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import { AppColors, FontFamily, Radii, Spacing } from '../config/theme';
+import { useTranslations } from '../hooks/useSettings';
 
 const PRESETS = [{ label: '30m', mins: 30 }, { label: '45m', mins: 45 }, { label: '1h', mins: 60 }] as const;
 
@@ -16,6 +17,7 @@ interface DurationPresetChipsProps {
 /** The "30m / 45m / 1h / custom" duration chip row shared by the add-activity
  *  sheet and the today-screen duration modal. */
 export function DurationPresetChips({ colors, disabled, onSelectPreset, onCustom, customLabel, rowStyle }: DurationPresetChipsProps) {
+  const t = useTranslations();
   const styles = makeStyles(colors);
   return (
     <View style={[styles.presetChipsRow, rowStyle]}>
@@ -27,6 +29,7 @@ export function DurationPresetChips({ colors, disabled, onSelectPreset, onCustom
           disabled={disabled}
           activeOpacity={0.75}
           accessibilityRole="button"
+          accessibilityLabel={t.presetMinutesA11y(p.mins)}
         >
           <Text style={styles.presetChipText}>{p.label}</Text>
         </TouchableOpacity>
@@ -36,6 +39,7 @@ export function DurationPresetChips({ colors, disabled, onSelectPreset, onCustom
         onPress={onCustom}
         activeOpacity={0.75}
         accessibilityRole="button"
+        accessibilityLabel={customLabel}
       >
         <Text style={[styles.presetChipText, styles.presetChipCustomText]}>{customLabel}</Text>
       </TouchableOpacity>

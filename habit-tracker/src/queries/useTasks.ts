@@ -237,6 +237,7 @@ async function recomputeStreaks(db: SQLiteDatabase, userId: number): Promise<voi
   );
   let prevDate: string | null = null;
   let streak = 0;
+  const updates: Promise<unknown>[] = [];
   for (const day of remainingDays) {
     if (prevDate !== null) {
       const diffDays = Math.round(
@@ -246,9 +247,13 @@ async function recomputeStreaks(db: SQLiteDatabase, userId: number): Promise<voi
     } else {
       streak = 1;
     }
-    await db.runAsync(`UPDATE daily_summary SET streak_count = ? WHERE id = ?`, [streak, day.id]);
+    // Streak values are fully precomputed above, so these writes have no
+    // ordering dependency on each other -- fire concurrently instead of
+    // paying one sequential bridge round-trip per day.
+    updates.push(db.runAsync(`UPDATE daily_summary SET streak_count = ? WHERE id = ?`, [streak, day.id]));
     prevDate = day.local_date;
   }
+  await Promise.all(updates);
 }
 
 export function useArchiveTask(userId: number) {

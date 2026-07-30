@@ -16,6 +16,7 @@ type Props = {
 };
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const HEATMAP_ANIMATE_WEEKS = 16;
 
 // Entry-animated progress ring: the primary arc sweeps from empty up to its
 // current fraction on mount and every time Home regains focus. Reduce-motion
@@ -37,7 +38,7 @@ function ProgressRing({ progress, colors, animKey, reduceMotion }: { progress: n
   }, [progress, animKey, reduceMotion, driver]);
   // Sweep dashoffset from full (empty ring) to the target fraction's offset.
   const dashOffset = driver.interpolate({ inputRange: [0, 1], outputRange: [circumference, circumference * (1 - progress)] });
-  return <View style={styles.ring} accessibilityLabel={`${Math.round(progress * 100)}% complete`}>
+  return <View style={styles.ring} accessible accessibilityLabel={`${Math.round(progress * 100)}% complete`}>
     <Svg width={size} height={size}>
       <Circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={colors.surface2} strokeWidth={5} />
       <AnimatedCircle
@@ -69,11 +70,16 @@ const AnimatedWeeks = React.memo(function AnimatedWeeks({ weeks, styles, shades,
   }
   useEffect(() => {
     if (reduceMotion) { anims.forEach(col => col.forEach(a => a.setValue(1))); return; }
+    // Only the most recent weeks are on/near-screen when the grid scrolls to
+    // its end on mount, so cap the parallel burst to that window instead of
+    // animating all 53 weeks — older cells snap straight to their final state.
+    const animateFrom = Math.max(0, weeks.length - HEATMAP_ANIMATE_WEEKS);
     const all: Animated.CompositeAnimation[] = [];
     anims.forEach((col, i) => col.forEach((a, j) => {
+      if (i < animateFrom) { a.setValue(1); return; }
       a.setValue(0);
       all.push(Animated.timing(a, {
-        toValue: 1, duration: 420, delay: (i + j) * 34,
+        toValue: 1, duration: 420, delay: (i - animateFrom + j) * 34,
         easing: Easing.out(Easing.cubic), useNativeDriver: true,
       }));
     }));
@@ -90,7 +96,10 @@ const AnimatedWeeks = React.memo(function AnimatedWeeks({ weeks, styles, shades,
           <TouchableOpacity
             key={cell.date}
             style={[styles.cell, { backgroundColor: shades[0] }, cell.date === today && styles.todayCell]}
-            onPress={() => onSelect(cell.date)} hitSlop={15}
+            // hitSlop capped at half the 3px cell gap: cells sit edge-to-edge in
+            // a dense 7-row grid, so any larger slop overlaps the neighbouring
+            // cell's hit region and taps register the wrong day.
+            onPress={() => onSelect(cell.date)} hitSlop={1}
             accessibilityRole="button" accessibilityLabel={`${cell.date}: ${pointsByDate.get(cell.date) ?? 0} points`}
           >
             {cell.level > 0 && (
@@ -142,7 +151,7 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
           <TouchableOpacity style={styles.legendButton} hitSlop={16} onPress={() => setShowLegend(true)} accessibilityRole="button" accessibilityLabel={t.heatmapLegendTitle}>
             <Text style={styles.legendButtonText}>?</Text>
           </TouchableOpacity>
-          <Text style={styles.yearText}>{now.getFullYear()} ▾</Text>
+          <Text style={styles.yearText} accessibilityLabel={String(now.getFullYear())}>{now.getFullYear()} ▾</Text>
         </View>
       </View>
     </View>
@@ -174,7 +183,7 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
         <View style={styles.legendSheet}>
           <View style={styles.sheetHeader}>
             <Text style={styles.legendTitle}>{t.heatmapLegendTitle}</Text>
-            <TouchableOpacity style={styles.legendCloseButton} hitSlop={6} onPress={() => setShowLegend(false)} accessibilityLabel={t.close} accessibilityRole="button"><Text style={styles.legendCloseGlyph}>×</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.legendCloseButton} hitSlop={8} onPress={() => setShowLegend(false)} accessibilityLabel={t.close} accessibilityRole="button"><Text style={styles.legendCloseGlyph}>×</Text></TouchableOpacity>
           </View>
           <Text style={styles.legendSubtitle}>{t.heatmapLegendSubtitle}</Text>
           <View style={styles.legendDivider} />
@@ -197,7 +206,7 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
           <ScrollView style={styles.scoringSheet} contentContainerStyle={styles.scoringSheetContent} showsVerticalScrollIndicator={false}>
           <View style={styles.sheetHeader}>
             <Text style={styles.legendTitle}>{t.scoringGuideTitle}</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={onScoringGuideClose} accessibilityLabel={t.close} accessibilityRole="button"><Text style={styles.closeGlyph}>×</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.closeButton} onPress={onScoringGuideClose} hitSlop={4} accessibilityLabel={t.close} accessibilityRole="button"><Text style={styles.closeGlyph}>×</Text></TouchableOpacity>
           </View>
           <Text style={styles.scoringSubtitle}>{t.scoringGuideSubtitle}</Text>
           <Text style={styles.scoringSection}>{t.scoringPointsTitle}</Text>
@@ -230,7 +239,7 @@ export function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji
             <View style={styles.sheetTitleCopy}>
               <Text style={styles.sheetDate} numberOfLines={2}>{selectedDateLabel}</Text>
             </View>
-            <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedDate(null)} accessibilityLabel={t.close} accessibilityRole="button">
+            <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedDate(null)} hitSlop={4} accessibilityLabel={t.close} accessibilityRole="button">
               <Text style={styles.closeGlyph}>×</Text>
             </TouchableOpacity>
           </View>
@@ -260,7 +269,7 @@ function makeStyles(C: AppColors) {
     gridRow: { flexDirection: 'row' }, rail: { width: 22, marginTop: 19, gap: 3 }, dayLabel: { height: 13, color: C.faint, fontSize: 9, lineHeight: 13, fontFamily: FontFamily.semiBold }, months: { height: 19, position: 'relative' }, month: { position: 'absolute', width: 22, color: C.faint, fontSize: 9, lineHeight: 10, fontFamily: FontFamily.semiBold }, weeks: { flexDirection: 'row', gap: 3 }, week: { gap: 3 }, cell: { width: 13, height: 13, borderRadius: 4, overflow: 'hidden' }, emptyCell: {}, todayCell: { borderWidth: 2, borderStyle: 'solid', borderColor: C.primary },
     legend: { marginTop: Spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }, legendLabel: { color: C.faint, fontSize: 10, fontFamily: FontFamily.medium }, legendCell: { width: 11, height: 11, borderRadius: 4 },
     today: { borderTopWidth: 1, borderTopColor: C.line, marginTop: Spacing.md, paddingTop: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: 11 }, todayCopy: { flex: 1 }, todayLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 }, todayLabel: { color: C.ink2, fontSize: 11, fontFamily: FontFamily.extraBold, marginTop: 1 }, todayValue: { color: C.inkDark, fontSize: 18, fontFamily: FontFamily.extraBold },
-    modal: { flex: 1, justifyContent: 'flex-end' }, legendModal: { flex: 1, justifyContent: 'center', padding: Spacing.lg }, backdrop: { ...StyleSheet.absoluteFill, backgroundColor: C.scrim }, sheet: { overflow: 'hidden', backgroundColor: C.surface, borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl, paddingTop: 12, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg, gap: Spacing.sm }, legendSheet: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.xl, padding: Spacing.lg, ...Shadows.medium }, scoringSheetContainer: { maxHeight: '90%', overflow: 'hidden', backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.xl, ...Shadows.medium }, scoringSheet: { flexShrink: 1 }, scoringSheetContent: { padding: Spacing.lg }, legendTitle: { flex: 1, color: C.inkDark, fontSize: 20, lineHeight: 26, fontFamily: FontFamily.extraBold }, legendSubtitle: { color: C.muted, fontSize: 13, lineHeight: 17, fontFamily: FontFamily.regular, marginTop: 2 }, legendDivider: { height: 1, backgroundColor: C.line, marginVertical: Spacing.md }, legendItem: { minHeight: 48, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: C.line, gap: Spacing.sm }, legendItemLast: { borderBottomWidth: 0 }, scoringSubtitle: { color: C.muted, fontSize: 13, lineHeight: 17, fontFamily: FontFamily.regular, marginTop: -Spacing.sm }, scoringSection: { color: C.primary, fontSize: 12, letterSpacing: .4, fontFamily: FontFamily.extraBold, marginTop: Spacing.sm }, scoringDivider: { height: StyleSheet.hairlineWidth, backgroundColor: C.line }, scoringNumber: { width: 26, height: 26, borderRadius: 13, overflow: 'hidden', textAlign: 'center', color: C.onAccent, backgroundColor: C.primary, fontSize: 14, lineHeight: 26, fontFamily: FontFamily.extraBold }, starBadge: { width: 26, height: 26, borderRadius: 13, overflow: 'hidden', textAlign: 'center', color: C.onAccent, backgroundColor: C.starGold, fontSize: 14, lineHeight: 26, fontFamily: FontFamily.extraBold }, scoringCopy: { flex: 1 }, scoringExample: { color: C.muted, fontSize: 13, lineHeight: 17, fontFamily: FontFamily.regular, marginTop: 1 }, legendItemColor: { width: 30, height: 30, borderRadius: Radii.sm }, emptyLegendCell: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.line2 }, legendRange: { color: C.inkDark, fontSize: 15, fontFamily: FontFamily.extraBold }, legendUnit: { color: C.muted, fontSize: 13, fontFamily: FontFamily.medium, marginLeft: -4 }, legendHint: { flex: 1, color: C.faint, fontSize: 12, textAlign: 'right', fontFamily: FontFamily.medium }, legendGridTitle: { color: C.faint, fontSize: 11, lineHeight: 14, fontFamily: FontFamily.extraBold }, legendSample: { flexDirection: 'row', gap: 8, marginTop: Spacing.sm }, legendSampleCell: { width: 34, height: 34, borderRadius: Radii.sm }, legendItemText: { flex: 1, color: C.inkDark, fontSize: 15, fontFamily: FontFamily.extraBold }, legendCloseButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }, legendCloseGlyph: { color: C.muted, fontSize: 22, lineHeight: 24, fontFamily: FontFamily.regular }, rewardGlow: { position: 'absolute', top: 0, left: 0, right: 0 }, grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: C.line2 }, sheetHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md }, sheetTitleCopy: { flex: 1, minHeight: 44, justifyContent: 'center' }, sheetDate: { color: C.inkDark, fontSize: 17, lineHeight: 24, fontFamily: FontFamily.bold, marginTop: 3 }, closeButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }, closeGlyph: { color: C.muted, fontSize: 28, lineHeight: 28, fontFamily: FontFamily.regular }, rewardCopy: { alignItems: 'center', paddingVertical: Spacing.xs }, rewardStars: { fontSize: 50, lineHeight: 54, fontFamily: FontFamily.extraBold, letterSpacing: -2 }, rewardSubtitle: { color: C.muted, fontSize: 14, fontFamily: FontFamily.bold, marginTop: 2 }, pointsCard: { minHeight: 70, borderWidth: 1, borderColor: C.line, borderRadius: Radii.md, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.md }, pointsValue: { color: C.inkDark, fontSize: 24, fontFamily: FontFamily.extraBold, letterSpacing: -.7 }, pointsGoal: { color: C.muted, fontSize:14, fontFamily: FontFamily.bold }, pointsLabel: { color: C.muted, fontSize: 11, fontFamily: FontFamily.extraBold, marginTop: 2 }, dismissButton: { minHeight: 52, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.lg }, dismissButtonText: { color: C.inkDark, fontSize: 16, fontFamily: FontFamily.extraBold },
+    modal: { flex: 1, justifyContent: 'flex-end' }, legendModal: { flex: 1, justifyContent: 'center', padding: Spacing.lg }, backdrop: { ...StyleSheet.absoluteFill, backgroundColor: C.scrim }, sheet: { alignSelf: 'center', width: '100%', maxWidth: 480, overflow: 'hidden', backgroundColor: C.surface, borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl, paddingTop: 12, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg, gap: Spacing.sm }, legendSheet: { alignSelf: 'center', width: '100%', maxWidth: 480, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.xl, padding: Spacing.lg, ...Shadows.medium }, scoringSheetContainer: { alignSelf: 'center', width: '100%', maxWidth: 480, maxHeight: '90%', overflow: 'hidden', backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.xl, ...Shadows.medium }, scoringSheet: { flexShrink: 1 }, scoringSheetContent: { padding: Spacing.lg }, legendTitle: { flex: 1, color: C.inkDark, fontSize: 20, lineHeight: 26, fontFamily: FontFamily.extraBold }, legendSubtitle: { color: C.muted, fontSize: 13, lineHeight: 17, fontFamily: FontFamily.regular, marginTop: 2 }, legendDivider: { height: 1, backgroundColor: C.line, marginVertical: Spacing.md }, legendItem: { minHeight: 48, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: C.line, gap: Spacing.sm }, legendItemLast: { borderBottomWidth: 0 }, scoringSubtitle: { color: C.muted, fontSize: 13, lineHeight: 17, fontFamily: FontFamily.regular, marginTop: -Spacing.sm }, scoringSection: { color: C.primary, fontSize: 12, letterSpacing: .4, fontFamily: FontFamily.extraBold, marginTop: Spacing.sm }, scoringDivider: { height: StyleSheet.hairlineWidth, backgroundColor: C.line }, scoringNumber: { width: 26, height: 26, borderRadius: 13, overflow: 'hidden', textAlign: 'center', color: C.onAccent, backgroundColor: C.primary, fontSize: 14, lineHeight: 26, fontFamily: FontFamily.extraBold }, starBadge: { width: 26, height: 26, borderRadius: 13, overflow: 'hidden', textAlign: 'center', color: C.onAccent, backgroundColor: C.starGold, fontSize: 14, lineHeight: 26, fontFamily: FontFamily.extraBold }, scoringCopy: { flex: 1 }, scoringExample: { color: C.muted, fontSize: 13, lineHeight: 17, fontFamily: FontFamily.regular, marginTop: 1 }, legendItemColor: { width: 30, height: 30, borderRadius: Radii.sm }, emptyLegendCell: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.line2 }, legendRange: { color: C.inkDark, fontSize: 15, fontFamily: FontFamily.extraBold }, legendUnit: { color: C.muted, fontSize: 13, fontFamily: FontFamily.medium, marginLeft: -4 }, legendHint: { flex: 1, color: C.faint, fontSize: 12, textAlign: 'right', fontFamily: FontFamily.medium }, legendGridTitle: { color: C.faint, fontSize: 11, lineHeight: 14, fontFamily: FontFamily.extraBold }, legendSample: { flexDirection: 'row', gap: 8, marginTop: Spacing.sm }, legendSampleCell: { width: 34, height: 34, borderRadius: Radii.sm }, legendItemText: { flex: 1, color: C.inkDark, fontSize: 15, fontFamily: FontFamily.extraBold }, legendCloseButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }, legendCloseGlyph: { color: C.muted, fontSize: 22, lineHeight: 24, fontFamily: FontFamily.regular }, rewardGlow: { position: 'absolute', top: 0, left: 0, right: 0 }, grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: C.line2 }, sheetHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md }, sheetTitleCopy: { flex: 1, minHeight: 44, justifyContent: 'center' }, sheetDate: { color: C.inkDark, fontSize: 17, lineHeight: 24, fontFamily: FontFamily.bold, marginTop: 3 }, closeButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }, closeGlyph: { color: C.muted, fontSize: 28, lineHeight: 28, fontFamily: FontFamily.regular }, rewardCopy: { alignItems: 'center', paddingVertical: Spacing.xs }, rewardStars: { fontSize: 50, lineHeight: 54, fontFamily: FontFamily.extraBold, letterSpacing: -2 }, rewardSubtitle: { color: C.muted, fontSize: 14, fontFamily: FontFamily.bold, marginTop: 2 }, pointsCard: { minHeight: 70, borderWidth: 1, borderColor: C.line, borderRadius: Radii.md, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.md }, pointsValue: { color: C.inkDark, fontSize: 24, fontFamily: FontFamily.extraBold, letterSpacing: -.7 }, pointsGoal: { color: C.muted, fontSize:14, fontFamily: FontFamily.bold }, pointsLabel: { color: C.muted, fontSize: 11, fontFamily: FontFamily.extraBold, marginTop: 2 }, dismissButton: { minHeight: 52, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.lg }, dismissButtonText: { color: C.inkDark, fontSize: 16, fontFamily: FontFamily.extraBold },
   });
 }
 

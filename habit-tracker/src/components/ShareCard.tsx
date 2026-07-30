@@ -7,10 +7,15 @@ import { useTranslations } from '../hooks/useSettings';
 export const CARD_W = 400;
 export const CARD_H = 711;
 
+// Fixed, not theme tokens: this card is exported as a shareable image (Instagram/
+// Zalo story), so it must render identically regardless of the viewer's or even
+// the sharer's own app theme -- a dark-green gradient card is the export's brand,
+// not app chrome that should follow the user's light/dark or accent setting.
 const ACCENT = '#35D68B';
 const INK = '#F1F7F3';
 const MUTED = 'rgba(241,247,243,0.6)';
 const FAINT = 'rgba(241,247,243,0.25)';
+const GOLD = '#E0A93B';
 const CARD_BG: readonly [string, string, string] = ['#123f2e', '#0E3527', '#0B2C20'];
 
 interface ShareCardProps {
@@ -164,7 +169,7 @@ const styles = StyleSheet.create({
   },
   starsRow: {
     fontSize: 15,
-    color: '#E0A93B',
+    color: GOLD,
     fontFamily: FontFamily.semiBold,
     marginTop: 8,
   },

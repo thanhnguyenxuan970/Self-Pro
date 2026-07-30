@@ -51,6 +51,15 @@ export function useAnalyticsPointsData(userId: number, range: 'W' | 'M' | 'Y') {
 /** One SQLite-backed view model for the reference Analytics dashboard. */
 export function useAnalyticsDashboard(userId: number, range: AnalyticsRange) {
   const today = getLocalDate();
+  // buildAnalyticsDashboard only ever reads `logs` after filtering it down to
+  // the current/previous comparison window (see dashboardModel.ts's inWindow
+  // filter) — `daily` is the one array that legitimately needs full history,
+  // for the all-time consistency stat. Bounding the activity_log fetch to a
+  // generous superset of that window avoids pulling a user's entire lifetime
+  // of logs into JS just to filter almost all of them back out.
+  const logsFromDate = range === 'W' ? getLocalDateOffset(-13)
+    : range === 'M' ? getLocalDateOffset(-62)
+    : getLocalDateOffset(-731);
   return useQuery({
     queryKey: ['progress', 'dashboard', userId, range, today],
     queryFn: async (): Promise<AnalyticsDashboard> => {
@@ -61,7 +70,7 @@ export function useAnalyticsDashboard(userId: number, range: AnalyticsRange) {
         db.getAllAsync<AnalyticsLog>(`
           SELECT a.local_date, a.logged_at, a.points_earned, a.stars_delta, tt.name AS task_name
           FROM activity_log a LEFT JOIN task_types tt ON tt.id = a.task_type_id
-          WHERE a.user_id = ? AND a.source = 'TASK'`, [userId]),
+          WHERE a.user_id = ? AND a.source = 'TASK' AND a.local_date >= ?`, [userId, logsFromDate]),
       ]);
       return buildAnalyticsDashboard(daily, logs, range);
     },

@@ -98,6 +98,7 @@ function makeStyles(C: AppColors, bottomInset: number) {
     sheet: {
       backgroundColor: C.surface, borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl,
       paddingHorizontal: Spacing.xl, paddingTop: 12, paddingBottom: Spacing.xl + BOTTOM_TAB_BAR_HEIGHT + bottomInset, alignItems: 'center',
+      alignSelf: 'center', width: '100%', maxWidth: 480,
     },
     grip: { width: 40, height: 5, borderRadius: Radii.pill, backgroundColor: C.line2, marginBottom: Spacing.lg },
     captureArea: { alignItems: 'center', backgroundColor: C.surface },

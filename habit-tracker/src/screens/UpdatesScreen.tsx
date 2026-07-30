@@ -105,7 +105,7 @@ export function NewsScreen() {
       ) : error ? (
         <View style={styles.stateCard}>
           <Text style={styles.stateTitle}>{t.newsLoadFailed}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => void refetch()} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => void refetch()} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t.newsRetry}>
             <Text style={styles.retryText}>{t.newsRetry}</Text>
           </TouchableOpacity>
         </View>

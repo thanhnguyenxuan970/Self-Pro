@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, Platform, StyleSheet, Animated } from 'react-native';
 import { AppColors, FontFamily } from '../config/theme';
 import { useTranslations } from '../hooks/useSettings';
 import { useReduceMotion } from '../hooks/useReduceMotion';
@@ -39,7 +39,11 @@ function useTaskRowAnimation(justLogged: boolean, done: boolean) {
         }
       });
       prevLogged.current = justLogged;
-      return () => anim.stop();
+      return () => {
+        anim.stop();
+        fadeAnim.setValue(1);
+        scaleAnim.setValue(1);
+      };
     }
     prevLogged.current = justLogged;
   }, [justLogged]);
@@ -112,16 +116,16 @@ function TaskRowComponent({ item, done, isBad, isLast, isSelected, selectionMode
 
   return (
     <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
-      <TouchableOpacity
-        style={[styles.task, isLast && styles.taskLast, done && !isBad && styles.taskDone, isSelected && styles.taskSelected]}
+      <Pressable
+        style={({ pressed }) => [styles.task, isLast && styles.taskLast, done && !isBad && styles.taskDone, isSelected && styles.taskSelected, Platform.OS === 'ios' && pressed && styles.taskPressedIOS]}
+        android_ripple={{ color: colors.line2 }}
         onPress={() => onPress(item)}
         onLongPress={() => onLongPress(item)}
         delayLongPress={300}
         disabled={!selectionMode && logPending}
-        activeOpacity={0.7}
         accessibilityLabel={resolveTaskDisplayName(item.name, t, item.is_template === 1)}
-        accessibilityRole="button"
-        accessibilityState={{ checked: done, selected: selectionMode ? isSelected : undefined }}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: selectionMode ? isSelected : done, selected: selectionMode ? isSelected : undefined }}
       >
         <Animated.View style={[styles.check, resolveCheckStyle(styles, selectionMode, isSelected, done, isBad), { transform: [{ scale: checkScaleAnim }] }]}>
           <Text style={styles.checkMark}>{resolveCheckMark(selectionMode, isSelected, done, isBad)}</Text>
@@ -149,7 +153,7 @@ function TaskRowComponent({ item, done, isBad, isLast, isSelected, selectionMode
             {isBad ? `−${item.star_penalty}★` : `+${done ? Math.round(starsEarned ?? 1) : 1}★${done ? ` · +${t.ptsShort(pointsEarned ?? item.base_points)}` : ''}`}
           </Text> : null}
         </View> : null}
-      </TouchableOpacity>
+      </Pressable>
     </Animated.View>
   );
 }
@@ -163,6 +167,7 @@ function makeTaskRowStyles(C: AppColors) {
       paddingVertical: 14, borderBottomWidth: 1, borderColor: C.line,
     },
     taskLast: { borderBottomWidth: 0 },
+    taskPressedIOS: { opacity: 0.7 },
     taskDone: { backgroundColor: C.primarySoft, marginHorizontal: -15, paddingHorizontal: 15 },
     taskSelected: { backgroundColor: C.primarySoft, marginHorizontal: -15, paddingHorizontal: 15 },
     check: {

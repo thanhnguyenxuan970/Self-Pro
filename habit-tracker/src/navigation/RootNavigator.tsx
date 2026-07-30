@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, TouchableOpacity, StyleSheet, StatusBar, Platform, useWindowDimensions } from 'react-native';
+import { View, Pressable, StyleSheet, StatusBar, Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { NavigationContainer } from '@react-navigation/native';
@@ -76,11 +76,11 @@ function FABButton({ onPress, colors }: { onPress: () => void; colors: AppColors
   const t = useTranslations();
   const fabRef = useMemo(() => targetRef('fab'), [targetRef]);
   return (
-    <TouchableOpacity style={fabStyles.container} onPress={onPress} activeOpacity={0.85} accessibilityLabel={t.addActivity} accessibilityRole="button">
+    <Pressable style={fabStyles.container} onPress={onPress} android_ripple={{ color: colors.primaryPress, borderless: true, radius: 29 }} accessibilityLabel={t.addActivity} accessibilityRole="button">
       <View ref={fabRef} collapsable={false} style={[fabStyles.button, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
         <IconPlus />
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 

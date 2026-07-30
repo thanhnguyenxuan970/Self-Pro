@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useAnalyticsDashboard, useAnalyticsPointsData, useStreakCount,
   useRecentActivityLogs, useDeleteActivityLogs, useWeeklyConsistency, useTopActivities, useAllTimeStats,
@@ -61,13 +62,14 @@ const ProgressLogRow = React.memo(function ProgressLogRow({ item, isLast, select
   return (
     <TouchableOpacity
       style={[styles.logRow, isLast && styles.logRowLast, selected && styles.logRowSelected]}
-      onPress={() => selectionMode ? toggleSelect(item.id) : undefined}
+      onPress={selectionMode ? () => toggleSelect(item.id) : undefined}
       onLongPress={() => enterSelection(item.id)}
       delayLongPress={300}
       activeOpacity={0.7}
       accessibilityRole={selectionMode ? 'checkbox' : undefined}
       accessibilityLabel={name}
       accessibilityState={selectionMode ? { checked: selected } : undefined}
+      accessibilityHint={selectionMode ? undefined : t.progressLogRowHint}
     >
       {selectionMode && (
         <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
@@ -261,6 +263,7 @@ export function ProgressScreen() {
   const [language] = useLanguage();
   const t = useTranslations();
   const reduceMotion = useReduceMotion();
+  const queryClient = useQueryClient();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   // Re-trigger entrance animations every time the screen gains focus (tab
@@ -268,7 +271,10 @@ export function ProgressScreen() {
   // Bumping focusKey resets every AnimatedFill via its animKey dependency.
   const [focusKey, setFocusKey] = useState(0);
   useFocusEffect(
-    useCallback(() => { setFocusKey(k => k + 1); }, []),
+    useCallback(() => {
+      setFocusKey(k => k + 1);
+      queryClient.invalidateQueries({ queryKey: ['progress', 'dashboard', userId] });
+    }, [queryClient, userId]),
   );
 
   const [range, setRange] = useState<Range>('W');
@@ -317,6 +323,7 @@ export function ProgressScreen() {
     ? Math.min(1, Math.max(0, ((rankData?.currentStars ?? 0) - rankFloor) / Math.max(1, nextTier.stars_required - rankFloor)))
     : 1;
   const rankName = getRankConfigByTierOrder(currentTier?.tier_order ?? 1).nameVi;
+  const nextRankName = nextTier ? getRankConfigByTierOrder(nextTier.tier_order).nameVi : '';
   const displayCurrentStars = Math.round(rankData?.currentStars ?? 0);
   const isEmpty = allTimeStats?.totalActivities === 0;
 
@@ -398,7 +405,12 @@ export function ProgressScreen() {
             <View><Text style={styles.rankName}>{rankName}</Text><Text style={styles.rankStars}>{displayCurrentStars} ★</Text></View>
             <Text style={styles.rankNext}>{nextTier ? t.rankStarsToNext(Math.round(Math.max(0, nextTier.stars_required - (rankData?.currentStars ?? 0)))) : t.rankMaxed}</Text>
           </View>
-          <View style={styles.rankTrack}>
+          <View
+            style={styles.rankTrack}
+            accessibilityRole="progressbar"
+            accessibilityLabel={nextTier ? t.rankProgress(displayCurrentStars, Math.round(nextTier.stars_required), nextRankName) : t.maxRank}
+            accessibilityValue={{ min: 0, max: 100, now: Math.round(rankProgress * 100) }}
+          >
             <AnimatedFill axis="width" to={Math.round(rankProgress * 100)} duration={900} animKey={`${Math.round(rankProgress * 100)}-${focusKey}`} reduceMotion={reduceMotion} style={styles.rankFill} />
           </View>
         </View>
@@ -472,7 +484,7 @@ function makeStyles(C: AppColors) {
     dashboardSubtitle: { color: C.muted, fontFamily: FontFamily.bold, fontSize: 11, marginTop: -2 },
     dashboardWrap: { marginHorizontal: Spacing.lg },
 
-    segbar: { backgroundColor: C.surface2, borderRadius: Radii.pill, flexDirection: 'row', padding: 4, width: 210 },
+    segbar: { backgroundColor: C.surface2, borderRadius: Radii.pill, flexDirection: 'row', padding: 4, alignSelf: 'center', maxWidth: 210 },
     segBtn: {
       flex: 1, minHeight: 36, justifyContent: 'center', borderRadius: Radii.pill, alignItems: 'center',
     },
@@ -481,7 +493,7 @@ function makeStyles(C: AppColors) {
       ...Shadows.light,
     },
     segTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.muted },
-    segTxtActive: { color: C.inkDark },
+    segTxtActive: { color: C.onAccent },
 
     card: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,
@@ -607,7 +619,7 @@ function makeStyles(C: AppColors) {
       gap: 10,
     },
     topRowLast: { borderBottomWidth: 0 },
-    topName: { width: 90, fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
+    topName: { minWidth: 70, maxWidth: 130, flexShrink: 1, fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
     topBarTrack: {
       flex: 1,
       height: 6,

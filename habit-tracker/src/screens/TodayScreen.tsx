@@ -127,27 +127,29 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.modalBg}>
         <Animated.View style={[styles.modalBox, { opacity: boxFadeAnim, transform: [{ scale: boxScaleAnim }] }]}>
-          <Text style={styles.modalTitle}>{labels.taskDisplayName}</Text>
-          <Text style={styles.modalSub}>{labels.addActivityHowLong}</Text>
-          {!customDuration ? (
-            <DurationPresetChips
-              colors={colors}
-              disabled={logPending}
-              onSelectPreset={onLog}
-              onCustom={() => setCustomDuration(true)}
-              customLabel={labels.durationCustom}
-            />
-          ) : (
-            <>
-              <DurationClockInput value={clock} onChange={setClock} colors={colors} />
-              <TouchableOpacity style={styles.btn} onPress={handleCustomLog} disabled={logPending}>
-                <Text style={styles.btnText}>{labels.logBtn}</Text>
-              </TouchableOpacity>
-            </>
-          )}
-          <TouchableOpacity onPress={onClose}>
-            <Text style={styles.cancel}>{labels.cancel}</Text>
-          </TouchableOpacity>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <Text style={styles.modalTitle}>{labels.taskDisplayName}</Text>
+            <Text style={styles.modalSub}>{labels.addActivityHowLong}</Text>
+            {!customDuration ? (
+              <DurationPresetChips
+                colors={colors}
+                disabled={logPending}
+                onSelectPreset={onLog}
+                onCustom={() => setCustomDuration(true)}
+                customLabel={labels.durationCustom}
+              />
+            ) : (
+              <>
+                <DurationClockInput value={clock} onChange={setClock} colors={colors} />
+                <TouchableOpacity style={styles.btn} onPress={handleCustomLog} disabled={logPending} accessibilityRole="button" accessibilityLabel={labels.logBtn}>
+                  <Text style={styles.btnText}>{labels.logBtn}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel={labels.cancel}>
+              <Text style={styles.cancel}>{labels.cancel}</Text>
+            </TouchableOpacity>
+          </ScrollView>
         </Animated.View>
       </View>
       </KeyboardAvoidingView>
@@ -169,7 +171,7 @@ function FabArrow({ color, reduceMotion }: { color: string; reduceMotion: boolea
     return () => anim.stop();
   }, [bounce, reduceMotion]);
   return (
-    <Animated.Text style={{ fontSize: 22, color, marginTop: 18, transform: [{ translateY: bounce }] }}>
+    <Animated.Text importantForAccessibility="no" style={{ fontSize: 22, color, marginTop: 18, transform: [{ translateY: bounce }] }}>
       ↓
     </Animated.Text>
   );
@@ -261,13 +263,14 @@ export function TodayScreen() {
     return () => { active = false; };
   }, [backfillNudgeKey]);
 
+  const activeDates = useMemo(() => heatmapDays.map(day => day.local_date), [heatmapDays]);
   const backfillNudge = useMemo(() => getHomeBackfillNudge({
     today: getLocalDate(),
     weekStart: getWeekStart(),
-    activeDates: heatmapDays.map(day => day.local_date),
+    activeDates,
     freezeDates: backfillStatus?.freezeDates ?? new Set<string>(),
     backfillsUsedThisWeek: backfillStatus?.backfillsUsedThisWeek ?? 0,
-  }), [backfillStatus, heatmapDays]);
+  }), [backfillStatus, activeDates]);
 
   function dismissBackfillNudge() {
     setBackfillNudgeDismissed(true);
@@ -459,7 +462,7 @@ export function TodayScreen() {
         tierName={rankDisplayName}
       />
       <View style={styles.topbar}>
-        <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile' as never)} activeOpacity={0.85} hitSlop={3} accessibilityLabel={t.openProfile} accessibilityRole="button">
+        <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile' as never)} activeOpacity={0.85} hitSlop={4} accessibilityLabel={t.openProfile} accessibilityRole="button">
           <Text style={styles.avatarText}>{avatarInitial}</Text>
         </TouchableOpacity>
         <View style={styles.greet}>
@@ -471,13 +474,14 @@ export function TodayScreen() {
             style={styles.iconBtn}
             onPress={() => navigation.navigate('News' as never)}
             activeOpacity={0.7}
-            accessibilityLabel={t.openNews}
+            hitSlop={4}
+            accessibilityLabel={unreadNewsCount > 0 ? t.openNewsUnread(unreadNewsCount) : t.openNews}
             accessibilityRole="button"
           >
             <Text style={styles.iconGlyph}>🔔</Text>
             {unreadNewsCount > 0 ? <View style={styles.newsDot} /> : null}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('Settings' as never)} activeOpacity={0.7} accessibilityLabel={t.openSettings} accessibilityRole="button">
+          <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('Settings' as never)} activeOpacity={0.7} hitSlop={4} accessibilityLabel={t.openSettings} accessibilityRole="button">
             <Text style={styles.iconGlyph}>⚙️</Text>
           </TouchableOpacity>
         </View>
@@ -487,7 +491,7 @@ export function TodayScreen() {
 
         {!backfillNudgeDismissed && <HomeBackfillNudge
           nudge={backfillNudge}
-          activeDates={heatmapDays.map(day => day.local_date)}
+          activeDates={activeDates}
           today={getLocalDate()}
           weekStart={getWeekStart()}
           colors={colors}
@@ -534,13 +538,19 @@ export function TodayScreen() {
           {!selectionMode && <TouchableOpacity style={styles.scoringGuideButton} onPress={() => setShowScoringGuide(true)} hitSlop={15} accessibilityRole="button" accessibilityLabel={t.scoringGuideTitle}><Text style={styles.scoringGuideText}>?</Text></TouchableOpacity>}
           {selectionMode && (
             <View style={styles.selActions}>
-              <TouchableOpacity onPress={selectAll} style={styles.selBtn}>
+              <TouchableOpacity onPress={selectAll} style={styles.selBtn} accessibilityRole="button" accessibilityLabel={t.all}>
                 <Text style={styles.selBtnTxt}>{t.all}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleDeleteSelected} style={[styles.selBtn, styles.selDeleteBtn]} disabled={selectedIds.size === 0 || archiveTask.isPending}>
+              <TouchableOpacity
+                onPress={handleDeleteSelected}
+                style={[styles.selBtn, styles.selDeleteBtn]}
+                disabled={selectedIds.size === 0 || archiveTask.isPending}
+                accessibilityRole="button"
+                accessibilityLabel={t.deleteCount(selectedIds.size)}
+              >
                 <Text style={styles.selDeleteTxt}>{t.deleteCount(selectedIds.size)}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={cancelSelection} style={styles.selBtn}>
+              <TouchableOpacity onPress={cancelSelection} style={styles.selBtn} accessibilityRole="button" accessibilityLabel={t.cancel}>
                 <Text style={styles.selBtnTxt}>{t.cancel}</Text>
               </TouchableOpacity>
             </View>
@@ -674,6 +684,7 @@ function makeStyles(C: AppColors) {
     scoringGuideText: { color: C.muted, fontSize: 11, lineHeight: 13, fontFamily: FontFamily.extraBold },
     selActions: { flexDirection: 'row', gap: 8, marginRight: Spacing.lg, marginTop: 20 },
     selBtn: {
+      minHeight: 44, justifyContent: 'center',
       paddingHorizontal: 10, paddingVertical: 10,
       backgroundColor: C.surface2, borderRadius: Radii.sm,
       borderWidth: 1, borderColor: C.line2,
@@ -711,7 +722,7 @@ function makeStyles(C: AppColors) {
     modalBg: { flex: 1, backgroundColor: C.scrim, justifyContent: 'center', paddingHorizontal: Spacing.lg },
     modalBox: {
       backgroundColor: C.surface, padding: Spacing.xl,
-      borderRadius: Radii.xl,
+      borderRadius: Radii.xl, maxHeight: '80%', alignSelf: 'center', width: '100%', maxWidth: 480,
     },
     modalTitle: { fontSize: 19, fontFamily: FontFamily.extraBold, color: C.inkDark, marginBottom: 4 },
     modalSub: { fontSize: 13, color: C.muted, marginBottom: Spacing.md },
