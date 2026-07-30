@@ -116,28 +116,35 @@ function TaskRowComponent({ item, done, isBad, isLast, isSelected, selectionMode
 
   return (
     <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
-      <Pressable
-        style={({ pressed }) => [styles.task, isLast && styles.taskLast, done && !isBad && styles.taskDone, isSelected && styles.taskSelected, Platform.OS === 'ios' && pressed && styles.taskPressedIOS]}
-        android_ripple={{ color: colors.line2 }}
-        onPress={() => onPress(item)}
-        onLongPress={() => onLongPress(item)}
-        delayLongPress={300}
-        disabled={!selectionMode && logPending}
-        accessibilityLabel={resolveTaskDisplayName(item.name, t, item.is_template === 1)}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: selectionMode ? isSelected : done, selected: selectionMode ? isSelected : undefined }}
-      >
-        <Animated.View style={[styles.check, resolveCheckStyle(styles, selectionMode, isSelected, done, isBad), { transform: [{ scale: checkScaleAnim }] }]}>
-          <Text style={styles.checkMark}>{resolveCheckMark(selectionMode, isSelected, done, isBad)}</Text>
-        </Animated.View>
-        <View style={styles.tBody}>
-          <View style={styles.titleRow}>
-            <Text style={[styles.tName, done && styles.tNameDone]} numberOfLines={1}>{resolveTaskDisplayName(item.name, t, item.is_template === 1)}</Text>
-            {item.icon ? <Text style={styles.titleIcon}>{item.icon}</Text> : null}
+      {/* The edit button must sit outside the checkbox Pressable's subtree: an
+          accessible/role-bearing parent collapses all descendants into one
+          TalkBack/VoiceOver node, which made the nested edit TouchableOpacity
+          completely unreachable by screen reader (touch-only users never
+          noticed since the inner touchable still claims the raw tap first). */}
+      <View style={[styles.task, isLast && styles.taskLast, done && !isBad && styles.taskDone, isSelected && styles.taskSelected]}>
+        <Pressable
+          style={({ pressed }) => [styles.taskPress, Platform.OS === 'ios' && pressed && styles.taskPressedIOS]}
+          android_ripple={{ color: colors.line2 }}
+          onPress={() => onPress(item)}
+          onLongPress={() => onLongPress(item)}
+          delayLongPress={300}
+          disabled={!selectionMode && logPending}
+          accessibilityLabel={resolveTaskDisplayName(item.name, t, item.is_template === 1)}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: selectionMode ? isSelected : done, selected: selectionMode ? isSelected : undefined }}
+        >
+          <Animated.View style={[styles.check, resolveCheckStyle(styles, selectionMode, isSelected, done, isBad), { transform: [{ scale: checkScaleAnim }] }]}>
+            <Text style={styles.checkMark}>{resolveCheckMark(selectionMode, isSelected, done, isBad)}</Text>
+          </Animated.View>
+          <View style={styles.tBody}>
+            <View style={styles.titleRow}>
+              <Text style={[styles.tName, done && styles.tNameDone]} numberOfLines={1}>{resolveTaskDisplayName(item.name, t, item.is_template === 1)}</Text>
+              {item.icon ? <Text style={styles.titleIcon}>{item.icon}</Text> : null}
+            </View>
+            <TaskMetaRow item={item} done={done} totalDurationMin={totalDurationMin}
+              styles={styles} />
           </View>
-          <TaskMetaRow item={item} done={done} totalDurationMin={totalDurationMin}
-            styles={styles} />
-        </View>
+        </Pressable>
         {(done || (!selectionMode && onEdit)) ? <View style={styles.rightCol}>
           {!selectionMode && onEdit ? (
             <TouchableOpacity
@@ -153,7 +160,7 @@ function TaskRowComponent({ item, done, isBad, isLast, isSelected, selectionMode
             {isBad ? `−${item.star_penalty}★` : `+${done ? Math.round(starsEarned ?? 1) : 1}★${done ? ` · +${t.ptsShort(pointsEarned ?? item.base_points)}` : ''}`}
           </Text> : null}
         </View> : null}
-      </Pressable>
+      </View>
     </Animated.View>
   );
 }
@@ -165,6 +172,9 @@ function makeTaskRowStyles(C: AppColors) {
     task: {
       flexDirection: 'row', alignItems: 'center', gap: 13,
       paddingVertical: 14, borderBottomWidth: 1, borderColor: C.line,
+    },
+    taskPress: {
+      flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 13,
     },
     taskLast: { borderBottomWidth: 0 },
     taskPressedIOS: { opacity: 0.7 },
