@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle, Path, Polygon } from 'react-native-svg';
 import { Radii, AppColors, FontFamily } from '../config/theme';
@@ -17,7 +17,7 @@ const CC = 50;
 export function RankEmptyState({ currentStars, unlockStars = 5, nextRankName = 'Delulu' }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
-  const s = makeStyles(C);
+  const s = useMemo(() => makeStyles(C), [C]);
   const remaining = Math.round(Math.max(0, unlockStars - currentStars));
   const pct = Math.max(0, Math.min(1, currentStars / unlockStars));
   const displayStars = Math.round(currentStars);

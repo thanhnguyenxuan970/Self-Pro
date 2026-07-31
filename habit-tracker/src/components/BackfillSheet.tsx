@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCreateTask } from '../queries/useTasks';
 import { useUpdateTaskName } from '../queries/useTasks';
@@ -66,8 +67,8 @@ const TaskPickerList = React.memo(function TaskPickerList({ tasks, selectedTaskI
             onPress={() => onSelect(on ? null : task.id)} activeOpacity={0.7}
             accessibilityRole="button" accessibilityState={{ selected: on }}>
             <Text style={styles.taskIcon}>{task.icon ?? '⭐'}</Text>
-            <Text style={[styles.taskName, on && { color: colors.primary, fontFamily: FontFamily.semiBold }]} numberOfLines={1}>{task.name}</Text>
-            {on && <Text style={[styles.checkMark, { color: colors.primary }]}>✓</Text>}
+            <Text style={[styles.taskName, on && { color: colors.primaryText, fontFamily: FontFamily.semiBold }]} numberOfLines={1}>{task.name}</Text>
+            {on && <Text style={[styles.checkMark, { color: colors.primaryText }]}>✓</Text>}
           </TouchableOpacity>
         );
       })}
@@ -103,7 +104,7 @@ const EntryList = React.memo(function EntryList({ entries, editingEntryId, locke
           <View key={entry.id} style={[styles.entryRow, isEditing && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
             <Text style={styles.taskIcon}>{entry.icon ?? '⭐'}</Text>
             <View style={styles.entryTextCol}>
-              <Text style={[styles.entryName, isEditing && { color: colors.primary, fontFamily: FontFamily.semiBold }]} numberOfLines={1}>{entry.name}</Text>
+              <Text style={[styles.entryName, isEditing && { color: colors.primaryText, fontFamily: FontFamily.semiBold }]} numberOfLines={1}>{entry.name}</Text>
               <Text style={styles.entryMeta}>{meta}</Text>
             </View>
             {!locked && (
@@ -116,11 +117,11 @@ const EntryList = React.memo(function EntryList({ entries, editingEntryId, locke
                 <TouchableOpacity onPress={() => onRemove(entry.id)} activeOpacity={0.7}
                   accessibilityRole="button" accessibilityLabel={`${removeLabel}: ${entry.name}`}
                   style={styles.entryActionBtn}>
-                  <Text style={[styles.entryActionText, { color: colors.danger }]}>✕</Text>
+                  <Text style={[styles.entryActionText, { color: colors.dangerText }]}>✕</Text>
                 </TouchableOpacity>
               </View>
             )}
-            {locked && <Text style={[styles.checkMark, { color: colors.primary }]}>✓</Text>}
+            {locked && <Text style={[styles.checkMark, { color: colors.primaryText }]}>✓</Text>}
           </View>
         );
       })}
@@ -139,6 +140,7 @@ interface Props {
 
 export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, onMilestone, onClose }: Props) {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
   const t = useTranslations();
   const { bottom } = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors, bottom), [colors, bottom]);
@@ -265,7 +267,11 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   const ctaDisabled = entries.length === 0 || isPending || locked;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+    // Own Modal hides itself while a child sheet (AddActivitySheet/EditActivityModal, each a
+    // Modal of its own) is up -- RN doesn't guarantee stacking order between two simultaneously
+    // visible Modals on Android, so only one of the three is ever actually shown at once. Local
+    // draft state (entries, etc.) survives since this just toggles native visibility, not unmount.
+    <Modal visible={visible && !showAddActivity && !editTask} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel={t.close} />
         <View style={styles.sheet}>
@@ -277,7 +283,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
               <Text style={styles.dateLabel}>{formatDate(date)}</Text>
             </View>
             <View style={[styles.quotaBadge, quotaExceeded && { backgroundColor: colors.dangerSoft }]}>
-              <Text style={[styles.quotaText, quotaExceeded && { color: colors.danger }]}>
+              <Text style={[styles.quotaText, quotaExceeded && { color: colors.dangerText }]}>
                 {t.backfillQuota(remaining)}
               </Text>
             </View>
@@ -356,7 +362,7 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
                     accessibilityLabel={t.backfillConfirm}
                   >
                     {isPending
-                      ? <ActivityIndicator color={colors.white} />
+                      ? <ActivityIndicator color={colors.onAccent} />
                       : <Text style={styles.ctaText}>{t.backfillConfirm}</Text>
                     }
                   </TouchableOpacity>
@@ -435,7 +441,7 @@ function makeStyles(colors: AppColors, bottomInset: number) {
     quotaText: {
       fontSize: 12,
       fontFamily: FontFamily.semiBold,
-      color: colors.primary,
+      color: colors.primaryText,
     },
     quotaExhausted: {
       paddingVertical: 32,
@@ -465,12 +471,7 @@ function makeStyles(colors: AppColors, bottomInset: number) {
     },
     suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
     suggestion: { minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: colors.primarySoft, borderRadius: Radii.pill },
-    suggestionText: { color: colors.primary, fontFamily: FontFamily.semiBold, fontSize: 12 },
-    timingRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-    timingButton: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line2, borderRadius: Radii.sm },
-    timingActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-    timingText: { color: colors.ink2, fontFamily: FontFamily.semiBold, fontSize: 12 },
-    timingActiveText: { color: colors.primary },
+    suggestionText: { color: colors.primaryText, fontFamily: FontFamily.semiBold, fontSize: 12 },
     emptyDraftHint: {
       fontSize: 12,
       fontFamily: FontFamily.regular,
@@ -504,25 +505,6 @@ function makeStyles(colors: AppColors, bottomInset: number) {
       fontFamily: FontFamily.bold,
       marginLeft: 8,
     },
-    durationRow: {
-      flexDirection: 'row',
-      gap: 10,
-      marginTop: 12,
-      marginBottom: 4,
-    },
-    durChip: {
-      flex: 1,
-      paddingVertical: 16,
-      borderRadius: Radii.sm,
-      borderWidth: 1,
-      borderColor: colors.line,
-      alignItems: 'center',
-    },
-    durChipText: {
-      fontSize: 13,
-      fontFamily: FontFamily.regular,
-      color: colors.ink2,
-    },
     durationInput: {
       marginTop: 10, minHeight: 44, paddingHorizontal: 12,
       borderRadius: Radii.sm, borderWidth: 1, borderColor: colors.line,
@@ -536,13 +518,10 @@ function makeStyles(colors: AppColors, bottomInset: number) {
       paddingVertical: 12,
       alignItems: 'center',
     },
-    addBtnDisabled: {
-      opacity: 0.4,
-    },
     addBtnText: {
       fontSize: 14,
       fontFamily: FontFamily.semiBold,
-      color: colors.primary,
+      color: colors.primaryText,
     },
     entryList: {
       marginBottom: 4,
@@ -598,7 +577,7 @@ function makeStyles(colors: AppColors, bottomInset: number) {
     lockedBannerText: {
       fontSize: 13,
       fontFamily: FontFamily.semiBold,
-      color: colors.primary,
+      color: colors.primaryText,
     },
     cta: {
       marginTop: 16,
@@ -613,7 +592,7 @@ function makeStyles(colors: AppColors, bottomInset: number) {
     ctaText: {
       fontSize: 15,
       fontFamily: FontFamily.bold,
-      color: colors.white,
+      color: colors.onAccent,
     },
   });
 }

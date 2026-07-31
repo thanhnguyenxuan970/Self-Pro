@@ -123,7 +123,7 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
   }
 
   return (
-    <Modal visible={!!task} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+    <Modal visible={!!task} transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.modalBg}>
         <Animated.View style={[styles.modalBox, { opacity: boxFadeAnim, transform: [{ scale: boxScaleAnim }] }]}>
@@ -207,6 +207,7 @@ export function TodayScreen() {
   const [levelUpChecked, setLevelUpChecked] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
   const [showScoringGuide, setShowScoringGuide] = useState(false);
+  const closeScoringGuide = useCallback(() => setShowScoringGuide(false), []);
   const [backfillDate, setBackfillDate] = useState<string | null>(null);
   const [backfillNudgeDismissed, setBackfillNudgeDismissed] = useState(false);
 
@@ -387,7 +388,7 @@ export function TodayScreen() {
         text: t.delete, style: 'destructive',
         onPress: async () => {
           try {
-            for (const id of ids) await archiveTask.mutateAsync(id);
+            await archiveTask.mutateAsync(ids);
             cancelSelection();
           } catch { Alert.alert(t.error, t.cantLog); }
         },
@@ -487,7 +488,7 @@ export function TodayScreen() {
         </View>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
-        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} weeklyStars={weeklyStars} rankName={rankDisplayName} streakRef={streakTutorialRef} scoringGuideVisible={showScoringGuide} onScoringGuideClose={() => setShowScoringGuide(false)} />
+        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} weeklyStars={weeklyStars} rankName={rankDisplayName} streakRef={streakTutorialRef} scoringGuideVisible={showScoringGuide} onScoringGuideClose={closeScoringGuide} />
 
         {!backfillNudgeDismissed && <HomeBackfillNudge
           nudge={backfillNudge}
@@ -645,7 +646,7 @@ function makeStyles(C: AppColors) {
       justifyContent: 'center', alignItems: 'center',
     },
     avatarText: { fontFamily: FontFamily.extraBold, color: C.primaryPress, fontSize: 16 },
-    greet: { flex: 1 },
+    greet: { flex: 1, minWidth: 0 },
     hi: { fontSize: 25, fontFamily: FontFamily.extraBold, letterSpacing: -0.7, color: C.inkDark },
     date: { fontSize: 12, fontFamily: FontFamily.bold, color: C.ink2, marginBottom: 1 },
     topbarActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -660,7 +661,7 @@ function makeStyles(C: AppColors) {
     newsDot: {
       position: 'absolute', top: 8, right: 8,
       width: 10, height: 10, borderRadius: 5,
-      backgroundColor: C.danger, borderWidth: 2, borderColor: C.bgBase,
+      backgroundColor: C.primary, borderWidth: 2, borderColor: C.bgBase,
     },
 
     challengeEntryCard: {
@@ -691,7 +692,7 @@ function makeStyles(C: AppColors) {
     },
     selBtnTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.inkDark },
     selDeleteBtn: { borderColor: C.danger, backgroundColor: C.dangerSoft },
-    selDeleteTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.danger },
+    selDeleteTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.dangerText },
 
     taskCard: {
       marginHorizontal: Spacing.lg,
@@ -709,7 +710,7 @@ function makeStyles(C: AppColors) {
       flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14,
     },
     suggestionIcon: { marginRight: 10, fontSize: 13 },
-    suggestionChipText: { flex: 1, color: C.primary, fontSize: 13, fontFamily: FontFamily.semiBold },
+    suggestionChipText: { flex: 1, color: C.primaryText, fontSize: 13, fontFamily: FontFamily.semiBold },
     suggestionDismiss: { width: 48, height: 44, alignItems: 'center', justifyContent: 'center' },
     suggestionDismissText: { color: C.muted, fontSize: 14, fontFamily: FontFamily.bold },
 
@@ -717,7 +718,7 @@ function makeStyles(C: AppColors) {
     emptyEmoji: { fontSize: 42, marginBottom: 8, opacity: 0.6 },
     emptyTitle: { fontSize: 14, fontFamily: FontFamily.bold, color: C.ink2 },
     emptyCtaPill: { marginTop: 12, backgroundColor: C.primarySoft, borderRadius: Radii.pill, paddingHorizontal: 16, paddingVertical: 8 },
-    emptyCtaText: { fontSize: 13, color: C.primary, fontFamily: FontFamily.semiBold },
+    emptyCtaText: { fontSize: 13, color: C.primaryText, fontFamily: FontFamily.semiBold },
 
     modalBg: { flex: 1, backgroundColor: C.scrim, justifyContent: 'center', paddingHorizontal: Spacing.lg },
     modalBox: {
@@ -727,7 +728,7 @@ function makeStyles(C: AppColors) {
     modalTitle: { fontSize: 19, fontFamily: FontFamily.extraBold, color: C.inkDark, marginBottom: 4 },
     modalSub: { fontSize: 13, color: C.muted, marginBottom: Spacing.md },
     btn: { backgroundColor: C.primary, padding: 15, borderRadius: Radii.md, alignItems: 'center', marginBottom: 8 },
-    btnText: { color: C.white, fontSize: 15, fontFamily: FontFamily.bold },
+    btnText: { color: C.onAccent, fontSize: 15, fontFamily: FontFamily.bold },
     cancel: { textAlign: 'center', color: C.muted, padding: 8 },
   });
 }

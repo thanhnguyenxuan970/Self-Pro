@@ -49,7 +49,7 @@ function dayCellStates(startDate: string, targetDays: number, log: { date: strin
   return cells;
 }
 
-export function ChallengeDayGrid({ targetDays, startDate, log, today }: Props) {
+export const ChallengeDayGrid = React.memo(function ChallengeDayGrid({ targetDays, startDate, log, today }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -96,14 +96,14 @@ export function ChallengeDayGrid({ targetDays, startDate, log, today }: Props) {
             accessibilityLabel={`${cell.label}: ${stateLabel[cell.state]}`}
           >
             {glyph
-              ? <Text style={[styles.cellGlyphMain, onTint && { color: C.white }]}>{glyph}</Text>
+              ? <Text style={[styles.cellGlyphMain, onTint && { color: C.onAccent }]}>{glyph}</Text>
               : <Text style={styles.cellText}>{cell.label}</Text>}
           </View>
         );
       })}
     </View>
   );
-}
+});
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
@@ -123,6 +123,6 @@ function makeStyles(C: AppColors) {
       position: 'relative',
     },
     cellText: { fontSize: 14, fontFamily: FontFamily.bold, color: C.faint },
-    cellGlyphMain: { fontSize: 18, lineHeight: 22, color: C.primary },
+    cellGlyphMain: { fontSize: 18, lineHeight: 22, color: C.primaryText },
   });
 }

@@ -414,7 +414,7 @@ export function useLogTask(userId: number) {
           syncUserStreak(user.email, data.newStreak),
           syncCurrentUserToSupabase(),
         ]))
-        .catch(error => console.warn('[sync] activity log sync failed:', error));
+        .catch(error => { if (__DEV__) console.warn('[sync] activity log sync failed:', error); });
     },
   });
 }
@@ -481,9 +481,9 @@ export function useUnlogTask(userId: number) {
         const totalStarsDelta = taskStars + bonusStars;
         const newWeeklyStars = Math.max(0, (weeklyRow?.weekly_stars ?? 0) - totalStarsDelta);
 
-        for (const row of taskRows) {
-          await db.runAsync(`DELETE FROM activity_log WHERE id = ?`, [row.id]);
-        }
+        // Batched into one query instead of one round-trip per row.
+        const rowPlaceholders = taskRows.map(() => '?').join(',');
+        await db.runAsync(`DELETE FROM activity_log WHERE id IN (${rowPlaceholders})`, taskRows.map(row => row.id));
 
         await revertDailySummaryUnlog(db, userId, today, taskPoints, remainingBonusStars, remainingPoints);
 

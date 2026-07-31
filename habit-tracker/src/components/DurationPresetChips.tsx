@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import { AppColors, FontFamily, Radii, Spacing } from '../config/theme';
 import { useTranslations } from '../hooks/useSettings';
@@ -18,7 +18,7 @@ interface DurationPresetChipsProps {
  *  sheet and the today-screen duration modal. */
 export function DurationPresetChips({ colors, disabled, onSelectPreset, onCustom, customLabel, rowStyle }: DurationPresetChipsProps) {
   const t = useTranslations();
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={[styles.presetChipsRow, rowStyle]}>
       {PRESETS.map(p => (
@@ -56,7 +56,7 @@ function makeStyles(C: AppColors) {
       alignItems: 'center', justifyContent: 'center',
     },
     presetChipCustom: { backgroundColor: C.surface2, borderWidth: 1.5, borderColor: C.line2 },
-    presetChipText: { color: C.white, fontSize: 16, fontFamily: FontFamily.extraBold },
+    presetChipText: { color: C.onAccent, fontSize: 16, fontFamily: FontFamily.extraBold },
     presetChipCustomText: { color: C.inkDark },
   });
 }

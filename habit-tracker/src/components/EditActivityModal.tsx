@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { AppColors, FontFamily, Radii, Spacing, Typography } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import type { Task } from './TaskRow';
 import { DurationClockInput } from './DurationClockInput';
 import { clockFromMinutes, clockMinutes } from '../utils/durationClock';
@@ -19,6 +20,7 @@ type Props = {
 
 export function EditActivityModal({ visible, task, totalDurationMin, onSave, onClose }: Props) {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -56,7 +58,7 @@ export function EditActivityModal({ visible, task, totalDurationMin, onSave, onC
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+    <Modal visible={visible} transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView
         style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -80,10 +82,10 @@ export function EditActivityModal({ visible, task, totalDurationMin, onSave, onC
           <Text style={styles.label}>{t.editActivityTypeLabel}</Text>
           <View style={styles.typeRow}>
             <TouchableOpacity style={[styles.typeBtn, isTimeBased && styles.typeBtnSelected, isTimeBased && { backgroundColor: colors.primary }]} onPress={() => selectType(true)} accessibilityRole="button" accessibilityState={{ selected: isTimeBased }}>
-              <Text style={[styles.typeText, isTimeBased && { color: colors.white }]}>{t.editTimed}</Text>
+              <Text style={[styles.typeText, isTimeBased && { color: colors.onAccent }]}>{t.editTimed}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.typeBtn, !isTimeBased && styles.typeBtnSelected, !isTimeBased && { backgroundColor: colors.primary }]} onPress={() => selectType(false)} accessibilityRole="button" accessibilityState={{ selected: !isTimeBased }}>
-              <Text style={[styles.typeText, !isTimeBased && { color: colors.white }]}>{t.editNoTimer}</Text>
+              <Text style={[styles.typeText, !isTimeBased && { color: colors.onAccent }]}>{t.editNoTimer}</Text>
             </TouchableOpacity>
           </View>
 
@@ -99,7 +101,7 @@ export function EditActivityModal({ visible, task, totalDurationMin, onSave, onC
               <Text style={[styles.btnText, { color: colors.muted }]}>{t.cancel}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.btn, styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t.editSave}>
-              <Text style={[styles.btnText, { color: colors.white }]}>{t.editSave}</Text>
+              <Text style={[styles.btnText, { color: colors.onAccent }]}>{t.editSave}</Text>
             </TouchableOpacity>
           </View>
         </View>

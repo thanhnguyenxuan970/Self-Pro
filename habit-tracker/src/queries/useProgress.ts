@@ -141,11 +141,18 @@ async function revertDailySummariesForDelete(
   db: SQLiteDatabase, userId: number, byDate: Map<string, DateEntry>,
 ): Promise<number> {
   let bonusStarsRemoved = 0;
+  const dates = [...byDate.keys()];
+  if (dates.length === 0) return bonusStarsRemoved;
+  // Batched into one query instead of one round-trip per date.
+  const datePlaceholders = dates.map(() => '?').join(',');
+  const dailyRows = await db.getAllAsync<{ local_date: string; total_points: number; bonus_star_awarded: number }>(
+    `SELECT local_date, total_points, bonus_star_awarded FROM daily_summary WHERE user_id = ? AND local_date IN (${datePlaceholders})`,
+    [userId, ...dates],
+  );
+  const dailyByDate = new Map(dailyRows.map(r => [r.local_date, r]));
+
   for (const [date, entry] of byDate) {
-    const daily = await db.getFirstAsync<{ total_points: number; bonus_star_awarded: number }>(
-      `SELECT total_points, bonus_star_awarded FROM daily_summary WHERE user_id = ? AND local_date = ?`,
-      [userId, date]
-    );
+    const daily = dailyByDate.get(date);
     const remaining = (daily?.total_points ?? 0) - entry.points;
     const remainingBonusStars = dailyBonusStarsForPoints(remaining);
     const removed = Math.max(0, (daily?.bonus_star_awarded ?? 0) - remainingBonusStars);

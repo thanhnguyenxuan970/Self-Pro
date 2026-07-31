@@ -13,7 +13,6 @@ import { useBackfillStatus } from '../queries/useBackfillStatus';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
 import { AppColors, Radii, Spacing, FontFamily, Shadows } from '../config/theme';
-import { AnimatedFireIcon, AnimatedStarIcon, AnimatedBurningStarIcon } from '../components/CalendarIcons';
 import { BackfillFlow } from '../components/BackfillFlow';
 import { StreakMilestoneCelebrationModal } from '../components/StreakMilestoneCelebrationModal';
 import { canBackfill } from '../game/backfill';
@@ -65,12 +64,12 @@ function resolveDayCellProps(
   todayStr: string,
   currentWeekStart: string,
   colors: AppColors,
-): { dateStr: string; isEligible: boolean; isBackfilled: boolean; cellBg: string; numColor: string; cellIcon: React.ReactNode } {
+): { dateStr: string; isEligible: boolean; isBackfilled: boolean; hasActivity: boolean; cellBg: string; numColor: string; cellIcon: React.ReactNode } {
   const data = dayMap[day];
   const hasActivity = !!data;
   const isBackfilled = !!data?.is_backfill;
   const { cellBg, numColor } = resolveCellColors(hasActivity, colors);
-  const cellIcon = hasActivity ? <Text style={{ fontSize: 12, fontFamily: FontFamily.extraBold, color: colors.primary }}>✓</Text> : null;
+  const cellIcon = hasActivity ? <Text style={{ fontSize: 12, fontFamily: FontFamily.extraBold, color: colors.primaryText }}>✓</Text> : null;
   const dateStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
   const backfillsUsed = backfillInfo ? backfillInfo.backfillsUsedThisWeek : 0;
   const hasFreeze = backfillInfo ? backfillInfo.freezeDates.has(dateStr) : false;
@@ -87,18 +86,11 @@ function resolveDayCellProps(
     dateStr,
     isEligible,
     isBackfilled,
+    hasActivity,
     cellBg,
     numColor,
     cellIcon,
   };
-}
-
-function resolveCellIcon(data: CalendarDay | undefined, isMilestone: boolean, isBest: boolean, muteColor: string) {
-  if (!data) return null;
-  if (isMilestone && isBest) return <AnimatedBurningStarIcon />;
-  if (isMilestone) return <AnimatedFireIcon />;
-  if (isBest) return <AnimatedStarIcon />;
-  return <Text style={{ fontSize: 11, fontFamily: FontFamily.semiBold, marginTop: 1, color: muteColor }}>{Math.round(data.stars)}★</Text>;
 }
 
 export function CalendarScreen() {
@@ -195,13 +187,15 @@ export function CalendarScreen() {
       <View style={styles.grid}>
         {cells.map((day, idx) => {
           if (!day) return <View key={idx} style={styles.cell} />;
-          const { dateStr, isEligible, isBackfilled, cellBg, numColor, cellIcon } = resolveDayCellProps(
+          const { dateStr, isEligible, isBackfilled, hasActivity, cellBg, numColor, cellIcon } = resolveDayCellProps(
             day, dayMap, backfillStatus, yearMonth, todayStr, currentWeekStart, colors,
           );
+          const isToday = day === today;
+          const dayLabel = `${day}${isToday ? `, ${t.calDayToday}` : ''}: ${hasActivity ? t.calDayLogged : t.calDayEmpty}`;
           const cellStyle = [
             styles.cell,
             { backgroundColor: cellBg },
-            day === today && styles.cellToday,
+            isToday && styles.cellToday,
             isEligible && styles.cellEligible,
           ];
           const cellContent = (
@@ -214,12 +208,12 @@ export function CalendarScreen() {
           );
           if (isEligible) {
             return (
-              <TouchableOpacity key={idx} style={cellStyle} onPress={() => setBackfillDate(dateStr)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={`${t.backfillEligible} ${dateStr}`} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
+              <TouchableOpacity key={idx} style={cellStyle} onPress={() => setBackfillDate(dateStr)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={`${dayLabel}, ${t.backfillEligible}`} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
                 {cellContent}
               </TouchableOpacity>
             );
           }
-          return <View key={idx} style={cellStyle}>{cellContent}</View>;
+          return <View key={idx} style={cellStyle} accessible accessibilityLabel={dayLabel}>{cellContent}</View>;
         })}
       </View>
 
@@ -325,7 +319,7 @@ function makeStyles(colors: AppColors, bottomInset: number) {
     backfillHint: {
       fontSize: 10,
       fontFamily: FontFamily.bold,
-      color: colors.primary,
+      color: colors.primaryText,
       marginTop: 1,
     },
     legend: {
@@ -336,8 +330,8 @@ function makeStyles(colors: AppColors, bottomInset: number) {
       marginBottom: 10,
     },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    legendCheck: { color: colors.primary, fontSize: 14, fontFamily: FontFamily.extraBold },
-    legendPlus: { color: colors.primary, fontSize: 16, fontFamily: FontFamily.extraBold },
+    legendCheck: { color: colors.primaryText, fontSize: 14, fontFamily: FontFamily.extraBold },
+    legendPlus: { color: colors.primaryText, fontSize: 16, fontFamily: FontFamily.extraBold },
     legendToday: { width: 13, height: 13, borderRadius: 3, borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft },
     legendLabel: { fontSize: 11, fontFamily: FontFamily.semiBold, color: colors.ink2 },
     summary: {
@@ -352,7 +346,7 @@ function makeStyles(colors: AppColors, bottomInset: number) {
     },
     summaryCell: { flex: 1, alignItems: 'center' },
     summarySep: { width: 1, backgroundColor: colors.line },
-    summaryV: { fontSize: 18, fontFamily: FontFamily.extraBold, color: colors.primary },
+    summaryV: { fontSize: 18, fontFamily: FontFamily.extraBold, color: colors.primaryText },
     summaryL: { fontSize: 11, color: colors.ink2, marginTop: 2 },
   });
 }

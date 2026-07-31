@@ -198,7 +198,7 @@ export function OnboardingScreen({ onComplete }: Props) {
                 accessibilityLabel={t.onboardStart}
               >
                 {loading ? (
-                  <ActivityIndicator color={colors.white} />
+                  <ActivityIndicator color={colors.onAccent} />
                 ) : (
                   <Text style={styles.buttonText}>{t.onboardStart}</Text>
                 )}
@@ -244,7 +244,7 @@ function makeStyles(C: AppColors) {
       fontSize: 42,
       fontFamily: FontFamily.extraBold,
       letterSpacing: -1.5,
-      color: C.primary,
+      color: C.primaryText,
       marginBottom: 6,
     },
     heroTagline: {
@@ -284,7 +284,7 @@ function makeStyles(C: AppColors) {
     },
     buttonTop: { marginTop: 40 },
     buttonDisabled: { opacity: 0.5 },
-    buttonText: { color: C.white, fontFamily: FontFamily.bold, fontSize: 16 },
+    buttonText: { color: C.onAccent, fontFamily: FontFamily.bold, fontSize: 16 },
 
     // ── SETUP ─────────────────────────────────────────
     setup: {

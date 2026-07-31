@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getRankConfigByTierOrder } from '../config/ranks.config';
 import { RankMascot } from './RankMascot';
@@ -22,9 +23,10 @@ interface Props {
 
 export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props) {
   const { colors: C } = useTheme();
+  const reduceMotion = useReduceMotion();
   const t = useTranslations();
   const { bottom } = useSafeAreaInsets();
-  const styles = makeStyles(C, bottom);
+  const styles = useMemo(() => makeStyles(C, bottom), [C, bottom]);
   const sorted = [...tiers].sort((a, b) => a.tier_order - b.tier_order);
   const currentTierOrder = sorted.find(tier => tier.id === currentTierId)?.tier_order ?? 0;
   const points: { e: string; t: string; s: string }[] = [
@@ -34,7 +36,7 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
   ];
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+    <Modal visible={visible} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <View style={styles.wrap}>
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel={t.close} />
         <View style={styles.sheet}>
@@ -66,8 +68,13 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
               const rankAltLabel = rankLabel === cfg.nameVi ? cfg.name : cfg.nameVi;
               const locked = !unlocked && !cur;
               const hidden = tier.tier_order === 10 && !cur;
+              const rowLabel = [
+                hidden ? t.rankHiddenTier : `${tier.tier_order}. ${rankLabel}`,
+                cur ? t.leaderboardYou : null,
+                !hidden ? `${tier.stars_required} ★` : null,
+              ].filter(Boolean).join(', ');
               return (
-                <View key={tier.id} style={[styles.lrow, cur && styles.lrowCur]}>
+                <View key={tier.id} style={[styles.lrow, cur && styles.lrowCur]} accessible accessibilityLabel={rowLabel}>
                   {unlocked ? <RankMascot tier={tier.tier_order - 1} size={36} loop={false} /> : locked ? (
                     <Text style={styles.lockedMark}>🔒</Text>
                   ) : (
@@ -116,12 +123,12 @@ function makeStyles(C: AppColors, bottomInset: number) {
     lnumCur: { backgroundColor: C.primary },
     lockedMark: { width: 36, textAlign: 'center', fontSize: 20 },
     lnumText: { fontSize: 11, fontFamily: FontFamily.bold, color: C.ink2 },
-    lnumTextCur: { color: C.white },
+    lnumTextCur: { color: C.onAccent },
     lcopy: { flex: 1, minWidth: 0 },
     lname: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
     lnameVi: { fontSize: 11.5, fontFamily: FontFamily.regular, color: C.ink2, marginTop: 1 },
     lstar: { fontSize: 12.5, fontFamily: FontFamily.semiBold, color: C.ink2 },
     youtag: { backgroundColor: C.primary, borderRadius: Radii.pill, paddingHorizontal: 6, paddingVertical: 1, marginRight: 6 },
-    youtagText: { fontSize: 11, fontFamily: FontFamily.bold, color: C.white, textTransform: 'uppercase' },
+    youtagText: { fontSize: 11, fontFamily: FontFamily.bold, color: C.onAccent, textTransform: 'uppercase' },
   });
 }

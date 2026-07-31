@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView, Keyboard, Platform,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useActivityPickerTasks, useCreateTask, useRestoreTask, useSetTaskPinned } from '../queries/useTasks';
 import { useLogTask } from '../queries/useToday';
 import { cueModalOpen, cueModalClose } from '../audio/uiSounds';
@@ -111,9 +112,9 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onBack, onClo
         ) : (
           <>
             <DurationClockInput value={clock} onChange={setClock} colors={colors} />
-            <TouchableOpacity style={styles.durationChip} onPress={handleCustomLog} disabled={isPending} accessibilityRole="button">
+            <TouchableOpacity style={styles.durationChip} onPress={handleCustomLog} disabled={isPending} accessibilityRole="button" accessibilityLabel={t.logBtn}>
               {isPending ? (
-                <ActivityIndicator color={colors.white} />
+                <ActivityIndicator color={colors.onAccent} />
               ) : (
                 <Text style={styles.durationChipText}>{t.logBtn}</Text>
               )}
@@ -136,7 +137,8 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
   const { colors } = useTheme();
   const t = useTranslations();
   const reduceMotion = useReduceMotion();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { bottom: bottomInset } = useSafeAreaInsets();
+  const styles = useMemo(() => makeStyles(colors, bottomInset), [colors, bottomInset]);
   const { height: sheetHiddenY } = useWindowDimensions();
 
   const createTask = useCreateTask(userId);
@@ -436,10 +438,11 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
                   disabled={!hasName || isPending}
                   activeOpacity={0.8}
                   accessibilityRole="button"
+                  accessibilityLabel={t.addActivityTimedBtn}
                   accessibilityState={{ disabled: !hasName || isPending }}
                 >
                   {createTask.isPending ? (
-                    <ActivityIndicator color={colors.white} />
+                    <ActivityIndicator color={colors.onAccent} />
                   ) : (
                     <Text style={styles.durationChipText}>{t.addActivityTimedBtn}</Text>
                   )}
@@ -480,13 +483,14 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
   );
 }
 
-function makeStyles(C: AppColors) {
+function makeStyles(C: AppColors, bottomInset: number) {
   return StyleSheet.create({
     kav: { flex: 1 },
-    backdrop: { flex: 1, justifyContent: 'center', padding: Spacing.lg },
+    backdrop: { flex: 1, justifyContent: 'flex-end' },
     sheet: {
       backgroundColor: C.surface,
-      borderRadius: Radii.xxl,
+      borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl,
+      paddingBottom: Math.max(Spacing.md, bottomInset),
       maxHeight: '80%', alignSelf: 'center', width: '100%', maxWidth: 480,
       ...Shadows.hero,
       shadowColor: C.primary,
@@ -516,7 +520,7 @@ function makeStyles(C: AppColors) {
     pinButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     pinText: { color: C.faint, fontSize: 22 }, pinTextActive: { color: C.starGoldText },
     browseButton: { minHeight: 44, justifyContent: 'center', alignItems: 'center', marginTop: Spacing.sm },
-    browseText: { color: C.primary, fontFamily: FontFamily.bold, fontSize: 14 },
+    browseText: { color: C.primaryText, fontFamily: FontFamily.bold, fontSize: 14 },
     groupHeader: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.sm },
     groupTitle: { color: C.ink2, fontFamily: FontFamily.extraBold, fontSize: 12 }, groupToggle: { color: C.muted, fontSize: 16 },
     chip: {
@@ -526,7 +530,7 @@ function makeStyles(C: AppColors) {
     },
     chipSelected: { borderColor: C.primary, backgroundColor: C.primarySoft },
     chipName: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark, lineHeight: 18 },
-    chipNameSelected: { color: C.primary },
+    chipNameSelected: { color: C.primaryText },
     durationLabel: {
       ...Typography.bodyStrong, color: C.inkDark,
       marginTop: Spacing.xl, marginBottom: Spacing.sm,
@@ -543,7 +547,7 @@ function makeStyles(C: AppColors) {
       alignItems: 'center', justifyContent: 'center',
     },
     durationChipDim: { backgroundColor: C.line2 },
-    durationChipText: { color: C.white, fontSize: 15, fontFamily: FontFamily.bold },
+    durationChipText: { color: C.onAccent, fontSize: 15, fontFamily: FontFamily.bold },
     noTimerBtn: {
       alignItems: 'center',
       justifyContent: 'center',
@@ -562,7 +566,7 @@ function makeStyles(C: AppColors) {
     noTimerTextDim: { color: C.faint },
 
     backButton: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', marginTop: Spacing.xs },
-    backText: { color: C.primary, fontSize: 14, fontFamily: FontFamily.bold },
+    backText: { color: C.primaryText, fontSize: 14, fontFamily: FontFamily.bold },
     durationStepTitle: { fontSize: 19, fontFamily: FontFamily.extraBold, color: C.inkDark, marginBottom: 2 },
   });
 }

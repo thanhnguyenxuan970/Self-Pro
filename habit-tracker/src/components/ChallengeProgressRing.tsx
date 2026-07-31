@@ -13,7 +13,7 @@ type Props = {
   glowing?: boolean;
 };
 
-export function ChallengeProgressRing({ fraction, size = 184, strokeWidth = 16, label, muted = false, glowing = false }: Props) {
+export const ChallengeProgressRing = React.memo(function ChallengeProgressRing({ fraction, size = 184, strokeWidth = 16, label, muted = false, glowing = false }: Props) {
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
@@ -64,7 +64,7 @@ export function ChallengeProgressRing({ fraction, size = 184, strokeWidth = 16, 
       </View>
     </View>
   );
-}
+});
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({

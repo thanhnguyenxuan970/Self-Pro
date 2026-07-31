@@ -246,7 +246,7 @@ export function useBackfillDay(userId: number) {
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['backfill'] });
-      syncCurrentUserToSupabase().catch(error => console.warn('[sync] activity log sync failed:', error));
+      syncCurrentUserToSupabase().catch(error => { if (__DEV__) console.warn('[sync] activity log sync failed:', error); });
       qc.invalidateQueries({ queryKey: ['rank'] });
       if (data.lifetimeCrossings.length > 0) {
         rankMascotBridge.ref?.current?.playRankUp();

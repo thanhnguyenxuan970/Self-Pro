@@ -6,6 +6,7 @@ export const Colors = {
   primaryHover: '#1E9B5E',
   primaryPress: '#177A49',
   primarySoft: '#C6E9D5',
+  primaryText: '#177A49',
   bgBase: '#F5F6F5',
   surface: '#FFFFFF',
   surface2: '#F4F5F4',
@@ -23,11 +24,10 @@ export const Colors = {
   starGoldMuted: '#76672A',
   rewardCta: '#FFD54F',
   starSoft: '#FBEFD3',
-  chartBar: '#E57D00',
-  chartBarSoft: '#EAA061',
   danger: '#D74045',
   dangerPress: '#A82830',
   dangerSoft: '#FBE2E3',
+  dangerText: '#A82830',
   scrim: '#00000088',
   line: '#E5E8E6',
   line2: '#D5D9D6',
@@ -40,6 +40,7 @@ export const DarkColors = {
   primaryHover: '#1E9B5E',
   primaryPress: '#5EC69A',
   primarySoft: '#1A3D2E',
+  primaryText: '#5EC69A',
   bgBase: '#0F1410',
   surface: '#1A1F1C',
   surface2: '#232820',
@@ -57,11 +58,10 @@ export const DarkColors = {
   starGoldMuted: '#C9A227',
   rewardCta: '#FFD54F',
   starSoft: '#3D2E0F',
-  chartBar: '#E57D00',
-  chartBarSoft: '#EAA061',
   danger: '#E05A5F',
   dangerPress: '#C03538',
   dangerSoft: '#3D1A1B',
+  dangerText: '#EB6469',
   scrim: '#00000088',
   line: '#2B3028',
   line2: '#3A403C',
@@ -79,7 +79,8 @@ export function getColors(isDark: boolean, accent: AccentKey = DEFAULT_ACCENT): 
   const base = isDark ? DarkColors : Colors;
   const palette = ACCENTS[accent];
   const p = isDark ? palette.dark : palette.light;
-  return { ...base, ...p, onAccent: palette.onAccent, primaryLine: withAlpha(p.primary, '55') };
+  const onAccent = isDark ? palette.onAccent.dark : palette.onAccent.light;
+  return { ...base, ...p, onAccent, primaryText: p.primaryPress, primaryLine: withAlpha(p.primary, '55') };
 }
 
 export const Radii = {

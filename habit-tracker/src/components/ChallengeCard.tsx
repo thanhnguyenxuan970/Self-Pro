@@ -12,7 +12,7 @@ type Props = {
   onPress: () => void;
 };
 
-export function ChallengeCard({ name, targetDays, dayIndex, fraction, streak, onPress }: Props) {
+export const ChallengeCard = React.memo(function ChallengeCard({ name, targetDays, dayIndex, fraction, streak, onPress }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -60,7 +60,7 @@ export function ChallengeCard({ name, targetDays, dayIndex, fraction, streak, on
       </TouchableOpacity>
     </View>
   );
-}
+});
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
@@ -79,11 +79,11 @@ function makeStyles(C: AppColors) {
     name: { ...Typography.subheading, color: C.inkDark, marginTop: Spacing.md },
     progressRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: Spacing.xs },
     dayLabel: { ...Typography.secondary, color: C.muted, fontFamily: FontFamily.semiBold },
-    dayValue: { fontSize: 38, lineHeight: 42, letterSpacing: -1, fontFamily: FontFamily.extraBold, color: C.primary, marginLeft: Spacing.sm },
+    dayValue: { fontSize: 38, lineHeight: 42, letterSpacing: -1, fontFamily: FontFamily.extraBold, color: C.primaryText, marginLeft: Spacing.sm },
     dayTotal: { ...Typography.subheading, color: C.muted, fontFamily: FontFamily.bold },
     track: { height: 8, borderRadius: Radii.pill, backgroundColor: C.surface2, marginTop: Spacing.xs, overflow: 'hidden' },
     fill: { height: '100%', borderRadius: Radii.pill },
     footerRow: { marginTop: Spacing.sm, alignItems: 'flex-end' },
-    viewCta: { ...Typography.caption, color: C.primary, fontFamily: FontFamily.semiBold, marginLeft: Spacing.sm },
+    viewCta: { ...Typography.caption, color: C.primaryText, fontFamily: FontFamily.semiBold, marginLeft: Spacing.sm },
   });
 }

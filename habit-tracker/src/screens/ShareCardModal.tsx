@@ -9,6 +9,7 @@ import { captureRef } from 'react-native-view-shot';
 import { ShareCard, CARD_W, CARD_H } from '../components/ShareCard';
 import { FontFamily, Radii, Spacing } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useProStatus } from '../hooks/useProStatus';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
@@ -30,6 +31,7 @@ export function ShareCardModal({
 }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
+  const reduceMotion = useReduceMotion();
   const { bottom } = useSafeAreaInsets();
   const { isPro } = useProStatus();
   const { width: screenW } = useWindowDimensions();
@@ -73,9 +75,9 @@ export function ShareCardModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose} statusBarTranslucent navigationBarTranslucent>
+    <Modal visible={visible} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={handleClose} statusBarTranslucent navigationBarTranslucent>
       <View style={[styles.backdrop, { backgroundColor: C.scrim }]}>
-        <View style={[styles.sheet, { backgroundColor: C.surface, paddingBottom: Spacing.xl + BOTTOM_TAB_BAR_HEIGHT + bottom }]}>
+        <View style={[styles.sheet, { backgroundColor: C.surface, paddingBottom: Spacing.xl + BOTTOM_TAB_BAR_HEIGHT + bottom }]} accessibilityViewIsModal>
           {/* Header */}
           <View style={styles.header}>
             <Text style={[styles.title, { color: C.inkDark }]}>{t.shareTitle}</Text>
@@ -158,9 +160,9 @@ export function ShareCardModal({
             accessibilityLabel={isPro ? t.shareBtn : t.shareBtnLocked}
           >
             {capturing ? (
-              <ActivityIndicator color={C.white} />
+              <ActivityIndicator color={C.onAccent} />
             ) : (
-              <Text style={[styles.shareBtnText, { color: C.white }]}>
+              <Text style={[styles.shareBtnText, { color: C.onAccent }]}>
                 {isPro ? t.shareBtn : `🔒 ${t.shareBtn}`}
               </Text>
             )}
@@ -196,8 +198,8 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
   },
   closeBtn: {
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: 48,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },

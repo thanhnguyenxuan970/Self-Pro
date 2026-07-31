@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { AppColors, FontFamily, Radii } from '../config/theme';
 import { clampClockValue, type DurationClock, wheelValueAtOffset } from '../utils/durationClock';
 
@@ -50,18 +50,50 @@ function Wheel({ label, value, max, onChange, colors, styles }: { label: string;
     lastTap.current = now;
   }
 
+  function handleAccessibilityAction(event: { nativeEvent: { actionName: string } }) {
+    if (event.nativeEvent.actionName === 'increment') onChange(value >= max ? 0 : value + 1);
+    else if (event.nativeEvent.actionName === 'decrement') onChange(value <= 0 ? max : value - 1);
+  }
+
   return (
-    <View style={styles.field} accessibilityLabel={label}>
+    <View style={styles.field}>
       {editing ? (
         <TextInput ref={inputRef} style={styles.wheelInput} value={draft} onChangeText={setDraft} onBlur={finishManual} onSubmitEditing={() => inputRef.current?.blur()} keyboardType="number-pad" maxLength={2} selectTextOnFocus accessibilityLabel={label} />
       ) : (
-        <ScrollView ref={ref} style={styles.wheel} contentContainerStyle={styles.wheelContent} showsVerticalScrollIndicator={false} decelerationRate="normal" onTouchEnd={handleTouchEnd} onMomentumScrollBegin={() => { momentum.current = true; }} onMomentumScrollEnd={event => { momentum.current = false; commit(event.nativeEvent.contentOffset.y); }} onScrollEndDrag={event => { const offsetY = event.nativeEvent.contentOffset.y; requestAnimationFrame(() => { if (!momentum.current) commit(offsetY); }); }}>
+        <ScrollView
+          ref={ref}
+          style={styles.wheel}
+          contentContainerStyle={styles.wheelContent}
+          showsVerticalScrollIndicator={false}
+          decelerationRate="normal"
+          onTouchEnd={handleTouchEnd}
+          onMomentumScrollBegin={() => { momentum.current = true; }}
+          onMomentumScrollEnd={event => { momentum.current = false; commit(event.nativeEvent.contentOffset.y); }}
+          onScrollEndDrag={event => { const offsetY = event.nativeEvent.contentOffset.y; requestAnimationFrame(() => { if (!momentum.current) commit(offsetY); }); }}
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel={label}
+          accessibilityValue={{ min: 0, max, now: value, text: String(value).padStart(2, '0') }}
+          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+          onAccessibilityAction={handleAccessibilityAction}
+        >
           {Array.from({ length: max + 1 }, (_, item) => (
-            <View key={item} style={styles.wheelRow}><Text style={[styles.wheelText, item === value && { color: colors.primary }]}>{String(item).padStart(2, '0')}</Text></View>
+            <View key={item} style={styles.wheelRow}><Text style={[styles.wheelText, item === value && { color: colors.primaryText }]}>{String(item).padStart(2, '0')}</Text></View>
           ))}
         </ScrollView>
       )}
       <Text style={styles.label}>{label}</Text>
+      {!editing && (
+        <TouchableOpacity
+          onPress={() => { setDraft(String(value)); setEditing(true); }}
+          style={styles.editBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={`Type ${label} value`}
+        >
+          <Text style={styles.editBtnText}>✎</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -88,5 +120,7 @@ function makeStyles(C: AppColors) {
     wheelInput: { width: 70, height: ROW_HEIGHT * 3, borderWidth: 1.5, borderColor: C.primary, borderRadius: Radii.md, backgroundColor: C.surface2, color: C.inkDark, fontSize: 22, fontFamily: FontFamily.extraBold, textAlign: 'center' },
     label: { marginTop: 4, color: C.muted, fontSize: 10, fontFamily: FontFamily.bold },
     separator: { color: C.inkDark, fontSize: 24, fontFamily: FontFamily.extraBold },
+    editBtn: { marginTop: 4, minWidth: 48, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
+    editBtnText: { color: C.primaryText, fontSize: 15 },
   });
 }

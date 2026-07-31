@@ -57,7 +57,7 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={ph.head}>
-          {googleUser.picture ? <Image source={{ uri: googleUser.picture }} style={ph.avatar} /> : (
+          {googleUser.picture ? <Image source={{ uri: googleUser.picture }} style={ph.avatar} importantForAccessibility="no" accessibilityElementsHidden /> : (
             <View style={[ph.avatar, ph.avatarFallback]}><Text style={ph.avatarInitial}>{(googleUser.name.charAt(0) || '?').toUpperCase()}</Text></View>
           )}
           <Text style={ph.name} numberOfLines={1}>{googleUser.name}</Text>

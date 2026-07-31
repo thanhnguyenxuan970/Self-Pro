@@ -63,9 +63,9 @@ function IconTrophy({ color }: { color: string }) {
   );
 }
 
-function IconPlus() {
+function IconPlus({ color }: { color: string }) {
   return (
-    <Svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.6} strokeLinecap="round">
+    <Svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.6} strokeLinecap="round">
       <Path d="M12 5v14M5 12h14" />
     </Svg>
   );
@@ -78,7 +78,7 @@ function FABButton({ onPress, colors }: { onPress: () => void; colors: AppColors
   return (
     <Pressable style={fabStyles.container} onPress={onPress} android_ripple={{ color: colors.primaryPress, borderless: true, radius: 29 }} accessibilityLabel={t.addActivity} accessibilityRole="button">
       <View ref={fabRef} collapsable={false} style={[fabStyles.button, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
-        <IconPlus />
+        <IconPlus color={colors.onAccent} />
       </View>
     </Pressable>
   );
@@ -119,7 +119,7 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.faint,
         tabBarAllowFontScaling: true,
-        tabBarShowLabel: width >= 360,
+        tabBarShowLabel: width >= 320,
         tabBarLabelStyle: { fontSize: 10, fontFamily: FontFamily.bold, marginTop: 4 },
       }}
     >
@@ -215,7 +215,7 @@ function AppStack({
         <Stack.Screen
           name="ChallengeHub"
           component={ChallengeHubScreen}
-          options={{ presentation: 'modal', headerShown: false }}
+          options={{ ...modalHeaderOptions, title: t.screenChallengeHub }}
         />
         <Stack.Screen
           name="CreateChallenge"

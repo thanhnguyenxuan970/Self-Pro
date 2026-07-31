@@ -414,6 +414,7 @@ const vi = {
   challengeRestartCta: 'Thử lại',
   challengeAlreadyActive: 'Bạn đang có 1 thử thách đang diễn ra',
   challengeNameRequired: 'Vui lòng nhập tên thử thách',
+  challengeRenameFailed: 'Không thể đổi tên thử thách. Thử lại.',
 
   // Trophy Shelf / achievements
   screenTrophyShelf: 'Trophy',
@@ -687,6 +688,9 @@ const vi = {
   backfillDenyFreeze: 'Ngày này đã có Streak Freeze',
   backfillEligible: 'Điểm danh bù',
   backfillNoTasks: 'Chưa có hoạt động nào. Thêm hoạt động trước.',
+  calDayLogged: 'Có hoạt động',
+  calDayEmpty: 'Không có hoạt động',
+  calDayToday: 'Hôm nay',
   backfillEntryDuration: (mins: number) => `${mins} phút`,
   backfillAddActivity: 'Thêm hoạt động',
   backfillUpdateActivity: 'Cập nhật hoạt động',
@@ -1154,6 +1158,7 @@ const en: typeof vi = {
   challengeRestartCta: 'Try again',
   challengeAlreadyActive: 'You already have an active challenge',
   challengeNameRequired: 'Please enter a challenge name',
+  challengeRenameFailed: 'Could not rename challenge. Try again.',
 
   // Trophy Shelf / achievements
   screenTrophyShelf: 'Trophy',
@@ -1427,6 +1432,9 @@ const en: typeof vi = {
   backfillDenyFreeze: 'This day has a Streak Freeze',
   backfillEligible: 'Backfill',
   backfillNoTasks: 'No activities yet. Add an activity first.',
+  calDayLogged: 'Activity logged',
+  calDayEmpty: 'No activity',
+  calDayToday: 'Today',
   backfillEntryDuration: (mins: number) => `${mins} min`,
   backfillAddActivity: 'Add activity',
   backfillUpdateActivity: 'Update activity',

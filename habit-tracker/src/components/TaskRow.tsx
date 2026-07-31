@@ -188,8 +188,10 @@ function makeTaskRowStyles(C: AppColors) {
       flexShrink: 0,
     },
     checkDone: { backgroundColor: C.primary, borderColor: C.primary },
-    checkBad: { backgroundColor: C.danger, borderColor: C.danger },
-    checkMark: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.white },
+    // dangerPress (not danger) so the white checkmark glyph clears 4.5:1 in
+    // both themes — plain `danger` computes borderline/failing against white.
+    checkBad: { backgroundColor: C.dangerPress, borderColor: C.dangerPress },
+    checkMark: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.onAccent },
     tBody: { flex: 1, minWidth: 0 },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     tName: { flexShrink: 1, fontSize: 14.5, lineHeight: 20, fontFamily: FontFamily.semiBold, color: C.inkDark },
@@ -197,12 +199,12 @@ function makeTaskRowStyles(C: AppColors) {
     titleIcon: { fontSize: 13, lineHeight: 20 },
     tMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
     tMetaText: { fontSize: 11.5, lineHeight: 17, color: C.muted },
-    tMetaDuration: { color: C.primary, fontFamily: FontFamily.bold },
+    tMetaDuration: { color: C.primaryText, fontFamily: FontFamily.bold },
     rightCol: { alignItems: 'flex-end', gap: 2, flexShrink: 0 },
     editIcon: { fontSize: 20, color: C.muted },
     tPts: { fontSize: 13, fontFamily: FontFamily.extraBold, flexShrink: 0 },
-    tPtsPos: { color: C.primary },
-    tPtsNeg: { color: C.danger },
+    tPtsPos: { color: C.primaryText },
+    tPtsNeg: { color: C.dangerText },
     tPtsIdle: { color: C.faint },
   });
 }

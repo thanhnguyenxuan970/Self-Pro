@@ -136,11 +136,18 @@ async function revertDailySummaries(
   kind: string,
 ): Promise<number> {
   let totalTreatDelta = 0;
+  const dates = [...byDate.keys()];
+  if (dates.length === 0) return totalTreatDelta;
+  // Batched into one query instead of one round-trip per date.
+  const datePlaceholders = dates.map(() => '?').join(',');
+  const dailyRows = await db.getAllAsync<{ local_date: string; total_points: number; bonus_star_awarded: number }>(
+    `SELECT local_date, total_points, bonus_star_awarded FROM daily_summary WHERE user_id = ? AND local_date IN (${datePlaceholders})`,
+    [userId, ...dates],
+  );
+  const dailyByDate = new Map(dailyRows.map(r => [r.local_date, r]));
+
   for (const [date, { points: taskPoints, stars: taskStars, weekStart }] of byDate) {
-    const daily = await db.getFirstAsync<{ total_points: number; bonus_star_awarded: number }>(
-      `SELECT total_points, bonus_star_awarded FROM daily_summary WHERE user_id = ? AND local_date = ?`,
-      [userId, date]
-    );
+    const daily = dailyByDate.get(date);
     if (!daily) continue;
 
     const remainingPoints = daily.total_points - taskPoints;
@@ -188,11 +195,18 @@ async function revertWeeklySummaries(
   db: SQLiteDatabase, userId: number,
   byWeek: Map<string, WeekAccum>,
 ): Promise<void> {
+  const weeks = [...byWeek.keys()];
+  if (weeks.length === 0) return;
+  // Batched into one query instead of one round-trip per week.
+  const weekPlaceholders = weeks.map(() => '?').join(',');
+  const weeklyRows = await db.getAllAsync<{ week_start: string; weekly_stars: number }>(
+    `SELECT week_start, weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start IN (${weekPlaceholders})`,
+    [userId, ...weeks],
+  );
+  const weeklyByWeek = new Map(weeklyRows.map(r => [r.week_start, r]));
+
   for (const [weekStart, { points, stars }] of byWeek) {
-    const weeklyRow = await db.getFirstAsync<{ weekly_stars: number }>(
-      `SELECT weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
-      [userId, weekStart]
-    );
+    const weeklyRow = weeklyByWeek.get(weekStart);
     const newWeeklyStars = Math.max(0, (weeklyRow?.weekly_stars ?? 0) - stars);
 
     await db.runAsync(
@@ -259,7 +273,12 @@ async function recomputeStreaks(db: SQLiteDatabase, userId: number): Promise<voi
 export function useArchiveTask(userId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (taskId: number): Promise<{ lifetimeCrossings: LifetimeTierCrossing[] }> => {
+    // Accepts a single id or an id[] so multi-select delete (TodayScreen)
+    // runs as one transaction / one invalidation batch instead of N of each,
+    // matching useDeleteChallenge's batched-mutation pattern.
+    mutationFn: async (taskIdOrIds: number | number[]): Promise<{ lifetimeCrossings: LifetimeTierCrossing[] }> => {
+      const taskIds = Array.isArray(taskIdOrIds) ? taskIdOrIds : [taskIdOrIds];
+      if (taskIds.length === 0) return { lifetimeCrossings: [] };
       const db = await getDb();
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
 
@@ -268,47 +287,50 @@ export function useArchiveTask(userId: number) {
       );
 
       await db.withTransactionAsync(async () => {
-        // Archiving hard-deletes this task_type's activity_log rows below --
-        // for a linked+active challenge, those rows are the derivation source
-        // for its completion, so archiving would silently break/reset it.
-        const linkedActive = await db.getFirstAsync<{ id: number }>(
-          `SELECT id FROM challenges WHERE user_id = ? AND task_type_id = ? AND status = 'active'`,
-          [userId, taskId],
-        );
-        if (linkedActive) throw new Error('TASK_TYPE_LINKED_TO_ACTIVE_CHALLENGE');
+        for (const taskId of taskIds) {
+          // Archiving hard-deletes this task_type's activity_log rows below --
+          // for a linked+active challenge, those rows are the derivation source
+          // for its completion, so archiving would silently break/reset it.
+          const linkedActive = await db.getFirstAsync<{ id: number }>(
+            `SELECT id FROM challenges WHERE user_id = ? AND task_type_id = ? AND status = 'active'`,
+            [userId, taskId],
+          );
+          if (linkedActive) throw new Error('TASK_TYPE_LINKED_TO_ACTIVE_CHALLENGE');
 
-        const allLogs = await db.getAllAsync<ArchiveLogRow>(
-          `SELECT id, local_date, week_start, points_earned, stars_delta, kind
-           FROM activity_log WHERE user_id = ? AND task_type_id = ? AND source = 'TASK'`,
-          [userId, taskId]
-        );
-
-        if (allLogs.length > 0) {
-          const kind = allLogs[0].kind;
-          const byDate = groupLogsByDate(allLogs);
-          const byWeek = groupLogsByWeek(allLogs);
-
-          const totalTreatDelta = await revertDailySummaries(db, userId, byDate, byWeek, kind);
-
-          await db.runAsync(
-            `DELETE FROM activity_log WHERE user_id = ? AND task_type_id = ? AND source = 'TASK'`,
+          const allLogs = await db.getAllAsync<ArchiveLogRow>(
+            `SELECT id, local_date, week_start, points_earned, stars_delta, kind
+             FROM activity_log WHERE user_id = ? AND task_type_id = ? AND source = 'TASK'`,
             [userId, taskId]
           );
 
-          await revertWeeklySummaries(db, userId, byWeek);
-          await revertTreatStars(db, userId, kind, allLogs, totalTreatDelta);
-          await recomputeStreaks(db, userId);
+          if (allLogs.length > 0) {
+            const kind = allLogs[0].kind;
+            const byDate = groupLogsByDate(allLogs);
+            const byWeek = groupLogsByWeek(allLogs);
 
-          // Archiving hard-deletes every historical row for this task —
-          // reverse their net lifetime contribution the same way (negated).
-          const totalStarsDelta = allLogs.reduce((s, r) => s + r.stars_delta, 0);
-          lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, -totalStarsDelta, tiers)).crossings;
+            const totalTreatDelta = await revertDailySummaries(db, userId, byDate, byWeek, kind);
+
+            await db.runAsync(
+              `DELETE FROM activity_log WHERE user_id = ? AND task_type_id = ? AND source = 'TASK'`,
+              [userId, taskId]
+            );
+
+            await revertWeeklySummaries(db, userId, byWeek);
+            await revertTreatStars(db, userId, kind, allLogs, totalTreatDelta);
+            await recomputeStreaks(db, userId);
+
+            // Archiving hard-deletes every historical row for this task —
+            // reverse their net lifetime contribution the same way (negated).
+            const totalStarsDelta = allLogs.reduce((s, r) => s + r.stars_delta, 0);
+            const result = await applyLifetimeStarsDelta(db, userId, -totalStarsDelta, tiers);
+            lifetimeCrossings = lifetimeCrossings.concat(result.crossings);
+          }
+
+          await db.runAsync(
+            `UPDATE task_types SET archived = 1 WHERE id = ? AND user_id = ?`,
+            [taskId, userId]
+          );
         }
-
-        await db.runAsync(
-          `UPDATE task_types SET archived = 1 WHERE id = ? AND user_id = ?`,
-          [taskId, userId]
-        );
       });
 
       return { lifetimeCrossings };

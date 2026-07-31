@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -18,6 +18,9 @@ export function ChallengeHubScreen() {
   const restartChallenge = useRestartChallenge(userId);
   const deleteChallenges = useDeleteChallenge(userId);
   const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(history);
+  const openActiveChallenge = useCallback(() => {
+    if (active) (navigation as any).navigate('ChallengeDetail', { challengeId: active.id });
+  }, [active, navigation]);
 
   function confirmDelete(ids: number[]) {
     Alert.alert(
@@ -42,6 +45,27 @@ export function ChallengeHubScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // A native header (RootNavigator's modalHeaderOptions) replaced this screen's old
+  // headerShown:false + hand-rolled back button, which left no back affordance beyond a
+  // small unicode arrow below Android 14's predictive-back gesture. The "+" create action
+  // now rides the header instead, matching ChallengeDetailScreen's headerRight pattern.
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => navigation.navigate('CreateChallenge' as never)}
+          style={styles.headerAddButton}
+          activeOpacity={0.8}
+          hitSlop={4}
+          accessibilityRole="button"
+          accessibilityLabel={t.challengeCreateCta}
+        >
+          <Text style={styles.headerAddText}>＋</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, styles, t]);
+
   const isLoading = activeLoading || historyLoading;
   const monthFmt = useMemo(() => new Intl.DateTimeFormat(t.timeLocale, { month: 'short' }), [t.timeLocale]);
   const month = (date: string) => monthFmt.format(new Date(`${date}T00:00:00`)).replace('.', '');
@@ -59,33 +83,6 @@ export function ChallengeHubScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('MainTabs' as never)}
-            style={styles.backButton}
-            activeOpacity={0.8}
-            hitSlop={4}
-            accessibilityRole="button"
-            accessibilityLabel={t.back}
-          >
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
-          <View style={styles.headerTitleGroup}>
-            <Text style={styles.brand}>HABI</Text>
-            <Text style={styles.title} numberOfLines={1}>{t.screenChallengeHub}</Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('CreateChallenge' as never)}
-            style={styles.addButton}
-            activeOpacity={0.8}
-            hitSlop={4}
-            accessibilityRole="button"
-            accessibilityLabel={t.challengeCreateCta}
-          >
-            <Text style={styles.addButtonText}>＋</Text>
-          </TouchableOpacity>
-        </View>
-
         {showEmpty ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>{t.challengeEmptyTitle}</Text>
@@ -110,7 +107,7 @@ export function ChallengeHubScreen() {
                   dayIndex={active.dayIndex}
                   fraction={active.fraction}
                   streak={active.streak}
-                  onPress={() => (navigation as any).navigate('ChallengeDetail', { challengeId: active.id })}
+                  onPress={openActiveChallenge}
                 />
               </View>
             )}
@@ -140,7 +137,15 @@ export function ChallengeHubScreen() {
                   )}
                 </View>
                 <View style={styles.pastCard}>
-                  {history.map((h, i) => (
+                  {history.map((h, i) => {
+                    const historyMetaText = h.status === 'done'
+                      ? h.mode === 'weekly'
+                        ? t.challengeHistoryWeeklyDoneMeta(h.weekly_target ?? 0, h.total_weeks ?? 0, month(h.start_date))
+                        : t.challengeHistoryDoneMeta(h.target_days, month(h.start_date))
+                      : h.mode === 'weekly'
+                        ? t.challengeHistoryResetWeek(Math.ceil((h.reset_day ?? 0) / 7))
+                        : t.challengeHistoryReset(h.reset_day ?? 0);
+                    return (
                     <View
                       key={h.id}
                       style={[styles.pastRow, i < history.length - 1 && styles.pastRowBorder, selectedIds.has(h.id) && styles.pastRowSelected]}
@@ -152,7 +157,7 @@ export function ChallengeHubScreen() {
                         delayLongPress={300}
                         activeOpacity={0.7}
                         accessibilityRole={selectionMode ? 'checkbox' : 'button'}
-                        accessibilityLabel={h.name}
+                        accessibilityLabel={`${h.name}. ${historyMetaText}`}
                         accessibilityState={selectionMode ? { checked: selectedIds.has(h.id) } : undefined}
                       >
                         {selectionMode && (
@@ -165,19 +170,11 @@ export function ChallengeHubScreen() {
                         </View>
                         <View style={styles.historyCopy}>
                           <Text style={styles.pastName} numberOfLines={1}>{h.name}</Text>
-                          <Text style={styles.historyMeta} numberOfLines={1}>
-                            {h.status === 'done'
-                              ? h.mode === 'weekly'
-                                ? t.challengeHistoryWeeklyDoneMeta(h.weekly_target ?? 0, h.total_weeks ?? 0, month(h.start_date))
-                                : t.challengeHistoryDoneMeta(h.target_days, month(h.start_date))
-                              : h.mode === 'weekly'
-                                ? t.challengeHistoryResetWeek(Math.ceil((h.reset_day ?? 0) / 7))
-                                : t.challengeHistoryReset(h.reset_day ?? 0)}
-                          </Text>
+                          <Text style={styles.historyMeta} numberOfLines={1}>{historyMetaText}</Text>
                         </View>
                       </TouchableOpacity>
                       {!selectionMode && h.status === 'done' ? (
-                        <Text style={[styles.pastStatus, { color: colors.primary }]} numberOfLines={1}>{t.challengeHistoryDone}</Text>
+                        <Text style={[styles.pastStatus, { color: colors.primaryText }]} numberOfLines={1}>{t.challengeHistoryDone}</Text>
                       ) : !selectionMode ? (
                         <TouchableOpacity
                           onPress={async () => {
@@ -192,7 +189,7 @@ export function ChallengeHubScreen() {
                           accessibilityRole="button"
                           accessibilityLabel={t.challengeRestartCta}
                         >
-                          <Text style={[styles.pastStatus, { color: colors.primary }]} numberOfLines={1}>{t.challengeRestartCta}</Text>
+                          <Text style={[styles.pastStatus, { color: colors.primaryText }]} numberOfLines={1}>{t.challengeRestartCta}</Text>
                         </TouchableOpacity>
                       ) : null}
                       {!selectionMode && (
@@ -208,7 +205,7 @@ export function ChallengeHubScreen() {
                         </TouchableOpacity>
                       )}
                     </View>
-                  ))}
+                  );})}
                 </View>
               </View>
             )}
@@ -224,26 +221,20 @@ function makeStyles(C: AppColors) {
     safe: { flex: 1, backgroundColor: C.bgBase },
     loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     scrollContent: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.xl, gap: Spacing.lg },
-    header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-    headerTitleGroup: { flexShrink: 1, minWidth: 0 },
-    backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-    backButtonText: { ...Typography.title, color: C.inkDark },
-    brand: { ...Typography.caption, color: C.muted, fontFamily: FontFamily.bold, letterSpacing: 0.8 },
-    title: { ...Typography.title, color: C.inkDark, fontSize: 28, lineHeight: 34 },
-    addButton: { width: 44, height: 44, marginLeft: 'auto', borderRadius: Radii.md, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
-    addButtonText: { color: C.onAccent, fontSize: 34, lineHeight: 38, fontFamily: FontFamily.regular },
+    headerAddButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    headerAddText: { ...Typography.title, color: C.primaryText, fontFamily: FontFamily.bold, lineHeight: 24 },
     emptyState: { alignItems: 'center', paddingTop: 60, paddingHorizontal: Spacing.lg },
     emptyTitle: { ...Typography.subheading, color: C.inkDark, marginBottom: Spacing.xs, textAlign: 'center' },
     emptyBody: { ...Typography.body, color: C.ink2, textAlign: 'center', marginBottom: Spacing.lg },
     emptyCta: { backgroundColor: C.primary, paddingVertical: 14, paddingHorizontal: Spacing.xl, borderRadius: Radii.pill },
-    emptyCtaText: { ...Typography.bodyStrong, color: C.white },
+    emptyCtaText: { ...Typography.bodyStrong, color: C.onAccent },
     section: { gap: Spacing.sm },
     historyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     sectionLabel: { ...Typography.sectionLabel, color: C.ink2 },
     historyActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-    historyAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.xs },
+    historyAction: { minHeight: 48, justifyContent: 'center', paddingHorizontal: Spacing.xs },
     historyActionText: { ...Typography.caption, color: C.ink2, fontFamily: FontFamily.semiBold },
-    historyDeleteText: { ...Typography.caption, color: C.danger, fontFamily: FontFamily.semiBold },
+    historyDeleteText: { ...Typography.caption, color: C.dangerText, fontFamily: FontFamily.semiBold },
     pastCard: { backgroundColor: C.surface, borderRadius: Radii.lg, ...Shadows.light },
     pastRow: { position: 'relative', flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, paddingRight: 48 },
     pastRowBorder: { borderBottomWidth: 1, borderBottomColor: C.line },
@@ -256,7 +247,7 @@ function makeStyles(C: AppColors) {
     pastName: { ...Typography.bodyStrong, color: C.inkDark },
     historyMeta: { ...Typography.caption, color: C.muted },
     pastStatus: { ...Typography.caption, fontFamily: FontFamily.semiBold },
-    retryButton: { minHeight: 44, justifyContent: 'center' },
+    retryButton: { minHeight: 48, justifyContent: 'center' },
     retryDisabled: { opacity: 0.55 },
     historyDeleteButton: { position: 'absolute', top: 4, right: 4, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     historyDeleteIcon: { fontSize: 24, lineHeight: 24, color: C.muted, fontFamily: FontFamily.regular },

@@ -75,7 +75,7 @@ export function WeekStrip({ weekStart, doneDates, today }: Props) {
             accessibilityLabel={`${cell.date}, ${stateLabel(cell.state)}`}
           >
             {cellGlyph(cell.state)
-              ? <Text style={[styles.glyph, cell.state === 'done' && { color: C.primary }]}>{cellGlyph(cell.state)}</Text>
+              ? <Text style={[styles.glyph, cell.state === 'done' && { color: C.primaryText }]}>{cellGlyph(cell.state)}</Text>
               : <Text style={styles.dayNumber}>{cell.dayNumber}</Text>}
           </View>
         </View>

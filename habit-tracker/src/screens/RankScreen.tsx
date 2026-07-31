@@ -295,7 +295,6 @@ function makeStyles(C: AppColors) {
       position: 'absolute', top: 0, left: 0, right: 0, height: '60%',
       opacity: 0.12,
     },
-    rankEm: { fontSize: 54, marginBottom: 2 },
     rankNm: { fontSize: 25, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, marginTop: 8 },
     rankEn: { fontSize: 12.5, color: C.muted, marginTop: 2, fontStyle: 'italic' },
     rankWk: {
@@ -326,7 +325,7 @@ function makeStyles(C: AppColors) {
     lbRankTop: { color: C.starGoldText },
     lbInfo: { flex: 1, minWidth: 0 },
     lbName: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
-    lbStars: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primary },
+    lbStars: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primaryText },
     lbEmpty: { paddingVertical: 20, alignItems: 'center' },
     lbEmptyTxt: { fontSize: 13, color: C.muted, textAlign: 'center', paddingVertical: 12 },
   });

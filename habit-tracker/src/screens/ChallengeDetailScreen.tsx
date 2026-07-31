@@ -117,7 +117,7 @@ export function ChallengeDetailScreen() {
       await updateChallengeName.mutateAsync({ challengeId, name: trimmed });
       setEditingName(false);
     } catch {
-      Alert.alert(t.error, t.editNameLabel);
+      Alert.alert(t.error, t.challengeRenameFailed);
     }
   }
 
@@ -409,7 +409,7 @@ export function ChallengeDetailScreen() {
             accessibilityRole="button"
             accessibilityLabel={challenge.loggedToday ? t.challengeLoggedToday : linkedTaskName == null ? t.challengeLogTodayCta : t.challengeLogNowCta}
           >
-            {logDay.isPending ? <ActivityIndicator color={colors.white} /> : (
+            {logDay.isPending ? <ActivityIndicator color={colors.onAccent} /> : (
               <Text style={styles.logBtnText}>{challenge.loggedToday ? `✓ ${t.challengeLoggedToday}` : linkedTaskName == null ? t.challengeLogTodayCta : t.challengeLogNowCta}</Text>
             )}
           </TouchableOpacity>
@@ -438,7 +438,7 @@ export function ChallengeDetailScreen() {
       )}
       <Modal visible={editingName} transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={() => setEditingName(false)} statusBarTranslucent navigationBarTranslucent>
         <KeyboardAvoidingView style={styles.editOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.editCard}>
+          <View style={styles.editCard} accessibilityViewIsModal>
             <Text style={styles.editTitle}>{t.editActivity}</Text>
             <TextInput value={nameDraft} onChangeText={setNameDraft} style={styles.editInput} autoFocus maxLength={80} selectTextOnFocus accessibilityLabel={t.editActivity} />
             <View style={styles.editActions}>
@@ -472,9 +472,9 @@ function makeStyles(C: AppColors) {
     editTitle: { ...Typography.subheading, color: C.inkDark },
     editInput: { ...Typography.body, color: C.inkDark, borderWidth: 1, borderColor: C.line, borderRadius: Radii.md, minHeight: 48, paddingHorizontal: Spacing.md },
     editActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm },
-    editAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.sm },
+    editAction: { minHeight: 48, justifyContent: 'center', paddingHorizontal: Spacing.sm },
     editCancel: { ...Typography.bodyStrong, color: C.ink2 },
-    editSave: { ...Typography.bodyStrong, color: C.primary },
+    editSave: { ...Typography.bodyStrong, color: C.primaryText },
     titleRow: { alignSelf: 'stretch', gap: Spacing.xs },
     name: { ...Typography.title, color: C.inkDark, flexShrink: 1 },
     runningChip: {
@@ -484,7 +484,7 @@ function makeStyles(C: AppColors) {
     },
     mutedChip: { backgroundColor: C.surface2 },
     runningDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.primary },
-    runningChipText: { ...Typography.caption, fontFamily: FontFamily.bold, color: C.primary },
+    runningChipText: { ...Typography.caption, fontFamily: FontFamily.bold, color: C.primaryText },
     ringWrap: { paddingVertical: Spacing.md, alignItems: 'center' },
     weekSubLabel: { ...Typography.caption, color: C.ink2, marginTop: 4 },
     reminderOkText: { ...Typography.caption, color: C.ink2, alignSelf: 'center' },
@@ -492,7 +492,7 @@ function makeStyles(C: AppColors) {
       alignSelf: 'center', minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
       backgroundColor: C.dangerSoft, borderRadius: Radii.pill, paddingVertical: 6, paddingHorizontal: 14,
     },
-    reminderFailedText: { ...Typography.caption, fontFamily: FontFamily.semiBold, color: C.danger },
+    reminderFailedText: { ...Typography.caption, fontFamily: FontFamily.semiBold, color: C.dangerText },
     daysLeftPill: {
       alignSelf: 'center', backgroundColor: C.surface2, borderRadius: Radii.pill,
       paddingVertical: 6, paddingHorizontal: 14, marginTop: -Spacing.sm,
@@ -515,7 +515,7 @@ function makeStyles(C: AppColors) {
       alignItems: 'center', ...Shadows.medium,
     },
     logBtnDisabled: { opacity: 0.6 },
-    logBtnText: { ...Typography.bodyStrong, color: C.white, fontSize: 16 },
+    logBtnText: { ...Typography.bodyStrong, color: C.onAccent, fontSize: 16 },
     linkedHint: { ...Typography.secondary, color: C.ink2, marginBottom: Spacing.sm, lineHeight: 19 },
     photoSection: { flexDirection: 'row', gap: Spacing.md, alignSelf: 'stretch' },
     doneTitle: { ...Typography.title, color: C.inkDark, textAlign: 'center' },
@@ -530,7 +530,7 @@ function makeStyles(C: AppColors) {
     rewardLocked: { borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, opacity: 0.72 },
     rewardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
     rewardTitle: { ...Typography.sectionLabel, color: C.ink2 },
-    claimedChip: { ...Typography.caption, color: C.primary, backgroundColor: C.primarySoft, borderRadius: Radii.pill, paddingHorizontal: Spacing.sm, paddingVertical: 2, fontFamily: FontFamily.semiBold },
+    claimedChip: { ...Typography.caption, color: C.primaryText, backgroundColor: C.primarySoft, borderRadius: Radii.pill, paddingHorizontal: Spacing.sm, paddingVertical: 2, fontFamily: FontFamily.semiBold },
     lockedChip: { ...Typography.caption, color: C.muted, backgroundColor: C.surface2, borderRadius: Radii.pill, paddingHorizontal: Spacing.sm, paddingVertical: 2, fontFamily: FontFamily.semiBold },
     rewardRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 6 },
     rewardIcon: { fontSize: 22, color: C.starGoldText },
@@ -540,7 +540,7 @@ function makeStyles(C: AppColors) {
     rewardDivider: { height: 1, backgroundColor: C.line, marginVertical: 4 },
 
     failedTitle: { ...Typography.title, color: C.inkDark, textAlign: 'center' },
-    secondaryCta: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: Spacing.xs },
+    secondaryCta: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: Spacing.xs },
     secondaryCtaText: { ...Typography.bodyStrong, color: C.ink2 },
   });
 }

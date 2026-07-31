@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import Toast from 'react-native-toast-message';
 import { Typography, Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useGoogleUser } from '../hooks/useAuth';
 import { submitFeedback } from '../api/feedbackService';
 import { FeedbackType, FEEDBACK_MAX_LENGTH, validateFeedbackMessage } from '../utils/feedbackLogic';
@@ -23,6 +24,7 @@ const TYPES: { key: FeedbackType; icon: string }[] = [
 export function FeedbackSheet({ visible, onClose }: Props) {
   const googleUser = useGoogleUser();
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
   const t = useTranslations();
   const { bottom } = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors, bottom), [colors, bottom]);
@@ -93,9 +95,10 @@ export function FeedbackSheet({ visible, onClose }: Props) {
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose} statusBarTranslucent navigationBarTranslucent>
+    <Modal visible={visible} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={handleClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.backdrop}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={handleClose} accessibilityRole="button" accessibilityLabel={t.close} />
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -204,7 +207,7 @@ function makeStyles(C: AppColors, bottomInset: number) {
     },
     typeChipActive: { borderColor: C.primary, backgroundColor: C.primarySoft },
     typeChipText: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.muted },
-    typeChipTextActive: { color: C.primary },
+    typeChipTextActive: { color: C.primaryText },
     input: {
       backgroundColor: C.surface2, color: C.inkDark, padding: 13,
       borderRadius: Radii.md, fontSize: 14, minHeight: 110,
@@ -235,7 +238,7 @@ function makeStyles(C: AppColors, bottomInset: number) {
       alignItems: 'center', marginBottom: 8,
     },
     sendBtnDisabled: { backgroundColor: C.line2 },
-    sendBtnText: { color: C.white, fontSize: 15, fontFamily: FontFamily.bold },
+    sendBtnText: { color: C.onAccent, fontSize: 15, fontFamily: FontFamily.bold },
     cancelBtn: { minHeight: 44, justifyContent: 'center' },
     cancel: { textAlign: 'center', color: C.muted, padding: 8 },
   });

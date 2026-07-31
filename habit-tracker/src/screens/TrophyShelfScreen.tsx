@@ -85,7 +85,7 @@ export function TrophyShelfScreen() {
           <View style={styles.counterRow}>
             <Text style={styles.counterLabel}>{t.trophyUnlockedCount}</Text>
             <Text style={styles.counterValue}>
-              <Text style={{ color: colors.primary }}>{earnedCount}</Text> / {items.length}
+              <Text style={{ color: colors.primaryText }}>{earnedCount}</Text> / {items.length}
             </Text>
           </View>
           <View style={styles.track}>

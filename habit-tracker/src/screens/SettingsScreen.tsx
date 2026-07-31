@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView, Platform,
+  View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView, Platform, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Radii, Spacing, Shadows, Typography, AppColors, FontFamily } from '../config/theme';
 import { useDarkMode, useLanguage, useAudioEnabled, useAccent, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
 import { useAuthUser } from '../hooks/useAuth';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import {
   useNotificationTime, useSetNotificationTime,
   useNotificationTime2, useSetNotificationTime2,
@@ -70,6 +71,9 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [deleting, setDeleting] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
+  const reduceMotion = useReduceMotion();
+  const [iosPickerIdx, setIosPickerIdx] = useState<number | null>(null);
+  const [iosPickerDate, setIosPickerDate] = useState(new Date());
 
   const { data: savedNotifTime } = useNotificationTime(userId);
   const setNotifTimeMutation = useSetNotificationTime(userId);
@@ -99,14 +103,40 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
     scheduleAllHabitReminders(updated, lang).catch(() => {});
   }
 
+  function openIosPicker(idx: number, currentVal: string | null) {
+    const date = new Date();
+    if (currentVal) {
+      const [h, m] = currentVal.split(':').map(Number);
+      date.setHours(h, m, 0, 0);
+    }
+    setIosPickerDate(date);
+    setIosPickerIdx(idx);
+  }
+
+  function confirmIosPicker() {
+    if (iosPickerIdx === null) return;
+    const hh = String(iosPickerDate.getHours()).padStart(2, '0');
+    const mm = String(iosPickerDate.getMinutes()).padStart(2, '0');
+    handleSetReminder(iosPickerIdx, `${hh}:${mm}`);
+    setIosPickerIdx(null);
+  }
+
   function handleOpenPicker(idx: number) {
-    openTimePicker(savedTimes[idx], (time) => handleSetReminder(idx, time));
+    if (Platform.OS === 'android') {
+      openTimePicker(savedTimes[idx], (time) => handleSetReminder(idx, time));
+    } else {
+      openIosPicker(idx, savedTimes[idx]);
+    }
   }
 
   function handleAddReminder() {
     const nextIdx = savedTimes.findIndex(v => !v);
     if (nextIdx === -1) return;
-    openTimePicker(null, (time) => handleSetReminder(nextIdx, time));
+    if (Platform.OS === 'android') {
+      openTimePicker(null, (time) => handleSetReminder(nextIdx, time));
+    } else {
+      openIosPicker(nextIdx, null);
+    }
   }
 
   function handleDeleteAccount() {
@@ -263,7 +293,7 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
             accessibilityLabel={t.deleteAccountLabel}
           >
             <Text style={styles.rowIc} importantForAccessibility="no">🗑️</Text>
-            <Text style={[styles.rowLabel, { color: colors.danger }]}>{t.deleteAccountLabel}</Text>
+            <Text style={[styles.rowLabel, { color: colors.dangerText }]}>{t.deleteAccountLabel}</Text>
             <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
         </View>
@@ -271,6 +301,31 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
         <Text style={styles.hint}>{t.deleteAccountNote}</Text>
       </ScrollView>
       <FeedbackSheet visible={feedbackVisible} onClose={() => setFeedbackVisible(false)} />
+      {Platform.OS === 'ios' && (
+        <Modal visible={iosPickerIdx !== null} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={() => setIosPickerIdx(null)} statusBarTranslucent navigationBarTranslucent>
+          <View style={styles.iosPickerBackdrop}>
+            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setIosPickerIdx(null)} accessibilityRole="button" accessibilityLabel={t.close} />
+            <View style={styles.iosPickerSheet} accessibilityViewIsModal>
+              <View style={styles.iosPickerHeader}>
+                <TouchableOpacity onPress={() => setIosPickerIdx(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t.cancel}>
+                  <Text style={styles.iosPickerAction}>{t.cancel}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={confirmIosPicker} hitSlop={8} accessibilityRole="button" accessibilityLabel={t.confirm}>
+                  <Text style={[styles.iosPickerAction, styles.iosPickerConfirm]}>{t.confirm}</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                mode="time"
+                value={iosPickerDate}
+                display="spinner"
+                is24Hour
+                themeVariant={isDark ? 'dark' : 'light'}
+                onChange={(_event, date) => { if (date) setIosPickerDate(date); }}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
@@ -311,7 +366,7 @@ function makeStyles(C: AppColors) {
     rowIc: { fontSize: 20, width: 28, textAlign: 'center' },
     languageChip: { width: 28, borderRadius: Radii.sm, backgroundColor: C.surface2, color: C.ink2, fontSize: 11, fontFamily: FontFamily.bold, overflow: 'hidden', paddingVertical: 4, textAlign: 'center' },
     rowLabel: { flex: 1, fontSize: 15, fontFamily: FontFamily.semiBold, color: C.inkDark },
-    check: { fontSize: 16, fontFamily: FontFamily.extraBold, color: C.primary },
+    check: { fontSize: 16, fontFamily: FontFamily.extraBold, color: C.primaryText },
     chevron: { fontSize: 18, color: C.muted },
     hint: {
       marginHorizontal: Spacing.lg,
@@ -324,7 +379,7 @@ function makeStyles(C: AppColors) {
     reminderTime: {
       fontSize: 17,
       fontFamily: FontFamily.bold,
-      color: C.primary,
+      color: C.primaryText,
     },
     reminderClearBtn: {
       minWidth: 48,
@@ -338,9 +393,14 @@ function makeStyles(C: AppColors) {
       fontFamily: FontFamily.bold,
     },
     addReminderText: {
-      color: C.primary,
+      color: C.primaryText,
       fontFamily: FontFamily.bold,
     },
     accentCopy: { marginBottom: 8 },
+    iosPickerBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: C.scrim },
+    iosPickerSheet: { alignSelf: 'center', width: '100%', maxWidth: 480, backgroundColor: C.surface, borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl, paddingBottom: Spacing.lg },
+    iosPickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: C.line },
+    iosPickerAction: { fontSize: 16, fontFamily: FontFamily.semiBold, color: C.muted },
+    iosPickerConfirm: { color: C.primaryText, fontFamily: FontFamily.bold },
   });
 }

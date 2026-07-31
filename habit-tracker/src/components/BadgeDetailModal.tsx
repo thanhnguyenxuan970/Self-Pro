@@ -4,6 +4,7 @@ import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
 import { AppColors, FontFamily, Radii, Spacing, Typography } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Badge } from './Badge';
 import type { Achievement, Tier } from '../config/achievements';
@@ -28,6 +29,7 @@ interface Props {
 
 export function BadgeDetailModal({ visible, achievement, earnedDate, onClose }: Props) {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
   const t = useTranslations();
   const { bottom } = useSafeAreaInsets();
   const styles = React.useMemo(() => makeStyles(colors, bottom), [colors, bottom]);
@@ -51,7 +53,7 @@ export function BadgeDetailModal({ visible, achievement, earnedDate, onClose }: 
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+    <Modal visible={visible} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <View style={styles.backdrop}>
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel={t.close} />
         <View style={styles.sheet}>
@@ -83,7 +85,7 @@ export function BadgeDetailModal({ visible, achievement, earnedDate, onClose }: 
             accessibilityLabel={t.trophyShareBadge}
           >
             {sharing
-              ? <ActivityIndicator color={colors.white} />
+              ? <ActivityIndicator color={colors.onAccent} />
               : <Text style={styles.shareBtnText}>{t.trophyShareBadge}</Text>}
           </TouchableOpacity>
         </View>
@@ -117,6 +119,6 @@ function makeStyles(C: AppColors, bottomInset: number) {
       alignItems: 'center', backgroundColor: C.primary,
     },
     shareBtnDisabled: { backgroundColor: C.surface3 },
-    shareBtnText: { color: C.white, fontSize: 15, fontFamily: FontFamily.bold },
+    shareBtnText: { color: C.onAccent, fontSize: 15, fontFamily: FontFamily.bold },
   });
 }

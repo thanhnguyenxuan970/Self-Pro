@@ -66,7 +66,7 @@ const ProgressLogRow = React.memo(function ProgressLogRow({ item, isLast, select
       onLongPress={() => enterSelection(item.id)}
       delayLongPress={300}
       activeOpacity={0.7}
-      accessibilityRole={selectionMode ? 'checkbox' : undefined}
+      accessibilityRole={selectionMode ? 'checkbox' : 'button'}
       accessibilityLabel={name}
       accessibilityState={selectionMode ? { checked: selected } : undefined}
       accessibilityHint={selectionMode ? undefined : t.progressLogRowHint}
@@ -289,7 +289,7 @@ export function ProgressScreen() {
   const { data: topActivities = [] } = useTopActivities(userId);
   const [filterDate, setFilterDate] = useState<string | null>(null);
   const { data: actLogs = [] } = useRecentActivityLogs(
-    userId, 50,
+    userId, 30, // capped below the prior 50 to reduce simultaneous mount cost of this unvirtualized (ScrollView-nested) list
     filterDate ?? undefined,
     filterDate ?? undefined,
   );
@@ -501,13 +501,12 @@ function makeStyles(C: AppColors) {
     },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     cardTitle: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.inkDark },
-    chartSum: { fontSize: 11, color: C.ink2 },
     chartWrap: { marginTop: 8 },
     barChart: { height: 148, flexDirection: 'row', gap: 8, alignItems: 'flex-end', paddingHorizontal: 3 },
     barChartDense: { gap: 2 },
     barColumn: { flex: 1, height: '100%', alignItems: 'center', minWidth: 0 },
     barValue: { color: C.muted, fontSize: 11, fontFamily: FontFamily.extraBold, lineHeight: 16 },
-    barValuePeak: { color: C.primary },
+    barValuePeak: { color: C.primaryText },
     barValueDense: { fontSize: 9 },
     barArea: { flex: 1, width: '100%', justifyContent: 'flex-end', paddingTop: 4 },
     bar: { width: '100%', borderRadius: Radii.xs },
@@ -524,11 +523,11 @@ function makeStyles(C: AppColors) {
     },
     momentumCard: { marginHorizontal: Spacing.lg, flexDirection: 'row', backgroundColor: C.surface, borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line, ...Shadows.light },
     momentumHalf: { flex: 1, padding: 14 },
-    momentumValue: { color: C.primary, fontSize: 34, fontFamily: FontFamily.extraBold, letterSpacing: -1 },
+    momentumValue: { color: C.primaryText, fontSize: 34, fontFamily: FontFamily.extraBold, letterSpacing: -1 },
     rankCard: { marginHorizontal: Spacing.lg, padding: 14, backgroundColor: C.surface, borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line, ...Shadows.light },
     rankHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
     rankName: { color: C.inkDark, fontSize: 18, fontFamily: FontFamily.extraBold },
-    rankStars: { color: C.primary, fontSize: 13, fontFamily: FontFamily.bold, marginTop: 2 },
+    rankStars: { color: C.primaryText, fontSize: 13, fontFamily: FontFamily.bold, marginTop: 2 },
     rankNext: { flex: 1, color: C.muted, fontSize: 12, fontFamily: FontFamily.semiBold, textAlign: 'right' },
     rankTrack: { height: 7, marginTop: 12, backgroundColor: C.surface2, borderRadius: Radii.pill, overflow: 'hidden' },
     rankFill: { height: '100%', backgroundColor: C.primary, borderRadius: Radii.pill },
@@ -540,8 +539,8 @@ function makeStyles(C: AppColors) {
       width: '47%', backgroundColor: C.surface,
       borderRadius: Radii.md, padding: 12, borderWidth: 1, borderColor: C.line, ...Shadows.light,
     },
-    statV: { fontSize: 28, fontFamily: FontFamily.extraBold, letterSpacing: -0.8, color: C.primary, marginTop: 4 },
-    statVPeak: { color: C.primary }, statUnit: { fontSize: 12, letterSpacing: 0, color: C.ink2 },
+    statV: { fontSize: 28, fontFamily: FontFamily.extraBold, letterSpacing: -0.8, color: C.primaryText, marginTop: 4 },
+    statVPeak: { color: C.primaryText },
     statL: { fontSize: 11, color: C.ink2, fontFamily: FontFamily.bold, marginTop: 2 },
 
     logHeader: {
@@ -569,7 +568,7 @@ function makeStyles(C: AppColors) {
     },
     logActionTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.inkDark },
     logDeleteBtn: { borderColor: C.danger, backgroundColor: C.dangerSoft },
-    logDeleteTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.danger },
+    logDeleteTxt: { fontSize: 12, fontFamily: FontFamily.bold, color: C.dangerText },
     logCard: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,
       borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line,
@@ -584,8 +583,8 @@ function makeStyles(C: AppColors) {
     logBody: { flex: 1, minWidth: 0 },
     logName: { fontSize: 13.5, fontFamily: FontFamily.semiBold, color: C.inkDark },
     logDate: { fontSize: 11, color: C.ink2, marginTop: 2 },
-    logStars: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primary, flexShrink: 0 },
-    logStarsBad: { color: C.danger },
+    logStars: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primaryText, flexShrink: 0 },
+    logStarsBad: { color: C.dangerText },
     logEmptyWrap: {
       alignItems: 'center', paddingVertical: 24, marginHorizontal: Spacing.lg,
     },
@@ -598,7 +597,7 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.primary, borderRadius: Radii.pill,
     },
     logEmptyCtaTxt: {
-      fontSize: 13, fontFamily: FontFamily.bold, color: C.white,
+      fontSize: 13, fontFamily: FontFamily.bold, color: C.onAccent,
     },
     topCard: {
       marginHorizontal: Spacing.lg,
@@ -639,6 +638,6 @@ function makeStyles(C: AppColors) {
       justifyContent: 'center', alignItems: 'center', flexShrink: 0,
     },
     checkboxSelected: { borderColor: C.primary, backgroundColor: C.primary },
-    checkmark: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.white },
+    checkmark: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.onAccent },
   });
 }

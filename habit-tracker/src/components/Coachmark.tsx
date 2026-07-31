@@ -96,7 +96,7 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
               {localRect ? <Rect x={hx} y={hy} width={hw} height={hh} rx={roundHighlight ? hw / 2 : 14} fill="#000000" /> : null}
             </Mask>
           </Defs>
-          <Rect x={0} y={0} width={W} height={H} fill="rgba(0,0,0,0.76)" mask="url(#cut)" />
+          <Rect x={0} y={0} width={W} height={H} fill={C.scrim} mask="url(#cut)" />
           {localRect ? (
             <Rect x={hx} y={hy} width={hw} height={hh} rx={roundHighlight ? hw / 2 : 14} fill="none" stroke={C.primary} strokeWidth={2.5} />
           ) : null}
@@ -127,16 +127,16 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
           </View>
           <View style={styles.actions}>
             {index > 0 ? (
-              <TouchableOpacity onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.back.replace(/^[←→]\s*/, '')}>
+              <TouchableOpacity onPress={onBack} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.back.replace(/^[←→]\s*/, '')}>
                 <Text style={[styles.skip, { color: C.ink2 }]}>{t.back}</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity onPress={onSkip} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.tutSkip}>
+              <TouchableOpacity onPress={onSkip} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.tutSkip}>
                 <Text style={[styles.skip, { color: C.ink2 }]}>{t.tutSkip}</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={onNext} style={[styles.next, { backgroundColor: C.primary }]} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={nextLabel.replace(/\s*[←→]$/, '')}>
-              <Text style={[styles.nextText, { color: C.white }]}>{nextLabel}</Text>
+            <TouchableOpacity onPress={onNext} style={[styles.next, { backgroundColor: C.primary }]} hitSlop={10} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={nextLabel.replace(/\s*[←→]$/, '')}>
+              <Text style={[styles.nextText, { color: C.onAccent }]}>{nextLabel}</Text>
             </TouchableOpacity>
           </View>
         </View>
