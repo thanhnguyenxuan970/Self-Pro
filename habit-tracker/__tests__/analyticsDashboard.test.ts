@@ -1,7 +1,7 @@
 import { buildAnalyticsDashboard } from '../src/analytics/dashboardModel';
 
 describe('buildAnalyticsDashboard', () => {
-  it('uses the fixed 25-point daily goal', () => {
+  it('uses the fixed 50-point daily goal', () => {
     const result = buildAnalyticsDashboard(
       [{ local_date: '2026-07-27', total_points: 92 }, { local_date: '2026-07-28', total_points: 60 }],
       [],
@@ -9,14 +9,14 @@ describe('buildAnalyticsDashboard', () => {
       new Date(2026, 6, 28),
     );
 
-    expect(result.goal).toBe(25);
+    expect(result.goal).toBe(50);
     expect(result.daysAtGoal).toBe(2);
   });
 
   it('keeps the daily goal when there is no activity', () => {
     const result = buildAnalyticsDashboard([], [], 'W', new Date(2026, 6, 28));
 
-    expect(result.goal).toBe(25);
+    expect(result.goal).toBe(50);
     expect(result.daysAtGoal).toBe(0);
   });
 
@@ -30,13 +30,14 @@ describe('buildAnalyticsDashboard', () => {
     expect(result.bars[6].current).toBe(92);
   });
 
-  it('anchors the final month label to the final bar', () => {
+  it('keeps a rolling 30-day month window and weekly labels', () => {
     const result = buildAnalyticsDashboard([], [], 'M', new Date(2026, 6, 28));
 
-    expect(result.bars.map(bar => bar.label).filter(Boolean)).toEqual(['1', '8', '15', '22', '28']);
+    expect(result.bars).toHaveLength(30);
+    expect(result.bars.map(bar => bar.label).filter(Boolean)).toEqual(['29', '6', '13', '20', '27']);
   });
 
-  it('does not carry a current-month day into a shorter previous month', () => {
+  it('pairs each rolling-month day with the preceding 30-day period', () => {
     const result = buildAnalyticsDashboard(
       [{ local_date: '2026-07-01', total_points: 99 }, { local_date: '2026-07-31', total_points: 40 }],
       [],
@@ -44,13 +45,13 @@ describe('buildAnalyticsDashboard', () => {
       new Date(2026, 6, 31),
     );
 
-    expect(result.previousPoints).toBe(0);
-    expect(result.bars[30].previous).toBe(0);
+    expect(result.previousPoints).toBe(99);
+    expect(result.bars).toHaveLength(30);
   });
 
   it('compares goal-day KPI with the previous period', () => {
     const result = buildAnalyticsDashboard(
-      [{ local_date: '2026-07-28', total_points: 25 }, { local_date: '2026-07-21', total_points: 25 }],
+      [{ local_date: '2026-07-28', total_points: 50 }, { local_date: '2026-07-21', total_points: 50 }],
       [],
       'W',
       new Date(2026, 6, 28),
@@ -67,9 +68,9 @@ describe('buildAnalyticsDashboard', () => {
     }));
     const result = buildAnalyticsDashboard(daily, [], 'M', new Date(2026, 6, 31));
 
-    expect(result.points).toBe(31_000_000_000);
-    expect(result.daysAtGoal).toBe(31);
-    expect(result.bars).toHaveLength(31);
+    expect(result.points).toBe(30_000_000_000);
+    expect(result.daysAtGoal).toBe(30);
+    expect(result.bars).toHaveLength(30);
   });
 
   it('pairs current and previous week data and aggregates dashboard totals', () => {

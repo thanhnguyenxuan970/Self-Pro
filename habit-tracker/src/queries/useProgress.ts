@@ -23,13 +23,14 @@ export type ActivityLogEntry = {
 type PointChartBucket = { bucket: string; points: number };
 
 /** Returns non-zero daily point totals for the selected analytics range. */
-export function useAnalyticsPointsData(userId: number, range: 'W' | 'M' | 'Y') {
+export function useAnalyticsPointsData(userId: number, range: 'W' | 'M' | 'Y', enabled = true) {
   const weekStart = getLocalDateOffset(-6);
   const today = getLocalDate();
   const month = getMonthOffset(0);
   const year = getYearOffset(0);
 
   return useQuery({
+    enabled,
     queryKey: ['progress', 'points-chart', userId, range, weekStart, month, year],
     queryFn: async (): Promise<PointChartBucket[]> => {
       const db = await getDb();

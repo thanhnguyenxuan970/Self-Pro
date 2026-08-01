@@ -280,7 +280,7 @@ export function ProgressScreen() {
   const [range, setRange] = useState<Range>('W');
   const dashboardScrollRef = useRef<ScrollView>(null);
   const { data: dashboard, isLoading: isDashboardLoading } = useAnalyticsDashboard(userId, range);
-  const { data: chartData = [], isLoading } = useAnalyticsPointsData(userId, range);
+  const { data: chartData = [], isLoading } = useAnalyticsPointsData(userId, range, !dashboard && !isDashboardLoading);
   const { data: streak = 0 } = useStreakCount(userId);
   const { data: heatmapDays = [] } = useHeatmapData(userId);
   const { data: allTimeStats } = useAllTimeStats(userId);
@@ -371,7 +371,7 @@ export function ProgressScreen() {
   if (dashboard) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ScrollView ref={dashboardScrollRef} style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
+        <ScrollView ref={dashboardScrollRef} removeClippedSubviews style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
           <View style={styles.dashboardHeader}>
             <View style={styles.dashboardTitleGroup}>
               <Text style={styles.title}>{t.analyticsTitle}</Text>

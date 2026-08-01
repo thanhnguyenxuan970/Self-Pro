@@ -226,7 +226,7 @@ export function RankScreen() {
                   accessibilityState={{ disabled: !unlocked }}
                   accessibilityLabel={unlocked ? t.rankPreviewLabel(displayName) : t.rankLockedLabel(displayName, rank.stars)}
                 >
-                  {unlocked ? <RankMascot tier={rank.tier} size={76} loop={false} reduceMotion={reduceMotion} /> : <Text style={styles.lockedMark}>🔒</Text>}
+                  {unlocked ? <RankMascot tier={rank.tier} size={76} loop reduceMotion={reduceMotion} ambient /> : <Text style={styles.lockedMark}>🔒</Text>}
                   <Text style={[styles.previewTierText, { color: unlocked ? colors.inkDark : colors.muted }]} numberOfLines={2}>{rank.tier + 1} · {displayName}</Text>
                   {!unlocked && <Text style={styles.lockedRequirement}>{rank.stars} ★</Text>}
                 </TouchableOpacity>

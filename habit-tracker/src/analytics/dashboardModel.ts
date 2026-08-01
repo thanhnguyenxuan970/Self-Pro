@@ -17,7 +17,7 @@ export type AnalyticsDashboard = {
   composition: { name: string; count: number; previous: number }[];
 };
 
-const ANALYTICS_DAILY_GOAL = 25;
+const ANALYTICS_DAILY_GOAL = 50;
 const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const addDays = (date: Date, days: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 const sum = (items: number[]) => items.reduce((total, value) => total + value, 0);
@@ -25,10 +25,7 @@ const sum = (items: number[]) => items.reduce((total, value) => total + value, 0
 function windowFor(range: AnalyticsRange, today: Date) {
   const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   if (range === 'W') return { start: addDays(end, -6), previousStart: addDays(end, -13), count: 7 };
-  if (range === 'M') {
-    const start = new Date(end.getFullYear(), end.getMonth(), 1);
-    return { start, previousStart: new Date(end.getFullYear(), end.getMonth() - 1, 1), count: end.getDate() };
-  }
+  if (range === 'M') return { start: addDays(end, -29), previousStart: addDays(end, -59), count: 30 };
   const start = new Date(end.getFullYear(), 0, 1);
   return { start, previousStart: new Date(end.getFullYear() - 1, 0, 1), count: Math.round((end.getTime() - start.getTime()) / 86400000) + 1 };
 }
@@ -42,11 +39,10 @@ export function buildAnalyticsDashboard(daily: AnalyticsDaily[], logs: Analytics
     : addDays(start, index));
   const previousDates = currentDates.map<Date | null>(date => range === 'Y'
     ? new Date(date.getFullYear() - 1, date.getMonth(), 1)
-    : range === 'M' && date.getDate() > new Date(previousStart.getFullYear(), previousStart.getMonth() + 1, 0).getDate() ? null
-    : range === 'M' ? new Date(previousStart.getFullYear(), previousStart.getMonth(), date.getDate()) : addDays(previousStart, Math.round((date.getTime() - start.getTime()) / 86400000)));
+    : addDays(previousStart, Math.round((date.getTime() - start.getTime()) / 86400000)));
   const labels = currentDates.map((date, index) => range === 'W'
     ? ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][date.getDay()]
-    : range === 'M' ? (index === currentDates.length - 1 || (date.getDate() % 7 === 1 && index <= currentDates.length - 5) ? String(date.getDate()) : '')
+    : range === 'M' ? (index % 7 === 0 ? String(date.getDate()) : '')
     : date.toLocaleString('en-US', { month: 'short' }));
   const monthTotal = (month: Date, from: Date, to: Date) => sum(daily.filter(row => {
     const date = new Date(`${row.local_date}T00:00:00`);
@@ -57,7 +53,7 @@ export function buildAnalyticsDashboard(daily: AnalyticsDaily[], logs: Analytics
   const currentEnd = today;
   const previousEnd = range === 'Y'
     ? new Date(today.getFullYear() - 1, today.getMonth(), today.getDate())
-    : range === 'M' ? new Date(start.getFullYear(), start.getMonth(), 0) : addDays(previousStart, count - 1);
+    : addDays(previousStart, count - 1);
   const currentLogs = logs.filter(log => inWindow(log.local_date, start, currentEnd));
   const previousLogs = logs.filter(log => inWindow(log.local_date, previousStart, previousEnd));
   const points = sum(bars.map(bar => bar.current));

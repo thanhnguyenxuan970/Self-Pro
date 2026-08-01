@@ -231,7 +231,7 @@ export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal,
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setSelectedDate(null)} accessibilityLabel={t.close} accessibilityRole="button" />
         <View style={styles.sheet}>
           <Svg style={styles.rewardGlow} width="100%" height={210} pointerEvents="none">
-            <Defs><RadialGradient id="reward-glow" cx="50%" cy="0%" rx="72%" ry="100%"><Stop offset="0" stopColor={colors.starGold} stopOpacity={0.28} /><Stop offset="1" stopColor={colors.starGold} stopOpacity={0} /></RadialGradient></Defs>
+            <Defs><RadialGradient id="reward-glow" cx="50%" cy="0%" rx="72%" ry="100%"><Stop offset="0" stopColor={colors.primary} stopOpacity={0.22} /><Stop offset="1" stopColor={colors.primary} stopOpacity={0} /></RadialGradient></Defs>
             <Rect width="100%" height="100%" fill="url(#reward-glow)" />
           </Svg>
           <View style={styles.grabber} />
@@ -244,15 +244,15 @@ export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal,
             </TouchableOpacity>
           </View>
           <View style={styles.rewardCopy}>
-            <Text style={[styles.rewardStars, { color: colors.starGoldText }]} adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1}>+{selectedStars} ★</Text>
+            <Text style={[styles.rewardStars, { color: colors.primaryText }]} adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1}>+{selectedStars} ★</Text>
             <Text style={styles.rewardSubtitle}>{t.rewardStarsReceived}</Text>
           </View>
           <View style={styles.pointsCard}>
             <Text style={styles.pointsValue} adjustsFontSizeToFit minimumFontScale={0.75} numberOfLines={1}>{selectedPoints} <Text style={styles.pointsGoal}>/ {selectedGoal}</Text></Text>
             <Text style={styles.pointsLabel}>{t.pointsLabel}</Text>
           </View>
-          <TouchableOpacity style={[styles.dismissButton, { backgroundColor: colors.rewardCta }]} onPress={() => setSelectedDate(null)} activeOpacity={0.8} accessibilityRole="button">
-            <Text style={styles.dismissButtonText}>{t.rewardDismiss}</Text>
+          <TouchableOpacity style={[styles.dismissButton, { backgroundColor: colors.primary }]} onPress={() => setSelectedDate(null)} activeOpacity={0.8} accessibilityRole="button">
+            <Text style={[styles.dismissButtonText, { color: colors.onAccent }]}>{t.rewardDismiss}</Text>
           </TouchableOpacity>
         </View>
       </View>

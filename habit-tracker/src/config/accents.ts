@@ -23,8 +23,8 @@ export const ACCENTS: Record<AccentKey, AccentPalette> = {
   },
   indigo: {
     swatch: '#6366F1',
-    onAccent: { light: '#FFFFFF', dark: '#141816' }, // light: white ~4.47:1 (best available -- see note below); dark: ink clears 6.01:1
-    light: { primary: '#6366F1', primaryHover: '#4F46E5', primaryPress: '#3730A3', primarySoft: '#E0E7FF' },
+    onAccent: { light: '#FFFFFF', dark: '#141816' },
+    light: { primary: '#5B5FEA', primaryHover: '#4F46E5', primaryPress: '#3730A3', primarySoft: '#E0E7FF' },
     dark:  { primary: '#818CF8', primaryHover: '#6366F1', primaryPress: '#A5B4FC', primarySoft: '#1E1B4B' },
   },
   rose: {
@@ -35,13 +35,8 @@ export const ACCENTS: Record<AccentKey, AccentPalette> = {
   },
   sky: {
     swatch: '#0EA5E9',
-    // Neither ink clears 4.5:1 against light-mode's #0284C7: white ~4.10:1,
-    // #141816 ~4.38:1. Ink is the closer of the two, so it's the pick here,
-    // but this is a best-available compromise, not a clean AA pass -- the
-    // light-mode sky primary itself would need to darken slightly to fully
-    // clear 4.5:1 for onAccent text. Flagged, not silently claimed as fixed.
-    onAccent: { light: '#141816', dark: '#141816' }, // dark: ink clears 8.36:1 cleanly
-    light: { primary: '#0284C7', primaryHover: '#0369A1', primaryPress: '#075985', primarySoft: '#E0F2FE' },
+    onAccent: { light: '#FFFFFF', dark: '#141816' },
+    light: { primary: '#0277BD', primaryHover: '#0369A1', primaryPress: '#075985', primarySoft: '#E0F2FE' },
     dark:  { primary: '#38BDF8', primaryHover: '#0EA5E9', primaryPress: '#7DD3FC', primarySoft: '#0C2A3E' },
   },
   violet: {
