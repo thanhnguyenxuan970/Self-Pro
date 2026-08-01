@@ -11,6 +11,7 @@ describe('buildAnalyticsDashboard', () => {
 
     expect(result.goal).toBe(50);
     expect(result.daysAtGoal).toBe(2);
+    expect(result.bars.map(bar => bar.label)).toEqual(['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']);
   });
 
   it('keeps the daily goal when there is no activity', () => {

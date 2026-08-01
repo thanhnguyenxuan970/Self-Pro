@@ -24,7 +24,11 @@ const sum = (items: number[]) => items.reduce((total, value) => total + value, 0
 
 function windowFor(range: AnalyticsRange, today: Date) {
   const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  if (range === 'W') return { start: addDays(end, -6), previousStart: addDays(end, -13), count: 7 };
+  if (range === 'W') {
+    const mondayOffset = (end.getDay() + 6) % 7;
+    const start = addDays(end, -mondayOffset);
+    return { start, previousStart: addDays(start, -7), count: 7 };
+  }
   if (range === 'M') return { start: addDays(end, -29), previousStart: addDays(end, -59), count: 30 };
   const start = new Date(end.getFullYear(), 0, 1);
   return { start, previousStart: new Date(end.getFullYear() - 1, 0, 1), count: Math.round((end.getTime() - start.getTime()) / 86400000) + 1 };

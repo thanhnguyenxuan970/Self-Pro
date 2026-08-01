@@ -333,7 +333,7 @@ function makeStyles(colors: AppColors, bottomInset: number) {
     legendCheck: { color: colors.primaryText, fontSize: 14, fontFamily: FontFamily.extraBold },
     legendPlus: { color: colors.primaryText, fontSize: 16, fontFamily: FontFamily.extraBold },
     legendToday: { width: 13, height: 13, borderRadius: 3, borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft },
-    legendLabel: { fontSize: 11, fontFamily: FontFamily.semiBold, color: colors.ink2 },
+    legendLabel: { fontSize: 12, lineHeight: 17, fontFamily: FontFamily.semiBold, color: colors.ink2 },
     summary: {
       flexDirection: 'row',
       backgroundColor: colors.surface,

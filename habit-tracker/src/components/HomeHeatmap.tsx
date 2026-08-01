@@ -51,6 +51,21 @@ function ProgressRing({ progress, colors, animKey, reduceMotion }: { progress: n
   </View>;
 }
 
+function AnimatedCount({ value, suffix, style, animKey, reduceMotion }: { value: number; suffix: string; style: object; animKey: number; reduceMotion: boolean }) {
+  const progress = useRef(new Animated.Value(reduceMotion ? value : 0)).current;
+  const [displayValue, setDisplayValue] = useState(reduceMotion ? value : 0);
+  useEffect(() => {
+    if (reduceMotion) { progress.setValue(value); setDisplayValue(value); return; }
+    progress.setValue(0);
+    setDisplayValue(0);
+    const listener = progress.addListener(({ value: next }) => setDisplayValue(Math.round(next)));
+    const animation = Animated.timing(progress, { toValue: value, delay: 120, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: false });
+    animation.start(({ finished }) => { if (finished) setDisplayValue(value); });
+    return () => { progress.removeListener(listener); animation.stop(); };
+  }, [animKey, progress, reduceMotion, value]);
+  return <Text style={style} numberOfLines={1}>{displayValue}{suffix}</Text>;
+}
+
 // Heatmap cells "fill in" with their colour in a diagonal wave: each coloured
 // box starts empty, then its shade pops in (opacity + scale), delayed by its
 // distance from the top-left corner (col + row). Replayed on focus via animKey.
@@ -222,7 +237,7 @@ export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal,
     {progress !== null && <View style={styles.today}>
       <ProgressRing progress={progress} colors={colors} animKey={animKey} reduceMotion={reduceMotion} />
       <View style={styles.todayCopy}>
-        <Text style={styles.todayValue}>{todayPoints} / {todayGoal}</Text>
+        <AnimatedCount value={todayPoints ?? 0} suffix={` / ${todayGoal}`} style={styles.todayValue} animKey={animKey} reduceMotion={reduceMotion} />
         <Text style={styles.todayLabel}>{t.pointsLabel}</Text>
       </View>
     </View>}
