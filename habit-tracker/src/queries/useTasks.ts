@@ -7,6 +7,7 @@ import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
+import { syncCurrentUserToSupabase } from '../api/syncService';
 
 interface TaskFormParams {
   name: string;
@@ -319,8 +320,8 @@ export function useArchiveTask(userId: number) {
             await revertTreatStars(db, userId, kind, allLogs, totalTreatDelta);
             await recomputeStreaks(db, userId);
 
-            // Archiving hard-deletes every historical row for this task —
-            // reverse their net lifetime contribution the same way (negated).
+            // Archiving removes weekly/history rows, but lifetime rank is a
+            // high-water mark and never subtracts earned stars.
             const totalStarsDelta = allLogs.reduce((s, r) => s + r.stars_delta, 0);
             const result = await applyLifetimeStarsDelta(db, userId, -totalStarsDelta, tiers);
             lifetimeCrossings = lifetimeCrossings.concat(result.crossings);
@@ -341,6 +342,9 @@ export function useArchiveTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
+      void syncCurrentUserToSupabase()
+        .catch(error => { if (__DEV__) console.warn('[sync] archived task sync failed:', error); })
+        .finally(() => { qc.invalidateQueries({ queryKey: ['leaderboard'] }); });
       if (data?.lifetimeCrossings?.length) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(data.lifetimeCrossings);

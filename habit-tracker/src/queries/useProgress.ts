@@ -2,12 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { dailyBonusStarsForPoints } from '../config/constants';
-import { getLocalDate, getWeekStart, getLocalDateOffset, getWeekStartOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
+import { getLocalDate, getWeekStart, getLocalDateOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
 import { AnalyticsDashboard, AnalyticsRange, AnalyticsDaily, AnalyticsLog, analyticsDemo, buildAnalyticsDashboard } from '../analytics/dashboardModel';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
+import { syncCurrentUserToSupabase } from '../api/syncService';
 
 export type ActivityLogEntry = {
   id: number;
@@ -252,9 +253,8 @@ export function useDeleteActivityLogs(userId: number) {
           );
         }
 
-        // Removing these rows changes lifetime stars by the negated net of what
-        // they contributed (deleting a BAD/penalty row is a net gain — undoing
-        // it can, in principle, cross a tier upward; tier never demotes).
+        // Lifetime rank is a high-water mark: removing earned rows never lowers
+        // it. Removing a BAD/penalty row is a net gain and can cross upward.
         lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, badPenaltyAmt - goodStarsDelta, tiers)).crossings;
 
         await db.runAsync(
@@ -271,6 +271,9 @@ export function useDeleteActivityLogs(userId: number) {
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
+      void syncCurrentUserToSupabase()
+        .catch(error => { if (__DEV__) console.warn('[sync] activity delete sync failed:', error); })
+        .finally(() => { qc.invalidateQueries({ queryKey: ['leaderboard'] }); });
       if (data?.lifetimeCrossings?.length) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(data.lifetimeCrossings);

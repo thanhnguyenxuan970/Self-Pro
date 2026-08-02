@@ -43,23 +43,11 @@ test('positive delta crossing multiple tiers in one call returns every crossing,
   );
 });
 
-test('negative delta decreases lifetime_stars, never touches current_tier_id, never crosses', async () => {
+test('negative delta never decreases lifetime high-water mark, tier, or crossings', async () => {
   const db = createDb({ lifetime_stars: 15, current_tier_id: 2 });
   const result = await applyLifetimeStarsDelta(db, 1, -5, tiers);
   expect(result.crossings).toHaveLength(0);
-  expect(db.runAsync).toHaveBeenCalledWith(
-    `UPDATE users SET lifetime_stars = ? WHERE id = ?`,
-    [10, 1],
-  );
-});
-
-test('negative delta clamps at 0, never goes negative', async () => {
-  const db = createDb({ lifetime_stars: 3, current_tier_id: null });
-  await applyLifetimeStarsDelta(db, 1, -10, tiers);
-  expect(db.runAsync).toHaveBeenCalledWith(
-    `UPDATE users SET lifetime_stars = ? WHERE id = ?`,
-    [0, 1],
-  );
+  expect(db.runAsync).not.toHaveBeenCalled();
 });
 
 test('undoing a BAD/penalty entry (negative-of-negative) is a positive delta and can cross a tier upward', async () => {

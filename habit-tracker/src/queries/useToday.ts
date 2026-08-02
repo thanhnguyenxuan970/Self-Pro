@@ -7,7 +7,6 @@ import { logActiveChallengeDay } from './useChallenge';
 import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
 import { TierRow } from '../game/tierUnlocks';
-import { carryWeeklyProgress } from '../game/weeklyRank';
 import { dailyBonusStarsForPoints } from '../config/constants';
 import { crossedStreakMilestone, type StreakMilestone } from '../game/streakMilestones';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
@@ -90,35 +89,6 @@ async function replaceDailyBonusRows(
       [userId, stars, Date.now(), localDate, weekStart],
     );
   }
-}
-
-/**
- * Computes the tier_id to carry into a new week.
- * - If last week had 0 stars: demote 1 tier (no floor).
- * - Otherwise: carry over last week's earned tier unchanged.
- */
-async function getCarryOverTierId(
-  db: SQLiteDatabase,
-  userId: number,
-  tiers: FullTierRow[],
-  currentWeekStart: string,
-): Promise<{ tierId: number | null; weeklyStars: number; peakStars: number }> {
-  const sorted = [...tiers].sort((a, b) => a.tier_order - b.tier_order);
-
-  const lastWeek = await db.getFirstAsync<{ weekly_stars: number; peak_stars: number; current_tier_id: number | null }>(
-    `SELECT weekly_stars, peak_stars, current_tier_id FROM weekly_summary
-     WHERE user_id = ? AND week_start < ?
-     ORDER BY week_start DESC LIMIT 1`,
-    [userId, currentWeekStart],
-  );
-
-  if (!lastWeek) return { tierId: null, weeklyStars: 0, peakStars: 0 };
-  const carry = carryWeeklyProgress({
-    weeklyStars: lastWeek.weekly_stars,
-    peakStars: lastWeek.peak_stars,
-    currentTierId: lastWeek.current_tier_id,
-  }, sorted);
-  return { tierId: carry.currentTierId, weeklyStars: carry.weeklyStars, peakStars: carry.peakStars };
 }
 
 async function updateTreatPool(
@@ -338,10 +308,10 @@ export function useLogTask(userId: number) {
           `SELECT weekly_stars, peak_stars, current_tier_id FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
           [userId, weekStart]
         );
-        // Carry-over: compute starting tier for new weeks; reuse existing for ongoing weeks.
-        const carry = weeklyRow === null
-          ? await getCarryOverTierId(db, userId, tiers, weekStart)
-          : { tierId: weeklyRow.current_tier_id, weeklyStars: weeklyRow.weekly_stars, peakStars: weeklyRow.peak_stars };
+        // Weekly rows remain useful for charts/share cards, but never drive
+        // lifetime rank or carry a rank across a Monday boundary.
+        const weeklyStars = weeklyRow?.weekly_stars ?? 0;
+        const weeklyPeakStars = weeklyRow?.peak_stars ?? 0;
 
         const { todayStreak, streakResult: sr } = await computeTodayStreak(db, userId, today, yesterdayDate, daily);
         streakResult = sr;
@@ -376,8 +346,8 @@ export function useLogTask(userId: number) {
              total_points = total_points + ?,
              weekly_stars = weekly_stars + ?,
              peak_stars = MAX(peak_stars, weekly_stars + ?)`,
-          [userId, weekStart, activityRow.points_earned, carry.weeklyStars + totalStarsDelta,
-           Math.max(carry.peakStars, carry.weeklyStars + totalStarsDelta), carry.tierId,
+          [userId, weekStart, activityRow.points_earned, weeklyStars + totalStarsDelta,
+           Math.max(weeklyPeakStars, weeklyStars + totalStarsDelta), weeklyRow?.current_tier_id ?? null,
            activityRow.points_earned, totalStarsDelta, totalStarsDelta]
         );
 
@@ -414,6 +384,7 @@ export function useLogTask(userId: number) {
           syncUserStreak(user.email, data.newStreak),
           syncCurrentUserToSupabase(),
         ]))
+        .then(() => qc.invalidateQueries({ queryKey: ['leaderboard'] }))
         .catch(error => { if (__DEV__) console.warn('[sync] activity log sync failed:', error); });
     },
   });
@@ -502,10 +473,9 @@ export function useUnlogTask(userId: number) {
           [userId, weekStart, newWeeklyStars]
         );
 
-        // Negative delta = removal (the common case). Undoing a BAD/penalty
-        // entry can itself be a net gain (removing a penalty restores stars),
-        // which can cross a tier threshold upward — handled by the same
-        // signed-delta function, tier still never demotes.
+        // Lifetime rank ignores removal deltas. Undoing a BAD/penalty entry is
+        // a net gain (removing a penalty restores stars), so it can still
+        // cross a tier threshold upward.
         lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, -totalStarsDelta, tiers)).crossings;
 
         await revertTreatStarsUnlog(db, userId, params.kind, totalStarsDelta, taskStars);
@@ -519,6 +489,9 @@ export function useUnlogTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
+      void syncCurrentUserToSupabase()
+        .catch(error => { if (__DEV__) console.warn('[sync] activity delete sync failed:', error); })
+        .finally(() => { qc.invalidateQueries({ queryKey: ['leaderboard'] }); });
       if (data.lifetimeCrossings.length > 0) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(data.lifetimeCrossings);

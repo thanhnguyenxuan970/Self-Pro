@@ -1,19 +1,19 @@
-import { aggregateStarsByEmail, buildRankedLeaderboard, emailPrefix } from '../src/queries/useLeaderboard';
+import { aggregateLifetimeStarsByEmail, buildRankedLeaderboard, emailPrefix, mapRemoteLeaderboardRows } from '../src/queries/useLeaderboard';
 
 test('emailPrefix strips the domain', () => {
   expect(emailPrefix('sarah@example.com')).toBe('sarah');
   expect(emailPrefix('no-at-sign')).toBe('no-at-sign');
 });
 
-test('aggregateStarsByEmail sums stars_delta per user across all rows, no week/tier filter', () => {
-  const map = aggregateStarsByEmail([
-    { user_email: 'a@x.com', stars_delta: 10 },
-    { user_email: 'a@x.com', stars_delta: 5 },
-    { user_email: 'b@x.com', stars_delta: 3 },
-    { user_email: 'a@x.com', stars_delta: null },
+test('leaderboard reads each user lifetime_stars value without summing activity rows', () => {
+  const map = aggregateLifetimeStarsByEmail([
+    { user_email: 'a@x.com', lifetime_stars: 15 },
+    { user_email: 'b@x.com', lifetime_stars: 3 },
+    { user_email: 'zero@x.com', lifetime_stars: null },
   ]);
   expect(map.get('a@x.com')).toBe(15);
   expect(map.get('b@x.com')).toBe(3);
+  expect(map.get('zero@x.com')).toBe(0);
 });
 
 test('global sort is strictly by lifetime score descending — rank 1 is the highest score', () => {
@@ -52,4 +52,14 @@ test('marks the current user and never fabricates a negative star count', () => 
   const me = result.find(e => e.userEmail === 'me@x.com')!;
   expect(me.isCurrentUser).toBe(true);
   expect(me.lifetimeStars).toBe(0);
+});
+
+test('maps server-ranked top rows without recomputing global rank in the client', () => {
+  const result = mapRemoteLeaderboardRows([
+    { user_email: 'top@x.com', lifetime_stars: 100, rank: 1 },
+    { user_email: 'me@x.com', lifetime_stars: 4, rank: '87' },
+  ], 'me@x.com');
+
+  expect(result.map(entry => entry.rank)).toEqual([1, 87]);
+  expect(result[1].isCurrentUser).toBe(true);
 });

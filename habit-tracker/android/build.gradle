@@ -25,6 +25,17 @@ apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
 
 subprojects {
+  def configureNativeBuildPool = {
+    def cmake = extensions.findByName('android')?.defaultConfig?.externalNativeBuild?.cmake
+    if (cmake != null && !cmake.arguments.any { it.startsWith('-DCMAKE_JOB_POOLS=') }) {
+      // NDK 27's Windows Clang frontend crashes when CMake schedules native C++ compilation freely.
+      cmake.arguments('-DCMAKE_JOB_POOLS=compile_pool=1', '-DCMAKE_JOB_POOL_COMPILE=compile_pool')
+    }
+  }
+
+  pluginManager.withPlugin('com.android.application') { configureNativeBuildPool() }
+  pluginManager.withPlugin('com.android.library') { configureNativeBuildPool() }
+
   tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     // ponytail: bypass Kotlin 2.1.20's crashing bytecode optimizer; remove after upgrading Kotlin.
     compilerOptions.freeCompilerArgs.add("-Xno-optimize")

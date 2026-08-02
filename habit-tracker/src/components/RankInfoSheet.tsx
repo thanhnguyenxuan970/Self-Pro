@@ -32,7 +32,7 @@ export function RankInfoSheet({ visible, tiers, currentTierId, onClose }: Props)
   const points: { e: string; t: string; s: string }[] = [
     { e: '⭐', t: t.rankInfoPoint1Title, s: t.rankInfoPoint1Sub },
     { e: '📈', t: t.rankInfoPoint2Title, s: t.rankInfoPoint2Sub(sorted.length) },
-    { e: '♻️', t: t.rankInfoPoint3Title, s: t.rankInfoPoint3Sub },
+    { e: '∞', t: t.rankInfoPoint3Title, s: t.rankInfoPoint3Sub },
   ];
 
   return (

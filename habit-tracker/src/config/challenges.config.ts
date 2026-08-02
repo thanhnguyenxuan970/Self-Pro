@@ -2,10 +2,8 @@ export const CHALLENGE_DURATIONS = [7, 30, 60, 100] as const;
 type ChallengeDuration = (typeof CHALLENGE_DURATIONS)[number];
 
 export const WEEKLY_TARGETS = [3, 4, 5, 6] as const;
-type WeeklyTarget = (typeof WEEKLY_TARGETS)[number];
 
 export const TOTAL_WEEKS_OPTIONS = [2, 4, 8, 12] as const;
-type TotalWeeks = (typeof TOTAL_WEEKS_OPTIONS)[number];
 
 export const THRESHOLD_DURATIONS = [15, 30, 45, 60] as const;
 export const THRESHOLD_COUNTS = [1, 2, 3] as const;
@@ -71,11 +69,11 @@ export function computeChallengeReward(
 }
 
 export const CHALLENGE_RULE_COPY = {
-  vi: (freezes: number) => `Ghi lại mỗi ngày không nghỉ. Lỡ 1 ngày là chuỗi reset — nhưng có ${freezes} rescue (freeze) bù đúng một lần lỡ.`,
+  vi: (freezes: number) => `Ghi nhận hoạt động mỗi ngày liên tiếp. Bỏ lỡ một ngày sẽ đặt lại chuỗi — nhưng bạn có ${freezes} phao cứu để bù một lần bỏ lỡ.`,
   en: (freezes: number) => `Log every day in a row. Miss a day and the streak resets — but you get ${freezes} rescue (freeze) to cover one miss.`,
 };
 
 const WEEKLY_RULE_COPY = {
-  vi: (weeklyTarget: number) => `Đủ ${weeklyTarget} buổi mỗi tuần, ngày nào tập cũng được. Nghỉ tự do — không tính là lỡ. Tuần tính từ Thứ 2.`,
+  vi: (weeklyTarget: number) => `Hoàn thành đủ ${weeklyTarget} buổi mỗi tuần, ngày nào cũng được. Ngày nghỉ không tính là bỏ lỡ. Tuần bắt đầu từ thứ Hai.`,
   en: (weeklyTarget: number) => `Hit ${weeklyTarget} sessions every week, any day works. Rest days are free — they don't count as a miss. Weeks start Monday.`,
 };

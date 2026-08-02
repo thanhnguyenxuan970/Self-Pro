@@ -133,6 +133,7 @@ export function RankScreen() {
   );
 
   const [infoVisible, setInfoVisible] = useState(false);
+  const [galleryVisible, setGalleryVisible] = useState(false);
   const [previewTier, setPreviewTier] = useState<number | null>(null);
 
   if (isLoading || !data) {
@@ -144,7 +145,7 @@ export function RankScreen() {
   }
 
   const { currentStars, tiers } = data;
-  // Rank is authoritative from current_tier_id (carry-over + cap system), not derived from star count
+  // Lifetime rank is authoritative from users.current_tier_id, not weekly rows.
   const currentTier = tiers.find(t => t.tier_order === currentTierOrder);
   const nextTier = currentTier ? tiers.find(t => t.tier_order === currentTier.tier_order + 1) : tiers.find(t => t.stars_required > currentStars);
   const firstTierStars = tiers[0]?.stars_required ?? 5;
@@ -159,6 +160,7 @@ export function RankScreen() {
   const nextCfg = nextTier ? getRankConfigByTierOrder(nextTier.tier_order) : null;
   const rankLabel = t.rankNameMap[cfg.name] ?? cfg.name;
   const nextRankLabel = nextCfg ? (t.rankNameMap[nextCfg.name] ?? nextCfg.name) : (t.rankNameMap[nextTier?.rank_name ?? ''] ?? nextTier?.rank_name ?? '');
+  const unlockedRankCount = RANKS.filter(rank => rank.tier < currentTierOrder).length;
   const currentUserEntry: LBEntry = useMemo(() => ({
     userEmail: googleUser?.email ?? 'current-user',
     displayName: googleUser?.name ?? t.leaderboardYou,
@@ -211,8 +213,26 @@ export function RankScreen() {
         )}
 
         <View style={styles.progression}>
-          <Text style={styles.progressionTitle}>{t.rankRoadmap}</Text>
-          <View style={styles.previewGrid}>
+          <TouchableOpacity
+            style={styles.galleryTrigger}
+            onPress={() => setGalleryVisible(value => !value)}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: galleryVisible }}
+            accessibilityLabel={`${t.rankRoadmap}, ${unlockedRankCount}/${RANKS.length}`}
+          >
+            <View style={styles.galleryIcon} importantForAccessibility="no">
+              <Text style={styles.galleryIconText}>✦</Text>
+            </View>
+            <View style={styles.galleryCopy} importantForAccessibility="no">
+              <Text style={styles.progressionTitle}>{t.rankRoadmap}</Text>
+              <Text style={styles.galleryCount}>{unlockedRankCount}/{RANKS.length}</Text>
+            </View>
+            <View style={[styles.galleryChevron, galleryVisible && styles.galleryChevronOpen]} importantForAccessibility="no">
+              <Text style={styles.galleryChevronText}>›</Text>
+            </View>
+          </TouchableOpacity>
+          {galleryVisible && <View style={styles.previewGrid}>
             {RANKS.map(rank => {
               const unlocked = rank.tier < currentTierOrder;
               const displayName = t.rankNameMap[rank.name] ?? rank.name;
@@ -232,7 +252,7 @@ export function RankScreen() {
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </View>}
         </View>
 
         <Text style={styles.sectionLabel}>{t.leaderboardSection}</Text>
@@ -278,13 +298,26 @@ function makeStyles(C: AppColors) {
     infoBtnText: { fontSize: 15, fontFamily: FontFamily.bold, color: C.muted },
 
     rankEmptyWrap: { marginHorizontal: Spacing.lg },
-    progression: { marginHorizontal: Spacing.lg, marginTop: 12, padding: 12, borderRadius: Radii.lg, backgroundColor: C.surface2 },
-    progressionTitle: { fontSize: 12, fontFamily: FontFamily.extraBold, color: C.ink2, textTransform: 'uppercase', letterSpacing: 0.7, textAlign: 'center', marginBottom: 10 },
+    progression: { marginHorizontal: Spacing.lg, marginTop: 12 },
+    galleryTrigger: {
+      minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10,
+      paddingHorizontal: 12, borderRadius: Radii.lg,
+      backgroundColor: C.primarySoft, borderWidth: 1, borderColor: C.primaryLine,
+      ...Shadows.light,
+    },
+    galleryIcon: { width: 32, height: 32, borderRadius: Radii.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primary },
+    galleryIconText: { fontSize: 18, fontFamily: FontFamily.bold, color: C.onAccent },
+    galleryCopy: { flex: 1, minWidth: 0 },
+    progressionTitle: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primaryText, letterSpacing: 0.5 },
+    galleryCount: { fontSize: 10, fontFamily: FontFamily.semiBold, color: C.primaryText, marginTop: 1 },
+    galleryChevron: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: C.surface },
+    galleryChevronOpen: { transform: [{ rotate: '90deg' }] },
+    galleryChevronText: { fontSize: 23, lineHeight: 25, fontFamily: FontFamily.bold, color: C.primaryText, marginTop: -2 },
     progressionTier: { width: '31%', minHeight: 118, borderRadius: Radii.md, borderWidth: 1.5, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', paddingVertical: 6 },
     lockedTier: { backgroundColor: C.surface2 },
     lockedMark: { fontSize: 28, marginBottom: 10 },
     lockedRequirement: { fontSize: 10, fontFamily: FontFamily.extraBold, color: C.muted, marginTop: 2 },
-    previewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    previewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
     previewTierText: { fontSize: 10, fontFamily: FontFamily.extraBold, maxWidth: '100%', paddingHorizontal: 4, textAlign: 'center' },
     rankhero: {
       marginHorizontal: Spacing.lg, backgroundColor: C.surface,

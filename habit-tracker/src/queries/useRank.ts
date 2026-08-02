@@ -9,7 +9,7 @@ export type TierRow = {
 };
 
 export function visibleTierId(currentTierId: number | null, currentStars: number, tiers: TierRow[]): number | null {
-  return tiers.some(item => item.id === currentTierId) ? currentTierId : null;
+  return tiers.some(item => item.id === currentTierId && currentStars >= item.stars_required) ? currentTierId : null;
 }
 
 /** Lifetime rank state — reads users.lifetime_stars/current_tier_id, not the

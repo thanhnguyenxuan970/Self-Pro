@@ -8,11 +8,10 @@ export type LifetimeDeltaResult = {
 type LifetimeWriteDb = Pick<SQLiteDatabase, 'getFirstAsync' | 'runAsync'>;
 
 /**
- * Applies a signed star delta (positive for a GOOD log/reward, negative for a
- * BAD/penalty log or an unlog/delete/edit-revert) to the user's lifetime
- * rollup, clamped at 0, and detects every tier threshold newly crossed on the
- * way up. Tier never demotes — high-water-mark — so a negative delta never
- * touches current_tier_id. Must run inside the caller's existing transaction.
+ * Adds earned stars to the user's lifetime high-water mark and detects every
+ * tier threshold newly crossed on the way up. Negative deltas belong to
+ * spendable/weekly rollups and never reduce lifetime rank. Must run inside the
+ * caller's existing transaction.
  */
 export async function applyLifetimeStarsDelta(
   db: LifetimeWriteDb,
@@ -20,7 +19,7 @@ export async function applyLifetimeStarsDelta(
   starsDelta: number,
   tiers: LifetimeTierRow[],
 ): Promise<LifetimeDeltaResult> {
-  if (starsDelta === 0) return { crossings: [] };
+  if (starsDelta <= 0) return { crossings: [] };
 
   const before = await db.getFirstAsync<{ lifetime_stars: number; current_tier_id: number | null }>(
     `SELECT lifetime_stars, current_tier_id FROM users WHERE id = ?`,
@@ -28,12 +27,7 @@ export async function applyLifetimeStarsDelta(
   );
   const oldStars = before?.lifetime_stars ?? 0;
   const currentTierId = before?.current_tier_id ?? null;
-  const newStars = Math.max(0, oldStars + starsDelta);
-
-  if (starsDelta < 0) {
-    await db.runAsync(`UPDATE users SET lifetime_stars = ? WHERE id = ?`, [newStars, userId]);
-    return { crossings: [] };
-  }
+  const newStars = oldStars + starsDelta;
 
   const { crossings, finalTierId } = computeLifetimeTierCrossings(oldStars, newStars, currentTierId, tiers);
 

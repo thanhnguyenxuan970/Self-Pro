@@ -11,7 +11,7 @@ import { dailyBonusGoal } from '../config/constants';
 
 type Props = {
   days: HeatmapDay[]; streak: number; goal: number; colors: AppColors; todayPoints?: number;
-  rankEmoji?: string; weeklyStars?: number; rankName?: string; streakRef?: (node: View | null) => void;
+  rankEmoji?: string; lifetimeStars?: number; rankName?: string; streakRef?: (node: View | null) => void;
   scoringGuideVisible?: boolean; onScoringGuideClose?: () => void;
 };
 
@@ -130,7 +130,7 @@ const AnimatedWeeks = React.memo(function AnimatedWeeks({ weeks, styles, shades,
   ))}</View>;
 });
 
-export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji, weeklyStars, rankName, streakRef, scoringGuideVisible = false, onScoringGuideClose }: Props) {
+export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji, lifetimeStars, rankName, streakRef, scoringGuideVisible = false, onScoringGuideClose }: Props) {
   const scrollRef = useRef<ScrollView>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showLegend, setShowLegend] = useState(false);
@@ -172,7 +172,7 @@ export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal,
     </View>
     <View style={styles.rewardRow}>
       <View ref={streakRef} style={styles.rewardPill}>
-        <Text style={styles.rewardText}>{rankName ? `🔥 ${streak} · ★ ${Math.round(weeklyStars ?? 0)} › ${rankEmoji} ${rankName}` : `🔥 ${streak}`}</Text>
+        <Text style={styles.rewardText}>{rankName ? `🔥 ${streak} · ★ ${Math.round(lifetimeStars ?? 0)} › ${rankEmoji} ${rankName}` : `🔥 ${streak}`}</Text>
       </View>
     </View>
     <View style={styles.gridRow}>

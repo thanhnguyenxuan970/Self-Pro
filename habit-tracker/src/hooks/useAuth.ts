@@ -174,6 +174,11 @@ export function useAuth() {
   }, []);
 
   const resetProgress = useCallback(async (uid: number) => {
+    const storedUser = await getStoredGoogleUser();
+    if (storedUser) {
+      const { resetUserProgressInSupabase } = await import('../api/syncService');
+      await resetUserProgressInSupabase(storedUser.email);
+    }
     const { getDb } = await import('../db/client');
     const db = await getDb();
     await db.withTransactionAsync(async () => {
@@ -205,13 +210,12 @@ export function useAuth() {
 
   const deleteAccount = useCallback(async (uid: number) => {
     // Purge remote Supabase data FIRST while the auth session is still active
-    try {
-      const { deleteUserFromSupabase, resetSyncCursors } = await import('../api/syncService');
-      const googleUserJson = await readGoogleUser();
-      const gu = parseGoogleUser(googleUserJson);
-      if (gu) await deleteUserFromSupabase(gu.email);
-      await resetSyncCursors();
-    } catch (e) { if (__DEV__) console.warn('[auth] deleteUserFromSupabase failed (remote data may remain):', e); }
+    const { deleteUserFromSupabase, resetSyncCursors } = await import('../api/syncService');
+    const googleUserJson = await readGoogleUser();
+    const gu = parseGoogleUser(googleUserJson);
+    if (!gu) throw new Error('Cannot delete account without a signed-in Google identity');
+    await deleteUserFromSupabase(gu.email);
+    await resetSyncCursors();
     // Delete all local SQLite rows
     const { getDb } = await import('../db/client');
     const db = await getDb();

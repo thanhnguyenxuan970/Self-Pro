@@ -250,6 +250,7 @@ export function TodayScreen() {
   const rankDisplayName = currentTier ? (t.rankNameMap[rankName] ?? rankName) : t.noRankTitle;
   const rankEmoji = currentTier ? (RANK_EMOJI[currentTier.tier_order] ?? '⭐') : '⭐';
   const percentile = tierPercentile(currentTier?.tier_order ?? 1);
+  const lifetimeStars = rankData?.currentStars ?? 0;
   const newsViewerKey = getNewsViewerKey(googleUser?.sub);
   const { unreadCount: unreadNewsCount } = useNewsFeed(newsViewerKey);
 
@@ -488,7 +489,7 @@ export function TodayScreen() {
         </View>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
-        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} weeklyStars={weeklyStars} rankName={rankDisplayName} streakRef={streakTutorialRef} scoringGuideVisible={showScoringGuide} onScoringGuideClose={closeScoringGuide} />
+        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} lifetimeStars={lifetimeStars} rankName={rankDisplayName} streakRef={streakTutorialRef} scoringGuideVisible={showScoringGuide} onScoringGuideClose={closeScoringGuide} />
 
         {!backfillNudgeDismissed && <HomeBackfillNudge
           nudge={backfillNudge}

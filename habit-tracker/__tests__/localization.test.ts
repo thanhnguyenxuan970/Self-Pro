@@ -12,8 +12,8 @@ const en = getTranslations('en');
 
 describe('Rank localization', () => {
   test('translates the rank roadmap heading', () => {
-    expect(vi.rankRoadmap).toBe('LỘ TRÌNH RANK');
-    expect(en.rankRoadmap).toBe('RANK ROADMAP');
+    expect(vi.rankRoadmap).toBe('Gallery');
+    expect(en.rankRoadmap).toBe('Gallery');
   });
 });
 

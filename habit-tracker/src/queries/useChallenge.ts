@@ -591,6 +591,13 @@ export function useChallengeRollover(userId: number) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
+      qc.invalidateQueries({ queryKey: ['rank'] });
+      qc.invalidateQueries({ queryKey: ['today'] });
+      qc.invalidateQueries({ queryKey: ['week'] });
+      qc.invalidateQueries({ queryKey: ['progress'] });
+      void syncCurrentUserToSupabase()
+        .catch(error => { if (__DEV__) console.warn('[sync] rollover sync failed:', error); })
+        .finally(() => { qc.invalidateQueries({ queryKey: ['leaderboard'] }); });
     },
   });
 }
@@ -755,7 +762,9 @@ export function useLogChallengeDay(userId: number) {
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['treats'] });
       qc.invalidateQueries({ queryKey: ['achievements'] });
-      syncCurrentUserToSupabase().catch(error => { if (__DEV__) console.warn('[sync] activity log sync failed:', error); });
+      void syncCurrentUserToSupabase()
+        .catch(error => { if (__DEV__) console.warn('[sync] activity log sync failed:', error); })
+        .finally(() => { qc.invalidateQueries({ queryKey: ['leaderboard'] }); });
       if (data.lifetimeCrossings.length > 0) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(data.lifetimeCrossings);

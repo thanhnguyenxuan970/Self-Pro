@@ -115,6 +115,26 @@ async function syncFund(db: SQLiteDatabase, userId: number, userEmail: string): 
   await upsertBatch('fund_transactions', rows, userEmail, key);
 }
 
+async function syncUserProfile(db: SQLiteDatabase, userId: number, userEmail: string): Promise<void> {
+  const row = await db.getFirstAsync<{ current_streak: number }>(
+    `SELECT COALESCE((SELECT streak_count FROM daily_summary
+                      WHERE user_id = u.id ORDER BY local_date DESC LIMIT 1), 0) AS current_streak
+     FROM users u WHERE u.id = ?`,
+    [userId],
+  );
+  if (!row) return;
+  const { error } = await supabase!.from('users').upsert(
+    { user_email: userEmail, current_streak: row.current_streak },
+    { onConflict: 'user_email' },
+  );
+  if (error) throw error;
+}
+
+async function syncLifetimeStars(): Promise<void> {
+  const { error } = await supabase!.rpc('sync_lifetime_stars');
+  if (error) throw error;
+}
+
 /** Establish the short-lived Supabase session required by RLS before syncing.
  * Google owns the fresh ID token; Supabase sessions intentionally are not
  * persisted on-device. */
@@ -166,10 +186,15 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
   const db = await getDb();
   const userId = await resolveUserId(db, userSub, userEmail);
   if (userId == null) return;
+  // Create/update only the mutable profile fields first. Lifetime stars are
+  // recomputed by Supabase from the synced activity rows and cannot be sent
+  // directly by the client.
+  await syncUserProfile(db, userId, userEmail);
   await Promise.all([
     syncActivity(db, userId, userEmail),
     syncFund(db, userId, userEmail),
   ]);
+  await syncLifetimeStars();
 }
 
 /** Sync all pending rows for the currently stored Google account. */
@@ -206,6 +231,14 @@ export async function syncUserStreak(userEmail: string, currentStreak: number): 
   if (error && __DEV__) console.warn('[sync] streak sync failed:', error.message);
 }
 
+/** Reset the remote progress mirror before clearing local lifetime rank data. */
+export async function resetUserProgressInSupabase(userEmail: string): Promise<void> {
+  if (!supabase) return;
+  await ensureSupabaseSession(userEmail);
+  const { error } = await supabase.rpc('reset_my_progress');
+  if (error) throw error;
+}
+
 /**
  * Permanently delete all of this user's rows from Supabase.
  * Call during account deletion BEFORE clearing local state so the
@@ -213,14 +246,7 @@ export async function syncUserStreak(userEmail: string, currentStreak: number): 
  */
 export async function deleteUserFromSupabase(userEmail: string): Promise<void> {
   if (!supabase) return;
-  const { error: e1 } = await supabase
-    .from('activity_log')
-    .delete()
-    .eq('user_email', userEmail);
-  if (e1) throw e1;
-  const { error: e2 } = await supabase
-    .from('fund_transactions')
-    .delete()
-    .eq('user_email', userEmail);
-  if (e2) throw e2;
+  await ensureSupabaseSession(userEmail);
+  const { error } = await supabase.rpc('delete_my_account_data');
+  if (error) throw error;
 }

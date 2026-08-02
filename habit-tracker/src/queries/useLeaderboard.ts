@@ -9,16 +9,22 @@ export type LeaderboardEntry = {
   isCurrentUser: boolean;
 };
 
+export type RemoteLeaderboardRow = {
+  user_email: string;
+  lifetime_stars: number | null;
+  rank: number | string;
+};
+
 export function emailPrefix(email: string): string {
   const at = email.indexOf('@');
   if (at < 0) return email;
   return email.slice(0, at);
 }
 
-export function aggregateStarsByEmail(rows: { user_email: string; stars_delta: number | null }[]): Map<string, number> {
+export function aggregateLifetimeStarsByEmail(rows: { user_email: string; lifetime_stars: number | null }[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const row of rows) {
-    map.set(row.user_email, (map.get(row.user_email) ?? 0) + (row.stars_delta ?? 0));
+    map.set(row.user_email, row.lifetime_stars ?? 0);
   }
   return map;
 }
@@ -48,6 +54,21 @@ export function buildRankedLeaderboard(
   return entries.map((e, i) => ({ ...e, rank: i + 1 }));
 }
 
+export function mapRemoteLeaderboardRows(
+  rows: RemoteLeaderboardRow[],
+  currentUserEmail: string | null,
+): LeaderboardEntry[] {
+  return rows
+    .map((row) => ({
+      userEmail: row.user_email,
+      displayName: emailPrefix(row.user_email),
+      lifetimeStars: Math.max(0, Number(row.lifetime_stars) || 0),
+      rank: Math.max(1, Number(row.rank) || 1),
+      isCurrentUser: row.user_email === currentUserEmail,
+    }))
+    .sort((a, b) => a.rank - b.rank || a.userEmail.localeCompare(b.userEmail));
+}
+
 /**
  * Global lifetime leaderboard — every player, sorted strictly by lifetime
  * score descending (rank 1 = highest). No week filter, no tier band: this is
@@ -56,24 +77,15 @@ export function buildRankedLeaderboard(
  */
 export function useLeaderboard(currentUserEmail: string | null) {
   return useQuery({
-    queryKey: ['leaderboard'],
+    queryKey: ['leaderboard', currentUserEmail],
     enabled: !!supabase,
     staleTime: 60_000,
     queryFn: async (): Promise<LeaderboardEntry[]> => {
       if (!supabase) return [];
 
-      // 10 000 row ceiling — pre-existing scaling limit, tracked in TODOS.md
-      // as follow-up scope (server-side aggregate view/RPC). Not fixed here.
-      const { data, error } = await supabase
-        .from('activity_log')
-        .select('user_email, stars_delta')
-        .limit(10000);
-
+      const { data, error } = await supabase.rpc('get_global_leaderboard', { p_limit: 50 });
       if (error) throw error;
-      if (!data?.length) return [];
-
-      const starsByEmail = aggregateStarsByEmail(data);
-      return buildRankedLeaderboard(starsByEmail, currentUserEmail);
+      return mapRemoteLeaderboardRows((data ?? []) as RemoteLeaderboardRow[], currentUserEmail);
     },
   });
 }
