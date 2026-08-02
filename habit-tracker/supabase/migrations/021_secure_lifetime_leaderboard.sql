@@ -4,9 +4,26 @@
 DROP POLICY IF EXISTS "leaderboard is readable" ON public.users;
 
 REVOKE ALL ON TABLE public.users FROM authenticated;
-GRANT SELECT (user_email, current_streak) ON TABLE public.users TO authenticated;
-GRANT INSERT (user_email, current_streak) ON TABLE public.users TO authenticated;
-GRANT UPDATE (current_streak) ON TABLE public.users TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.sync_user_profile(p_current_streak integer)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  caller_email text := auth.email();
+BEGIN
+  IF caller_email IS NULL THEN
+    RAISE EXCEPTION 'Authenticated user required';
+  END IF;
+
+  INSERT INTO public.users (user_email, current_streak)
+  VALUES (caller_email, GREATEST(COALESCE(p_current_streak, 0), 0))
+  ON CONFLICT (user_email) DO UPDATE
+     SET current_streak = EXCLUDED.current_streak;
+END;
+$$;
 
 CREATE INDEX IF NOT EXISTS users_lifetime_stars_email_idx
   ON public.users (lifetime_stars DESC, user_email ASC);
@@ -115,10 +132,12 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.sync_lifetime_stars() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.sync_user_profile(integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.get_global_leaderboard(integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.reset_my_progress() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.delete_my_account_data() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.sync_lifetime_stars() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sync_user_profile(integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_global_leaderboard(integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.reset_my_progress() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_my_account_data() TO authenticated;

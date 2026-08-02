@@ -115,7 +115,7 @@ async function syncFund(db: SQLiteDatabase, userId: number, userEmail: string): 
   await upsertBatch('fund_transactions', rows, userEmail, key);
 }
 
-async function syncUserProfile(db: SQLiteDatabase, userId: number, userEmail: string): Promise<void> {
+async function syncUserProfile(db: SQLiteDatabase, userId: number): Promise<void> {
   const row = await db.getFirstAsync<{ current_streak: number }>(
     `SELECT COALESCE((SELECT streak_count FROM daily_summary
                       WHERE user_id = u.id ORDER BY local_date DESC LIMIT 1), 0) AS current_streak
@@ -123,10 +123,9 @@ async function syncUserProfile(db: SQLiteDatabase, userId: number, userEmail: st
     [userId],
   );
   if (!row) return;
-  const { error } = await supabase!.from('users').upsert(
-    { user_email: userEmail, current_streak: row.current_streak },
-    { onConflict: 'user_email' },
-  );
+  const { error } = await supabase!.rpc('sync_user_profile', {
+    p_current_streak: row.current_streak,
+  });
   if (error) throw error;
 }
 
@@ -189,7 +188,7 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
   // Create/update only the mutable profile fields first. Lifetime stars are
   // recomputed by Supabase from the synced activity rows and cannot be sent
   // directly by the client.
-  await syncUserProfile(db, userId, userEmail);
+  await syncUserProfile(db, userId);
   await Promise.all([
     syncActivity(db, userId, userEmail),
     syncFund(db, userId, userEmail),
@@ -225,9 +224,7 @@ export async function syncUserStreak(userEmail: string, currentStreak: number): 
   if (!supabase) return;
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return;
-  const { error } = await supabase
-    .from('users')
-    .upsert({ user_email: userEmail, current_streak: currentStreak }, { onConflict: 'user_email' });
+  const { error } = await supabase.rpc('sync_user_profile', { p_current_streak: currentStreak });
   if (error && __DEV__) console.warn('[sync] streak sync failed:', error.message);
 }
 

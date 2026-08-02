@@ -1,6 +1,7 @@
 const mockGetSession = jest.fn();
 const mockSignInWithIdToken = jest.fn();
 const mockUpsert = jest.fn();
+const mockRpc = jest.fn().mockResolvedValue({ data: null, error: null });
 const mockFrom = jest.fn(() => ({ upsert: mockUpsert }));
 const mockConfigure = jest.fn();
 const mockGetTokens = jest.fn();
@@ -9,7 +10,11 @@ const mockGetDb = jest.fn();
 const mockStorageGetItem = jest.fn();
 
 jest.mock('../src/api/supabase', () => ({
-  supabase: { auth: { getSession: mockGetSession, signInWithIdToken: mockSignInWithIdToken }, from: mockFrom },
+  supabase: {
+    auth: { getSession: mockGetSession, signInWithIdToken: mockSignInWithIdToken },
+    from: mockFrom,
+    rpc: mockRpc,
+  },
 }));
 
 jest.mock('@react-native-google-signin/google-signin', () => ({
@@ -39,17 +44,13 @@ describe('syncUserStreak', () => {
     expect(mockFrom).not.toHaveBeenCalled();
   });
 
-  it('upserts only after confirming an authenticated session', async () => {
+  it('syncs only after confirming an authenticated session', async () => {
     mockGetSession.mockResolvedValue({ data: { session: {} } });
-    mockUpsert.mockResolvedValue({ error: null });
 
     await syncUserStreak('user@example.com', 7);
 
-    expect(mockFrom).toHaveBeenCalledWith('users');
-    expect(mockUpsert).toHaveBeenCalledWith(
-      { user_email: 'user@example.com', current_streak: 7 },
-      { onConflict: 'user_email' },
-    );
+    expect(mockFrom).not.toHaveBeenCalled();
+    expect(mockRpc).toHaveBeenCalledWith('sync_user_profile', { p_current_streak: 7 });
   });
 });
 
