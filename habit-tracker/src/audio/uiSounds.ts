@@ -1,5 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { isAudioEnabled } from './audioEnabled';
+import type { Tier } from '../config/achievements';
 
 // Static require map — Metro needs literal require() for asset bundling.
 const SOUNDS = {
@@ -28,9 +29,11 @@ export function cueStreakMilestone(): void {
   playOne('streakMilestone');
 }
 
-export function cueBadgeUnlock(isRare: boolean): void {
+export function cueBadgeUnlock(tier: Tier): void {
+  const isRare = tier !== 'iron' && tier !== 'bronze';
+  const isHeavy = tier === 'gold' || tier === 'platinum' || tier === 'diamond';
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-  if (isRare) setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}), 120);
+  if (isHeavy) setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}), 120);
   playOne(isRare ? 'streakMilestone' : 'modalOpen');
 }
 

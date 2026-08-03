@@ -567,7 +567,8 @@ async function v21(db: SQLiteDatabase): Promise<void> {
     FROM users u
     JOIN (
       SELECT 7 AS days, 1 AS stars UNION ALL SELECT 14, 2 UNION ALL SELECT 30, 3
-      UNION ALL SELECT 90, 5 UNION ALL SELECT 180, 8 UNION ALL SELECT 365, 10
+      UNION ALL SELECT 60, 5 UNION ALL SELECT 90, 5 UNION ALL SELECT 100, 6
+      UNION ALL SELECT 180, 8 UNION ALL SELECT 365, 10
     ) m
     WHERE m.days <= COALESCE((SELECT MAX(streak_count) FROM daily_summary WHERE user_id = u.id), 0);
   `);

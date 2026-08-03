@@ -9,6 +9,14 @@ import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters
 import { TierRow } from '../game/tierUnlocks';
 import { dailyBonusStarsForPoints } from '../config/constants';
 import { crossedStreakMilestone, type StreakMilestone } from '../game/streakMilestones';
+import {
+  boostEndOfDayMs,
+  isBoostActiveAt,
+  summarizeBoostLogs,
+  type BoostEventRow,
+  type BoostLogRow,
+  type BoostSummary,
+} from '../game/boost';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierCrossing } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
@@ -17,17 +25,108 @@ import { rankMascotBridge } from '../lib/rankMascotBridge';
 type FullTierRow = TierRow & { tier_order: number; rank_name: string };
 
 type DailySummaryRow = { total_points: number; bonus_star_awarded: number; streak_count: number };
+export type TodayBoost = BoostEventRow & { id: number; local_date: string };
 
-async function awardStreakMilestone(
-  db: SQLiteDatabase, userId: number, previousBest: number, current: number, awardedAt: number,
-): Promise<StreakMilestone | null> {
-  const milestone = crossedStreakMilestone(previousBest, current);
-  if (!milestone) return null;
-  const result = await db.runAsync(
-    `INSERT OR IGNORE INTO milestone_stars (user_id, milestone_days, stars, awarded_at) VALUES (?, ?, ?, ?)`,
-    [userId, milestone.days, milestone.stars, awardedAt],
-  );
-  return result.changes > 0 ? milestone : null;
+const EMPTY_BOOST_SUMMARY: BoostSummary = {
+  boostStars: 0,
+  boostLogs: 0,
+  baseStars: 0,
+  bonusStars: 0,
+  totalStars: 0,
+};
+
+export function useTodayBoost(userId: number) {
+  const today = getLocalDate();
+  return useQuery({
+    queryKey: ['today', 'boost', userId, today],
+    queryFn: async () => {
+      const db = await getDb();
+      return db.getFirstAsync<TodayBoost>(
+        `SELECT id, local_date, multiplier, claim_deadline, claimed_at, expires_at, dismissed_at
+         FROM boost_events WHERE user_id = ? AND local_date = ? LIMIT 1`,
+        [userId, today],
+      );
+    },
+  });
+}
+
+export function useTodayBoostSummary(userId: number, event: TodayBoost | null | undefined) {
+  const claimedAt = event?.claimed_at ?? null;
+  const expiresAt = event?.expires_at ?? null;
+  return useQuery({
+    queryKey: ['today', 'boost-summary', userId, event?.id ?? null, claimedAt, expiresAt],
+    enabled: claimedAt !== null && expiresAt !== null,
+    queryFn: async (): Promise<BoostSummary> => {
+      if (claimedAt === null || expiresAt === null || !event) return EMPTY_BOOST_SUMMARY;
+      const db = await getDb();
+      const logs = await db.getAllAsync<BoostLogRow>(
+        `SELECT source, kind, stars_delta
+         FROM activity_log
+         WHERE user_id = ? AND local_date = ? AND logged_at >= ? AND logged_at < ?
+           AND source = 'TASK' AND kind = 'GOOD'`,
+        [userId, event.local_date, claimedAt, expiresAt],
+      );
+      return summarizeBoostLogs(logs);
+    },
+  });
+}
+
+export function useTodayBoostedTaskIds(userId: number, event: TodayBoost | null | undefined) {
+  const claimedAt = event?.claimed_at ?? null;
+  const expiresAt = event?.expires_at ?? null;
+  return useQuery({
+    queryKey: ['today', 'boosted-task-ids', userId, event?.id ?? null, claimedAt, expiresAt],
+    enabled: claimedAt !== null && expiresAt !== null,
+    queryFn: async () => {
+      if (claimedAt === null || expiresAt === null || !event) return new Set<number>();
+      const db = await getDb();
+      const rows = await db.getAllAsync<{ task_type_id: number }>(
+        `SELECT DISTINCT task_type_id
+         FROM activity_log
+         WHERE user_id = ? AND local_date = ? AND logged_at >= ? AND logged_at < ?
+           AND task_type_id IS NOT NULL AND source = 'TASK' AND kind = 'GOOD'`,
+        [userId, event.local_date, claimedAt, expiresAt],
+      );
+      return new Set(rows.map(row => row.task_type_id));
+    },
+  });
+}
+
+export function useActivateTodayBoost(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<boolean> => {
+      const db = await getDb();
+      const nowMs = Date.now();
+      const result = await db.runAsync(
+        `UPDATE boost_events
+         SET claimed_at = ?, expires_at = ?
+         WHERE user_id = ? AND local_date = ?
+           AND claimed_at IS NULL AND dismissed_at IS NULL AND claim_deadline > ?`,
+        [nowMs, boostEndOfDayMs(nowMs), userId, getLocalDate(), nowMs],
+      );
+      return result.changes > 0;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['today', 'boost', userId] }),
+  });
+}
+
+export function useDismissTodayBoost(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<boolean> => {
+      const db = await getDb();
+      const nowMs = Date.now();
+      const result = await db.runAsync(
+        `UPDATE boost_events SET dismissed_at = ?
+         WHERE user_id = ? AND local_date = ? AND claimed_at IS NOT NULL
+           AND expires_at IS NOT NULL AND expires_at <= ? AND dismissed_at IS NULL`,
+        [nowMs, userId, getLocalDate(), nowMs],
+      );
+      return result.changes > 0;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['today'] }),
+  });
 }
 
 async function computeTodayStreak(
@@ -315,7 +414,23 @@ export function useLogTask(userId: number) {
 
         const { todayStreak, streakResult: sr } = await computeTodayStreak(db, userId, today, yesterdayDate, daily);
         streakResult = sr;
-        milestone = await awardStreakMilestone(db, userId, best?.best ?? 0, Math.max(best?.best ?? 0, sr.newStreak), nowMs);
+        milestone = crossedStreakMilestone(best?.best ?? 0, Math.max(best?.best ?? 0, sr.newStreak));
+        const availabilityDeadline = boostEndOfDayMs(nowMs);
+        if (milestone) {
+          await db.runAsync(
+            `INSERT OR IGNORE INTO boost_events
+             (user_id, local_date, multiplier, claim_deadline, created_at)
+             VALUES (?, ?, ?, ?, ?)`,
+            [userId, today, milestone.multiplier, availabilityDeadline, nowMs],
+          );
+        }
+
+        const boost = await db.getFirstAsync<BoostEventRow>(
+          `SELECT multiplier, claim_deadline, claimed_at, expires_at, dismissed_at
+           FROM boost_events WHERE user_id = ? AND local_date = ? LIMIT 1`,
+          [userId, today],
+        );
+        const multiplier = boost && isBoostActiveAt(nowMs, boost) ? boost.multiplier : undefined;
 
         const { activityRow, bonusRow } = computeLogTaskRows({
           userId, taskTypeId: params.taskTypeId, kind: params.kind,
@@ -323,6 +438,7 @@ export function useLogTask(userId: number) {
           starPenalty: params.starPenalty, durationMin: params.durationMin,
           currentDayPoints: daily?.total_points ?? 0,
           bonusStarsAwarded: daily?.bonus_star_awarded ?? 0,
+          multiplier,
           loggedAt: now, localDate: today, weekStart,
         });
 

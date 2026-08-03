@@ -8,22 +8,25 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { HeatmapDay, buildHeatmapWeeks, heatmapShades } from '../utils/heatmap';
 import { formatDayDetailDate } from '../utils/formatters';
 import { dailyBonusGoal } from '../config/constants';
+import { boostPalette, formatCountdown, secsRemaining, type BoostPalette, type BoostPhase } from '../game/boost';
 
 type Props = {
   days: HeatmapDay[]; streak: number; goal: number; colors: AppColors; todayPoints?: number;
   rankEmoji?: string; lifetimeStars?: number; rankName?: string; streakRef?: (node: View | null) => void;
   scoringGuideVisible?: boolean; onScoringGuideClose?: () => void;
+  boostVisual?: { phase: BoostPhase; multiplier: number; expiresAt: number | null } | null;
 };
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 const HEATMAP_ANIMATE_WEEKS = 16;
 
 // Entry-animated progress ring: the primary arc sweeps from empty up to its
 // current fraction on mount and every time Home regains focus. Reduce-motion
 // paints the final frame directly.
-function ProgressRing({ progress, colors, animKey, reduceMotion }: { progress: number; colors: AppColors; animKey: number; reduceMotion: boolean }) {
-  const size = 54;
-  const radius = 22;
+function ProgressRing({ progress, colors, accentColor, animKey, reduceMotion }: { progress: number; colors: AppColors; accentColor: string; animKey: number; reduceMotion: boolean }) {
+  const size = 44;
+  const radius = 17;
   const circumference = 2 * Math.PI * radius;
   const driver = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
   useEffect(() => {
@@ -42,7 +45,7 @@ function ProgressRing({ progress, colors, animKey, reduceMotion }: { progress: n
     <Svg width={size} height={size}>
       <Circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={colors.surface2} strokeWidth={5} />
       <AnimatedCircle
-        cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={colors.primary} strokeWidth={5}
+        cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={accentColor} strokeWidth={5}
         strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={dashOffset}
         rotation="-90" origin={`${size / 2}, ${size / 2}`}
       />
@@ -66,14 +69,24 @@ function AnimatedCount({ value, suffix, style, animKey, reduceMotion }: { value:
   return <Text style={style} numberOfLines={1}>{displayValue}{suffix}</Text>;
 }
 
+const BoostCountdown = React.memo(function BoostCountdown({ expiresAt, style, color }: { expiresAt: number | null; style: object; color: string }) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (expiresAt === null) return;
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [expiresAt]);
+  return <Text style={[style, { color }]}>{formatCountdown(secsRemaining(nowMs, expiresAt))}</Text>;
+});
+
 // Heatmap cells "fill in" with their colour in a diagonal wave: each coloured
 // box starts empty, then its shade pops in (opacity + scale), delayed by its
 // distance from the top-left corner (col + row). Replayed on focus via animKey.
 // Reduce-motion shows every cell filled at rest.
-const AnimatedWeeks = React.memo(function AnimatedWeeks({ weeks, styles, shades, today, pointsByDate, onSelect, animKey, reduceMotion }: {
+const AnimatedWeeks = React.memo(function AnimatedWeeks({ weeks, styles, shades, today, pointsByDate, onSelect, animKey, reduceMotion, todayBorderColor }: {
   weeks: ReturnType<typeof buildHeatmapWeeks>; styles: ReturnType<typeof makeStyles>;
   shades: string[]; today: string; pointsByDate: Map<string, number>;
-  onSelect: (date: string) => void; animKey: number; reduceMotion: boolean;
+  onSelect: (date: string) => void; animKey: number; reduceMotion: boolean; todayBorderColor: string;
 }) {
   // One Animated.Value per cell (weeks × 7), so each can carry its own diagonal delay.
   const anims = useRef<Animated.Value[][]>([]).current;
@@ -108,9 +121,9 @@ const AnimatedWeeks = React.memo(function AnimatedWeeks({ weeks, styles, shades,
         if (!cell.date) return <View key={`${cell.date}-${j}`} style={styles.cell} />;
         const v = anims[i][j];
         return (
-          <TouchableOpacity
+          <AnimatedTouchable
             key={cell.date}
-            style={[styles.cell, { backgroundColor: shades[0] }, cell.date === today && styles.todayCell]}
+            style={[styles.cell, { backgroundColor: shades[0] }, cell.date === today && styles.todayCell, cell.date === today && { borderColor: todayBorderColor }]}
             // hitSlop capped at half the 3px cell gap: cells sit edge-to-edge in
             // a dense 7-row grid, so any larger slop overlaps the neighbouring
             // cell's hit region and taps register the wrong day.
@@ -123,14 +136,14 @@ const AnimatedWeeks = React.memo(function AnimatedWeeks({ weeks, styles, shades,
                 style={[StyleSheet.absoluteFill, { backgroundColor: shades[cell.level], borderRadius: 4, opacity: v, transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] }) }] }]}
               />
             )}
-          </TouchableOpacity>
+          </AnimatedTouchable>
         );
       })}
     </View>
   ))}</View>;
 });
 
-export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji, lifetimeStars, rankName, streakRef, scoringGuideVisible = false, onScoringGuideClose }: Props) {
+export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji, lifetimeStars, rankName, streakRef, scoringGuideVisible = false, onScoringGuideClose, boostVisual = null }: Props) {
   const scrollRef = useRef<ScrollView>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showLegend, setShowLegend] = useState(false);
@@ -144,7 +157,10 @@ export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal,
   const weeks = useMemo(() => buildHeatmapWeeks(days), [days]);
   const activeDays = days.filter(day => day.total_points > 0).length;
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const shades = useMemo(() => heatmapShades(colors), [colors]);
+  const boostActive = boostVisual?.phase === 'active' || boostVisual?.phase === 'expiring';
+  const boost = boostActive ? boostVisual : null;
+  const palette = useMemo<BoostPalette | null>(() => boost ? boostPalette(colors) : null, [boost, colors]);
+  const shades = useMemo(() => palette ? [colors.surface2, `${colors.primary}4D`, `${colors.primary}85`, `${colors.primary}BD`, colors.primary] : heatmapShades(colors), [colors, palette]);
   const pointsByDate = useMemo(() => new Map(days.map(day => [day.local_date, day.total_points])), [days]);
   const starsByDate = useMemo(() => new Map(days.map(day => [day.local_date, day.stars ?? 0])), [days]);
   const now = new Date();
@@ -155,8 +171,34 @@ export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal,
   const todayGoal = dailyBonusGoal(todayPoints ?? 0, goal);
   const selectedGoal = dailyBonusGoal(selectedPoints, goal);
   const progress = todayPoints === undefined ? null : Math.min(todayPoints / todayGoal, 1);
+  const badgeSheen = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduceMotion || !boostActive) {
+      badgeSheen.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(Animated.sequence([
+      Animated.delay(900),
+      Animated.timing(badgeSheen, { toValue: 1, duration: 850, easing: Easing.linear, useNativeDriver: true }),
+      Animated.timing(badgeSheen, { toValue: 0, duration: 0, useNativeDriver: true }),
+      Animated.delay(1900),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [badgeSheen, boostActive, reduceMotion]);
 
-  return <View style={styles.card}>
+  return <>
+    {boostVisual?.phase === 'expiring' && palette ? <View style={[styles.urgentBanner, { backgroundColor: colors.dangerPress }]}>
+      <Text style={styles.urgentBannerText}>{t.boostUrgency(boostVisual.multiplier)}</Text>
+      <BoostCountdown expiresAt={boostVisual.expiresAt} style={styles.urgentBannerTime} color={colors.white} />
+    </View> : null}
+    <View style={[styles.card, boostActive && palette ? { borderColor: boostVisual?.phase === 'expiring' ? colors.dangerPress : palette.border, borderWidth: boostVisual?.phase === 'expiring' ? 2 : 1 } : null]}>
+      {boostActive && palette ? <View pointerEvents="none" style={styles.boostGlow}>
+        <Svg width={230} height={230}>
+          <Defs><RadialGradient id="boost-heatmap-glow" cx="100%" cy="0%" r="100%"><Stop offset="0" stopColor={palette.fill} stopOpacity={0.32} /><Stop offset="1" stopColor={palette.fill} stopOpacity={0} /></RadialGradient></Defs>
+          <Rect width="230" height="230" fill="url(#boost-heatmap-glow)" />
+        </Svg>
+      </View> : null}
     <View style={styles.header}>
       <View style={styles.headerTitle}>
         <View style={styles.totalRow}><Text style={styles.total}>{activeDays}</Text><Text style={styles.totalLabel}>{t.heatmapActiveDays}</Text></View>
@@ -171,9 +213,13 @@ export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal,
       </View>
     </View>
     <View style={styles.rewardRow}>
-      <View ref={streakRef} style={styles.rewardPill}>
+      <View ref={streakRef} style={[styles.rewardPill, boostActive && palette ? { borderColor: palette.border, borderWidth: 1 } : null]}>
         <Text style={styles.rewardText}>{rankName ? `🔥 ${streak} · ★ ${Math.round(lifetimeStars ?? 0)} › ${rankEmoji} ${rankName}` : `🔥 ${streak}`}</Text>
       </View>
+      {boostActive && palette ? <View style={[styles.boostBadge, { backgroundColor: palette.fill }]}>
+        <Text style={[styles.boostBadgeText, { color: palette.ink }]}>{t.boostActiveBadge(boostVisual?.multiplier ?? 1)}</Text>
+        <Animated.View pointerEvents="none" style={[styles.badgeSweep, { backgroundColor: `${colors.white}55`, transform: [{ translateX: badgeSheen.interpolate({ inputRange: [0, 1], outputRange: [-60, 86] }) }] }]} />
+      </View> : null}
     </View>
     <View style={styles.gridRow}>
       <View style={styles.rail}>{t.calDow.map((label, i) => <Text key={i} style={styles.dayLabel}>{[0, 2, 4].includes(i) ? label : ''}</Text>)}</View>
@@ -181,12 +227,13 @@ export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal,
         <View>
           <View style={styles.months}>{weeks.map((week, i) => {
             const month = week.find(cell => cell.month)?.month;
-            return month ? <Text key={i} style={[styles.month, { left: i * 16 }]}>{month}</Text> : null;
+            return month ? <Text key={i} style={[styles.month, { left: i * 11.6 }]}>{month}</Text> : null;
           })}</View>
           <AnimatedWeeks
             weeks={weeks} styles={styles} shades={shades} today={today}
             pointsByDate={pointsByDate} onSelect={setSelectedDate}
             animKey={animKey} reduceMotion={reduceMotion}
+            todayBorderColor={boostActive && palette ? palette.border : colors.primary}
           />
         </View>
       </ScrollView>
@@ -235,11 +282,18 @@ export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal,
       </View>
     </Modal>
     {progress !== null && <View style={styles.today}>
-      <ProgressRing progress={progress} colors={colors} animKey={animKey} reduceMotion={reduceMotion} />
+      <ProgressRing progress={progress} colors={colors} accentColor={boostActive && palette ? palette.fill : colors.primary} animKey={animKey} reduceMotion={reduceMotion} />
       <View style={styles.todayCopy}>
-        <AnimatedCount value={todayPoints ?? 0} suffix={` / ${todayGoal}`} style={styles.todayValue} animKey={animKey} reduceMotion={reduceMotion} />
+        <View style={styles.todayValueRow}>
+          <AnimatedCount value={todayPoints ?? 0} suffix={` / ${todayGoal}`} style={styles.todayValue} animKey={animKey} reduceMotion={reduceMotion} />
+          {boostActive && palette ? <View style={[styles.todayRate, { backgroundColor: colors.primarySoft, borderColor: colors.primaryPress }]}><Text style={[styles.todayRateText, { color: colors.primaryText }]}>{t.boostRate(boostVisual?.multiplier ?? 1)}</Text></View> : null}
+        </View>
         <Text style={styles.todayLabel}>{t.pointsLabel}</Text>
       </View>
+      {boostActive && palette ? <View style={[styles.countdownPill, { backgroundColor: boostVisual?.phase === 'expiring' ? colors.dangerPress : colors.primarySoft }]}>
+        <Text style={styles.countdownIcon}>⌛</Text>
+        <BoostCountdown expiresAt={boostVisual.expiresAt} style={styles.countdown} color={boostVisual.phase === 'expiring' ? colors.white : colors.primaryText} />
+      </View> : null}
     </View>}
     <Modal visible={selectedDate !== null} transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={() => setSelectedDate(null)} statusBarTranslucent navigationBarTranslucent>
       <View style={styles.modal}>
@@ -272,23 +326,25 @@ export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal,
         </View>
       </View>
     </Modal>
-  </View>;
+  </View>
+  </>;
 });
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
-    card: { marginHorizontal: Spacing.lg, marginTop: 14, padding: Spacing.lg, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.xl, ...Shadows.light },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }, headerTitle: { flex: 1 }, headerActions: { alignItems: 'flex-end' }, yearWrap: { alignItems: 'flex-end', gap: 2 }, yearText: { color: C.primaryText, fontSize: 13, fontFamily: FontFamily.extraBold }, legendButton: { width: 16, height: 16, borderRadius: 8, borderWidth: 1, borderColor: C.muted, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }, legendButtonText: { color: C.inkDark, fontSize: 10, lineHeight: 12, fontFamily: FontFamily.extraBold },
-    totalRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 2 }, total: { color: C.inkDark, fontSize: 52, lineHeight: 56, letterSpacing: -2.5, fontFamily: FontFamily.extraBold }, totalLabel: { color: C.muted, fontSize: 12, fontFamily: FontFamily.bold },
-    rewardRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: Spacing.md }, rewardPill: { maxWidth: '100%', flexShrink: 1, backgroundColor: C.surface2, borderRadius: Radii.pill, paddingHorizontal: 11, paddingVertical: 7 }, rewardText: { flexShrink: 1, color: C.inkDark, fontSize: 13, fontFamily: FontFamily.bold },
-    gridRow: { flexDirection: 'row' }, rail: { width: 22, marginTop: 19, gap: 3 }, dayLabel: { height: 13, color: C.faint, fontSize: 9, lineHeight: 13, fontFamily: FontFamily.semiBold }, months: { height: 19, position: 'relative' }, month: { position: 'absolute', width: 22, color: C.faint, fontSize: 9, lineHeight: 10, fontFamily: FontFamily.semiBold }, weeks: { flexDirection: 'row', gap: 3 }, week: { gap: 3 }, cell: { width: 13, height: 13, borderRadius: 4, overflow: 'hidden' }, emptyCell: {}, todayCell: { borderWidth: 2, borderStyle: 'solid', borderColor: C.primary },
-    legend: { marginTop: Spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }, legendLabel: { color: C.faint, fontSize: 10, fontFamily: FontFamily.medium }, legendCell: { width: 11, height: 11, borderRadius: 4 },
-    today: { borderTopWidth: 1, borderTopColor: C.line, marginTop: Spacing.md, paddingTop: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: 11 }, todayCopy: { flex: 1 }, todayLabel: { color: C.ink2, fontSize: 11, fontFamily: FontFamily.extraBold, marginTop: 1 }, todayValue: { color: C.inkDark, fontSize: 18, fontFamily: FontFamily.extraBold },
+    card: { marginHorizontal: 14, marginTop: 7, paddingHorizontal: 15, paddingTop: 14, paddingBottom: 16, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.xl, overflow: 'hidden', ...Shadows.light }, boostGlow: { position: 'absolute', width: 230, height: 230, top: -8, right: -8 },
+    urgentBanner: { marginHorizontal: Spacing.lg, marginTop: 8, minHeight: 44, borderRadius: Radii.md, paddingHorizontal: Spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm }, urgentBannerText: { color: C.white, fontSize: 12.5, fontFamily: FontFamily.extraBold, flex: 1 }, urgentBannerTime: { color: C.white, fontSize: 15, fontFamily: FontFamily.extraBold, fontVariant: ['tabular-nums'] },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }, headerTitle: { flex: 1 }, headerActions: { alignItems: 'flex-end' }, yearWrap: { alignItems: 'flex-end', gap: 2 }, yearText: { color: C.primaryText, fontSize: 13, fontFamily: FontFamily.extraBold }, legendButton: { width: 24, height: 24, borderRadius: 12, borderWidth: 1, borderColor: C.muted, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }, legendButtonText: { color: C.inkDark, fontSize: 13, lineHeight: 16, fontFamily: FontFamily.extraBold },
+    totalRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 2 }, total: { color: C.inkDark, fontSize: 38, lineHeight: 44, letterSpacing: -2, fontFamily: FontFamily.extraBold }, totalLabel: { maxWidth: 110, color: C.muted, fontSize: 12.5, lineHeight: 16, fontFamily: FontFamily.bold },
+    rewardRow: { flexDirection: 'column', alignItems: 'flex-start', gap: 8, marginBottom: Spacing.md }, rewardPill: { maxWidth: '100%', flexShrink: 1, backgroundColor: C.surface2, borderRadius: Radii.pill, paddingHorizontal: 11, paddingVertical: 7 }, rewardText: { flexShrink: 1, color: C.inkDark, fontSize: 12.5, fontFamily: FontFamily.bold }, boostBadge: { position: 'relative', overflow: 'hidden', borderRadius: Radii.pill, paddingHorizontal: 10, paddingVertical: 5 }, boostBadgeText: { fontSize: 12, fontFamily: FontFamily.extraBold, letterSpacing: 0.3 }, badgeSweep: { position: 'absolute', top: 0, bottom: 0, width: 24, transform: [{ skewX: '-18deg' }] },
+    gridRow: { flexDirection: 'row' }, rail: { width: 20, marginTop: 16, gap: 2.6 }, dayLabel: { height: 11, color: C.faint, fontSize: 8.5, lineHeight: 11, fontFamily: FontFamily.semiBold }, months: { height: 16, position: 'relative' }, month: { position: 'absolute', width: 22, color: C.faint, fontSize: 9, lineHeight: 10, fontFamily: FontFamily.semiBold }, weeks: { flexDirection: 'row', gap: 2.6 }, week: { gap: 2.6 }, cell: { width: 9, height: 9, borderRadius: 2.5, overflow: 'hidden' }, emptyCell: {}, todayCell: { borderWidth: 1.6, borderStyle: 'solid', borderColor: C.primary },
+    legend: { marginTop: Spacing.xs, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }, legendLabel: { color: C.faint, fontSize: 10, fontFamily: FontFamily.medium }, legendCell: { width: 11, height: 11, borderRadius: 4 },
+    today: { borderTopWidth: 1, borderTopColor: C.line, marginTop: 9, paddingTop: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }, todayCopy: { flex: 1, minWidth: 0 }, todayValueRow: { flexDirection: 'row', alignItems: 'center', gap: 7 }, todayLabel: { color: C.ink2, fontSize: 11, fontFamily: FontFamily.extraBold, marginTop: 1 }, todayValue: { color: C.inkDark, fontSize: 19, fontFamily: FontFamily.extraBold }, todayRate: { borderWidth: 1, borderRadius: Radii.pill, paddingHorizontal: 6, paddingVertical: 2 }, todayRateText: { fontSize: 10.5, fontFamily: FontFamily.extraBold }, countdownPill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: Radii.pill, paddingHorizontal: 12, paddingVertical: 6 }, countdownIcon: { fontSize: 12, lineHeight: 16 }, countdown: { fontSize: 16, fontFamily: FontFamily.extraBold, letterSpacing: 0.25, fontVariant: ['tabular-nums'] },
     modal: { flex: 1, justifyContent: 'flex-end' }, legendModal: { flex: 1, justifyContent: 'center', padding: Spacing.lg }, backdrop: { ...StyleSheet.absoluteFill, backgroundColor: C.scrim }, sheet: { alignSelf: 'center', width: '100%', maxWidth: 480, overflow: 'hidden', backgroundColor: C.surface, borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl, paddingTop: 12, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg, gap: Spacing.sm }, legendSheet: { alignSelf: 'center', width: '100%', maxWidth: 480, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.xl, padding: Spacing.lg, ...Shadows.medium }, scoringSheetContainer: { alignSelf: 'center', width: '100%', maxWidth: 480, maxHeight: '90%', overflow: 'hidden', backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.xl, ...Shadows.medium }, scoringSheet: { flexShrink: 1 }, scoringSheetContent: { padding: Spacing.lg }, legendTitle: { flex: 1, color: C.inkDark, fontSize: 20, lineHeight: 26, fontFamily: FontFamily.extraBold }, legendSubtitle: { color: C.muted, fontSize: 13, lineHeight: 17, fontFamily: FontFamily.regular, marginTop: 2 }, legendDivider: { height: 1, backgroundColor: C.line, marginVertical: Spacing.md }, legendItem: { minHeight: 48, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: C.line, gap: Spacing.sm }, legendItemLast: { borderBottomWidth: 0 }, scoringSubtitle: { color: C.muted, fontSize: 13, lineHeight: 17, fontFamily: FontFamily.regular, marginTop: -Spacing.sm }, scoringSection: { color: C.primaryText, fontSize: 12, letterSpacing: .4, fontFamily: FontFamily.extraBold, marginTop: Spacing.sm }, scoringDivider: { height: StyleSheet.hairlineWidth, backgroundColor: C.line }, scoringNumber: { width: 26, height: 26, borderRadius: 13, overflow: 'hidden', textAlign: 'center', color: C.onAccent, backgroundColor: C.primary, fontSize: 14, lineHeight: 26, fontFamily: FontFamily.extraBold }, starBadge: { width: 26, height: 26, borderRadius: 13, overflow: 'hidden', textAlign: 'center', color: C.onAccent, backgroundColor: C.starGold, fontSize: 14, lineHeight: 26, fontFamily: FontFamily.extraBold }, scoringCopy: { flex: 1 }, scoringExample: { color: C.muted, fontSize: 13, lineHeight: 17, fontFamily: FontFamily.regular, marginTop: 1 }, legendItemColor: { width: 30, height: 30, borderRadius: Radii.sm }, emptyLegendCell: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.line2 }, legendRange: { color: C.inkDark, fontSize: 15, fontFamily: FontFamily.extraBold }, legendUnit: { color: C.muted, fontSize: 13, fontFamily: FontFamily.medium, marginLeft: -4 }, legendHint: { flex: 1, color: C.faint, fontSize: 12, textAlign: 'right', fontFamily: FontFamily.medium }, legendGridTitle: { color: C.faint, fontSize: 11, lineHeight: 14, fontFamily: FontFamily.extraBold }, legendSample: { flexDirection: 'row', gap: 8, marginTop: Spacing.sm }, legendSampleCell: { width: 34, height: 34, borderRadius: Radii.sm }, legendItemText: { flex: 1, color: C.inkDark, fontSize: 15, fontFamily: FontFamily.extraBold }, legendCloseButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }, legendCloseGlyph: { color: C.muted, fontSize: 22, lineHeight: 24, fontFamily: FontFamily.regular }, rewardGlow: { position: 'absolute', top: 0, left: 0, right: 0 }, grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: C.line2 }, sheetHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md }, sheetTitleCopy: { flex: 1, minHeight: 44, justifyContent: 'center' }, sheetDate: { color: C.inkDark, fontSize: 17, lineHeight: 24, fontFamily: FontFamily.bold, marginTop: 3 }, closeButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }, closeGlyph: { color: C.muted, fontSize: 28, lineHeight: 28, fontFamily: FontFamily.regular }, rewardCopy: { alignItems: 'center', paddingVertical: Spacing.xs }, rewardStars: { fontSize: 50, lineHeight: 54, fontFamily: FontFamily.extraBold, letterSpacing: -2 }, rewardSubtitle: { color: C.muted, fontSize: 14, fontFamily: FontFamily.bold, marginTop: 2 }, pointsCard: { minHeight: 70, borderWidth: 1, borderColor: C.line, borderRadius: Radii.md, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.md }, pointsValue: { color: C.inkDark, fontSize: 24, fontFamily: FontFamily.extraBold, letterSpacing: -.7 }, pointsGoal: { color: C.muted, fontSize:14, fontFamily: FontFamily.bold }, pointsLabel: { color: C.muted, fontSize: 11, fontFamily: FontFamily.extraBold, marginTop: 2 }, dismissButton: { minHeight: 52, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.lg }, dismissButtonText: { color: '#141816', fontSize: 16, fontFamily: FontFamily.extraBold }, // rewardCta fill stays bright yellow in both themes, so its text stays fixed dark ink (same value onAccent uses for the same reason) instead of theme-adaptive C.inkDark, which flips to near-white in dark mode
   });
 }
 
 const styles = StyleSheet.create({
-  ring: { width: 54, height: 54, alignItems: 'center', justifyContent: 'center' },
+  ring: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   ringValue: { position: 'absolute', fontSize: 11, fontFamily: FontFamily.extraBold },
 });
