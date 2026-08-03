@@ -120,3 +120,19 @@ test('BAD task never triggers bonus regardless of day points', () => {
   });
   expect(result.bonusRow).toBeNull();
 });
+
+test('boost multiplies GOOD task stars but never the daily bonus', () => {
+  const result = computeLogTaskRows({
+    ...baseGoodTask,
+    currentDayPoints: 20,
+    multiplier: 3,
+  });
+
+  expect(result.activityRow.stars_delta).toBe(3);
+  expect(result.bonusRow?.stars_delta).toBe(1);
+});
+
+test('boost never changes BAD-log penalties', () => {
+  const result = computeLogTaskRows({ ...baseGoodTask, kind: 'BAD', multiplier: 3 });
+  expect(result.activityRow.stars_delta).toBe(-50);
+});

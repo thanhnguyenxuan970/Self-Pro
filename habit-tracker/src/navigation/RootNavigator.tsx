@@ -100,65 +100,75 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
   const { colors } = useTheme();
   const t = useTranslations();
   const { width } = useWindowDimensions();
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const insets = useSafeAreaInsets();
   const { targetRef } = useTutorial();
   const analyticsTutorialRef = useMemo(() => targetRef('analytics'), [targetRef]);
   const rankTutorialRef = useMemo(() => targetRef('rank'), [targetRef]);
   const tabBarHeight = BOTTOM_TAB_BAR_HEIGHT + insets.bottom;
+  const responsiveWidth = containerWidth ?? width;
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.line,
-          height: tabBarHeight,
-          paddingBottom: insets.bottom + (Platform.OS === 'android' ? 4 : 0),
-          paddingTop: 9,
-        },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.faint,
-        tabBarAllowFontScaling: true,
-        tabBarShowLabel: width >= 320,
-        tabBarLabelStyle: { fontSize: 10, fontFamily: FontFamily.bold, marginTop: 4 },
+    <View
+      style={{ flex: 1 }}
+      onLayout={({ nativeEvent }) => {
+        const nextWidth = Math.round(nativeEvent.layout.width);
+        setContainerWidth(previousWidth => previousWidth === nextWidth ? previousWidth : nextWidth);
       }}
     >
-      <Tab.Screen
-        name="Home"
-        component={TodayScreen}
-        options={{ title: t.tabHome, tabBarIcon: ({ color }) => <IconHome color={color} /> }}
-      />
-      <Tab.Screen
-        name="Calendar"
-        component={CalendarScreen}
-        options={{ title: t.tabCalendar, tabBarIcon: ({ color }) => <IconCalendar color={color} /> }}
-      />
-      <Tab.Screen
-        name="Log"
-        component={TodayScreen}
-        options={{
-          tabBarButton: () => <FABButton onPress={onFABPress} colors={colors} />,
-          title: '',
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: {
+            backgroundColor: colors.surface,
+            borderTopColor: colors.line,
+            height: tabBarHeight,
+            paddingBottom: insets.bottom + (Platform.OS === 'android' ? 4 : 0),
+            paddingTop: 9,
+          },
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.faint,
+          tabBarAllowFontScaling: true,
+          tabBarShowLabel: responsiveWidth >= 320,
+          tabBarLabelStyle: { fontSize: 10, fontFamily: FontFamily.bold, marginTop: 4 },
         }}
-        listeners={{ tabPress: (e) => e.preventDefault() }}
-      />
-      <Tab.Screen
-        name="Analytics"
-        component={ProgressScreen}
-        options={{
-          title: t.tabAnalytics,
-          tabBarIcon: ({ color }) => <View ref={analyticsTutorialRef} collapsable={false}><IconChart color={color} /></View>,
-        }}
-      />
-      <Tab.Screen
-        name="Rank"
-        component={RankScreen}
-        options={{
-          title: t.tabRank,
-          tabBarIcon: ({ color }) => <View ref={rankTutorialRef} collapsable={false}><IconTrophy color={color} /></View>,
-        }}
-      />
-    </Tab.Navigator>
+      >
+        <Tab.Screen
+          name="Home"
+          component={TodayScreen}
+          options={{ title: t.tabHome, tabBarIcon: ({ color }) => <IconHome color={color} /> }}
+        />
+        <Tab.Screen
+          name="Calendar"
+          component={CalendarScreen}
+          options={{ title: t.tabCalendar, tabBarIcon: ({ color }) => <IconCalendar color={color} /> }}
+        />
+        <Tab.Screen
+          name="Log"
+          component={TodayScreen}
+          options={{
+            tabBarButton: () => <FABButton onPress={onFABPress} colors={colors} />,
+            title: '',
+          }}
+          listeners={{ tabPress: (e) => e.preventDefault() }}
+        />
+        <Tab.Screen
+          name="Analytics"
+          component={ProgressScreen}
+          options={{
+            title: t.tabAnalytics,
+            tabBarIcon: ({ color }) => <View ref={analyticsTutorialRef} collapsable={false}><IconChart color={color} /></View>,
+          }}
+        />
+        <Tab.Screen
+          name="Rank"
+          component={RankScreen}
+          options={{
+            title: t.tabRank,
+            tabBarIcon: ({ color }) => <View ref={rankTutorialRef} collapsable={false}><IconTrophy color={color} /></View>,
+          }}
+        />
+      </Tab.Navigator>
+    </View>
   );
 }
 

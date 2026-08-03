@@ -4,6 +4,7 @@ import { canBackfill, computeBackfillSession, computeStreakCounts, type Backfill
 import { getLocalDate, getLocalDateFor, getWeekStart, getWeekStartFor } from '../utils/formatters';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { crossedStreakMilestone, type StreakMilestone } from '../game/streakMilestones';
+import { boostEndOfDayMs } from '../game/boost';
 import { syncCurrentUserToSupabase } from '../api/syncService';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
@@ -163,14 +164,14 @@ async function runBackfillTx(
     `SELECT COALESCE(MAX(streak_count), 0) AS best FROM daily_summary WHERE user_id = ?`,
     [userId],
   );
-  const candidate = crossedStreakMilestone(previousBest?.best ?? 0, currentBest?.best ?? 0);
-  let milestone: StreakMilestone | null = null;
-  if (candidate) {
-    const result = await db.runAsync(
-      `INSERT OR IGNORE INTO milestone_stars (user_id, milestone_days, stars, awarded_at) VALUES (?, ?, ?, ?)`,
-      [userId, candidate.days, candidate.stars, nowMs],
+  const milestone = crossedStreakMilestone(previousBest?.best ?? 0, currentBest?.best ?? 0);
+  if (milestone) {
+    await db.runAsync(
+      `INSERT OR IGNORE INTO boost_events
+       (user_id, local_date, multiplier, claim_deadline, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [userId, today, milestone.multiplier, boostEndOfDayMs(nowMs), nowMs],
     );
-    if (result.changes > 0) milestone = candidate;
   }
 
   let lifetimeCrossings: LifetimeTierCrossing[] = [];

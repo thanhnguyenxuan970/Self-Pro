@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [2.0.1.0] - 2026-08-03
+
+### Added
+- **Multiplier boost experience**: persisted streak-milestone grants now support deadline-aware claiming, active countdown state, and an expiry summary.
+
+### Fixed
+- **Challenge reminders**: completed and failed challenges now cancel their queued daily reminders, including older terminal challenges.
+- **Responsive Today navigation**: bottom-tab labels now adapt to narrow layouts without overlapping icons or truncating the central action.
+- **Boost correctness**: backfill streak crossings create the same durable boost event as Today logging, and expired events cannot be claimed.
+- **Theme and accessibility contrast**: badge celebration labels and dismissal controls now follow the selected theme with explicit screen-reader semantics.
+
+### Changed
+- **Compact heatmap layout**: the 53-week grid scales to narrow screens while keeping day hit areas non-overlapping.
+- **Data/query cleanup**: removed obsolete boost hooks and a dead migration path; date-scoped activity queries reduce unnecessary local work.
+
 ## [2.0.0.0] - 2026-07-29
 
 ### Added

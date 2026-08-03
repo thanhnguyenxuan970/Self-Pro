@@ -105,14 +105,18 @@ type Props = {
   item: Task; done: boolean; isBad: boolean; isLast: boolean;
   isSelected: boolean; selectionMode: boolean; justLogged: boolean;
   totalDurationMin?: number; starsEarned?: number; pointsEarned?: number; logPending: boolean;
+  boostMultiplier?: number;
+  boostedMultiplier?: number;
   colors: AppColors;
   onPress: (item: Task) => void; onLongPress: (item: Task) => void; onEdit?: (item: Task) => void;
 };
 
-function TaskRowComponent({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, starsEarned, pointsEarned, onPress, onLongPress, onEdit, logPending, colors }: Props) {
+function TaskRowComponent({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, starsEarned, pointsEarned, boostMultiplier = 1, boostedMultiplier = 1, onPress, onLongPress, onEdit, logPending, colors }: Props) {
   const t = useTranslations();
   const styles = useMemo(() => makeTaskRowStyles(colors), [colors]);
   const { fadeAnim, scaleAnim, checkScaleAnim } = useTaskRowAnimation(justLogged, done);
+  const rowMultiplier = done ? boostedMultiplier : boostMultiplier;
+  const isBoostPreview = !isBad && boostMultiplier > 1;
 
   return (
     <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
@@ -145,7 +149,7 @@ function TaskRowComponent({ item, done, isBad, isLast, isSelected, selectionMode
               styles={styles} />
           </View>
         </Pressable>
-        {(done || (!selectionMode && onEdit)) ? <View style={styles.rightCol}>
+        {(done || (!selectionMode && (onEdit || isBoostPreview))) ? <View style={styles.rightCol}>
           {!selectionMode && onEdit ? (
             <TouchableOpacity
               onPress={() => onEdit(item)}
@@ -156,8 +160,10 @@ function TaskRowComponent({ item, done, isBad, isLast, isSelected, selectionMode
               <Text style={styles.editIcon}>•••</Text>
             </TouchableOpacity>
           ) : null}
-          {done ? <Text style={[styles.tPts, resolvePtsStyle(styles, done, isBad)]}>
-            {isBad ? `−${item.star_penalty}★` : `+${done ? Math.round(starsEarned ?? 1) : 1}★${done ? ` · +${t.ptsShort(pointsEarned ?? item.base_points)}` : ''}`}
+          {done || isBoostPreview ? <Text style={[styles.tPts, resolvePtsStyle(styles, done, isBad), !done && isBoostPreview && styles.tPtsPos]}>
+            {isBad
+              ? `−${item.star_penalty}★`
+              : `+${done ? Math.round(starsEarned ?? 1) : Math.round(boostMultiplier)}★${rowMultiplier > 1 ? ` · ×${Math.round(rowMultiplier)}` : ''}${done ? ` · +${t.ptsShort(pointsEarned ?? item.base_points)}` : ''}`}
           </Text> : null}
         </View> : null}
       </View>

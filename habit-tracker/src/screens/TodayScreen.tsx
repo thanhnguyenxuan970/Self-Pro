@@ -11,8 +11,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import {
   useTodayTasks, useDailySummary, useWeeklySummary,
-  useLogTask, useUnlogTask, useTodayLoggedTaskIds, useConsecutiveSuggestions,
-  useTodayTaskTotalDurations,
+  useLogTask, useUnlogTask, useTodayLoggedTaskIds, useTodayBoostedTaskIds, useConsecutiveSuggestions,
+  useTodayTaskTotalDurations, useTodayBoost, useTodayBoostSummary, useActivateTodayBoost,
+  useDismissTodayBoost,
 } from '../queries/useToday';
 import {
   readPendingLevelUpQueue, writePendingLevelUpQueue, type PendingLevelUpItem,
@@ -42,12 +43,14 @@ import { useBackfillStatus } from '../queries/useBackfillStatus';
 import { HomeHeatmap } from '../components/HomeHeatmap';
 import { HomeBackfillNudge } from '../components/HomeBackfillNudge';
 import { BackfillFlow } from '../components/BackfillFlow';
+import { BoostExperience } from '../components/BoostExperience';
 import { DurationClockInput } from '../components/DurationClockInput';
 import { DurationPresetChips } from '../components/DurationPresetChips';
 import { clockMinutes } from '../utils/durationClock';
 import { getHomeBackfillNudge } from '../game/homeBackfillNudge';
 import { getLocalDate, getWeekStart } from '../utils/formatters';
 import type { StreakMilestone } from '../game/streakMilestones';
+import { deriveBoostPhase, nextBoostPhaseAt, type BoostPhase } from '../game/boost';
 
 const RANK_EMOJI: Record<number, string> = { 1: '🎮', 2: '🐣', 3: '🤡', 4: '🌀', 5: '✨', 6: '🔥', 7: '👑', 8: '👾', 9: '😇' };
 const SHARE_MILESTONES = [7, 30, 90];
@@ -191,7 +194,12 @@ export function TodayScreen() {
   const { data: rankData } = useRankData(userId);
   const { data: heatmapDays = [] } = useHeatmapData(userId);
   const { data: backfillStatus } = useBackfillStatus(userId);
+  const { data: boostEvent } = useTodayBoost(userId);
+  const { data: boostSummary } = useTodayBoostSummary(userId, boostEvent);
+  const { data: boostedTaskIds } = useTodayBoostedTaskIds(userId, boostEvent);
   const logTask = useLogTask(userId);
+  const activateBoost = useActivateTodayBoost(userId);
+  const dismissBoost = useDismissTodayBoost(userId);
   const unlogTask = useUnlogTask(userId);
   const archiveTask = useArchiveTask(userId);
   const updateTaskName = useUpdateTaskName(userId);
@@ -210,6 +218,7 @@ export function TodayScreen() {
   const closeScoringGuide = useCallback(() => setShowScoringGuide(false), []);
   const [backfillDate, setBackfillDate] = useState<string | null>(null);
   const [backfillNudgeDismissed, setBackfillNudgeDismissed] = useState(false);
+  const [boostPhase, setBoostPhase] = useState<BoostPhase>('none');
 
   const { data: shareCardData } = useShareCardData(userId);
 
@@ -255,6 +264,23 @@ export function TodayScreen() {
   const { unreadCount: unreadNewsCount } = useNewsFeed(newsViewerKey);
 
   const reduceMotion = useReduceMotion();
+  useEffect(() => {
+    const nowMs = Date.now();
+    setBoostPhase(deriveBoostPhase(nowMs, boostEvent ?? null));
+    const nextBoundary = nextBoostPhaseAt(nowMs, boostEvent ?? null);
+    if (nextBoundary === null) return;
+    const timer = setTimeout(() => {
+      setBoostPhase(deriveBoostPhase(Date.now(), boostEvent ?? null));
+    }, Math.max(50, nextBoundary - nowMs + 50));
+    return () => clearTimeout(timer);
+  }, [boostEvent?.id, boostEvent?.claim_deadline, boostEvent?.claimed_at, boostEvent?.expires_at, boostEvent?.dismissed_at, boostPhase]);
+  const boostActive = boostPhase === 'active' || boostPhase === 'expiring';
+  const boostMultiplier = boostActive ? (boostEvent?.multiplier ?? 1) : 1;
+  const boostVisual = useMemo(() => boostEvent ? {
+    phase: boostPhase,
+    multiplier: boostEvent.multiplier,
+    expiresAt: boostEvent.expires_at,
+  } : null, [boostEvent?.id, boostEvent?.multiplier, boostEvent?.expires_at, boostPhase]);
 
   const backfillNudgeKey = `backfillNudgeDismissed:${getLocalDate()}`;
   useEffect(() => {
@@ -423,6 +449,16 @@ export function TodayScreen() {
     } catch { Alert.alert(t.error, t.cantLog); }
   }
 
+  const boostExperience = boostEvent ? <BoostExperience
+    event={boostEvent}
+    phase={boostPhase}
+    summary={boostSummary}
+    activatePending={activateBoost.isPending}
+    dismissPending={dismissBoost.isPending}
+    onActivate={() => activateBoost.mutate()}
+    onDismiss={() => dismissBoost.mutate()}
+  /> : null;
+
   if (isLoading) return (
     <View style={{ flex: 1, backgroundColor: colors.bgBase, paddingTop: Spacing.xl }}>
       <SkeletonRow colors={colors} />
@@ -489,7 +525,9 @@ export function TodayScreen() {
         </View>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
-        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} lifetimeStars={lifetimeStars} rankName={rankDisplayName} streakRef={streakTutorialRef} scoringGuideVisible={showScoringGuide} onScoringGuideClose={closeScoringGuide} />
+        {boostPhase === 'available' ? boostExperience : null}
+        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} lifetimeStars={lifetimeStars} rankName={rankDisplayName} streakRef={streakTutorialRef} scoringGuideVisible={showScoringGuide} onScoringGuideClose={closeScoringGuide} boostVisual={boostVisual} />
+        {boostPhase !== 'available' ? boostExperience : null}
 
         {!backfillNudgeDismissed && <HomeBackfillNudge
           nudge={backfillNudge}
@@ -536,7 +574,10 @@ export function TodayScreen() {
         }
 
         <View style={styles.taskListHeader}>
-          <Text style={styles.sectionLabel}>{t.sectionToday}</Text>
+          <View style={styles.taskHeaderLeft}>
+            <Text style={styles.sectionLabel}>{t.sectionToday}</Text>
+            {boostActive ? <View style={styles.taskBoostChip}><Text style={styles.taskBoostChipText}>{t.boostRate(boostMultiplier)}</Text></View> : null}
+          </View>
           {!selectionMode && <TouchableOpacity style={styles.scoringGuideButton} onPress={() => setShowScoringGuide(true)} hitSlop={15} accessibilityRole="button" accessibilityLabel={t.scoringGuideTitle}><Text style={styles.scoringGuideText}>?</Text></TouchableOpacity>}
           {selectionMode && (
             <View style={styles.selActions}>
@@ -587,6 +628,8 @@ export function TodayScreen() {
                   totalDurationMin={totalDurations?.get(item.id)?.duration}
                   starsEarned={totalDurations?.get(item.id)?.stars}
                   pointsEarned={totalDurations?.get(item.id)?.points}
+                  boostMultiplier={boostMultiplier}
+                  boostedMultiplier={boostedTaskIds?.has(item.id) ? (boostEvent?.multiplier ?? 1) : 1}
                   onPress={handleTaskPress}
                   onLongPress={handleTaskLongPress}
                   onEdit={setEditTask}
@@ -664,7 +707,6 @@ function makeStyles(C: AppColors) {
       width: 10, height: 10, borderRadius: 5,
       backgroundColor: C.primary, borderWidth: 2, borderColor: C.bgBase,
     },
-
     challengeEntryCard: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       marginHorizontal: Spacing.lg, marginTop: 12,
@@ -682,6 +724,9 @@ function makeStyles(C: AppColors) {
     taskListHeader: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     },
+    taskHeaderLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+    taskBoostChip: { marginTop: 20, marginBottom: 9, borderRadius: Radii.pill, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: C.primarySoft, borderWidth: 1, borderColor: C.primaryLine },
+    taskBoostChipText: { color: C.primaryText, fontSize: 10.5, fontFamily: FontFamily.extraBold },
     scoringGuideButton: { width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: C.line2, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', marginTop: 20, marginRight: Spacing.lg },
     scoringGuideText: { color: C.muted, fontSize: 11, lineHeight: 13, fontFamily: FontFamily.extraBold },
     selActions: { flexDirection: 'row', gap: 8, marginRight: Spacing.lg, marginTop: 20 },

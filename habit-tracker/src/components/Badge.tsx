@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Animated, View, Text, StyleSheet } from 'react-native';
 import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse, Path, G } from 'react-native-svg';
 import { TIER_COINS, EMBLEM_TINT, EMBLEM_PATH } from '../config/badgeTiers';
 import type { Tier, Emblem } from '../config/achievements';
@@ -14,6 +14,7 @@ interface Props {
   locked?: boolean;
   size?: number; // coin diameter, default 96
   colors: AppColors;
+  sheenProgress?: Animated.Value;
 }
 
 // Luminance-preserving grayscale so a locked coin still reads as "this tier's metal", desaturated —
@@ -36,7 +37,7 @@ const RARITY_GLOW: Record<Tier, [string, number, number]> = {
   diamond: ['#7fd6e8', 0.52, 12],
 };
 
-export const Badge = React.memo(function Badge({ tier, emblem, label, sub, progress, locked, size = 96, colors }: Props) {
+export const Badge = React.memo(function Badge({ tier, emblem, label, sub, progress, locked, size = 96, colors, sheenProgress }: Props) {
   const ramp = TIER_COINS[tier];
   const t = useMemo(() => (locked ? (ramp.map(desaturate) as typeof ramp) : ramp), [ramp, locked]);
   const tint = locked ? desaturate(EMBLEM_TINT[emblem]) : EMBLEM_TINT[emblem];
@@ -143,6 +144,22 @@ export const Badge = React.memo(function Badge({ tier, emblem, label, sub, progr
             <View style={[styles.pillFill, { width: `${Math.max(0, Math.min(100, progress))}%` }]} />
           </View>
         )}
+
+        {sheenProgress && (
+          <View pointerEvents="none" style={[styles.sheenClip, { width: size, height: size, borderRadius: size / 2 }]}>
+            <Animated.View
+              style={[styles.sheen, {
+                width: size * 0.22,
+                height: size * 1.8,
+                top: -size * 0.4,
+                transform: [
+                  { translateX: sheenProgress.interpolate({ inputRange: [0, 1], outputRange: [-size * 1.5, size * 1.5] }) },
+                  { rotate: '24deg' },
+                ],
+              }]}
+            />
+          </View>
+        )}
       </View>
 
       {!!label && <Text style={styles.label} numberOfLines={2}>{label}</Text>}
@@ -159,6 +176,8 @@ function makeStyles(colors: AppColors) {
       overflow: 'hidden', backgroundColor: colors.surface2,
     },
     pillFill: { height: '100%', borderRadius: Radii.pill, backgroundColor: colors.primary },
+    sheenClip: { position: 'absolute', left: 0, top: 0, overflow: 'hidden' },
+    sheen: { position: 'absolute', backgroundColor: 'rgba(255,255,255,.34)', borderRadius: Radii.pill },
     label: { marginTop: 9, fontSize: 11, fontFamily: FontFamily.bold, textAlign: 'center', color: colors.inkDark },
     sub: { marginTop: 2, fontSize: 10.5, fontFamily: FontFamily.semiBold, textAlign: 'center', color: colors.muted },
   });
