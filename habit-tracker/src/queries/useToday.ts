@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { getStoredGoogleUser } from '../hooks/useAuth';
 import { syncCurrentUserToSupabase, syncUserStreak } from '../api/syncService';
-import { logActiveChallengeDay } from './useChallenge';
+import { cancelTerminalChallengeReminders, logActiveChallengeDay } from './useChallenge';
 import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
 import { TierRow } from '../game/tierUnlocks';
@@ -477,6 +477,7 @@ export function useLogTask(userId: number) {
         });
         lifetimeCrossings = [...lifetimeCrossings, ...challengeResult.lifetimeCrossings];
       });
+      await cancelTerminalChallengeReminders(db, userId);
 
       return { ...streakResult, milestone, lifetimeCrossings };
     },

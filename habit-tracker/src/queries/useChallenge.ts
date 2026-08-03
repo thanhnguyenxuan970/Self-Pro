@@ -95,6 +95,18 @@ type ChallengeRewardRow = {
 
 type ChallengeLogDb = Pick<SQLiteDatabase, 'getFirstAsync' | 'getAllAsync' | 'runAsync'>;
 
+export async function cancelTerminalChallengeReminders(
+  db: Pick<SQLiteDatabase, 'getAllAsync'>,
+  userId: number,
+): Promise<void> {
+  const rows = await db.getAllAsync<{ notification_id: string | null }>(
+    `SELECT notification_id FROM challenges
+     WHERE user_id = ? AND status != 'active' AND notification_id IS NOT NULL`,
+    [userId],
+  );
+  await Promise.all(rows.map(row => cancelChallengeReminder(row.notification_id)));
+}
+
 /**
  * Query-time done-dates source for a challenge: linked challenges (task_type_id
  * set) derive from activity_log (no persisted write -- PHẦN 3's "1 nguồn sự
@@ -680,6 +692,8 @@ export async function rolloverChallenge(userId: number): Promise<void> {
         }
       });
 
+      await cancelTerminalChallengeReminders(db, userId);
+
       if (lifetimeCrossings.length > 0) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(lifetimeCrossings);
@@ -753,6 +767,7 @@ export function useLogChallengeDay(userId: number) {
         if (result.status === 'already_logged') throw new Error('ALREADY_LOGGED_TODAY');
         lifetimeCrossings = result.lifetimeCrossings;
       });
+      await cancelTerminalChallengeReminders(db, userId);
       return { lifetimeCrossings };
     },
     onSuccess: (data) => {
@@ -838,7 +853,7 @@ export function useRetryChallengeReminder(userId: number) {
     mutationFn: async (challengeId: number): Promise<boolean> => {
       const db = await getDb();
       const row = await db.getFirstAsync<{ name: string; mode: ChallengeMode }>(
-        `SELECT name, mode FROM challenges WHERE id = ? AND user_id = ?`,
+        `SELECT name, mode FROM challenges WHERE id = ? AND user_id = ? AND status = 'active'`,
         [challengeId, userId],
       );
       if (!row) return false;
