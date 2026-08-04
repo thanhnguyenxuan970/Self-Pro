@@ -45,7 +45,10 @@ Status: ✅ Fixed this pass · 🔧 Recommended (left for you) · 🔎 Verify.
 `src/api/syncService.ts` — `syncActivity`/`syncFund` selected `WHERE id > <cursor>` with **no `user_id` filter**, using a single global cursor. `resolveUserRow` (in `useAuth.ts`) can create multiple local user rows on one device, so `activity_log` may hold rows for several accounts. The sync pushed **every** row above the cursor tagged with the **currently** signed-in email — i.e. account A's data uploaded as account B's. RLS does **not** catch this (rows are tagged with the authenticated email, so `WITH CHECK` passes).
 - **Fix applied:** added `resolveUserId(email)`, filtered both queries by `user_id`, and made cursors **per-user** (`...:<userId>`); `resetSyncCursors` now clears all per-user keys. Verified `tsc`/`jest` green.
 
-### H2 — Confirm RLS is live 🔎 Verify
+### H2 — Global leaderboard exposed full email addresses ✅ Fixed
+`supabase/migrations/021_secure_lifetime_leaderboard.sql` returned `user_email` from a `SECURITY DEFINER` RPC granted to authenticated users. Migration 022 replaces that output with a generated public UUID and `is_current_user`; the live RPC was redeployed and anonymous execution remains denied. The client now renders only the current user's local name or an anonymized player label.
+
+### H3 — Confirm RLS is live 🔎 Verify
 `supabase/migrations/001_enable_rls.sql` / `002_create_users_table.sql` are correct (`USING (user_email = auth.email())`), but they're applied **manually** ("run in SQL Editor"). The anon key ships in the client bundle (by design), so if RLS/policies are **not** actually enabled on the live project, any user could read/write/delete every table.
 - 🔧 Verify in the Supabase dashboard that RLS is ON and the `own rows only` policies exist on `activity_log`, `fund_transactions`, `users`. Also apply the currently-commented hardening (`REVOKE ALL … FROM anon; GRANT … TO authenticated;`, lines 34–38).
 

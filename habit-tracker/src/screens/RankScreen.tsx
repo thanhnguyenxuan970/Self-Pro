@@ -45,7 +45,7 @@ const LeaderboardSection = React.memo(function LeaderboardSection({ leaderboard,
     return (
       <>
         <View
-          key={currentUserEntry.userEmail}
+          key={currentUserEntry.playerId}
           style={[styles.lbRow, styles.lbRowLast, styles.lbRowMe]}
         >
           <Text style={[styles.lbRank, styles.lbRankTop]}>#{currentUserEntry.rank}</Text>
@@ -81,7 +81,7 @@ const LeaderboardSection = React.memo(function LeaderboardSection({ leaderboard,
         const isLast = idx === visible.length - 1 && !currentUserRow;
         return (
           <View
-            key={entry.userEmail}
+            key={entry.playerId}
             style={[styles.lbRow, isLast && styles.lbRowLast, entry.isCurrentUser && styles.lbRowMe]}
           >
             <Text style={[styles.lbRank, entry.rank <= 3 && styles.lbRankTop]}>#{entry.rank}</Text>
@@ -130,6 +130,8 @@ export function RankScreen() {
   const currentTierOrder = storedTierOrder;
   const { data: leaderboard = [], isLoading: lbLoading, isError: lbError } = useLeaderboard(
     googleUser?.email ?? null,
+    googleUser?.name ?? null,
+    t.leaderboardPlayer,
   );
 
   const [infoVisible, setInfoVisible] = useState(false);
@@ -162,12 +164,12 @@ export function RankScreen() {
   const nextRankLabel = nextCfg ? (t.rankNameMap[nextCfg.name] ?? nextCfg.name) : (t.rankNameMap[nextTier?.rank_name ?? ''] ?? nextTier?.rank_name ?? '');
   const unlockedRankCount = RANKS.filter(rank => rank.tier < currentTierOrder).length;
   const currentUserEntry: LBEntry = useMemo(() => ({
-    userEmail: googleUser?.email ?? 'current-user',
+    playerId: googleUser?.sub ?? 'current-user',
     displayName: googleUser?.name ?? t.leaderboardYou,
     lifetimeStars: currentStars,
     rank: 1,
     isCurrentUser: true,
-  }), [googleUser?.email, googleUser?.name, currentStars, t.leaderboardYou]);
+  }), [googleUser?.sub, googleUser?.name, currentStars, t.leaderboardYou]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>

@@ -640,6 +640,7 @@ const vi = {
   // Leaderboard (global, lifetime — no weekly reset)
   leaderboardSection: 'BẢNG XẾP HẠNG TOÀN CẦU',
   leaderboardYou: 'Bạn',
+  leaderboardPlayer: 'Người chơi',
   leaderboardEmpty: 'Chưa có ai trên bảng xếp hạng — hãy là người đầu tiên!',
   leaderboardNoSync: 'Kết nối mạng để xem bảng xếp hạng',
 
@@ -1397,6 +1398,7 @@ const en: typeof vi = {
   // Leaderboard (global, lifetime — no weekly reset)
   leaderboardSection: 'GLOBAL LEADERBOARD',
   leaderboardYou: 'You',
+  leaderboardPlayer: 'Player',
   leaderboardEmpty: 'No one on the leaderboard yet — be the first!',
   leaderboardNoSync: 'Connect to the internet to view the leaderboard',
 
