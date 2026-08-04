@@ -88,7 +88,7 @@ export function useLeaderboard(currentUserEmail: string | null, currentUserName:
     queryFn: async (): Promise<LeaderboardEntry[]> => {
       if (!supabase) return [];
 
-      const { data, error } = await supabase.rpc('get_global_leaderboard', { p_limit: 50 });
+      const { data, error } = await supabase.rpc('get_global_leaderboard_v2', { p_limit: 50 });
       if (error) throw error;
       return mapRemoteLeaderboardRows((data ?? []) as RemoteLeaderboardRow[], currentUserName, playerLabel);
     },
