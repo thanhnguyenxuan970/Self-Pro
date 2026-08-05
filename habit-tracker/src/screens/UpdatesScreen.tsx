@@ -216,7 +216,7 @@ function makeStyles(C: AppColors) {
     cardHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
     cardCopy: { flex: 1 },
     cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    cardUnreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.primary },
+    cardUnreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.danger },
     cardTitle: { flexShrink: 1, fontSize: 16, fontFamily: FontFamily.extraBold, color: C.inkDark, lineHeight: 22 },
     cardDate: { marginTop: 4, fontSize: 12, fontFamily: FontFamily.medium, color: C.muted },
     readBadge: {

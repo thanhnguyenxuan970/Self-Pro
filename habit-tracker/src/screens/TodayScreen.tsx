@@ -705,7 +705,7 @@ function makeStyles(C: AppColors) {
     newsDot: {
       position: 'absolute', top: 8, right: 8,
       width: 10, height: 10, borderRadius: 5,
-      backgroundColor: C.primary, borderWidth: 2, borderColor: C.bgBase,
+      backgroundColor: C.danger, borderWidth: 2, borderColor: C.bgBase,
     },
     challengeEntryCard: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
