@@ -207,9 +207,6 @@ async function revertWeeklySummaries(
   const weeklyByWeek = new Map(weeklyRows.map(r => [r.week_start, r]));
 
   for (const [weekStart, { points, stars }] of byWeek) {
-    const weeklyRow = weeklyByWeek.get(weekStart);
-    const newWeeklyStars = Math.max(0, (weeklyRow?.weekly_stars ?? 0) - stars);
-
     await db.runAsync(
       `UPDATE weekly_summary SET
          total_points = MAX(0, total_points - ?),
@@ -218,12 +215,6 @@ async function revertWeeklySummaries(
       [points, stars, userId, weekStart]
     );
 
-    await db.runAsync(
-      `DELETE FROM reward_unlocks
-       WHERE user_id = ? AND week_start = ? AND claimed = 0
-         AND tier_id IN (SELECT id FROM tiers WHERE stars_required > ?)`,
-      [userId, weekStart, newWeeklyStars]
-    );
   }
 }
 

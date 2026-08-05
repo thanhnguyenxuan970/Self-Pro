@@ -20,7 +20,6 @@ function createLinkedLogDayDb(config: {
   const getAllAsync = jest.fn(async (sql: string) => {
     if (sql.includes('FROM activity_log')) return config.activityRows ?? [];
     if (sql.includes('FROM tiers ORDER BY stars_required ASC')) return [];
-    if (sql.includes('FROM reward_unlocks WHERE user_id = ? AND week_start = ?')) return [];
     return [];
   });
   const runAsync = jest.fn(async () => ({ changes: 1 }));
@@ -48,7 +47,6 @@ function createManualLogDayDb(config: {
   });
   const getAllAsync = jest.fn(async (sql: string) => {
     if (sql.includes('FROM tiers ORDER BY stars_required ASC')) return [];
-    if (sql.includes('FROM reward_unlocks WHERE user_id = ? AND week_start = ?')) return [];
     return [];
   });
   const runAsync = jest.fn(async () => ({ changes: 1 }));
@@ -207,13 +205,12 @@ describe('logActiveChallengeDay -- manual challenges (task_type_id null)', () =>
       if (sql.includes('FROM challenge_log WHERE challenge_id = ? AND local_date = ?')) return null;
       if (sql.includes("COUNT(*) AS n FROM challenge_log") && sql.includes("state = 'done'")) return { n: 7 };
       if (sql.includes("COUNT(*) AS n FROM challenge_log") && sql.includes("state != 'reset'")) return { n: 7 };
-      if (sql.includes('FROM weekly_summary WHERE user_id = ? AND week_start = ?')) return { weekly_stars: 0, current_tier_id: null };
+      if (sql.includes('FROM weekly_summary WHERE user_id = ? AND week_start = ?')) return { weekly_stars: 0 };
       if (sql.includes('FROM users WHERE id = ?')) return { lifetime_stars: 0, current_tier_id: null };
       return null;
     });
     const getAllAsync = jest.fn(async (sql: string) => {
       if (sql.includes('FROM tiers ORDER BY stars_required ASC')) return tiers;
-      if (sql.includes('FROM reward_unlocks WHERE user_id = ? AND week_start = ?')) return [];
       return [];
     });
     const runAsync = jest.fn(async () => ({ changes: 1 }));
@@ -226,5 +223,13 @@ describe('logActiveChallengeDay -- manual challenges (task_type_id null)', () =>
     // 1-star tier must surface exactly that crossing, not an empty array.
     expect(result.lifetimeCrossings).toHaveLength(1);
     expect(result.lifetimeCrossings[0].tierId).toBe(1);
+    expect(getAllAsync).not.toHaveBeenCalledWith(
+      expect.stringContaining('FROM reward_unlocks'),
+      expect.anything(),
+    );
+    expect(runAsync).not.toHaveBeenCalledWith(
+      expect.stringContaining('weekly_summary SET current_tier_id'),
+      expect.anything(),
+    );
   });
 });

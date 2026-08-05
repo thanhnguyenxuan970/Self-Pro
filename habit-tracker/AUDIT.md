@@ -1,3 +1,11 @@
+# Current reconciliation (verified 2026-08-05)
+
+- H1 cross-account sync and H2 leaderboard email exposure are fixed.
+- Clean Pixel_7 retest reproduced and fixed the BackfillSheet child-modal reachability bug; ChallengeHub navigation also passed.
+- Live RLS is enabled on `users`, `activity_log`, and `fund_transactions`; anon has no table privileges.
+- M2 BAD penalty, M3 Google `sub` identity, and M5 streak sync are already fixed in current source; older entries below are historical audit notes.
+- Remaining security blocker: C1 historical keystore password still needs credential rotation and history scrubbing.
+
 # Codebase Audit — Habi (`Self-Pro/habit-tracker`)
 
 **Scope:** bugs · compilation · dependency conflicts · logic flaws · performance · security · best practices.

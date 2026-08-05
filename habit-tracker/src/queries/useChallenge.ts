@@ -9,7 +9,7 @@ import {
 import { deriveLinkedDoneDates, clampThreshold, type ActivityLogRow } from '../lib/challengeLinked';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { PHAO_COUNT, computeChallengeReward } from '../config/challenges.config';
-import { computeTierUnlocks, type TierRow } from '../game/tierUnlocks';
+import type { LifetimeTierRow } from '../game/lifetimeRank';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierCrossing } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
@@ -134,7 +134,7 @@ async function getDoneDates(
   return logRows.map(r => r.local_date);
 }
 
-type FullTierRow = TierRow & { tier_order: number; rank_name: string };
+type FullTierRow = LifetimeTierRow;
 
 function challengeAchievementKey(params: { mode: ChallengeMode; targetDays: number; weeklyTarget: number | null; totalWeeks: number | null }): string {
   return params.mode === 'streak'
@@ -153,57 +153,6 @@ function challengeAchievementRarity(params: { mode: ChallengeMode; targetDays: n
   return 'common';
 }
 
-async function getCarryOverTierId(
-  db: ChallengeLogDb,
-  userId: number,
-  tiers: FullTierRow[],
-  currentWeekStart: string,
-): Promise<number> {
-  const sorted = [...tiers].sort((a, b) => a.tier_order - b.tier_order);
-  const lowestTier = sorted[0];
-
-  const lastWeek = await db.getFirstAsync<{ weekly_stars: number; current_tier_id: number | null }>(
-    `SELECT weekly_stars, current_tier_id FROM weekly_summary
-     WHERE user_id = ? AND week_start < ?
-     ORDER BY week_start DESC LIMIT 1`,
-    [userId, currentWeekStart],
-  );
-
-  if (!lastWeek || lastWeek.current_tier_id === null) return lowestTier.id;
-
-  const lastTier = sorted.find(tier => tier.id === lastWeek.current_tier_id);
-  if (!lastTier) return lowestTier.id;
-  if (lastWeek.weekly_stars !== 0) return lastWeek.current_tier_id;
-
-  const demotedTier = sorted.find(tier => tier.tier_order === lastTier.tier_order - 1);
-  return demotedTier?.id ?? lowestTier.id;
-}
-
-async function handleTierUnlocks(
-  db: ChallengeLogDb,
-  tiers: FullTierRow[],
-  userId: number,
-  weekStart: string,
-  newUnlocks: ReturnType<typeof computeTierUnlocks>,
-): Promise<void> {
-  if (newUnlocks.length === 0) return;
-  const firstUnlock = newUnlocks[0];
-  for (const unlock of newUnlocks) {
-    await db.runAsync(
-      `INSERT OR IGNORE INTO reward_unlocks
-       (user_id, tier_id, week_start, stars_at_unlock, reward_amount, claimed)
-       VALUES (?, ?, ?, ?, 0, 0)`,
-      [unlock.user_id, unlock.tier_id, unlock.week_start, unlock.stars_at_unlock],
-    );
-  }
-  const tier = tiers.find(item => item.id === firstUnlock.tier_id);
-  if (!tier) return;
-  await db.runAsync(
-    `UPDATE weekly_summary SET current_tier_id = ? WHERE user_id = ? AND week_start = ?`,
-    [tier.id, userId, weekStart],
-  );
-}
-
 async function awardChallengeCompletion(
   db: ChallengeLogDb,
   params: {
@@ -219,29 +168,6 @@ async function awardChallengeCompletion(
   const tiers = await db.getAllAsync<FullTierRow>(
     `SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY stars_required ASC`,
   );
-  const weeklyRow = await db.getFirstAsync<{ weekly_stars: number; current_tier_id: number | null }>(
-    `SELECT weekly_stars, current_tier_id FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
-    [params.userId, weekStart],
-  );
-  const alreadyUnlocked = await db.getAllAsync<{ tier_id: number }>(
-    `SELECT tier_id FROM reward_unlocks WHERE user_id = ? AND week_start = ?`,
-    [params.userId, weekStart],
-  );
-  const carryOverTierId = weeklyRow === null
-    ? await getCarryOverTierId(db, params.userId, tiers, weekStart)
-    : (weeklyRow.current_tier_id ?? tiers.find(tier => tier.tier_order === 1)!.id);
-  const startingTierOrder = tiers.find(tier => tier.id === carryOverTierId)?.tier_order ?? 0;
-  const oldStars = weeklyRow?.weekly_stars ?? 0;
-  const newUnlocks = computeTierUnlocks({
-    userId: params.userId,
-    weekStart,
-    oldStars,
-    newStars: oldStars + rewardStars,
-    tiers,
-    alreadyUnlockedTierIds: alreadyUnlocked.map(row => row.tier_id),
-    startingTierOrder,
-  });
-
   await db.runAsync(
     `INSERT INTO activity_log
       (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
@@ -249,18 +175,12 @@ async function awardChallengeCompletion(
     [params.userId, params.taskTypeId, rewardStars, nowMs, params.localDate, weekStart],
   );
   await db.runAsync(
-    `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars, peak_stars, current_tier_id)
-     VALUES (?, ?, 0, ?, ?, ?)
+    `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars)
+     VALUES (?, ?, 0, ?)
      ON CONFLICT(user_id, week_start) DO UPDATE SET
-       weekly_stars = weekly_stars + ?,
-       peak_stars = MAX(peak_stars, weekly_stars + ?)`,
-    [params.userId, weekStart, rewardStars, Math.max(0, rewardStars), carryOverTierId, rewardStars, rewardStars],
+       weekly_stars = weekly_stars + ?`,
+    [params.userId, weekStart, rewardStars, rewardStars],
   );
-  // Legacy weekly tier-unlock bookkeeping — superseded by the lifetime rollup
-  // below for rank display/celebration purposes. See the matching comment in
-  // useToday.ts's useLogTask for why this still runs.
-  await handleTierUnlocks(db, tiers, params.userId, weekStart, newUnlocks);
-
   const { crossings } = await applyLifetimeStarsDelta(db, params.userId, rewardStars, tiers);
 
   await db.runAsync(
@@ -504,19 +424,11 @@ export async function deleteChallengeById(
         `SELECT weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
         [userId, rewardRow.week_start],
       );
-      const newWeeklyStars = Math.max(0, (weeklyRow?.weekly_stars ?? 0) - rewardRow.stars_delta);
-
       await db.runAsync(
         `UPDATE weekly_summary
          SET weekly_stars = MAX(0, weekly_stars - ?)
          WHERE user_id = ? AND week_start = ?`,
         [rewardRow.stars_delta, userId, rewardRow.week_start],
-      );
-      await db.runAsync(
-        `DELETE FROM reward_unlocks
-         WHERE user_id = ? AND week_start = ? AND claimed = 0
-           AND tier_id IN (SELECT id FROM tiers WHERE stars_required > ?)`,
-        [userId, rewardRow.week_start, newWeeklyStars],
       );
       await db.runAsync(
         `UPDATE users SET treat_stars = MAX(0, treat_stars - ?) WHERE id = ?`,

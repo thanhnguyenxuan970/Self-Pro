@@ -201,16 +201,6 @@ async function revertWeeklySummariesForDelete(
        WHERE user_id = ? AND week_start = ?`,
       [points, stars, userId, week]
     );
-    await db.runAsync(
-      `DELETE FROM reward_unlocks
-       WHERE user_id = ? AND week_start = ? AND claimed = 0
-         AND tier_id IN (
-           SELECT id FROM tiers WHERE stars_required > (
-             SELECT MAX(0, weekly_stars) FROM weekly_summary WHERE user_id = ? AND week_start = ?
-           )
-         )`,
-      [userId, week, userId, week]
-    );
   }
 }
 

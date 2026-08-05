@@ -31,9 +31,9 @@ describe('deleteChallengeById', () => {
       expect.stringContaining('UPDATE weekly_summary'),
       [3, 5, '2026-06-29'],
     );
-    expect(db.runAsync).toHaveBeenCalledWith(
-      expect.stringContaining('DELETE FROM reward_unlocks'),
-      [5, '2026-06-29', 7],
+    expect(db.runAsync).not.toHaveBeenCalledWith(
+      expect.stringContaining('reward_unlocks'),
+      expect.anything(),
     );
     expect(db.runAsync).toHaveBeenCalledWith(
       'UPDATE users SET treat_stars = MAX(0, treat_stars - ?) WHERE id = ?',
