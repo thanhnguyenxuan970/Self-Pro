@@ -11,6 +11,7 @@ SET search_path = public, pg_temp
 AS $$
   WITH ranked AS (
     SELECT u.leaderboard_public_id,
+           u.user_email,
            COALESCE(u.user_email = auth.email(), false) AS is_current_user,
            GREATEST(COALESCE(u.lifetime_stars, 0), 0)::real AS lifetime_stars,
            ROW_NUMBER() OVER (
@@ -19,7 +20,10 @@ AS $$
            ) AS rank
       FROM public.users AS u
   )
-  SELECT format('player-%s', substr(replace(r.leaderboard_public_id::text, '-', ''), 1, 8)),
+  SELECT CASE
+           WHEN r.is_current_user THEN r.user_email
+           ELSE format('player-%s', substr(replace(r.leaderboard_public_id::text, '-', ''), 1, 8))
+         END,
          r.lifetime_stars,
          r.rank
     FROM ranked AS r
