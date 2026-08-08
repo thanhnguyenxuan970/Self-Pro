@@ -17,6 +17,20 @@ export type AnalyticsDashboard = {
   composition: { name: string; count: number; previous: number }[];
 };
 
+export function analyticsBarAccessibilityLabel(
+  language: 'vi' | 'en',
+  periodLabel: string,
+  current: number,
+  previous: number,
+  goal: number,
+  showPrevious: boolean,
+): string {
+  if (language === 'vi') {
+    return `${periodLabel}: ${current} điểm${showPrevious ? `, trước đó ${previous} điểm` : ''}${goal > 0 ? `, mục tiêu ${goal} điểm` : ''}`;
+  }
+  return `${periodLabel}: ${current} points${showPrevious ? `, previous ${previous} points` : ''}${goal > 0 ? `, goal ${goal} points` : ''}`;
+}
+
 const ANALYTICS_DAILY_GOAL = 50;
 const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const addDays = (date: Date, days: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);

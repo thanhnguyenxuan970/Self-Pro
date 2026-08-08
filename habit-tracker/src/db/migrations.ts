@@ -599,37 +599,69 @@ async function v22(db: SQLiteDatabase): Promise<void> {
 // lifetime_stars/current_tier_id live on `users` (same pattern as the existing
 // treat_stars_lifetime column) rather than on weekly_summary, which stays untouched
 // for its other (non-rank) weekly stats/challenge-pacing consumers.
-async function v23(db: SQLiteDatabase): Promise<void> {
-  try {
-    await db.runAsync(`ALTER TABLE users ADD COLUMN lifetime_stars REAL NOT NULL DEFAULT 0`);
-  } catch (e: any) {
-    if (!e?.message?.includes('duplicate column')) throw e;
+async function ensureLifetimeRankColumns(db: SQLiteDatabase, forceBackfill = false): Promise<void> {
+  const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(users)');
+  const columnNames = new Set(columns.map(column => column.name));
+  let repaired = false;
+
+  if (!columnNames.has('lifetime_stars')) {
+    await db.runAsync('ALTER TABLE users ADD COLUMN lifetime_stars REAL NOT NULL DEFAULT 0');
+    repaired = true;
   }
-  try {
-    await db.runAsync(`ALTER TABLE users ADD COLUMN current_tier_id INTEGER`);
-  } catch (e: any) {
-    if (!e?.message?.includes('duplicate column')) throw e;
+  if (!columnNames.has('current_tier_id')) {
+    await db.runAsync('ALTER TABLE users ADD COLUMN current_tier_id INTEGER');
+    repaired = true;
+  }
+  if (!repaired && !forceBackfill) {
+    // A migration can be interrupted after ALTER TABLE but before its
+    // backfill. Detect that partial state cheaply so a later startup retries
+    // the repair instead of trusting the recorded schema version forever.
+    const incomplete = await db.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) AS count
+       FROM users AS u
+       WHERE COALESCE(u.lifetime_stars, 0) < COALESCE((
+         SELECT SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END)
+         FROM activity_log WHERE user_id = u.id
+       ), 0)
+       OR (u.current_tier_id IS NULL AND COALESCE(u.lifetime_stars, 0) >= COALESCE((
+         SELECT MIN(stars_required) FROM tiers
+       ), 1))`,
+    );
+    if ((incomplete?.count ?? 0) === 0) return;
   }
 
   // Backfill from activity_log (the source of truth), not from weekly_summary sums,
   // since activity_log is authoritative and this is a one-time derivation, not a
   // reconciliation against potentially-drifted weekly rollups.
-  const users = await db.getAllAsync<{ id: number }>(`SELECT id FROM users`);
+  const users = await db.getAllAsync<{ id: number; lifetime_stars: number | null }>(
+    `SELECT id, lifetime_stars FROM users`,
+  );
   const tiers = await db.getAllAsync<{ id: number; tier_order: number; stars_required: number }>(
     `SELECT id, tier_order, stars_required FROM tiers ORDER BY tier_order ASC`,
   );
   for (const user of users) {
     const totals = await db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(stars_delta) AS total FROM activity_log WHERE user_id = ?`,
+      `SELECT SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END) AS total
+       FROM activity_log WHERE user_id = ?`,
       [user.id],
     );
-    const lifetimeStars = Math.max(0, totals?.total ?? 0);
+    // Rank is a high-water mark. Preserve an already-recorded lifetime total
+    // when repairing only the missing tier column or recovering from a partial
+    // migration; activity_log remains the source for newly-added totals.
+    const activityTotal = Math.max(0, totals?.total ?? 0);
+    const lifetimeStars = Math.max(0, user.lifetime_stars ?? 0, activityTotal);
     const reachedTier = [...tiers].reverse().find(t => t.stars_required <= lifetimeStars) ?? null;
     await db.runAsync(
       `UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?`,
       [lifetimeStars, reachedTier?.id ?? null, user.id],
     );
   }
+}
+
+async function v23(db: SQLiteDatabase): Promise<void> {
+  // Force the backfill on the migration path so an interrupted run retries
+  // even when both ALTER TABLE statements already committed.
+  await ensureLifetimeRankColumns(db, true);
 }
 
 // v23 -> v24: tier 9 rebrand Singularity -> Cosmic (Mock A chosen).
@@ -670,4 +702,9 @@ export async function runMigrations(db: SQLiteDatabase): Promise<void> {
     // Integer literal -- safe to interpolate (never derived from user input)
     await db.execAsync(`PRAGMA user_version = ${version + 1}`);
   }
+
+  // Some released builds advanced user_version despite not applying the
+  // lifetime-rank columns. Repair the schema by shape as well as version so
+  // RankScreen cannot remain on an infinite loading state.
+  await ensureLifetimeRankColumns(db);
 }

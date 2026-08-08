@@ -1,4 +1,4 @@
-import { activityGroup, activityMatches, normalizeActivityName } from '../src/utils/activityPicker';
+import { activityGroup, activityMatches, activityPinAccessibilityLabel, normalizeActivityName } from '../src/utils/activityPicker';
 
 describe('activity picker matching', () => {
   test('matches Vietnamese names without accents or casing', () => {
@@ -8,5 +8,9 @@ describe('activity picker matching', () => {
 
   test('infers a useful group for a custom activity', () => {
     expect(activityGroup('Chạy bộ buổi sáng')).toBe('Vận động');
+  });
+
+  test('names the task when announcing the pin action', () => {
+    expect(activityPinAccessibilityLabel('Pin', 'Read')).toBe('Pin: Read');
   });
 });

@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [2.0.1.1] - 2026-08-09
+
+### Added
+- **Pseudonymous leaderboard neighborhood**: the global leaderboard now supports a bounded top-three plus current-user neighborhood view, with server-side rank data and profile provisioning migrations.
+- **Localized release news**: added the bilingual Habi 2.0.0 in-app News migration.
+
+### Fixed
+- **Theme contrast**: accent buttons, Analytics metrics, heatmap controls, and related text now use theme-aware, readable ink colors, including the green light-theme surface.
+- **Account safety**: sign-in now resolves the local account before publishing session state and failed credential restoration no longer falls back to a local user.
+- **Rank integrity**: deleting or undoing BAD activities no longer mints lifetime stars; reset/delete flows clear all rank-related local tables; challenge reward reversal is challenge-scoped.
+- **Migration repair**: the lifetime-rank backfill is positive-only and safely retries incomplete repairs; migration coverage now includes idempotency and drift cases.
+- **Responsive UI**: Home heatmap, Analytics, Calendar, Feedback, and Rank layouts preserve readability on narrow screens.
+
+### Changed
+- **Leaderboard contract**: malformed and out-of-contract rows are normalized and bounded before rendering, while legacy RPC identity remains compatible.
+
 ## [2.0.1.0] - 2026-08-03
 
 ### Added

@@ -22,6 +22,10 @@ export function activityMatches(task: Pick<PickerTask, 'name'>, query: string): 
   return normalizeActivityName(task.name).includes(normalizeActivityName(query));
 }
 
+export function activityPinAccessibilityLabel(actionLabel: string, taskLabel: string): string {
+  return `${actionLabel}: ${taskLabel}`;
+}
+
 export function activityGroup(name: string): string {
   const normalized = normalizeActivityName(name);
   if (/(chay|gym|boi|yoga|the thao|dance|nhay|walk)/.test(normalized)) return 'Vận động';

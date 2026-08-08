@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Pressable, StyleSheet, StatusBar, Platform, useWindowDimensions } from 'react-native';
+import { BackHandler, View, Pressable, StyleSheet, StatusBar, Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { TodayScreen } from '../screens/TodayScreen';
@@ -26,6 +26,8 @@ import { useTutorial } from '../hooks/useTutorial';
 import { subscribeAddActivityIntent } from '../hooks/useAddActivityIntent';
 import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
 import { BadgeUnlockCelebrationHost } from '../components/BadgeUnlockCelebration';
+import { APP_STACK_PRESENTATION } from './stackOptions';
+import { handleAppHardwareBack } from './backHandler';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -185,6 +187,12 @@ function AppStack({
   const [presetName, setPresetName] = useState<string | null>(null);
   const { colors } = useTheme();
   const t = useTranslations();
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => handleAppHardwareBack(navigation));
+    return () => subscription.remove();
+  }, [navigation]);
 
   useEffect(() => subscribeAddActivityIntent(intent => {
     setPresetName(intent.name);
@@ -192,7 +200,7 @@ function AppStack({
   }), []);
 
   const modalHeaderOptions = {
-    presentation: 'modal' as const,
+    presentation: APP_STACK_PRESENTATION,
     headerShown: true,
     headerTintColor: colors.primary,
     headerStyle: { backgroundColor: colors.surface },

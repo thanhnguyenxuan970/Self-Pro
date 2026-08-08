@@ -4,6 +4,10 @@ export type HeatmapDay = { local_date: string; total_points: number; stars?: num
 
 export type HeatmapCell = { date: string; level: number; month?: string };
 
+// The visible cell remains compact; hitSlop expands its effective target to
+// 44pt without changing the heatmap's horizontal density.
+export const HEATMAP_CELL_HIT_SLOP = 15;
+
 export function heatmapShades(colors: AppColors) {
   return [colors.surface2, `${colors.primary}40`, `${colors.primary}66`, `${colors.primary}99`, colors.primary];
 }

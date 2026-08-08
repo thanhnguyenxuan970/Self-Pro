@@ -1,4 +1,4 @@
-import { buildAnalyticsDashboard } from '../src/analytics/dashboardModel';
+import { analyticsBarAccessibilityLabel, buildAnalyticsDashboard } from '../src/analytics/dashboardModel';
 
 describe('buildAnalyticsDashboard', () => {
   it('uses the fixed 50-point daily goal', () => {
@@ -104,5 +104,19 @@ describe('buildAnalyticsDashboard', () => {
     expect(result.weekday.find(w => w.dayOfWeek === 1)?.value).toBe(5); // Monday = the 07-27 log
     expect(result.weekday.map(day => day.dayOfWeek)).toEqual([1, 2, 3, 4, 5, 6, 0]);
     expect(result.hours.find(hour => hour.label === '8')?.value).toBe(35); // 8-12 bucket = all three logs (9am, 10am, and the 07-27 9am log)
+  });
+});
+
+describe('analyticsBarAccessibilityLabel', () => {
+  it('announces live current, previous, and goal values in English', () => {
+    expect(analyticsBarAccessibilityLabel('en', 'Monday', 60, 40, 50, true)).toBe(
+      'Monday: 60 points, previous 40 points, goal 50 points',
+    );
+  });
+
+  it('announces the localized current value without a hidden previous series', () => {
+    expect(analyticsBarAccessibilityLabel('vi', 'T2', 42, 18, 50, false)).toBe(
+      'T2: 42 điểm, mục tiêu 50 điểm',
+    );
   });
 });

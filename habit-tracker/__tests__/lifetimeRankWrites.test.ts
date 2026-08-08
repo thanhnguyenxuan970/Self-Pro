@@ -50,7 +50,7 @@ test('negative delta never decreases lifetime high-water mark, tier, or crossing
   expect(db.runAsync).not.toHaveBeenCalled();
 });
 
-test('undoing a BAD/penalty entry (negative-of-negative) is a positive delta and can cross a tier upward', async () => {
+test('positive deltas remain the only way callers can advance lifetime rank', async () => {
   // e.g. unlogging a penalty task restores stars — handled as a normal
   // positive delta by the caller negating the removed (negative) stars_delta.
   const db = createDb({ lifetime_stars: 4, current_tier_id: null });

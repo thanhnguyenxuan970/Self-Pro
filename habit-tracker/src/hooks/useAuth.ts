@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SQLiteDatabase } from 'expo-sqlite';
 import { type GoogleUser, readGoogleUser, writeGoogleUser, deleteGoogleUser, parseGoogleUser, getStoredGoogleUser } from '../lib/googleUserStorage';
+import { NO_SAVED_GOOGLE_CREDENTIAL_CODE } from '../api/syncErrors';
 
 export type { GoogleUser };
 export { parseGoogleUser, getStoredGoogleUser };
@@ -10,6 +11,31 @@ const ONBOARDED_KEY = 'habit_tracker_onboarded';
 
 export function parseOnboarded(val: string | null): boolean {
   return val === 'true';
+}
+
+export function getAuthStateAfterRestoreFailure(): { isOnboarded: false; googleUser: null } {
+  return { isOnboarded: false, googleUser: null };
+}
+
+export async function restoreStoredGoogleSession(
+  onboardedValue: string | null,
+  userJson: string | null,
+  ensureSession: (email: string) => Promise<void>,
+): Promise<{ isOnboarded: boolean; googleUser: GoogleUser | null }> {
+  const isOnboarded = parseOnboarded(onboardedValue);
+  const googleUser = parseGoogleUser(userJson);
+  if (!isOnboarded || !googleUser) return { isOnboarded, googleUser };
+
+  try {
+    await ensureSession(googleUser.email);
+    return { isOnboarded, googleUser };
+  } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error
+      ? (error as { code?: unknown }).code
+      : undefined;
+    if (code !== NO_SAVED_GOOGLE_CREDENTIAL_CODE) throw error;
+    return { isOnboarded: false, googleUser: null };
+  }
 }
 
 /**
@@ -88,6 +114,8 @@ export const RESET_PROGRESS_STATEMENTS = [
   'DELETE FROM treat_history WHERE user_id = ?',
   'DELETE FROM streak_freezes WHERE user_id = ?',
   'DELETE FROM fund_transactions WHERE user_id = ?',
+  'DELETE FROM milestone_stars WHERE user_id = ?',
+  'DELETE FROM boost_events WHERE user_id = ?',
 ];
 
 /** Per-user tables purged by deleteAccount — must cover every table with a user_id column. */
@@ -106,7 +134,22 @@ export const DELETE_ACCOUNT_STATEMENTS = [
   'DELETE FROM task_types WHERE user_id = ?',
   'DELETE FROM categories WHERE user_id = ?',
   'DELETE FROM fund_transactions WHERE user_id = ?',
+  'DELETE FROM milestone_stars WHERE user_id = ?',
+  'DELETE FROM boost_events WHERE user_id = ?',
 ];
+
+export async function cancelUserChallengeReminders(
+  db: Pick<SQLiteDatabase, 'getAllAsync'>,
+  userId: number,
+): Promise<void> {
+  const rows = await db.getAllAsync<{ notification_id: string | null }>(
+    'SELECT notification_id FROM challenges WHERE user_id = ? AND notification_id IS NOT NULL',
+    [userId],
+  );
+  if (!rows.length) return;
+  const { cancelChallengeReminder } = await import('../utils/notifications');
+  await Promise.all(rows.map(row => cancelChallengeReminder(row.notification_id)));
+}
 
 export const UserIdContext = createContext<number>(1);
 export function useAuthUser(): number {
@@ -125,16 +168,39 @@ export function useAuth() {
   const [userId, setUserId] = useState(1);
 
   useEffect(() => {
+    let mounted = true;
     Promise.all([
       AsyncStorage.getItem(ONBOARDED_KEY),
       readGoogleUser(),
     ])
-      .then(([onboarded, userJson]) => {
-        setIsOnboarded(parseOnboarded(onboarded));
-        setGoogleUser(parseGoogleUser(userJson));
+      .then(async ([onboarded, userJson]) => {
+        const storedUser = parseGoogleUser(userJson);
+        let restored = { isOnboarded: parseOnboarded(onboarded), googleUser: storedUser };
+
+        if (restored.isOnboarded && storedUser) {
+          const { ensureSupabaseSession } = await import('../api/syncService');
+          restored = await restoreStoredGoogleSession(onboarded, userJson, ensureSupabaseSession);
+        }
+
+        if (!restored.googleUser && storedUser) {
+          await deleteGoogleUser();
+          await AsyncStorage.removeItem(ONBOARDED_KEY);
+        }
+        if (!mounted) return;
+        setIsOnboarded(restored.isOnboarded);
+        setGoogleUser(restored.googleUser);
       })
-      .catch((e) => { if (__DEV__) console.warn('[useAuth] startup load failed:', e); })
-      .finally(() => setIsLoading(false));
+      .catch((e) => {
+        // Never keep a stored identity active when startup verification failed.
+        // The next launch can retry with the still-preserved secure credential.
+        if (__DEV__) console.warn('[useAuth] startup load failed; staying signed out:', e);
+        if (!mounted) return;
+        const signedOut = getAuthStateAfterRestoreFailure();
+        setIsOnboarded(signedOut.isOnboarded);
+        setGoogleUser(signedOut.googleUser);
+      })
+      .finally(() => { if (mounted) setIsLoading(false); });
+    return () => { mounted = false; };
   }, []);
 
   const completeOnboarding = useCallback(async () => {
@@ -143,10 +209,27 @@ export function useAuth() {
   }, []);
 
   const signInWithGoogle = useCallback(async (user: GoogleUser, idToken?: string): Promise<boolean> => {
+    // Resolve the local account before publishing the new identity to React or
+    // secure storage. A failed lookup must not leave the app authenticated as
+    // the new Google user while still pointing at the previous local user row.
+    let result: { id: number; isNew: boolean };
+    try {
+      const { getDb } = await import('../db/client');
+      const db = await getDb();
+      result = await resolveUserRow(db, user.sub, user.email);
+    } catch (e) {
+      if (__DEV__) console.warn('[auth] resolveUserRow failed; sign-in aborted:', e);
+      throw e;
+    }
+
     await writeGoogleUser(JSON.stringify(user));
     await AsyncStorage.setItem('habit_tracker_display_name', user.name);
+    await (result.isNew ? AsyncStorage.removeItem(ONBOARDED_KEY) : AsyncStorage.setItem(ONBOARDED_KEY, 'true'));
+    setUserId(result.id);
     setGoogleUser(user);
-    // Establish Supabase Auth session so RLS policies can verify identity
+    setIsOnboarded(!result.isNew);
+
+    // Establish Supabase Auth session so RLS policies can verify identity.
     if (idToken) {
       try {
         const { supabase } = await import('../api/supabase');
@@ -155,46 +238,34 @@ export function useAuth() {
         }
       } catch (e) { if (__DEV__) console.warn('[auth] Supabase signInWithIdToken failed:', e); }
     }
-    // Resolve DB row immediately so userId is ready before onboarding renders
-    let isNew = true;
-    try {
-      const { getDb } = await import('../db/client');
-      const db = await getDb();
-      const result = await resolveUserRow(db, user.sub, user.email);
-      setUserId(result.id);
-      isNew = result.isNew;
-      // Returning user: auto-complete onboarding so they skip the onboarding screen
-      if (!isNew) {
-        await AsyncStorage.setItem(ONBOARDED_KEY, 'true');
-        setIsOnboarded(true);
-      }
-
-    } catch (e) { if (__DEV__) console.warn('[auth] resolveUserRow failed, defaulting to userId=1:', e); }
-    return isNew;
+    return result.isNew;
   }, []);
 
   const resetProgress = useCallback(async (uid: number) => {
     const storedUser = await getStoredGoogleUser();
-    if (storedUser) {
-      const { resetUserProgressInSupabase } = await import('../api/syncService');
-      await resetUserProgressInSupabase(storedUser.email);
-    }
-    const { getDb } = await import('../db/client');
-    const db = await getDb();
-    await db.withTransactionAsync(async () => {
-      for (const sql of RESET_PROGRESS_STATEMENTS) {
-        await db.runAsync(sql, [uid]);
-      }
-      await db.runAsync(
-        `UPDATE users SET treat_stars = 0, treat_stars_lifetime = 0, carry_debt = 0,
-           lifetime_stars = 0, current_tier_id = NULL WHERE id = ?`,
-        [uid],
-      );
-    });
+    const { pauseAccountSync, resetSyncCursors, resetUserProgressInSupabase } = await import('../api/syncService');
+    const releaseSync = storedUser ? await pauseAccountSync(storedUser.email) : null;
     try {
-      const { resetSyncCursors } = await import('../api/syncService');
-      await resetSyncCursors();
-    } catch { }
+      if (storedUser) await resetUserProgressInSupabase(storedUser.email);
+      const { getDb } = await import('../db/client');
+      const db = await getDb();
+      await cancelUserChallengeReminders(db, uid);
+      await db.withTransactionAsync(async () => {
+        for (const sql of RESET_PROGRESS_STATEMENTS) {
+          await db.runAsync(sql, [uid]);
+        }
+        await db.runAsync(
+          `UPDATE users SET treat_stars = 0, treat_stars_lifetime = 0, carry_debt = 0,
+             lifetime_stars = 0, current_tier_id = NULL WHERE id = ?`,
+          [uid],
+        );
+      });
+      try {
+        await resetSyncCursors();
+      } catch { }
+    } finally {
+      releaseSync?.();
+    }
   }, []);
 
   const clearLocalAuthState = useCallback(async () => {
@@ -210,38 +281,48 @@ export function useAuth() {
 
   const deleteAccount = useCallback(async (uid: number) => {
     // Purge remote Supabase data FIRST while the auth session is still active
-    const { deleteUserFromSupabase, resetSyncCursors } = await import('../api/syncService');
+    const { deleteUserFromSupabase, pauseAccountSync, resetSyncCursors } = await import('../api/syncService');
     const googleUserJson = await readGoogleUser();
     const gu = parseGoogleUser(googleUserJson);
     if (!gu) throw new Error('Cannot delete account without a signed-in Google identity');
-    await deleteUserFromSupabase(gu.email);
-    await resetSyncCursors();
-    // Delete all local SQLite rows
-    const { getDb } = await import('../db/client');
-    const db = await getDb();
-    await db.withTransactionAsync(async () => {
-      for (const sql of DELETE_ACCOUNT_STATEMENTS) {
-        await db.runAsync(sql, [uid]);
-      }
-      await db.runAsync('DELETE FROM users WHERE id = ?', [uid]);
-    });
-    // Sign out from Supabase Auth
+    const releaseSync = await pauseAccountSync(gu.email);
     try {
-      const { supabase } = await import('../api/supabase');
-      if (supabase) await supabase.auth.signOut();
-    } catch { }
-    // Revoke Google session
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { GoogleSignin } = require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
-      await GoogleSignin.revokeAccess();
-      await GoogleSignin.signOut();
-    } catch { }
-    await clearLocalAuthState();
+      await deleteUserFromSupabase(gu.email);
+      await resetSyncCursors();
+      // Delete all local SQLite rows
+      const { getDb } = await import('../db/client');
+      const db = await getDb();
+      await cancelUserChallengeReminders(db, uid);
+      await db.withTransactionAsync(async () => {
+        for (const sql of DELETE_ACCOUNT_STATEMENTS) {
+          await db.runAsync(sql, [uid]);
+        }
+        await db.runAsync('DELETE FROM users WHERE id = ?', [uid]);
+      });
+      // Sign out from Supabase Auth
+      try {
+        const { supabase } = await import('../api/supabase');
+        if (supabase) await supabase.auth.signOut();
+      } catch { }
+      // Revoke Google session
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { GoogleSignin } = require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
+        await GoogleSignin.revokeAccess();
+        await GoogleSignin.signOut();
+      } catch { }
+      await clearLocalAuthState();
+    } finally {
+      releaseSync();
+    }
   }, [clearLocalAuthState]);
 
   const signOut = useCallback(async () => {
+    const storedUser = await getStoredGoogleUser();
+    const { pauseAccountSync, resetSyncCursors } = await import('../api/syncService');
+    const releaseSync = storedUser ? await pauseAccountSync(storedUser.email) : null;
     try {
+      try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { GoogleSignin } = require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
       await GoogleSignin.revokeAccess(); // revoke server-side token so next sign-in always prompts
@@ -257,7 +338,10 @@ export function useAuth() {
       const { resetSyncCursors } = await import('../api/syncService');
       await resetSyncCursors();
     } catch { }
-    await clearLocalAuthState();
+      await clearLocalAuthState();
+    } finally {
+      releaseSync?.();
+    }
   }, [clearLocalAuthState]);
 
   return {

@@ -4,8 +4,7 @@ import { getDb } from '../db/client';
 import { dailyBonusStarsForPoints } from '../config/constants';
 import { getLocalDate, getWeekStart, getLocalDateOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
 import { AnalyticsDashboard, AnalyticsRange, AnalyticsDaily, AnalyticsLog, analyticsDemo, buildAnalyticsDashboard } from '../analytics/dashboardModel';
-import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
-import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
+import type { LifetimeTierCrossing } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { syncCurrentUserToSupabase } from '../api/syncService';
@@ -214,10 +213,6 @@ export function useDeleteActivityLogs(userId: number) {
       const placeholders = ids.map(() => '?').join(',');
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
 
-      const tiers = await db.getAllAsync<LifetimeTierRow>(
-        `SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY stars_required ASC`
-      );
-
       await db.withTransactionAsync(async () => {
         const rows = await db.getAllAsync<DeleteRow>(
           `SELECT id, local_date, week_start, points_earned, stars_delta, kind, source
@@ -243,9 +238,10 @@ export function useDeleteActivityLogs(userId: number) {
           );
         }
 
-        // Lifetime rank is a high-water mark: removing earned rows never lowers
-        // it. Removing a BAD/penalty row is a net gain and can cross upward.
-        lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, badPenaltyAmt - goodStarsDelta, tiers)).crossings;
+        // Lifetime rank is a high-water mark. Deleting activity never lowers it
+        // and must not mint stars for a BAD row whose negative penalty was
+        // already ignored when the row was logged.
+        lifetimeCrossings = [];
 
         await db.runAsync(
           `DELETE FROM activity_log WHERE user_id = ? AND id IN (${placeholders})`,

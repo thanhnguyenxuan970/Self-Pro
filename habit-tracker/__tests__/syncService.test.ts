@@ -29,7 +29,54 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 jest.mock('../src/db/client', () => ({ getDb: mockGetDb }));
 
-import { ensureSupabaseSession, syncToSupabase, syncUserStreak } from '../src/api/syncService';
+import {
+  ensureSupabaseSession,
+  pauseAccountSync,
+  runAccountSync,
+  syncToSupabase,
+  syncUserStreak,
+} from '../src/api/syncService';
+
+describe('account sync gate', () => {
+  it('drains in-flight work and blocks new work during destructive operations', async () => {
+    const account = 'sync-race@example.com';
+    let finishWork!: () => void;
+    let started!: () => void;
+    const workStarted = new Promise<void>((resolve) => { started = resolve; });
+    const workFinishes = new Promise<void>((resolve) => { finishWork = resolve; });
+    const writes: string[] = [];
+
+    const inFlight = runAccountSync(account, async () => {
+      started();
+      await workFinishes;
+      writes.push('in-flight');
+    });
+    await workStarted;
+
+    let pauseFinished = false;
+    const pausePromise = pauseAccountSync(account).then((release) => {
+      pauseFinished = true;
+      return release;
+    });
+    await Promise.resolve();
+    expect(pauseFinished).toBe(false);
+
+    finishWork();
+    const release = await pausePromise;
+    await inFlight;
+
+    await runAccountSync(account, async () => {
+      writes.push('blocked');
+    });
+    expect(writes).toEqual(['in-flight']);
+
+    release();
+    await runAccountSync(account, async () => {
+      writes.push('after-release');
+    });
+    expect(writes).toEqual(['in-flight', 'after-release']);
+  });
+});
 
 describe('syncUserStreak', () => {
   beforeEach(() => {
@@ -73,6 +120,30 @@ describe('ensureSupabaseSession', () => {
     expect(mockConfigure).toHaveBeenCalledWith({ webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID });
     expect(mockSignInSilently).toHaveBeenCalled();
     expect(mockSignInWithIdToken).toHaveBeenCalledWith({ provider: 'google', token: 'fresh-google-id-token' });
+  });
+
+  it('shares one in-flight Google silent sign-in across concurrent session requests', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    let resolveSilent!: (value: { type: string; data?: unknown }) => void;
+    mockSignInSilently.mockReturnValue(new Promise<{ type: string; data?: unknown }>((resolve) => {
+      resolveSilent = resolve;
+    }));
+    mockGetTokens.mockResolvedValue({ idToken: 'fresh-google-id-token' });
+    mockSignInWithIdToken.mockResolvedValue({
+      data: { user: { email: 'user@example.com' } },
+      error: null,
+    });
+
+    const firstRequest = ensureSupabaseSession('user@example.com');
+    const secondRequest = ensureSupabaseSession('user@example.com');
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    expect(mockSignInSilently).toHaveBeenCalledTimes(1);
+
+    resolveSilent({ type: 'success', data: {} });
+    await Promise.all([firstRequest, secondRequest]);
+
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
   });
 
   it('rejects when there is no saved Google credential to refresh', async () => {

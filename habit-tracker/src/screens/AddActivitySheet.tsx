@@ -16,7 +16,7 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 import { Strings } from '../config/i18n';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
-import { activityGroup, activityMatches, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../utils/activityPicker';
+import { activityGroup, activityMatches, activityPinAccessibilityLabel, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../utils/activityPicker';
 import { DurationClockInput } from '../components/DurationClockInput';
 import { DurationPresetChips } from '../components/DurationPresetChips';
 import { clockMinutes } from '../utils/durationClock';
@@ -53,12 +53,13 @@ const SuggestionChip = React.memo(function SuggestionChip({ s, isSelected, onPre
 const PickerTaskRow = React.memo(function PickerTaskRow({ task, onPress, onPin, styles, t }: {
   task: PickerTask; onPress: (task: PickerTask) => void; onPin: (task: PickerTask) => void; styles: ReturnType<typeof makeStyles>; t: Strings;
 }) {
+  const taskLabel = resolveTaskDisplayName(task.name, t, task.is_template === 1);
   return <View style={styles.pickerRow}>
-    <TouchableOpacity style={styles.pickerTask} onPress={() => onPress(task)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={resolveTaskDisplayName(task.name, t, task.is_template === 1)}>
-      <Text style={styles.pickerTaskName} numberOfLines={1}>{task.icon ? `${task.icon} ` : ''}{resolveTaskDisplayName(task.name, t, task.is_template === 1)}</Text>
+    <TouchableOpacity style={styles.pickerTask} onPress={() => onPress(task)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={taskLabel}>
+      <Text style={styles.pickerTaskName} numberOfLines={1}>{task.icon ? `${task.icon} ` : ''}{taskLabel}</Text>
       {task.archived === 1 ? <Text style={styles.hiddenBadge}>{t.activityHidden}</Text> : null}
     </TouchableOpacity>
-    <TouchableOpacity style={styles.pinButton} onPress={() => onPin(task)} activeOpacity={0.7} hitSlop={4} accessibilityRole="button" accessibilityLabel={task.is_pinned === 1 ? t.activityUnpin : t.activityPin} accessibilityState={{ selected: task.is_pinned === 1 }}>
+    <TouchableOpacity style={styles.pinButton} onPress={() => onPin(task)} activeOpacity={0.7} hitSlop={4} accessibilityRole="button" accessibilityLabel={activityPinAccessibilityLabel(task.is_pinned === 1 ? t.activityUnpin : t.activityPin, taskLabel)} accessibilityState={{ selected: task.is_pinned === 1 }}>
       <Text style={[styles.pinText, task.is_pinned === 1 && styles.pinTextActive]}>{task.is_pinned === 1 ? '★' : '☆'}</Text>
     </TouchableOpacity>
   </View>;
@@ -396,9 +397,9 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
 
                 {presetName == null && query.length === 0 && activePickerTasks.length > 0 && (
                   <>
-                    <TouchableOpacity style={styles.browseButton} onPress={() => setShowAll(value => !value)} accessibilityRole="button"><Text style={styles.browseText}>{showAll ? t.activityHideAll : t.activityBrowseAll}</Text></TouchableOpacity>
+                    <TouchableOpacity style={styles.browseButton} onPress={() => setShowAll(value => !value)} accessibilityRole="button" accessibilityLabel={showAll ? t.activityHideAll : t.activityBrowseAll} accessibilityState={{ expanded: showAll }}><Text style={styles.browseText}>{showAll ? t.activityHideAll : t.activityBrowseAll}</Text></TouchableOpacity>
                     {showAll && Object.entries(groupedTasks).map(([group, tasks]) => <View key={group}>
-                      <TouchableOpacity style={styles.groupHeader} onPress={() => setCollapsedGroups(value => ({ ...value, [group]: !value[group] }))} accessibilityRole="button"><Text style={styles.groupTitle}>{group}</Text><Text style={styles.groupToggle}>{collapsedGroups[group] ? '⌄' : '⌃'}</Text></TouchableOpacity>
+                      <TouchableOpacity style={styles.groupHeader} onPress={() => setCollapsedGroups(value => ({ ...value, [group]: !value[group] }))} accessibilityRole="button" accessibilityLabel={group} accessibilityState={{ expanded: !collapsedGroups[group] }}><Text style={styles.groupTitle}>{group}</Text><Text style={styles.groupToggle}>{collapsedGroups[group] ? '⌄' : '⌃'}</Text></TouchableOpacity>
                       {!collapsedGroups[group] && tasks.map(renderPickerTaskRow)}
                     </View>)}
                   </>

@@ -3,7 +3,7 @@ import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useRankData } from '../queries/useRank';
-import { useLeaderboard } from '../queries/useLeaderboard';
+import { useLeaderboard, capLeaderboardRows, hasRankGapBefore, LEADERBOARD_TOP_LIMIT } from '../queries/useLeaderboard';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
@@ -18,7 +18,18 @@ type LBEntry = NonNullable<ReturnType<typeof useLeaderboard>['data']>[number];
 
 // Render ceiling for the leaderboard list, which lives inside the screen's
 // outer ScrollView (so it can't be its own virtualized FlatList).
-const LEADERBOARD_ROW_CAP = 50;
+const LEADERBOARD_ROW_CAP = LEADERBOARD_TOP_LIMIT;
+
+type LeaderboardRowCopy = {
+  youLabel: string;
+  nearYouLabel: string;
+  gapToNext: (stars: number) => string;
+  gapLevelLabel: string;
+  topOfLadderLabel: string;
+  lifetimeStars: (stars: number) => string;
+  expandLabel: string;
+  collapseLabel: string;
+};
 
 type LeaderboardSectionProps = {
   leaderboard: LBEntry[];
@@ -30,9 +41,64 @@ type LeaderboardSectionProps = {
   emptyNote: string;
   noSyncNote: string;
   currentUserEntry: LBEntry;
+  copy: LeaderboardRowCopy;
 };
 
-const LeaderboardSection = React.memo(function LeaderboardSection({ leaderboard, lbLoading, lbError, styles, colors, youLabel, emptyNote, noSyncNote, currentUserEntry }: LeaderboardSectionProps) {
+/**
+ * One tappable ladder row. Expanding shows the two numbers a user actually
+ * acts on — their lifetime total and the gap to the player directly above —
+ * in place, so nothing navigates and no per-player screen is needed.
+ */
+const LeaderboardRow = React.memo(function LeaderboardRow({
+  entry, isLast, expanded, onToggle, styles, copy,
+}: {
+  entry: LBEntry;
+  isLast: boolean;
+  expanded: boolean;
+  onToggle: (playerId: string) => void;
+  styles: ReturnType<typeof makeStyles>;
+  copy: LeaderboardRowCopy;
+}) {
+  const detail = entry.rank === 1
+    ? copy.topOfLadderLabel
+    : entry.starsToNextRank === null
+      ? null
+      : entry.starsToNextRank === 0
+        ? copy.gapLevelLabel
+        : copy.gapToNext(entry.starsToNextRank);
+
+  return (
+    <TouchableOpacity
+      style={[styles.lbRow, isLast && styles.lbRowLast, entry.isCurrentUser && styles.lbRowMe]}
+      onPress={() => onToggle(entry.playerId)}
+      activeOpacity={0.75}
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      accessibilityLabel={`#${entry.rank} ${entry.displayName}${entry.isCurrentUser ? ` (${copy.youLabel})` : ''}, ${copy.lifetimeStars(entry.lifetimeStars)}`}
+      accessibilityHint={expanded ? copy.collapseLabel : copy.expandLabel}
+    >
+      <Text style={[styles.lbRank, entry.rank <= 3 && styles.lbRankTop]}>#{entry.rank}</Text>
+      <View style={styles.lbInfo}>
+        <Text style={styles.lbName} numberOfLines={1}>
+          {entry.displayName}{entry.isCurrentUser ? ` (${copy.youLabel})` : ''}
+        </Text>
+        {expanded && (
+          <Text style={styles.lbDetail} numberOfLines={2}>
+            {copy.lifetimeStars(entry.lifetimeStars)}{detail ? ` · ${detail}` : ''}
+          </Text>
+        )}
+      </View>
+      <Text style={styles.lbStars}>{entry.lifetimeStars} ★</Text>
+    </TouchableOpacity>
+  );
+});
+
+const LeaderboardSection = React.memo(function LeaderboardSection({ leaderboard, lbLoading, lbError, styles, colors, youLabel, emptyNote, noSyncNote, currentUserEntry, copy }: LeaderboardSectionProps) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const toggleRow = React.useCallback((playerId: string) => {
+    setExpandedId(current => (current === playerId ? null : playerId));
+  }, []);
+
   if (lbLoading) {
     return <View style={styles.lbEmpty}><ActivityIndicator color={colors.primary} /></View>;
   }
@@ -63,8 +129,9 @@ const LeaderboardSection = React.memo(function LeaderboardSection({ leaderboard,
   // Cap rendered rows so this section (nested inside the screen's outer
   // ScrollView, so it can't be its own FlatList) never mounts an unbounded
   // number of rows -- always keep the current user visible even if they
-  // rank outside the cap.
-  const visible = leaderboard.length > LEADERBOARD_ROW_CAP ? leaderboard.slice(0, LEADERBOARD_ROW_CAP) : leaderboard;
+  // rank outside the cap, and never drop the rank neighbourhood the server
+  // deliberately returned below the top block.
+  const visible = capLeaderboardRows(leaderboard, LEADERBOARD_ROW_CAP);
   const currentUserVisible = visible.some(entry => entry.isCurrentUser);
   const matchedCurrentUserRow = !currentUserVisible ? leaderboard.find(entry => entry.isCurrentUser) : undefined;
   // The synced leaderboard can omit users with zero lifetime stars entirely.
@@ -79,19 +146,26 @@ const LeaderboardSection = React.memo(function LeaderboardSection({ leaderboard,
     <>
       {visible.map((entry, idx) => {
         const isLast = idx === visible.length - 1 && !currentUserRow;
+        // The payload is the top block plus the caller's ±5 window, so ranks
+        // are not necessarily consecutive. Mark the break honestly instead of
+        // letting two distant rows read as neighbours.
+        const startsNeighborhood = hasRankGapBefore(entry, visible[idx - 1]);
         return (
-          <View
-            key={entry.playerId}
-            style={[styles.lbRow, isLast && styles.lbRowLast, entry.isCurrentUser && styles.lbRowMe]}
-          >
-            <Text style={[styles.lbRank, entry.rank <= 3 && styles.lbRankTop]}>#{entry.rank}</Text>
-            <View style={styles.lbInfo}>
-              <Text style={styles.lbName} numberOfLines={1}>
-                {entry.displayName}{entry.isCurrentUser ? ` (${youLabel})` : ''}
-              </Text>
-            </View>
-            <Text style={styles.lbStars}>{entry.lifetimeStars} ★</Text>
-          </View>
+          <React.Fragment key={entry.playerId}>
+            {startsNeighborhood && (
+              <View style={styles.lbGap}>
+                <Text style={styles.lbGapText}>{copy.nearYouLabel}</Text>
+              </View>
+            )}
+            <LeaderboardRow
+              entry={entry}
+              isLast={isLast}
+              expanded={expandedId === entry.playerId}
+              onToggle={toggleRow}
+              styles={styles}
+              copy={copy}
+            />
+          </React.Fragment>
         );
       })}
       {currentUserRow && (
@@ -134,6 +208,28 @@ export function RankScreen() {
     t.leaderboardPlayer,
   );
 
+  const currentUserEntry: LBEntry = useMemo(() => ({
+    playerId: googleUser?.sub ?? 'current-user',
+    displayName: googleUser?.name ?? t.leaderboardYou,
+    lifetimeStars: data?.currentStars ?? 0,
+    rank: 1,
+    isCurrentUser: true,
+    // Local fallback for the not-yet-synced user; there is no server list to
+    // measure a gap against, so never invent one.
+    starsToNextRank: null,
+  }), [googleUser?.sub, googleUser?.name, data?.currentStars, t.leaderboardYou]);
+
+  const leaderboardCopy = useMemo(() => ({
+    youLabel: t.leaderboardYou,
+    nearYouLabel: t.leaderboardNearYou,
+    gapToNext: t.leaderboardGapToNext,
+    gapLevelLabel: t.leaderboardGapLevel,
+    topOfLadderLabel: t.leaderboardTopOfLadder,
+    lifetimeStars: t.leaderboardLifetimeStars,
+    expandLabel: t.leaderboardExpandRow,
+    collapseLabel: t.leaderboardCollapseRow,
+  }), [t]);
+
   const [infoVisible, setInfoVisible] = useState(false);
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [previewTier, setPreviewTier] = useState<number | null>(null);
@@ -163,19 +259,12 @@ export function RankScreen() {
   const rankLabel = t.rankNameMap[cfg.name] ?? cfg.name;
   const nextRankLabel = nextCfg ? (t.rankNameMap[nextCfg.name] ?? nextCfg.name) : (t.rankNameMap[nextTier?.rank_name ?? ''] ?? nextTier?.rank_name ?? '');
   const unlockedRankCount = RANKS.filter(rank => rank.tier < currentTierOrder).length;
-  const currentUserEntry: LBEntry = useMemo(() => ({
-    playerId: googleUser?.sub ?? 'current-user',
-    displayName: googleUser?.name ?? t.leaderboardYou,
-    lifetimeStars: currentStars,
-    rank: 1,
-    isCurrentUser: true,
-  }), [googleUser?.sub, googleUser?.name, currentStars, t.leaderboardYou]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>{t.rankTitle}</Text>
+          <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t.rankTitle}</Text>
           <TouchableOpacity onPress={() => setInfoVisible(true)} hitSlop={10} style={styles.infoBtn} accessibilityLabel={t.rankInfo} accessibilityRole="button">
             <Text style={styles.infoBtnText}>?</Text>
           </TouchableOpacity>
@@ -269,6 +358,7 @@ export function RankScreen() {
             emptyNote={t.leaderboardEmpty}
             noSyncNote={t.leaderboardNoSync}
             currentUserEntry={currentUserEntry}
+            copy={leaderboardCopy}
           />
         </View>
 
@@ -295,7 +385,7 @@ function makeStyles(C: AppColors) {
     content: { paddingBottom: 40 },
     loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bgBase },
     titleRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 14 },
-    title: { fontSize: 24, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, flex: 1 },
+    title: { fontSize: 24, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, flex: 1, flexShrink: 1 },
     infoBtn: { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: C.faint, alignItems: 'center', justifyContent: 'center' },
     infoBtnText: { fontSize: 15, fontFamily: FontFamily.bold, color: C.muted },
 
@@ -353,6 +443,9 @@ function makeStyles(C: AppColors) {
     lbRow: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       paddingVertical: 11, borderBottomWidth: 1, borderColor: C.line,
+      // Rows became tappable (expand in place), so they must clear Android's
+      // 48dp minimum touch target rather than the ~40dp the text alone gave.
+      minHeight: 48,
     },
     lbRowLast: { borderBottomWidth: 0 },
     lbRowMe: { backgroundColor: C.primarySoft, marginHorizontal: -8, paddingHorizontal: 14, borderRadius: Radii.sm, borderBottomWidth: 0, marginVertical: 2 },
@@ -361,6 +454,12 @@ function makeStyles(C: AppColors) {
     lbInfo: { flex: 1, minWidth: 0 },
     lbName: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
     lbStars: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primaryText },
+    lbDetail: { fontSize: 12, lineHeight: 16, color: C.ink2, marginTop: 3 },
+    lbGap: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      paddingVertical: 8, borderBottomWidth: 1, borderColor: C.line,
+    },
+    lbGapText: { fontSize: 11, fontFamily: FontFamily.semiBold, color: C.muted, letterSpacing: 0.4 },
     lbEmpty: { paddingVertical: 20, alignItems: 'center' },
     lbEmptyTxt: { fontSize: 13, color: C.muted, textAlign: 'center', paddingVertical: 12 },
   });

@@ -59,15 +59,23 @@ function SuggestionEntranceWrapper({ index, reduceMotion, children }: { index: n
   const fadeAnim = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
   const slideAnim = useRef(new Animated.Value(reduceMotion ? 0 : -12)).current;
   useEffect(() => {
-    if (reduceMotion) return;
-    Animated.sequence([
+    fadeAnim.stopAnimation();
+    slideAnim.stopAnimation();
+    if (reduceMotion) {
+      fadeAnim.setValue(1);
+      slideAnim.setValue(0);
+      return;
+    }
+    const animation = Animated.sequence([
       Animated.delay(index * 60),
       Animated.parallel([
         Animated.spring(fadeAnim, { toValue: 1, tension: 180, friction: 14, useNativeDriver: true }),
         Animated.spring(slideAnim, { toValue: 0, tension: 180, friction: 14, useNativeDriver: true }),
       ]),
-    ]).start();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [fadeAnim, index, reduceMotion, slideAnim]);
   return (
     <Animated.View style={{ opacity: fadeAnim, transform: [{ translateX: slideAnim }] }}>
       {children}

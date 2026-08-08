@@ -17,8 +17,8 @@ export type AccentPalette = {
 export const ACCENTS: Record<AccentKey, AccentPalette> = {
   green: {
     swatch: '#25B36E',
-    onAccent: { light: '#141816', dark: '#141816' }, // white fails both themes (~2.71:1); ink clears 6.61:1
-    light: { primary: '#25B36E', primaryHover: '#1E9B5E', primaryPress: '#177A49', primarySoft: '#C6E9D5' },
+    onAccent: { light: '#FFFFFF', dark: '#141816' }, // white clears 4.53:1 on the light fill; dark ink clears 6.61:1
+    light: { primary: '#1A8752', primaryHover: '#0E6B3E', primaryPress: '#0E6B3E', primarySoft: '#C6E9D5' },
     dark:  { primary: '#25B36E', primaryHover: '#1E9B5E', primaryPress: '#5EC69A', primarySoft: '#1A3D2E' },
   },
   indigo: {

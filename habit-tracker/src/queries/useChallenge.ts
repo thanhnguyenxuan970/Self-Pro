@@ -170,9 +170,9 @@ async function awardChallengeCompletion(
   );
   await db.runAsync(
     `INSERT INTO activity_log
-      (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
-     VALUES (?, ?, 'CHALLENGE', NULL, 0, ?, 'CHALLENGE', ?, ?, ?)`,
-    [params.userId, params.taskTypeId, rewardStars, nowMs, params.localDate, weekStart],
+      (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note)
+     VALUES (?, ?, 'CHALLENGE', NULL, 0, ?, 'CHALLENGE', ?, ?, ?, ?)`,
+    [params.userId, params.taskTypeId, rewardStars, nowMs, params.localDate, weekStart, `challenge:${params.challengeId}`],
   );
   await db.runAsync(
     `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars)
@@ -412,18 +412,26 @@ export async function deleteChallengeById(
   if (challenge.status === 'done' && challenge.completed_at) {
     const rewardRow = await db.getFirstAsync<ChallengeRewardRow>(
       `SELECT id, week_start, stars_delta
-       FROM activity_log
-       WHERE user_id = ? AND source = 'CHALLENGE' AND local_date = ?
-       ORDER BY id DESC
+       FROM activity_log AS reward
+       WHERE reward.user_id = ? AND reward.source = 'CHALLENGE' AND reward.local_date = ?
+         AND (
+           reward.note = ?
+           OR (
+             reward.note IS NULL AND EXISTS (
+               SELECT 1 FROM achievements AS achievement
+                WHERE achievement.user_id = reward.user_id
+                  AND achievement.source_type = 'challenge'
+                  AND achievement.source_id = ?
+                  AND achievement.earned_at = reward.local_date
+             )
+           )
+         )
+       ORDER BY reward.id DESC
        LIMIT 1`,
-      [userId, challenge.completed_at],
+      [userId, challenge.completed_at, `challenge:${challengeId}`, challengeId],
     );
 
     if (rewardRow) {
-      const weeklyRow = await db.getFirstAsync<{ weekly_stars: number }>(
-        `SELECT weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
-        [userId, rewardRow.week_start],
-      );
       await db.runAsync(
         `UPDATE weekly_summary
          SET weekly_stars = MAX(0, weekly_stars - ?)

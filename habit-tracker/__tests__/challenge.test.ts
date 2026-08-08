@@ -1,10 +1,19 @@
 import { challengeDate, challengeStreak, completeChallenge, currentDay, currentDayIndex, computeProgress, computeRollover, dateRange, isComplete, logToday, progress, restart, type Challenge, type DayEntry } from '../src/lib/challenge';
 import { CHALLENGE_DURATIONS, CHALLENGE_NAME_MAX_LENGTH, challengeCompletionStars, isValidCustomChallengeValue } from '../src/config/challenges.config';
+import { challengeHubViewState } from '../src/utils/challengeHub';
 
 const challenge: Challenge = {
   id: 4, name: 'Read', taskType: null, targetDays: 7, startDate: '2026-06-17',
   status: 'active', freezesLeft: 1, log: [{ date: '2026-06-17', state: 'done' }],
 };
+
+describe('challenge hub view state', () => {
+  it('keeps a history-only user out of the blank first-run state', () => {
+    expect(challengeHubViewState(false, 0)).toBe('empty');
+    expect(challengeHubViewState(false, 1)).toBe('history-only');
+    expect(challengeHubViewState(true, 1)).toBe('active');
+  });
+});
 
 describe('ICT challenge clock', () => {
   it('rolls to the next day at midnight in Ho Chi Minh City', () => {

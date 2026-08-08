@@ -8,6 +8,7 @@ import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useActiveChallenge, useChallengeHistory, useChallengeRollover, useDeleteChallenge, useRestartChallenge } from '../queries/useChallenge';
 import { ChallengeCard } from '../components/ChallengeCard';
 import { useSelectionMode } from '../hooks/useSelectionMode';
+import { challengeHubViewState } from '../utils/challengeHub';
 
 export function ChallengeHubScreen() {
   const { userId, colors, t, styles } = useScreenCommons(makeStyles);
@@ -78,12 +79,12 @@ export function ChallengeHubScreen() {
     );
   }
 
-  const showEmpty = !active && history.length === 0;
+  const viewState = challengeHubViewState(Boolean(active), history.length);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {showEmpty ? (
+        {viewState === 'empty' ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>{t.challengeEmptyTitle}</Text>
             <Text style={styles.emptyBody}>{t.challengeEmptyBody}</Text>
@@ -98,6 +99,21 @@ export function ChallengeHubScreen() {
           </View>
         ) : (
           <>
+            {viewState === 'history-only' && (
+              <View style={styles.historyOnlyState}>
+                <Text style={styles.emptyTitle}>{t.challengeNextTitle}</Text>
+                <Text style={styles.emptyBody}>{t.challengeNextBody}</Text>
+                <TouchableOpacity
+                  style={styles.emptyCta}
+                  onPress={() => navigation.navigate('CreateChallenge' as never)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.challengeCreateCta}
+                >
+                  <Text style={styles.emptyCtaText}>{t.challengeCreateCta}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
             {active && (
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>{t.challengeActiveSection}</Text>
@@ -228,6 +244,7 @@ function makeStyles(C: AppColors) {
     emptyBody: { ...Typography.body, color: C.ink2, textAlign: 'center', marginBottom: Spacing.lg },
     emptyCta: { backgroundColor: C.primary, paddingVertical: 14, paddingHorizontal: Spacing.xl, borderRadius: Radii.pill },
     emptyCtaText: { ...Typography.bodyStrong, color: C.onAccent },
+    historyOnlyState: { alignItems: 'center', paddingTop: Spacing.sm, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xs },
     section: { gap: Spacing.sm },
     historyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     sectionLabel: { ...Typography.sectionLabel, color: C.ink2 },

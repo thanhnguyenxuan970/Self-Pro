@@ -3,8 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { dailyBonusStarsForPoints } from '../config/constants';
 import { MAX_PINNED_ACTIVITIES, PickerTask } from '../utils/activityPicker';
-import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
-import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
+import type { LifetimeTierCrossing } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { syncCurrentUserToSupabase } from '../api/syncService';
@@ -198,14 +197,6 @@ async function revertWeeklySummaries(
 ): Promise<void> {
   const weeks = [...byWeek.keys()];
   if (weeks.length === 0) return;
-  // Batched into one query instead of one round-trip per week.
-  const weekPlaceholders = weeks.map(() => '?').join(',');
-  const weeklyRows = await db.getAllAsync<{ week_start: string; weekly_stars: number }>(
-    `SELECT week_start, weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start IN (${weekPlaceholders})`,
-    [userId, ...weeks],
-  );
-  const weeklyByWeek = new Map(weeklyRows.map(r => [r.week_start, r]));
-
   for (const [weekStart, { points, stars }] of byWeek) {
     await db.runAsync(
       `UPDATE weekly_summary SET
@@ -214,7 +205,6 @@ async function revertWeeklySummaries(
        WHERE user_id = ? AND week_start = ?`,
       [points, stars, userId, weekStart]
     );
-
   }
 }
 
@@ -274,10 +264,6 @@ export function useArchiveTask(userId: number) {
       const db = await getDb();
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
 
-      const tiers = await db.getAllAsync<LifetimeTierRow>(
-        `SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY stars_required ASC`
-      );
-
       await db.withTransactionAsync(async () => {
         for (const taskId of taskIds) {
           // Archiving hard-deletes this task_type's activity_log rows below --
@@ -312,10 +298,8 @@ export function useArchiveTask(userId: number) {
             await recomputeStreaks(db, userId);
 
             // Archiving removes weekly/history rows, but lifetime rank is a
-            // high-water mark and never subtracts earned stars.
-            const totalStarsDelta = allLogs.reduce((s, r) => s + r.stars_delta, 0);
-            const result = await applyLifetimeStarsDelta(db, userId, -totalStarsDelta, tiers);
-            lifetimeCrossings = lifetimeCrossings.concat(result.crossings);
+            // high-water mark and never mints stars as a side effect of
+            // removing either GOOD or BAD activity.
           }
 
           await db.runAsync(

@@ -527,10 +527,6 @@ export function useUnlogTask(userId: number) {
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
 
       // tiers is a static lookup — never written, safe to read outside transaction
-      const tiers = await db.getAllAsync<FullTierRow>(
-        `SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY stars_required ASC`
-      );
-
       // fallow-ignore-next-line complexity
       await db.withTransactionAsync(async () => {
         const taskRows = await db.getAllAsync<{ id: number; points_earned: number; stars_delta: number }>(
@@ -547,11 +543,6 @@ export function useUnlogTask(userId: number) {
           `SELECT total_points, bonus_star_awarded FROM daily_summary WHERE user_id = ? AND local_date = ?`,
           [userId, today]
         );
-        const weeklyRow = await db.getFirstAsync<{ weekly_stars: number }>(
-          `SELECT weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
-          [userId, weekStart]
-        );
-
         const remainingPoints = (daily?.total_points ?? 0) - taskPoints;
         const currentBonusStars = daily?.bonus_star_awarded ?? 0;
         const remainingBonusStars = dailyBonusStarsForPoints(remainingPoints);
@@ -573,10 +564,10 @@ export function useUnlogTask(userId: number) {
           [taskPoints, totalStarsDelta, userId, weekStart]
         );
 
-        // Lifetime rank ignores removal deltas. Undoing a BAD/penalty entry is
-        // a net gain (removing a penalty restores stars), so it can still
-        // cross a tier threshold upward.
-        lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, -totalStarsDelta, tiers)).crossings;
+        // Lifetime rank is a high-water mark. Removing a task must never mint
+        // new lifetime stars: BAD rows never lowered this high-water mark when
+        // they were logged, and GOOD rows are intentionally non-reversible.
+        lifetimeCrossings = [];
 
         await revertTreatStarsUnlog(db, userId, params.kind, totalStarsDelta, taskStars);
       });

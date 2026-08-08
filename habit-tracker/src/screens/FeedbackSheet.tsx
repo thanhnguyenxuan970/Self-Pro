@@ -171,7 +171,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
             accessibilityRole="button"
             accessibilityState={{ disabled: !canSend }}
           >
-            <Text style={styles.sendBtnText}>{sending ? '…' : t.feedbackSend}</Text>
+            <Text style={[styles.sendBtnText, !canSend && styles.sendBtnDisabledText]}>{sending ? '…' : t.feedbackSend}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.cancelBtn} onPress={handleClose} disabled={sending} accessibilityRole="button" accessibilityLabel={t.cancel}>
@@ -239,6 +239,7 @@ function makeStyles(C: AppColors, bottomInset: number) {
     },
     sendBtnDisabled: { backgroundColor: C.line2 },
     sendBtnText: { color: C.onAccent, fontSize: 15, fontFamily: FontFamily.bold },
+    sendBtnDisabledText: { color: C.ink2 },
     cancelBtn: { minHeight: 44, justifyContent: 'center' },
     cancel: { textAlign: 'center', color: C.muted, padding: 8 },
   });
