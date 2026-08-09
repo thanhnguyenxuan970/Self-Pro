@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 - **Pseudonymous leaderboard neighborhood**: the global leaderboard now supports a bounded top-three plus current-user neighborhood view, with server-side rank data and profile provisioning migrations.
+- **Human-readable anonymous competition**: leaderboard opponents now receive stable Vietnamese/English pseudonyms, and their current streak is shown as a privacy-safe sign of recent activity.
 - **Localized release news**: added the bilingual Habi 2.0.0 in-app News migration.
 
 ### Fixed

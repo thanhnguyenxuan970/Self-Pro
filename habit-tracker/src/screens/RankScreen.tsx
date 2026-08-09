@@ -5,6 +5,7 @@ import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme'
 import { useRankData } from '../queries/useRank';
 import { useLeaderboard, capLeaderboardRows, hasRankGapBefore, LEADERBOARD_TOP_LIMIT } from '../queries/useLeaderboard';
 import { useScreenCommons } from '../hooks/useScreenCommons';
+import { useLanguage } from '../hooks/useSettings';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
 import { LevelUpCelebrationModal } from '../components/LevelUpCelebrationModal';
@@ -29,6 +30,7 @@ type LeaderboardRowCopy = {
   lifetimeStars: (stars: number) => string;
   expandLabel: string;
   collapseLabel: string;
+  streakDays: (days: number) => string;
 };
 
 type LeaderboardSectionProps = {
@@ -74,7 +76,7 @@ const LeaderboardRow = React.memo(function LeaderboardRow({
       activeOpacity={0.75}
       accessibilityRole="button"
       accessibilityState={{ expanded }}
-      accessibilityLabel={`#${entry.rank} ${entry.displayName}${entry.isCurrentUser ? ` (${copy.youLabel})` : ''}, ${copy.lifetimeStars(entry.lifetimeStars)}`}
+      accessibilityLabel={`#${entry.rank} ${entry.displayName}${entry.isCurrentUser ? ` (${copy.youLabel})` : ''}, ${copy.lifetimeStars(entry.lifetimeStars)}${entry.currentStreak > 0 ? `, ${copy.streakDays(entry.currentStreak)}` : ''}`}
       accessibilityHint={expanded ? copy.collapseLabel : copy.expandLabel}
     >
       <Text style={[styles.lbRank, entry.rank <= 3 && styles.lbRankTop]}>#{entry.rank}</Text>
@@ -82,6 +84,13 @@ const LeaderboardRow = React.memo(function LeaderboardRow({
         <Text style={styles.lbName} numberOfLines={1}>
           {entry.displayName}{entry.isCurrentUser ? ` (${copy.youLabel})` : ''}
         </Text>
+        {/* Always visible, not gated behind the tap: this is the signal that a
+            real person is behind the row, so it has to be the thing you see
+            while scrolling. Hidden at 0 rather than shown as "0 days", which
+            would read as abandoned. */}
+        {entry.currentStreak > 0 && (
+          <Text style={styles.lbStreak} numberOfLines={1}>{copy.streakDays(entry.currentStreak)}</Text>
+        )}
         {expanded && (
           <Text style={styles.lbDetail} numberOfLines={2}>
             {copy.lifetimeStars(entry.lifetimeStars)}{detail ? ` · ${detail}` : ''}
@@ -202,10 +211,12 @@ export function RankScreen() {
     ? (data.currentTierId ? (data.tiers.find(t => t.id === data.currentTierId)?.tier_order ?? 0) : 0)
     : 0;
   const currentTierOrder = storedTierOrder;
+  const [lang] = useLanguage();
   const { data: leaderboard = [], isLoading: lbLoading, isError: lbError } = useLeaderboard(
     googleUser?.email ?? null,
     googleUser?.name ?? null,
     t.leaderboardPlayer,
+    lang,
   );
 
   const currentUserEntry: LBEntry = useMemo(() => ({
@@ -217,6 +228,10 @@ export function RankScreen() {
     // Local fallback for the not-yet-synced user; there is no server list to
     // measure a gap against, so never invent one.
     starsToNextRank: null,
+    // Streak is a server field on this surface. This fallback row exists
+    // precisely because the server has no row for the user yet, so there is
+    // nothing to show -- 0 suppresses the line rather than faking a streak.
+    currentStreak: 0,
   }), [googleUser?.sub, googleUser?.name, data?.currentStars, t.leaderboardYou]);
 
   const leaderboardCopy = useMemo(() => ({
@@ -228,6 +243,7 @@ export function RankScreen() {
     lifetimeStars: t.leaderboardLifetimeStars,
     expandLabel: t.leaderboardExpandRow,
     collapseLabel: t.leaderboardCollapseRow,
+    streakDays: t.leaderboardStreakDays,
   }), [t]);
 
   const [infoVisible, setInfoVisible] = useState(false);
@@ -455,6 +471,7 @@ function makeStyles(C: AppColors) {
     lbName: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
     lbStars: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primaryText },
     lbDetail: { fontSize: 12, lineHeight: 16, color: C.ink2, marginTop: 3 },
+    lbStreak: { fontSize: 11.5, lineHeight: 16, color: C.muted, fontFamily: FontFamily.semiBold, marginTop: 1 },
     lbGap: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
       paddingVertical: 8, borderBottomWidth: 1, borderColor: C.line,

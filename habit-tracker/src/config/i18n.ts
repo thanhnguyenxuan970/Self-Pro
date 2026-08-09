@@ -652,6 +652,7 @@ const vi = {
   leaderboardLifetimeStars: (stars: number) => `${stars} ★ tích luỹ`,
   leaderboardExpandRow: 'Xem chi tiết',
   leaderboardCollapseRow: 'Thu gọn',
+  leaderboardStreakDays: (days: number) => `${days} ngày liên tiếp`,
 
   // AddActivitySheet step 2 — time picker
   addActivityCreateAndLog: 'Tạo & Ghi ngay',
@@ -1419,6 +1420,7 @@ const en: typeof vi = {
   leaderboardLifetimeStars: (stars: number) => `${stars} ★ lifetime`,
   leaderboardExpandRow: 'Show details',
   leaderboardCollapseRow: 'Hide details',
+  leaderboardStreakDays: (days: number) => `${days}-day streak`,
 
   // AddActivitySheet step 2 — time picker
   addActivityCreateAndLog: 'Create & Complete',

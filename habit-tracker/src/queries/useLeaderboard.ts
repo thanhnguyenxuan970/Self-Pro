@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../api/supabase';
+import { generatePlayerName } from '../config/playerNames';
+import type { AppLanguage } from '../config/i18n';
 
 export type LeaderboardEntry = {
   playerId: string;
@@ -15,6 +17,12 @@ export type LeaderboardEntry = {
    * unless that row happened to come back too. Never guessed.
    */
   starsToNextRank: number | null;
+  /**
+   * Consecutive logged days, straight from `public.users.current_streak`
+   * (migration 027). This is the row's only "a person is behind this" signal —
+   * a star total alone reads as seeded data.
+   */
+  currentStreak: number;
 };
 
 /**
@@ -89,6 +97,8 @@ export type RemoteLeaderboardRow = {
   lifetime_stars: number | null;
   rank: number | string;
   is_current_user: boolean;
+  /** Absent on responses from a server still on migration 026 or earlier. */
+  current_streak?: number | null;
 };
 
 export function aggregateLifetimeStarsByPlayerId(rows: { player_id: string; lifetime_stars: number | null }[]): Map<string, number> {
@@ -105,7 +115,15 @@ function buildLeaderboardEntries(
 ): Omit<LeaderboardEntry, 'rank' | 'starsToNextRank'>[] {
   const entries: Omit<LeaderboardEntry, 'rank' | 'starsToNextRank'>[] = [];
   for (const [playerId, stars] of starsByPlayerId) {
-    entries.push({ playerId, displayName: playerId, lifetimeStars: Math.max(0, stars), isCurrentUser: playerId === currentPlayerId });
+    entries.push({
+      playerId,
+      displayName: playerId,
+      lifetimeStars: Math.max(0, stars),
+      isCurrentUser: playerId === currentPlayerId,
+      // This local path only ever sees a stars map; streak is a server-only
+      // field, so report 0 rather than inventing one.
+      currentStreak: 0,
+    });
   }
   return entries;
 }
@@ -123,16 +141,21 @@ export function buildRankedLeaderboard(
   return annotateStarsToNextRank(entries.map((e, i) => ({ ...e, rank: i + 1 })));
 }
 
-export function publicPlayerName(playerId: string, playerLabel: string): string {
+/**
+ * Pseudonym shown for every player who is not the caller. Delegates to the
+ * curated word list rather than slicing the UUID: identical anonymity, but it
+ * reads as a competitor instead of a database row.
+ */
+export function publicPlayerName(playerId: string, playerLabel: string, lang: AppLanguage = 'vi'): string {
   if (playerId === 'unknown') return `${playerLabel} #unknown`;
-  const suffix = playerId.replaceAll('-', '').slice(0, 6) || 'unknown';
-  return `${playerLabel} #${suffix}`;
+  return generatePlayerName(playerId, lang, `${playerLabel} #unknown`);
 }
 
 export function mapRemoteLeaderboardRows(
   rows: RemoteLeaderboardRow[],
   currentUserName: string | null,
   playerLabel: string,
+  lang: AppLanguage = 'vi',
 ): LeaderboardEntry[] {
   const ordered = rows
     .map((row) => {
@@ -140,10 +163,13 @@ export function mapRemoteLeaderboardRows(
       const isCurrentUser = row.is_current_user === true;
       return {
         playerId,
-        displayName: isCurrentUser ? (currentUserName?.trim() || playerLabel) : publicPlayerName(playerId, playerLabel),
+        displayName: isCurrentUser ? (currentUserName?.trim() || playerLabel) : publicPlayerName(playerId, playerLabel, lang),
         lifetimeStars: Math.max(0, Number(row.lifetime_stars) || 0),
         rank: Math.max(1, Number(row.rank) || 1),
         isCurrentUser,
+        // Tolerate a server still on 026: a missing column means "unknown",
+        // and an unknown streak must render as no signal, never a fake one.
+        currentStreak: Math.max(0, Math.floor(Number(row.current_streak) || 0)),
       };
     })
     .sort((a, b) => a.rank - b.rank || a.playerId.localeCompare(b.playerId));
@@ -161,9 +187,16 @@ export function mapRemoteLeaderboardRows(
  * the returned list can contain a discontinuity — use `hasRankGapBefore` when
  * rendering rather than assuming consecutive ranks.
  */
-export function useLeaderboard(currentUserEmail: string | null, currentUserName: string | null, playerLabel: string) {
+export function useLeaderboard(
+  currentUserEmail: string | null,
+  currentUserName: string | null,
+  playerLabel: string,
+  lang: AppLanguage = 'vi',
+) {
   return useQuery({
-    queryKey: ['leaderboard', currentUserEmail, currentUserName, playerLabel],
+    // `lang` is part of the key because generated names are language-specific;
+    // switching language must re-derive them rather than serve stale copy.
+    queryKey: ['leaderboard', currentUserEmail, currentUserName, playerLabel, lang],
     enabled: !!supabase && !!currentUserEmail,
     staleTime: 60_000,
     retry: false,
@@ -178,7 +211,7 @@ export function useLeaderboard(currentUserEmail: string | null, currentUserName:
 
       const { data, error } = await supabase.rpc('get_global_leaderboard_v2', { p_limit: LEADERBOARD_TOP_LIMIT });
       if (error) throw error;
-      return mapRemoteLeaderboardRows((data ?? []) as RemoteLeaderboardRow[], currentUserName, playerLabel);
+      return mapRemoteLeaderboardRows((data ?? []) as RemoteLeaderboardRow[], currentUserName, playerLabel, lang);
     },
   });
 }

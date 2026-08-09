@@ -77,7 +77,10 @@ test('maps server-ranked anonymous rows without recomputing global rank in the c
 
   expect(result.map(entry => entry.rank)).toEqual([1, 87]);
   expect(result[0].playerId).toBe('public-top');
-  expect(result[0].displayName).toBe('Player #public');
+  // The pseudonym is a curated word pair, not a slice of the UUID -- a hex
+  // slug reads as seeded/bot data, which defeats the point of a ladder.
+  expect(result[0].displayName).not.toContain('public');
+  expect(result[0].displayName).toMatch(/^\D+ #\d{2}$/);
   expect(result[1].displayName).toBe('Thanh');
   expect(result[1].isCurrentUser).toBe(true);
   expect(JSON.stringify(result)).not.toContain('@');

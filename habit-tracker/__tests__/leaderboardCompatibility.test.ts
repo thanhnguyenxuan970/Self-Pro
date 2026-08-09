@@ -54,3 +54,31 @@ test('neighbourhood execute grant stays restricted to authenticated callers', ()
   expect(migration026).toContain('REVOKE ALL ON FUNCTION public.get_global_leaderboard_v2(integer) FROM PUBLIC, anon, authenticated;');
   expect(migration026).toContain('GRANT EXECUTE ON FUNCTION public.get_global_leaderboard_v2(integer) TO authenticated;');
 });
+
+const migration028 = readFileSync(`${migrationRoot}/028_leaderboard_streak_signal.sql`, 'utf8');
+
+test('streak column requires a real DROP because OUT params cannot be replaced', () => {
+  expect(migration028).toContain('DROP FUNCTION IF EXISTS public.get_global_leaderboard_v2(integer);');
+  expect(migration028).toContain('RETURNS TABLE (player_id uuid, lifetime_stars real, rank bigint, is_current_user boolean, current_streak integer)');
+});
+
+test('streak signal keeps the rank neighbourhood 026 introduced', () => {
+  expect(migration028).toContain('r.rank BETWEEN');
+  expect(migration028).toContain('OR r.is_current_user');
+});
+
+test('streak signal adds behavioural data but still no identity', () => {
+  expect(migration028).toContain('u.current_streak');
+  expect(migration028).toContain('u.leaderboard_public_id AS player_id');
+  expect(migration028).not.toContain('r.user_email');
+  expect(migration028).not.toContain('THEN r.user_email');
+});
+
+test('streak signal never emits a negative streak', () => {
+  expect(migration028).toContain('GREATEST(COALESCE(u.current_streak, 0), 0)::integer');
+});
+
+test('streak signal keeps execute restricted to authenticated', () => {
+  expect(migration028).toContain('REVOKE ALL ON FUNCTION public.get_global_leaderboard_v2(integer) FROM PUBLIC, anon, authenticated;');
+  expect(migration028).toContain('GRANT EXECUTE ON FUNCTION public.get_global_leaderboard_v2(integer) TO authenticated;');
+});
