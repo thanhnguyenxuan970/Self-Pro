@@ -14,7 +14,7 @@ diff --git a/node_modules/expo-modules-core/android/CMakeLists.txt b/node_module
 diff --git a/node_modules/expo-modules-core/android/cmake/common.cmake b/node_modules/expo-modules-core/android/cmake/common.cmake
 --- a/node_modules/expo-modules-core/android/cmake/common.cmake
 +++ b/node_modules/expo-modules-core/android/cmake/common.cmake
-@@ -1,9 +1,4 @@
+@@ -1,9 +1,5 @@
  add_library(EXPO_COMMON INTERFACE)
  
 -target_precompile_headers(
