@@ -8,10 +8,11 @@ import { pickSquareImage } from '../utils/pickImage';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
-import { useChallengeById, useLogChallengeDay, useRestartChallenge, useRetryChallengeReminder, useSetChallengeAfterPhoto, useSetChallengeBeforePhoto, useUpdateChallengeName } from '../queries/useChallenge';
+import { useChallengeById, useDeleteChallenge, useLogChallengeDay, useRestartChallenge, useRetryChallengeReminder, useSetChallengeAfterPhoto, useSetChallengeBeforePhoto, useUpdateChallengeName } from '../queries/useChallenge';
 import { useTodayTasks } from '../queries/useToday';
 import { requestAddActivity } from '../hooks/useAddActivityIntent';
 import { challengeDate, isComplete } from '../lib/challenge';
+import { canRequestChallengeDelete, challengeDeletePrompt, challengeDetailMenuActions, deleteChallengeAndExit } from '../utils/challengeDetail';
 import { computeChallengeReward } from '../config/challenges.config';
 import { ChallengeProgressRing } from '../components/ChallengeProgressRing';
 import { ChallengeDayGrid, GRID_CELL_COUNT } from '../components/ChallengeDayGrid';
@@ -36,6 +37,7 @@ export function ChallengeDetailScreen() {
   const restartChallenge = useRestartChallenge(userId);
   const retryReminder = useRetryChallengeReminder(userId);
   const updateChallengeName = useUpdateChallengeName(userId);
+  const deleteChallenge = useDeleteChallenge(userId);
   const [menuVisible, setMenuVisible] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
@@ -121,6 +123,28 @@ export function ChallengeDetailScreen() {
     }
   }
 
+  function confirmDelete() {
+    if (!canRequestChallengeDelete(challengeId, deleteChallenge.isPending)) return;
+    setMenuVisible(false);
+    const prompt = challengeDeletePrompt(
+      {
+        title: t.challengeDeleteTitle,
+        message: t.challengeDeleteMsg,
+        cancel: t.cancel,
+        delete: t.delete,
+      },
+      () => {
+        void deleteChallengeAndExit(
+          challengeId,
+          id => deleteChallenge.mutateAsync(id),
+          () => navigation.goBack(),
+          () => Alert.alert(t.error, t.challengeDeleteFailed),
+        );
+      },
+    );
+    Alert.alert(prompt.title, prompt.message, prompt.buttons);
+  }
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: challenge?.status !== 'active' || completedBeforeRender ? undefined : () => (
@@ -150,6 +174,7 @@ export function ChallengeDetailScreen() {
   const completed = challenge.status === 'done' || (!isWeekly && isComplete(challenge.daysDone, challenge.targetDays));
   const failed = !completed && challenge.status === 'failed';
   const active = !completed && !failed;
+  const menuActions = challengeDetailMenuActions(challenge.status);
   const canLogToday = active && !challenge.loggedToday;
   const calendarDaysLeft = Math.max(0, challenge.targetDays - (challenge.dayIndex + 1));
   const linkedTaskName = challenge.taskTypeId != null
@@ -391,9 +416,22 @@ export function ChallengeDetailScreen() {
             accessibilityLabel={t.cancel}
           />
           <View style={[styles.menu, { top: headerHeight + Spacing.xs }]} accessibilityViewIsModal>
-            {active && (
+            {menuActions.includes('rename') && (
               <TouchableOpacity style={styles.menuRow} onPress={openNameEditor} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.editActivity}>
                 <Text style={styles.menuEdit}>🖊️ {t.editActivity}</Text>
+              </TouchableOpacity>
+            )}
+            {menuActions.includes('delete') && (
+              <TouchableOpacity
+                style={styles.menuRow}
+                onPress={confirmDelete}
+                disabled={deleteChallenge.isPending}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t.challengeDeleteCta}
+                accessibilityState={{ disabled: deleteChallenge.isPending }}
+              >
+                <Text style={styles.menuDelete}>{t.challengeDeleteCta}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -467,6 +505,7 @@ function makeStyles(C: AppColors) {
     },
     menuRow: { minHeight: 48, justifyContent: 'center', paddingHorizontal: Spacing.md },
     menuEdit: { ...Typography.bodyStrong, color: C.inkDark },
+    menuDelete: { ...Typography.bodyStrong, color: C.dangerText },
     editOverlay: { flex: 1, backgroundColor: C.scrim, justifyContent: 'center', padding: Spacing.lg },
     editCard: { backgroundColor: C.surface, borderRadius: Radii.lg, padding: Spacing.lg, gap: Spacing.md, alignSelf: 'center', width: '100%', maxWidth: 480 },
     editTitle: { ...Typography.subheading, color: C.inkDark },

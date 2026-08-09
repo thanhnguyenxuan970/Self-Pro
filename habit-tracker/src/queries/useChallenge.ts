@@ -480,14 +480,12 @@ export async function deleteChallengeById(
   db: Pick<SQLiteDatabase, 'getFirstAsync' | 'runAsync'>,
   userId: number,
   challengeId: number,
-): Promise<void> {
+): Promise<string | null> {
   const challenge = await db.getFirstAsync<ChallengeDeleteRow>(
     `SELECT status, completed_at, notification_id FROM challenges WHERE id = ? AND user_id = ?`,
     [challengeId, userId],
   );
   if (!challenge) throw new Error('CHALLENGE_NOT_FOUND');
-
-  await cancelChallengeReminder(challenge.notification_id);
 
   if (challenge.status === 'done' && challenge.completed_at) {
     const rewardRow = await db.getFirstAsync<ChallengeRewardRow>(
@@ -533,6 +531,23 @@ export async function deleteChallengeById(
   await db.runAsync(`DELETE FROM challenge_days WHERE challenge_id = ?`, [challengeId]);
   await db.runAsync(`DELETE FROM challenge_log WHERE challenge_id = ?`, [challengeId]);
   await db.runAsync(`DELETE FROM challenges WHERE id = ? AND user_id = ?`, [challengeId, userId]);
+  return challenge.notification_id ?? null;
+}
+
+export async function deleteChallengesById(
+  db: Pick<SQLiteDatabase, 'withExclusiveTransactionAsync'>,
+  userId: number,
+  challengeIds: number[],
+): Promise<void> {
+  const reminderIds: string[] = [];
+  await db.withExclusiveTransactionAsync(async txn => {
+    for (const challengeId of challengeIds) {
+      const reminderId = await deleteChallengeById(txn, userId, challengeId);
+      if (reminderId) reminderIds.push(reminderId);
+    }
+  });
+
+  await Promise.all(reminderIds.map(cancelChallengeReminder));
 }
 
 export function useActiveChallenge(userId: number) {
@@ -961,11 +976,7 @@ export function useDeleteChallenge(userId: number) {
       const ids = Array.isArray(challengeIds) ? challengeIds : [challengeIds];
       if (ids.length === 0) return;
       const db = await getDb();
-      await db.withExclusiveTransactionAsync(async txn => {
-        for (const challengeId of ids) {
-          await deleteChallengeById(txn as unknown as SQLiteDatabase, userId, challengeId);
-        }
-      });
+      await deleteChallengesById(db, userId, ids);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
