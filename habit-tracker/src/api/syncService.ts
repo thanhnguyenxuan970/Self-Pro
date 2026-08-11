@@ -130,6 +130,12 @@ interface FundRow {
   occurred_at: number;
 }
 
+export type SocialProfileSignal = {
+  currentStreak: number;
+  lastActiveLocalDate: string | null;
+  timezone: string;
+};
+
 /** Map a Google OIDC sub to the local user row id, with email fallback for legacy rows. */
 async function resolveUserId(db: SQLiteDatabase, userSub: string, userEmail: string): Promise<number | null> {
   const bySub = await db.getFirstAsync<{ id: number }>(
@@ -217,17 +223,39 @@ async function syncFund(
   await upsertBatch('fund_transactions', rows, userEmail, key, assertActive);
 }
 
-async function syncUserProfile(db: SQLiteDatabase, userId: number, assertActive: AssertSyncActive): Promise<void> {
-  const row = await db.getFirstAsync<{ current_streak: number }>(
-    `SELECT COALESCE((SELECT streak_count FROM daily_summary
-                      WHERE user_id = u.id ORDER BY local_date DESC LIMIT 1), 0) AS current_streak
-     FROM users u WHERE u.id = ?`,
+export async function readSocialProfile(
+  db: SQLiteDatabase,
+  userId: number,
+  timezone: string,
+): Promise<SocialProfileSignal> {
+  const streak = await db.getFirstAsync<{ current_streak: number }>(
+    `SELECT COALESCE(streak_count, 0) AS current_streak
+     FROM daily_summary WHERE user_id = ?
+     ORDER BY local_date DESC LIMIT 1`,
     [userId],
   );
-  if (!row) return;
+  const freshness = await db.getFirstAsync<{ last_active_local_date: string | null }>(
+    `SELECT MAX(local_date) AS last_active_local_date
+     FROM activity_log
+     WHERE user_id = ? AND source IN ('TASK', 'CHALLENGE')`,
+    [userId],
+  );
+
+  return {
+    currentStreak: streak?.current_streak ?? 0,
+    lastActiveLocalDate: freshness?.last_active_local_date ?? null,
+    timezone,
+  };
+}
+
+async function syncUserProfile(db: SQLiteDatabase, userId: number, assertActive: AssertSyncActive): Promise<void> {
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Ho_Chi_Minh';
+  const profile = await readSocialProfile(db, userId, timezone);
   assertActive();
-  const { error } = await supabase!.rpc('sync_user_profile', {
-    p_current_streak: row.current_streak,
+  const { error } = await supabase!.rpc('sync_user_profile_v2', {
+    p_current_streak: profile.currentStreak,
+    p_last_active_local_date: profile.lastActiveLocalDate,
+    p_timezone: profile.timezone,
   });
   if (error) throw error;
 }
@@ -314,14 +342,13 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
     const db = await getDb();
     const userId = await resolveUserId(db, userSub, userEmail);
     if (userId == null) return;
-    // Create/update only the mutable profile fields first. Lifetime stars are
-    // recomputed by Supabase from the synced activity rows and cannot be sent
-    // directly by the client.
-    await syncUserProfile(db, userId, assertActive);
     await Promise.all([
       syncActivity(db, userId, userEmail, assertActive),
       syncFund(db, userId, userEmail, assertActive),
     ]);
+    // Publish the local social projection only after activity upload so remote
+    // progress and freshness converge within this serialized account sync.
+    await syncUserProfile(db, userId, assertActive);
     await syncLifetimeStars(assertActive);
   });
 }
