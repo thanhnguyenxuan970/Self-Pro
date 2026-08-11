@@ -25,12 +25,6 @@ BEGIN
     RETURN;
   END IF;
 
-  IF original_relationship.state = 'pending'
-     AND original_relationship.requested_by = caller_id THEN
-    RETURN QUERY SELECT 'FORBIDDEN'::text;
-    RETURN;
-  END IF;
-
   PERFORM public.friend_pair_lock(original_relationship.user_a_id, original_relationship.user_b_id);
   SELECT relation.* INTO current_relationship
     FROM public.friend_relationships AS relation

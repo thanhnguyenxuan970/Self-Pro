@@ -9,6 +9,8 @@ reference model. Install `supabase/tests/requirements.txt`, then provide either:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 import json
 import os
 import pathlib
@@ -200,6 +202,17 @@ def succeeds(cur: psycopg.Cursor[object], sql: str, params: tuple[object, ...] =
         return True
     except psycopg.Error:
         return False
+
+
+@contextmanager
+def database_role(cur: psycopg.Cursor[object], role: str) -> Iterator[None]:
+    if role not in ("authenticated", "anon"):
+        raise ValueError(f"Unexpected database role: {role}")
+    cur.execute(f"SET ROLE {role}")
+    try:
+        yield
+    finally:
+        cur.execute("RESET ROLE")
 
 
 def reset_pre_029(cur: psycopg.Cursor[object]) -> None:
@@ -693,11 +706,12 @@ def test_blocked_accounts_and_pending_consent(
 
     outgoing_id = insert_relationship(cur, an_id, dung_id, "pending", an_id)
     set_user(cur, *users["an"], name="An")
-    checks.equal(
-        "outgoing requester cannot block anonymous recipient",
-        scalar(cur, "SELECT status FROM block_friend(%s)", (outgoing_id,)),
-        "FORBIDDEN",
-    )
+    with database_role(cur, "authenticated"):
+        checks.equal(
+            "outgoing requester cannot block anonymous recipient",
+            scalar(cur, "SELECT status FROM block_friend(%s)", (outgoing_id,)),
+            "FORBIDDEN",
+        )
     checks.equal(
         "forbidden outgoing block leaves pending row unchanged",
         scalar(
@@ -707,14 +721,24 @@ def test_blocked_accounts_and_pending_consent(
         ),
         True,
     )
+    with database_role(cur, "anon"):
+        checks.true(
+            "anon blocked-list RPC execution is denied",
+            expect_error(cur, "SELECT * FROM get_my_blocked_accounts()"),
+        )
+        checks.true(
+            "anon guarded block RPC execution is denied",
+            expect_error(cur, "SELECT status FROM block_friend(%s)", (outgoing_id,)),
+        )
     cur.execute("DELETE FROM friend_relationships WHERE id=%s", (outgoing_id,))
 
     blocked_id = insert_relationship(cur, an_id, binh_id, "accepted", an_id)
-    checks.equal(
-        "accepted participant can still block",
-        scalar(cur, "SELECT status FROM block_friend(%s)", (blocked_id,)),
-        "OK",
-    )
+    with database_role(cur, "authenticated"):
+        checks.equal(
+            "authenticated accepted participant can still block through SECURITY DEFINER RPC",
+            scalar(cur, "SELECT status FROM block_friend(%s)", (blocked_id,)),
+            "OK",
+        )
     cur.execute(
         "UPDATE friend_relationships SET updated_at='2026-08-11 10:00:00+00' WHERE id=%s",
         (blocked_id,),
@@ -733,8 +757,9 @@ def test_blocked_accounts_and_pending_consent(
     )
 
     set_user(cur, *users["an"], name="An")
-    cur.execute("SELECT relationship_id,display_name FROM get_my_blocked_accounts()")
-    checks.equal("blocked list exposes blocker-owned row", cur.fetchall(), [(blocked_id, "Binh")])
+    with database_role(cur, "authenticated"):
+        cur.execute("SELECT relationship_id,display_name FROM get_my_blocked_accounts()")
+        checks.equal("blocked list exposes blocker-owned row", cur.fetchall(), [(blocked_id, "Binh")])
 
     newest_blocked_id = insert_relationship(cur, an_id, dung_id, "accepted", an_id)
     checks.equal(
@@ -759,14 +784,17 @@ def test_blocked_accounts_and_pending_consent(
     )
 
     set_user(cur, *users["binh"], name="Binh")
-    cur.execute("SELECT relationship_id,display_name FROM get_my_blocked_accounts()")
-    checks.equal("non-blocker sees no blocked rows", cur.fetchall(), [])
+    with database_role(cur, "authenticated"):
+        cur.execute("SELECT relationship_id,display_name FROM get_my_blocked_accounts()")
+        checks.equal("authenticated non-blocker sees no blocked rows", cur.fetchall(), [])
 
-    checks.equal(
-        "authenticated still has no direct relationship table access",
-        scalar(cur, "SELECT has_table_privilege('authenticated','public.friend_relationships','SELECT')"),
-        False,
-    )
+    for role in ("authenticated", "anon"):
+        for privilege in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+            checks.equal(
+                f"{role} has no direct relationship table {privilege} privilege",
+                scalar(cur, "SELECT has_table_privilege(%s,'public.friend_relationships',%s)", (role, privilege)),
+                False,
+            )
     checks.equal(
         "authenticated can execute blocked-list RPC",
         scalar(cur, "SELECT has_function_privilege('authenticated','public.get_my_blocked_accounts()','EXECUTE')"),
@@ -878,6 +906,86 @@ def run_accept_block_races(uri: str, checks: Checks, users: dict[str, tuple[uuid
 
     checks.equal("accept/block races complete without database errors", errors, [])
     checks.equal("blocked dominates all 25 accept/block races", final_states, ["blocked"] * 25)
+    run_forced_requester_block_after_accept(uri, checks, users)
+
+
+def run_forced_requester_block_after_accept(
+    uri: str,
+    checks: Checks,
+    users: dict[str, tuple[uuid.UUID, str]],
+) -> None:
+    print("\n== queued recipient accept before requester block uses locked current row ==")
+    with psycopg.connect(uri, autocommit=True) as setup_conn, setup_conn.cursor() as cur:
+        cur.execute("DELETE FROM friend_relationships; DELETE FROM friend_code_attempts")
+        relationship_id = insert_relationship(
+            cur,
+            users["an"][0],
+            users["binh"][0],
+            "pending",
+            users["an"][0],
+        )
+
+    pids: dict[str, int] = {}
+    outcomes: dict[str, str] = {}
+    errors: list[str] = []
+    pid_events = {"accept": threading.Event(), "block": threading.Event()}
+    done_events = {"accept": threading.Event(), "block": threading.Event()}
+
+    def mutate(kind: str, actor: tuple[uuid.UUID, str]) -> None:
+        try:
+            with psycopg.connect(uri) as conn, conn.cursor() as cur:
+                set_user(cur, actor[0], actor[1], actor[1].split("@")[0])
+                pids[kind] = int(scalar(cur, "SELECT pg_backend_pid()"))
+                pid_events[kind].set()
+                with database_role(cur, "authenticated"):
+                    if kind == "accept":
+                        cur.execute("SELECT status FROM respond_to_friend_request(%s,'accept')", (relationship_id,))
+                    else:
+                        cur.execute("SELECT status FROM block_friend(%s)", (relationship_id,))
+                    outcomes[kind] = str(cur.fetchone()[0])
+                conn.commit()
+        except Exception as error:  # pragma: no cover - printed as evidence
+            errors.append(type(error).__name__)
+        finally:
+            done_events[kind].set()
+
+    with psycopg.connect(uri) as holder, holder.cursor() as holder_cur:
+        holder_cur.execute(
+            "SELECT friend_pair_lock(%s,%s)",
+            (users["an"][0], users["binh"][0]),
+        )
+
+        accept_thread = threading.Thread(target=mutate, args=("accept", users["binh"]))
+        accept_thread.start()
+        accept_started = pid_events["accept"].wait(timeout=2)
+        checks.true("recipient accept worker starts", accept_started)
+        checks.true(
+            "recipient accept queues first behind the pair lock",
+            accept_started and wait_for_advisory_lock(holder_cur, pids["accept"]),
+        )
+
+        block_thread = threading.Thread(target=mutate, args=("block", users["an"]))
+        block_thread.start()
+        block_started = pid_events["block"].wait(timeout=2)
+        checks.true("outgoing requester block worker starts", block_started)
+        checks.equal(
+            "outgoing requester block cannot decide before the pair lock is released",
+            done_events["block"].wait(timeout=0.25) if block_started else True,
+            False,
+        )
+        holder.commit()
+
+        join_threads((accept_thread, block_thread), errors)
+
+    checks.equal("forced accept/requester-block race has no database errors", errors, [])
+    checks.equal("queued recipient accepts first", outcomes.get("accept"), "OK")
+    checks.equal("requester blocks after observing accepted current row", outcomes.get("block"), "OK")
+    with psycopg.connect(uri, autocommit=True) as conn, conn.cursor() as cur:
+        checks.equal(
+            "forced accept/requester-block race ends blocked",
+            scalar(cur, "SELECT state FROM friend_relationships WHERE id=%s", (relationship_id,)),
+            "blocked",
+        )
 
 
 def wait_for_advisory_lock(cur: psycopg.Cursor[object], backend_pid: int) -> bool:
