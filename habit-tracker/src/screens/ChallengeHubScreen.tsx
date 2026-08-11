@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
-import { useActiveChallenge, useChallengeHistory, useChallengeRollover, useDeleteChallenge, useRestartChallenge } from '../queries/useChallenge';
+import { useActiveChallenges, useChallengeHistory, useChallengeRollover, useDeleteChallenge, useRestartChallenge } from '../queries/useChallenge';
 import { ChallengeCard } from '../components/ChallengeCard';
 import { useSelectionMode } from '../hooks/useSelectionMode';
 import { challengeHubViewState } from '../utils/challengeHub';
@@ -13,15 +13,16 @@ import { challengeHubViewState } from '../utils/challengeHub';
 export function ChallengeHubScreen() {
   const { userId, colors, t, styles } = useScreenCommons(makeStyles);
   const navigation = useNavigation();
-  const { data: active, isLoading: activeLoading } = useActiveChallenge(userId);
+  const { data: activeChallenges = [], isLoading: activeLoading } = useActiveChallenges(userId);
   const { data: history = [], isLoading: historyLoading } = useChallengeHistory(userId);
   const rollover = useChallengeRollover(userId);
   const restartChallenge = useRestartChallenge(userId);
   const deleteChallenges = useDeleteChallenge(userId);
   const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(history);
-  const openActiveChallenge = useCallback(() => {
-    if (active) (navigation as any).navigate('ChallengeDetail', { challengeId: active.id });
-  }, [active, navigation]);
+  const activeChallengeIds = activeChallenges.map(challenge => challenge.id).join(',');
+  const openActiveChallenge = useCallback((challengeId: number) => {
+    (navigation as any).navigate('ChallengeDetail', { challengeId });
+  }, [navigation]);
 
   function confirmDelete(ids: number[]) {
     Alert.alert(
@@ -41,10 +42,10 @@ export function ChallengeHubScreen() {
   }
 
   useEffect(() => {
-    if (active) rollover.mutate();
-    // Run once per mount to catch missed days, not on every active refetch.
+    if (activeChallengeIds) rollover.mutate();
+    // Run when the active set first becomes available or its IDs change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeChallengeIds]);
 
   // A native header (RootNavigator's modalHeaderOptions) replaced this screen's old
   // headerShown:false + hand-rolled back button, which left no back affordance beyond a
@@ -79,7 +80,7 @@ export function ChallengeHubScreen() {
     );
   }
 
-  const viewState = challengeHubViewState(Boolean(active), history.length);
+  const viewState = challengeHubViewState(activeChallenges.length > 0, history.length);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -114,17 +115,20 @@ export function ChallengeHubScreen() {
                 </TouchableOpacity>
               </View>
             )}
-            {active && (
+            {activeChallenges.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>{t.challengeActiveSection}</Text>
-                <ChallengeCard
-                  name={active.name}
-                  targetDays={active.targetDays}
-                  dayIndex={active.dayIndex}
-                  fraction={active.fraction}
-                  streak={active.streak}
-                  onPress={openActiveChallenge}
-                />
+                {activeChallenges.map(active => (
+                  <ChallengeCard
+                    key={active.id}
+                    name={active.name}
+                    targetDays={active.targetDays}
+                    dayIndex={active.dayIndex}
+                    fraction={active.fraction}
+                    streak={active.streak}
+                    onPress={() => openActiveChallenge(active.id)}
+                  />
+                ))}
               </View>
             )}
 
@@ -200,8 +204,8 @@ export function ChallengeHubScreen() {
                             }
                             (navigation as any).navigate('ChallengeDetail', { challengeId });
                           }}
-                          disabled={active != null || restartChallenge.isPending}
-                          style={[styles.retryButton, (active != null || restartChallenge.isPending) && styles.retryDisabled]}
+                          disabled={restartChallenge.isPending}
+                          style={[styles.retryButton, restartChallenge.isPending && styles.retryDisabled]}
                           accessibilityRole="button"
                           accessibilityLabel={t.challengeRestartCta}
                         >

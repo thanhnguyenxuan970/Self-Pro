@@ -18,6 +18,9 @@ function createLinkedLogDayDb(config: {
     return null;
   });
   const getAllAsync = jest.fn(async (sql: string) => {
+    if (sql.includes('FROM challenges') && sql.includes("status = 'active'")) {
+      return config.challenge ? [config.challenge] : [];
+    }
     if (sql.includes('FROM activity_log')) return config.activityRows ?? [];
     if (sql.includes('FROM tiers ORDER BY stars_required ASC')) return [];
     return [];
@@ -46,6 +49,9 @@ function createManualLogDayDb(config: {
     return null;
   });
   const getAllAsync = jest.fn(async (sql: string) => {
+    if (sql.includes('FROM challenges') && sql.includes("status = 'active'")) {
+      return config.challenge ? [config.challenge] : [];
+    }
     if (sql.includes('FROM tiers ORDER BY stars_required ASC')) return [];
     return [];
   });
@@ -54,6 +60,48 @@ function createManualLogDayDb(config: {
 }
 
 describe('logActiveChallengeDay -- linked challenges (task_type_id set)', () => {
+  it('updates every active challenge linked to the logged task', async () => {
+    const challenges = [
+      { id: 17, task_type_id: 42, target_days: 30, mode: 'streak' as const, start_date: '2026-07-06' },
+      { id: 18, task_type_id: 42, target_days: 60, mode: 'streak' as const, start_date: '2026-07-06' },
+    ];
+    const getFirstAsync = jest.fn(async () => null);
+    const getAllAsync = jest.fn(async (sql: string) => {
+      if (sql.includes('FROM challenges') && sql.includes("status = 'active'")) return challenges;
+      if (sql.includes('FROM activity_log')) return [{ local_date: '2026-07-06', duration_min: 10 }];
+      if (sql.includes('FROM tiers ORDER BY stars_required ASC')) return [];
+      return [];
+    });
+    const runAsync = jest.fn(async () => ({ changes: 1 }));
+    const db = { getFirstAsync, getAllAsync, runAsync } as unknown as SQLiteDatabase;
+
+    const result = await logActiveChallengeDay(db, { userId: 5, localDate: '2026-07-06', taskTypeId: 42 });
+
+    expect(result.status).toBe('logged');
+    expect(runAsync).toHaveBeenCalledWith(
+      `UPDATE challenges SET streak_current = ? WHERE id = ?`,
+      [1, 17],
+    );
+    expect(runAsync).toHaveBeenCalledWith(
+      `UPDATE challenges SET streak_current = ? WHERE id = ?`,
+      [1, 18],
+    );
+  });
+
+  it('does not count a challenge completion reward as a linked habit day', async () => {
+    const db = createLinkedLogDayDb({
+      challenge: { id: 19, task_type_id: 42, target_days: 30, mode: 'streak', start_date: '2026-07-06' },
+      activityRows: [{ local_date: '2026-07-06', duration_min: null }],
+    });
+
+    await logActiveChallengeDay(db, { userId: 5, localDate: '2026-07-06', taskTypeId: 42 });
+
+    expect(db.getAllAsync).toHaveBeenCalledWith(
+      expect.stringContaining("source != 'CHALLENGE'"),
+      [5, 42, '2026-07-06'],
+    );
+  });
+
   it('derives completion from activity_log query-time -- no challenge_log/challenge_days write', async () => {
     const db = createLinkedLogDayDb({
       challenge: { id: 7, task_type_id: 42, target_days: 30, mode: 'streak', start_date: '2026-06-01' },
@@ -148,6 +196,54 @@ describe('logActiveChallengeDay -- linked challenges (task_type_id set)', () => 
 });
 
 describe('logActiveChallengeDay -- manual challenges (task_type_id null)', () => {
+  it('logs every active manual challenge independently', async () => {
+    const challenges = [
+      { id: 21, task_type_id: null, target_days: 30 },
+      { id: 22, task_type_id: null, target_days: 60 },
+    ];
+    const getFirstAsync = jest.fn(async (sql: string) => {
+      if (sql.includes('challenge_log WHERE challenge_id = ? AND local_date = ?')) return null;
+      if (sql.includes("COUNT(*) AS n FROM challenge_log") && sql.includes("state = 'done'")) return { n: 1 };
+      if (sql.includes("COUNT(*) AS n FROM challenge_log") && sql.includes("state != 'reset'")) return { n: 1 };
+      return null;
+    });
+    const getAllAsync = jest.fn(async (sql: string) => (
+      sql.includes('FROM challenges') && sql.includes("status = 'active'") ? challenges : []
+    ));
+    const runAsync = jest.fn(async () => ({ changes: 1 }));
+    const db = { getFirstAsync, getAllAsync, runAsync } as unknown as SQLiteDatabase;
+
+    const result = await logActiveChallengeDay(db, { userId: 5, localDate: '2026-07-06' });
+
+    expect(result.status).toBe('logged');
+    expect(runAsync).toHaveBeenCalledWith(
+      `INSERT INTO challenge_log (challenge_id, local_date, state) VALUES (?, ?, 'done')`,
+      [21, '2026-07-06'],
+    );
+    expect(runAsync).toHaveBeenCalledWith(
+      `INSERT INTO challenge_log (challenge_id, local_date, state) VALUES (?, ?, 'done')`,
+      [22, '2026-07-06'],
+    );
+  });
+
+  it('targets only the requested challenge from the detail screen', async () => {
+    const db = createManualLogDayDb({
+      challenge: { id: 23, task_type_id: null, target_days: 30 },
+    });
+
+    const result = await logActiveChallengeDay(db, {
+      userId: 5,
+      localDate: '2026-07-06',
+      challengeId: 23,
+    });
+
+    expect(result.status).toBe('logged');
+    expect(db.getAllAsync).toHaveBeenCalledWith(
+      expect.stringContaining('user_id = ? AND id = ? AND status = \'active\''),
+      [5, 23],
+    );
+  });
+
   it('logs once and writes challenge_log/challenge_days as before', async () => {
     const db = createManualLogDayDb({
       challenge: { id: 7, task_type_id: null, target_days: 30 },
@@ -210,6 +306,9 @@ describe('logActiveChallengeDay -- manual challenges (task_type_id null)', () =>
       return null;
     });
     const getAllAsync = jest.fn(async (sql: string) => {
+      if (sql.includes('FROM challenges') && sql.includes("status = 'active'")) {
+        return [{ id: 7, task_type_id: null, target_days: 7, mode: 'streak' }];
+      }
       if (sql.includes('FROM tiers ORDER BY stars_required ASC')) return tiers;
       return [];
     });

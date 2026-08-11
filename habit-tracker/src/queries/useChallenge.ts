@@ -109,8 +109,9 @@ export async function cancelTerminalChallengeReminders(
 
 /**
  * Query-time done-dates source for a challenge: linked challenges (task_type_id
- * set) derive from activity_log (no persisted write -- PHẦN 3's "1 nguồn sự
- * thật"); manual challenges read the existing challenge_log 'done' rows.
+ * set) derive completions from activity_log (the single source of truth);
+ * rollover may persist freeze/reset outcome markers in challenge_log. Manual
+ * challenges read the existing challenge_log 'done' rows.
  */
 async function getDoneDates(
   db: ChallengeLogDb,
@@ -120,7 +121,7 @@ async function getDoneDates(
   if (row.task_type_id != null) {
     const rows = await db.getAllAsync<{ local_date: string; duration_min: number | null }>(
       `SELECT local_date, duration_min FROM activity_log
-       WHERE user_id = ? AND task_type_id = ? AND local_date >= ? AND is_clock_suspect = 0
+       WHERE user_id = ? AND task_type_id = ? AND local_date >= ? AND is_clock_suspect = 0 AND source != 'CHALLENGE'
        ORDER BY local_date ASC`,
       [userId, row.task_type_id, row.start_date],
     );
@@ -230,28 +231,16 @@ export type LogActiveChallengeDayResult = {
   lifetimeCrossings: LifetimeTierCrossing[];
 };
 
-export async function logActiveChallengeDay(
-  db: ChallengeLogDb,
-  params: { userId: number; localDate: string; taskTypeId?: number | null },
-): Promise<LogActiveChallengeDayResult> {
-  const row = params.taskTypeId == null
-    ? await db.getFirstAsync<Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days' | 'mode' | 'weekly_target' | 'total_weeks' | 'start_date' | 'min_duration' | 'min_count'>>(
-      `SELECT id, task_type_id, target_days, mode, weekly_target, total_weeks, start_date, min_duration, min_count FROM challenges WHERE user_id = ? AND status = 'active'`,
-      [params.userId],
-    )
-    : await db.getFirstAsync<Pick<ChallengeRow, 'id' | 'task_type_id' | 'target_days' | 'mode' | 'weekly_target' | 'total_weeks' | 'start_date' | 'min_duration' | 'min_count'>>(
-      `SELECT id, task_type_id, target_days, mode, weekly_target, total_weeks, start_date, min_duration, min_count
-       FROM challenges
-       WHERE user_id = ? AND status = 'active' AND task_type_id = ?`,
-      [params.userId, params.taskTypeId],
-    );
-  if (!row) return { status: 'no_active_challenge', lifetimeCrossings: [] };
+type ChallengeLogRow = Pick<
+  ChallengeRow,
+  'id' | 'task_type_id' | 'target_days' | 'mode' | 'weekly_target' | 'total_weeks' | 'start_date' | 'min_duration' | 'min_count'
+>;
 
-  // Linked challenges (task_type_id set): completion is derived query-time
-  // from activity_log, no parallel challenge_log/challenge_days write
-  // (PHẦN 3's "1 nguồn sự thật"). Weekly-mode completion is rollover-only --
-  // a week can't be judged complete until it has fully elapsed -- so only
-  // streak mode can complete inline here.
+async function logChallengeDayForRow(
+  db: ChallengeLogDb,
+  row: ChallengeLogRow,
+  params: { userId: number; localDate: string },
+): Promise<{ status: 'logged' | 'already_logged'; lifetimeCrossings: LifetimeTierCrossing[] }> {
   if (row.task_type_id != null) {
     const doneDates = await getDoneDates(db, params.userId, row);
     const daysDone = doneDates.length;
@@ -291,9 +280,6 @@ export async function logActiveChallengeDay(
     [row.id],
   );
   const streakCurrent = streakRow?.n ?? 0;
-  // Weekly-mode completion is rollover-only -- a week (and the challenge as a
-  // whole) can't be judged complete until it has fully elapsed, so only
-  // streak mode can complete inline here on a same-day log.
   let lifetimeCrossings: LifetimeTierCrossing[] = [];
   if (row.mode === 'streak' && isComplete(daysDone, row.target_days)) {
     lifetimeCrossings = await completeStreakChallenge(db, row, params, streakCurrent);
@@ -304,12 +290,51 @@ export async function logActiveChallengeDay(
   return { status: 'logged', lifetimeCrossings };
 }
 
+export async function logActiveChallengeDay(
+  db: ChallengeLogDb,
+  params: { userId: number; localDate: string; taskTypeId?: number | null; challengeId?: number | null },
+): Promise<LogActiveChallengeDayResult> {
+  const values = params.challengeId != null
+    ? [params.userId, params.challengeId]
+    : params.taskTypeId == null
+      ? [params.userId]
+      : [params.userId, params.taskTypeId];
+  const where = params.challengeId != null
+    ? "user_id = ? AND id = ? AND status = 'active'"
+    : params.taskTypeId == null
+      ? "user_id = ? AND status = 'active' AND task_type_id IS NULL"
+      : "user_id = ? AND status = 'active' AND task_type_id = ?";
+  const rows = await db.getAllAsync<ChallengeLogRow>(
+    `SELECT id, task_type_id, target_days, mode, weekly_target, total_weeks, start_date, min_duration, min_count
+     FROM challenges WHERE ${where} ORDER BY id ASC`,
+    values,
+  );
+  if (rows.length === 0) return { status: 'no_active_challenge', lifetimeCrossings: [] };
+
+  // Linked challenges (task_type_id set): completion is derived query-time
+  // from activity_log, no parallel challenge_log/challenge_days write
+  // (PHẦN 3's "1 nguồn sự thật"). Weekly-mode completion is rollover-only --
+  // a week can't be judged complete until it has fully elapsed -- so only
+  // streak mode can complete inline here.
+  let anyLogged = false;
+  const lifetimeCrossings: LifetimeTierCrossing[] = [];
+  for (const row of rows) {
+    const result = await logChallengeDayForRow(db, row, params);
+    anyLogged = anyLogged || result.status === 'logged';
+    lifetimeCrossings.push(...result.lifetimeCrossings);
+  }
+  return {
+    status: anyLogged ? 'logged' : 'already_logged',
+    lifetimeCrossings,
+  };
+}
+
 async function loadChallengeWithLog(db: SQLiteDatabase, row: ChallengeRow, today: string, userId: number): Promise<ActiveChallenge> {
   const linked = row.task_type_id != null;
 
-  // Linked challenges derive done-dates query-time from activity_log (no
-  // persisted challenge_log write); manual challenges keep reading
-  // challenge_log 'done' rows exactly as before.
+  // Linked challenges derive completion dates query-time from activity_log;
+  // manual challenges keep reading challenge_log 'done' rows exactly as
+  // before. Linked rollover markers are intentionally not counted as done.
   const derivedDoneDates = linked ? await getDoneDates(db, userId, row) : null;
   const logRows = linked
     ? derivedDoneDates!.map(date => ({ local_date: date, state: 'done' as ChallengeLogState }))
@@ -455,18 +480,35 @@ export async function deleteChallengeById(
   await db.runAsync(`DELETE FROM challenges WHERE id = ? AND user_id = ?`, [challengeId, userId]);
 }
 
-export function useActiveChallenge(userId: number) {
+async function getActiveChallengeRows(db: SQLiteDatabase, userId: number): Promise<ChallengeRow[]> {
+  return db.getAllAsync<ChallengeRow>(
+    `SELECT ${CHALLENGE_COLUMNS}
+     FROM challenges WHERE user_id = ? AND status = 'active'
+     ORDER BY created_at DESC, id DESC`,
+    [userId],
+  );
+}
+
+export function useActiveChallenges(userId: number) {
   return useQuery({
     queryKey: ['challenge', 'active', userId],
+    queryFn: async (): Promise<ActiveChallenge[]> => {
+      const db = await getDb();
+      const today = challengeDate();
+      const rows = await getActiveChallengeRows(db, userId);
+      return Promise.all(rows.map(row => loadChallengeWithLog(db, row, today, userId)));
+    },
+  });
+}
+
+/** Compatibility query for callers that only need the first active challenge. */
+export function useActiveChallenge(userId: number) {
+  return useQuery({
+    queryKey: ['challenge', 'active', 'first', userId],
     queryFn: async (): Promise<ActiveChallenge | null> => {
       const db = await getDb();
-      const row = await db.getFirstAsync<ChallengeRow>(
-        `SELECT ${CHALLENGE_COLUMNS}
-         FROM challenges WHERE user_id = ? AND status = 'active'`,
-        [userId],
-      );
-      if (!row) return null;
-      return loadChallengeWithLog(db, row, challengeDate(), userId);
+      const row = (await getActiveChallengeRows(db, userId))[0];
+      return row ? loadChallengeWithLog(db, row, challengeDate(), userId) : null;
     },
   });
 }
@@ -534,81 +576,95 @@ export function useChallengeRollover(userId: number) {
   });
 }
 
+async function rolloverChallengeRow(
+  txn: ChallengeLogDb,
+  userId: number,
+  row: ChallengeRow,
+  today: string,
+): Promise<LifetimeTierCrossing[]> {
+  if (row.mode === 'weekly' && row.weekly_target != null && row.total_weeks != null) {
+    return rolloverWeeklyChallenge(txn, userId, row as ChallengeRow & { weekly_target: number; total_weeks: number }, today);
+  }
+
+  if (row.task_type_id != null) {
+    const doneDates = await getDoneDates(txn, userId, row);
+    const rolloverRows = await txn.getAllAsync<{ local_date: string }>(
+      `SELECT local_date FROM challenge_log WHERE challenge_id = ?`,
+      [row.id],
+    );
+    const result = computeRollover({
+      startDate: row.start_date,
+      today,
+      loggedDates: new Set([...doneDates, ...rolloverRows.map(log => log.local_date)]),
+      freezesLeft: row.freezes_left,
+    });
+    for (const day of result.fillDays) {
+      await txn.runAsync(
+        `INSERT INTO challenge_log (challenge_id, local_date, state) VALUES (?, ?, ?)
+         ON CONFLICT(challenge_id, local_date) DO NOTHING`,
+        [row.id, day.date, day.state],
+      );
+    }
+    if (result.freezesLeft !== row.freezes_left) {
+      await txn.runAsync(`UPDATE challenges SET freezes_left = ? WHERE id = ?`, [result.freezesLeft, row.id]);
+    }
+    if (result.failed) {
+      await txn.runAsync(`UPDATE challenges SET status = 'failed' WHERE id = ?`, [row.id]);
+    }
+    return [];
+  }
+
+  const logRows = await txn.getAllAsync<{ local_date: string }>(
+    `SELECT local_date FROM challenge_log WHERE challenge_id = ?`,
+    [row.id],
+  );
+  const loggedDates = new Set(logRows.map(r => r.local_date));
+  const result = computeRollover({
+    startDate: row.start_date,
+    today,
+    loggedDates,
+    freezesLeft: row.freezes_left,
+  });
+  if (result.fillDays.length === 0) return [];
+
+  for (const day of result.fillDays) {
+    await txn.runAsync(
+      `INSERT INTO challenge_log (challenge_id, local_date, state) VALUES (?, ?, ?)
+       ON CONFLICT(challenge_id, local_date) DO NOTHING`,
+      [row.id, day.date, day.state],
+    );
+  }
+  const usedFreeze = result.fillDays.some(day => day.state === 'freeze');
+  const streakCurrent = result.failed
+    ? 0
+    : (await txn.getFirstAsync<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM challenge_log WHERE challenge_id = ? AND state != 'reset'`,
+      [row.id],
+    ))?.n ?? 0;
+  await txn.runAsync(
+    `UPDATE challenges
+     SET freezes_left = ?, freeze_used = CASE WHEN ? THEN 1 ELSE freeze_used END, streak_current = ?
+     WHERE id = ?`,
+    [result.freezesLeft, usedFreeze ? 1 : 0, streakCurrent, row.id],
+  );
+  if (result.failed) {
+    await txn.runAsync(`UPDATE challenges SET status = 'failed' WHERE id = ?`, [row.id]);
+  }
+  return [];
+}
+
 export async function rolloverChallenge(userId: number): Promise<void> {
       const db = await getDb();
       const today = challengeDate();
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
       await db.withExclusiveTransactionAsync(async (txn) => {
-        const row = await txn.getFirstAsync<ChallengeRow>(
+        const rows = await txn.getAllAsync<ChallengeRow>(
           `SELECT ${CHALLENGE_COLUMNS}
-           FROM challenges WHERE user_id = ? AND status = 'active'`,
+           FROM challenges WHERE user_id = ? AND status = 'active' ORDER BY id ASC`,
           [userId],
         );
-        if (!row) return;
-
-        if (row.mode === 'weekly' && row.weekly_target != null && row.total_weeks != null) {
-          lifetimeCrossings = await rolloverWeeklyChallenge(txn, userId, row as ChallengeRow & { weekly_target: number; total_weeks: number }, today);
-          return;
-        }
-
-        if (row.task_type_id != null) {
-          // Linked streak challenge: no challenge_log to fill -- derive
-          // done-dates and write only the summary columns already on
-          // `challenges` (there is no per-day row to persist for a linked
-          // challenge, so a "gap" here is a live fact re-derived on every
-          // call, never a stored fill).
-          const doneDates = await getDoneDates(txn, userId, row);
-          const result = computeRollover({
-            startDate: row.start_date,
-            today,
-            loggedDates: new Set(doneDates),
-            freezesLeft: row.freezes_left,
-          });
-          if (result.freezesLeft !== row.freezes_left) {
-            await txn.runAsync(`UPDATE challenges SET freezes_left = ? WHERE id = ?`, [result.freezesLeft, row.id]);
-          }
-          if (result.failed) {
-            await txn.runAsync(`UPDATE challenges SET status = 'failed' WHERE id = ?`, [row.id]);
-          }
-          return;
-        }
-
-        const logRows = await txn.getAllAsync<{ local_date: string }>(
-          `SELECT local_date FROM challenge_log WHERE challenge_id = ?`,
-          [row.id],
-        );
-        const loggedDates = new Set(logRows.map(r => r.local_date));
-
-        const result = computeRollover({
-          startDate: row.start_date,
-          today,
-          loggedDates,
-          freezesLeft: row.freezes_left,
-        });
-        if (result.fillDays.length === 0) return;
-
-        for (const day of result.fillDays) {
-          await txn.runAsync(
-            `INSERT INTO challenge_log (challenge_id, local_date, state) VALUES (?, ?, ?)
-             ON CONFLICT(challenge_id, local_date) DO NOTHING`,
-            [row.id, day.date, day.state],
-          );
-        }
-        const usedFreeze = result.fillDays.some(day => day.state === 'freeze');
-        const streakCurrent = result.failed
-          ? 0
-          : (await txn.getFirstAsync<{ n: number }>(
-            `SELECT COUNT(*) AS n FROM challenge_log WHERE challenge_id = ? AND state != 'reset'`,
-            [row.id],
-          ))?.n ?? 0;
-        await txn.runAsync(
-          `UPDATE challenges
-           SET freezes_left = ?, freeze_used = CASE WHEN ? THEN 1 ELSE freeze_used END, streak_current = ?
-           WHERE id = ?`,
-          [result.freezesLeft, usedFreeze ? 1 : 0, streakCurrent, row.id],
-        );
-        if (result.failed) {
-          await txn.runAsync(`UPDATE challenges SET status = 'failed' WHERE id = ?`, [row.id]);
+        for (const row of rows) {
+          lifetimeCrossings.push(...await rolloverChallengeRow(txn, userId, row, today));
         }
       });
 
@@ -677,12 +733,12 @@ async function rolloverWeeklyChallenge(
 export function useLogChallengeDay(userId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (): Promise<{ lifetimeCrossings: LifetimeTierCrossing[] }> => {
+    mutationFn: async (challengeId: number): Promise<{ lifetimeCrossings: LifetimeTierCrossing[] }> => {
       const db = await getDb();
       const today = challengeDate();
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
       await db.withExclusiveTransactionAsync(async (txn) => {
-        const result = await logActiveChallengeDay(txn, { userId, localDate: today });
+        const result = await logActiveChallengeDay(txn, { userId, localDate: today, challengeId });
         if (result.status === 'no_active_challenge') throw new Error('NO_ACTIVE_CHALLENGE');
         if (result.status === 'already_logged') throw new Error('ALREADY_LOGGED_TODAY');
         lifetimeCrossings = result.lifetimeCrossings;

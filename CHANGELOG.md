@@ -12,6 +12,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **Localized release news**: added the bilingual Habi 2.0.0 in-app News migration.
 
 ### Fixed
+- **Concurrent challenges**: users can now activate multiple challenges, see each active challenge on the hub, log the selected challenge independently, and keep all active challenge rollovers in sync.
 - **Theme contrast**: accent buttons, Analytics metrics, heatmap controls, and related text now use theme-aware, readable ink colors, including the green light-theme surface.
 - **Account safety**: sign-in now resolves the local account before publishing session state and failed credential restoration no longer falls back to a local user.
 - **Rank integrity**: deleting or undoing BAD activities no longer mints lifetime stars; reset/delete flows clear all rank-related local tables; challenge reward reversal is challenge-scoped.

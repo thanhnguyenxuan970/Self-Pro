@@ -68,7 +68,7 @@ test('preserves an existing lifetime high-water mark during a partial repair', a
 test('does not perform a repair when the schema and lifetime rollup are already complete', async () => {
   const db = {
     getFirstAsync: jest.fn(async (sql: string) => {
-      if (sql === 'PRAGMA user_version') return { user_version: 26 };
+      if (sql === 'PRAGMA user_version') return { user_version: 27 };
       if (sql.includes('COUNT(*) AS count')) return { count: 0 };
       return null;
     }),
@@ -83,4 +83,54 @@ test('does not perform a repair when the schema and lifetime rollup are already 
   await runMigrations(db as never);
 
   expect(db.runAsync).not.toHaveBeenCalled();
+});
+
+test('removes the one-active challenge constraint for existing databases', async () => {
+  const db = {
+    getFirstAsync: jest.fn(async (sql: string) => {
+      if (sql === 'PRAGMA user_version') return { user_version: 25 };
+      if (sql.includes('COUNT(*) AS count')) return { count: 0 };
+      return null;
+    }),
+    getAllAsync: jest.fn(async (sql: string) => {
+      if (sql.startsWith('PRAGMA table_info(users)')) {
+        return [{ name: 'id' }, { name: 'lifetime_stars' }, { name: 'current_tier_id' }];
+      }
+      return [];
+    }),
+    runAsync: jest.fn().mockResolvedValue({}),
+    execAsync: jest.fn().mockResolvedValue(undefined),
+  };
+
+  await runMigrations(db as never);
+
+  expect(db.runAsync).toHaveBeenCalledWith('DROP INDEX IF EXISTS idx_challenges_one_active');
+  expect(db.runAsync).toHaveBeenCalledWith(
+    'CREATE INDEX IF NOT EXISTS idx_challenges_user_status ON challenges(user_id, status)',
+  );
+});
+
+test('repairs the legacy challenge index when a prior migration already advanced the version', async () => {
+  const db = {
+    getFirstAsync: jest.fn(async (sql: string) => {
+      if (sql === 'PRAGMA user_version') return { user_version: 26 };
+      if (sql.includes('COUNT(*) AS count')) return { count: 0 };
+      return null;
+    }),
+    getAllAsync: jest.fn(async (sql: string) => {
+      if (sql.startsWith('PRAGMA table_info(users)')) {
+        return [{ name: 'id' }, { name: 'lifetime_stars' }, { name: 'current_tier_id' }];
+      }
+      return [];
+    }),
+    runAsync: jest.fn().mockResolvedValue({}),
+    execAsync: jest.fn().mockResolvedValue(undefined),
+  };
+
+  await runMigrations(db as never);
+
+  expect(db.runAsync).toHaveBeenCalledWith('DROP INDEX IF EXISTS idx_challenges_one_active');
+  expect(db.runAsync).toHaveBeenCalledWith(
+    'CREATE INDEX IF NOT EXISTS idx_challenges_user_status ON challenges(user_id, status)',
+  );
 });

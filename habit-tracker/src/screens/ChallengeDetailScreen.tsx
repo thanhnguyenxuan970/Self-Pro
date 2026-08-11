@@ -64,7 +64,8 @@ export function ChallengeDetailScreen() {
 
   async function handleLogToday() {
     try {
-      await logDay.mutateAsync();
+      if (challengeId == null) return;
+      await logDay.mutateAsync(challengeId);
     } catch {
       // ALREADY_LOGGED_TODAY / NO_ACTIVE_CHALLENGE — surfaced via button disabled state
     }

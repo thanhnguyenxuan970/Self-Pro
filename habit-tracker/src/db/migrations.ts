@@ -315,9 +315,6 @@ async function v10(db: SQLiteDatabase): Promise<void> {
       after_photo TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_challenges_one_active
-      ON challenges(user_id) WHERE status='active';
-
     CREATE TABLE IF NOT EXISTS challenge_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       challenge_id INTEGER NOT NULL,
@@ -487,8 +484,6 @@ async function v15(db: SQLiteDatabase): Promise<void> {
       DROP TABLE challenges;
       ALTER TABLE challenges_new RENAME TO challenges;
 
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_challenges_one_active
-        ON challenges(user_id) WHERE status='active';
       CREATE INDEX IF NOT EXISTS idx_challenges_user_status ON challenges(user_id, status);
     `);
   });
@@ -691,7 +686,28 @@ async function v25(db: SQLiteDatabase): Promise<void> {
   `);
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25];
+// v25 -> v26: allow a user to run multiple challenges concurrently. Older
+// builds enforced one active challenge with a partial unique index; remove it
+// while retaining the non-unique lookup index for challenge screens.
+async function removeLegacyOneActiveChallengeIndex(db: SQLiteDatabase): Promise<void> {
+  // Keep these as separate calls. Some Expo SQLite versions do not reliably
+  // apply a DROP followed by CREATE when both statements are passed to
+  // execAsync, which could leave the old unique index behind.
+  await db.runAsync('DROP INDEX IF EXISTS idx_challenges_one_active');
+  await db.runAsync('CREATE INDEX IF NOT EXISTS idx_challenges_user_status ON challenges(user_id, status)');
+}
+
+async function v26(db: SQLiteDatabase): Promise<void> {
+  await removeLegacyOneActiveChallengeIndex(db);
+}
+
+// v26 -> v27: repair databases that already recorded v26 before the index
+// cleanup was made reliable.
+async function v27(db: SQLiteDatabase): Promise<void> {
+  await removeLegacyOneActiveChallengeIndex(db);
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
