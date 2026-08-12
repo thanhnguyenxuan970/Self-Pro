@@ -4,8 +4,6 @@ export type HeatmapDay = { local_date: string; total_points: number; stars?: num
 
 export type HeatmapCell = { date: string; level: number; month?: string };
 
-export const HEATMAP_DATE_CONTROL_MIN_SIZE = 44;
-
 export function stepHeatmapAccessibilityDate(
   dates: string[],
   current: string,

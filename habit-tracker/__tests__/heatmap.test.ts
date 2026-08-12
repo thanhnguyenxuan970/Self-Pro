@@ -1,4 +1,4 @@
-import { buildHeatmapWeeks, HEATMAP_DATE_CONTROL_MIN_SIZE, heatmapLevel, heatmapShades } from '../src/utils/heatmap';
+import { buildHeatmapWeeks, heatmapLevel, heatmapShades } from '../src/utils/heatmap';
 import { ACCENTS, AccentKey } from '../src/config/accents';
 import { getColors } from '../src/config/theme';
 import { getTranslations } from '../src/config/i18n';
@@ -15,10 +15,6 @@ test('maps stars to the five heatmap levels and pads Monday-based weeks', () => 
   expect(weeks.every(week => week.length === 7)).toBe(true);
   expect(weeks.flat().find(cell => cell.date === '2026-07-10')?.level).toBe(4);
   expect(weeks.flat().find(cell => cell.date === '2026-07-01')?.month).toBe('Jul');
-});
-
-test('provides a non-overlapping date selector with full-size touch targets', () => {
-  expect(HEATMAP_DATE_CONTROL_MIN_SIZE).toBeGreaterThanOrEqual(44);
 });
 
 test('steps the single accessible heatmap control without leaving the available date range', () => {
