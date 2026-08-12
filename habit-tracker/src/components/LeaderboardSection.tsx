@@ -64,7 +64,7 @@ const LeaderboardRow = React.memo(function LeaderboardRow({
       accessibilityLabel={`#${entry.rank} ${entry.displayName}${entry.isCurrentUser ? ` (${copy.youLabel})` : ''}, ${copy.lifetimeStars(entry.lifetimeStars)}${entry.currentStreak > 0 ? `, ${copy.streakDays(entry.currentStreak)}` : ''}`}
       accessibilityHint={expanded ? copy.collapseLabel : copy.expandLabel}
     >
-      <Text style={[styles.lbRank, entry.rank <= 3 && styles.lbRankTop]}>#{entry.rank}</Text>
+      <Text style={[styles.lbRank, entry.rank <= 3 && styles.lbRankTop]} numberOfLines={1}>#{entry.rank}</Text>
       <View style={styles.lbInfo}>
         <Text style={styles.lbName} numberOfLines={1}>
           {entry.displayName}{entry.isCurrentUser ? ` (${copy.youLabel})` : ''}
@@ -82,7 +82,7 @@ const LeaderboardRow = React.memo(function LeaderboardRow({
           </Text>
         )}
       </View>
-      <Text style={styles.lbStars}>{entry.lifetimeStars} ★</Text>
+      <Text style={styles.lbStars} numberOfLines={1}>{entry.lifetimeStars} ★</Text>
     </TouchableOpacity>
   );
 });
@@ -111,13 +111,13 @@ export const LeaderboardSection = React.memo(function LeaderboardSection({
           key={currentUserEntry.playerId}
           style={[styles.lbRow, styles.lbRowLast, styles.lbRowMe]}
         >
-          <Text style={[styles.lbRank, styles.lbRankTop]}>#{currentUserEntry.rank}</Text>
+          <Text style={[styles.lbRank, styles.lbRankTop]} numberOfLines={1}>#{currentUserEntry.rank}</Text>
           <View style={styles.lbInfo}>
             <Text style={styles.lbName} numberOfLines={1}>
               {currentUserEntry.displayName} ({youLabel})
             </Text>
           </View>
-          <Text style={styles.lbStars}>{currentUserEntry.lifetimeStars} ★</Text>
+          <Text style={styles.lbStars} numberOfLines={1}>{currentUserEntry.lifetimeStars} ★</Text>
         </View>
         <Text style={styles.lbEmptyTxt}>{emptyNote}</Text>
       </>
@@ -167,7 +167,7 @@ export const LeaderboardSection = React.memo(function LeaderboardSection({
       })}
       {currentUserRow && (
         <View style={[styles.lbRow, styles.lbRowLast, styles.lbRowMe]}>
-          <Text style={[styles.lbRank, !unrankedCurrentUserRow && currentUserRow.rank <= 3 && styles.lbRankTop]}>
+          <Text style={[styles.lbRank, !unrankedCurrentUserRow && currentUserRow.rank <= 3 && styles.lbRankTop]} numberOfLines={1}>
             {unrankedCurrentUserRow ? '—' : `#${currentUserRow.rank}`}
           </Text>
           <View style={styles.lbInfo}>
@@ -175,7 +175,7 @@ export const LeaderboardSection = React.memo(function LeaderboardSection({
               {currentUserRow.displayName} ({youLabel})
             </Text>
           </View>
-          <Text style={styles.lbStars}>{currentUserRow.lifetimeStars} ★</Text>
+          <Text style={styles.lbStars} numberOfLines={1}>{currentUserRow.lifetimeStars} ★</Text>
         </View>
       )}
     </>
@@ -193,7 +193,7 @@ function makeStyles(C: AppColors) {
     },
     lbRowLast: { borderBottomWidth: 0 },
     lbRowMe: { backgroundColor: C.primarySoft, marginHorizontal: -8, paddingHorizontal: 14, borderRadius: Radii.sm, borderBottomWidth: 0, marginVertical: 2 },
-    lbRank: { width: 32, fontSize: 13, fontFamily: FontFamily.extraBold, color: C.muted, textAlign: 'center' },
+    lbRank: { minWidth: 32, flexShrink: 0, fontSize: 13, fontFamily: FontFamily.extraBold, color: C.muted, textAlign: 'center' },
     lbRankTop: { color: C.starGoldText },
     lbInfo: { flex: 1, minWidth: 0 },
     lbName: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
