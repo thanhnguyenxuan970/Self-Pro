@@ -31,6 +31,11 @@ export const ChallengeCard = React.memo(function ChallengeCard({
   const styles = useMemo(() => makeStyles(C), [C]);
   const dayNumber = Math.min(dayIndex + 1, targetDays);
   const dayAccessibilityLabel = t.challengeDayOf(dayNumber, targetDays);
+  // accessibilityLabel on a touchable overrides its children's text for screen readers, so the
+  // at-risk warning below (a plain <Text>) would otherwise never be announced — fold it in here.
+  const cardAccessibilityLabel = atRisk
+    ? `${name}, ${dayAccessibilityLabel}, ${t.challengeAtRiskWarning}`
+    : `${name}, ${dayAccessibilityLabel}`;
 
   return (
     <View style={[styles.card, atRisk && styles.cardAtRisk]}>
@@ -46,7 +51,7 @@ export const ChallengeCard = React.memo(function ChallengeCard({
         <Text style={styles.streak}>🔥 {streak}</Text>
       </View>
 
-      <TouchableOpacity onPress={onPress} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={`${name}, ${dayAccessibilityLabel}`}>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={cardAccessibilityLabel}>
         <Text style={styles.name} numberOfLines={2}>{name}</Text>
         <View style={styles.progressRow}>
           <Text style={styles.dayLabel}>{t.challengeProgressLabel}</Text>

@@ -15,3 +15,8 @@ replay_pid*.log
 # repomix context dumps (generated, not source)
 repomix-output.xml
 **/repomix-output.xml
+
+# stray root-level npm install (not part of the project)
+/node_modules/
+/package.json
+/package-lock.json
