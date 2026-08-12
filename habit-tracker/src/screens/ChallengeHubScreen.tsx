@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -27,6 +27,11 @@ export function ChallengeHubScreen() {
   const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(history);
   const activeChallengeIds = activeChallenges.map(challenge => challenge.id).join(',');
   const today = challengeDate();
+  // Tracked locally rather than off logDay.isPending/variables: logDay is one shared mutation
+  // instance for every card in the list, so with two active challenges, tapping card B's Log
+  // while card A's is still in flight would flip logDay.variables to B and make A's button look
+  // idle again before A's own request has actually resolved.
+  const [loggingId, setLoggingId] = useState<number | null>(null);
   const openActiveChallenge = useCallback((challengeId: number) => {
     (navigation as any).navigate('ChallengeDetail', { challengeId });
   }, [navigation]);
@@ -37,13 +42,20 @@ export function ChallengeHubScreen() {
     // CTA takes, not the manual-challenge mutation below (which is a no-op for a linked challenge).
     if (taskTypeId != null) {
       const linkedTaskName = tasks.find(task => task.id === taskTypeId)?.name;
-      if (linkedTaskName != null) requestAddActivity({ name: linkedTaskName, taskTypeId });
+      if (linkedTaskName != null) {
+        requestAddActivity({ name: linkedTaskName, taskTypeId });
+      } else {
+        Toast.show({ type: 'error', text1: t.challengeLogLinkedTaskMissing, visibilityTime: 3500 });
+      }
       return;
     }
+    setLoggingId(challengeId);
     try {
       await logDay.mutateAsync(challengeId);
     } catch {
       // ALREADY_LOGGED_TODAY / NO_ACTIVE_CHALLENGE — button reflects the refreshed loggedToday state
+    } finally {
+      setLoggingId(null);
     }
   }
 
@@ -239,7 +251,7 @@ export function ChallengeHubScreen() {
                     today={today}
                     onPress={() => openActiveChallenge(active.id)}
                     onLog={() => handleLog(active.id, active.taskTypeId)}
-                    logging={logDay.isPending && logDay.variables === active.id}
+                    logging={loggingId === active.id}
                   />
                 ))}
               </View>

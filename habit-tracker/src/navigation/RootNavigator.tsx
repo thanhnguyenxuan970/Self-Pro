@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { BackHandler, View, Pressable, StyleSheet, StatusBar, Platform, useWindowDimensions } from 'react-native';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { AppState, BackHandler, View, Pressable, StyleSheet, StatusBar, Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
@@ -16,6 +16,7 @@ import { CreateChallengeScreen } from '../screens/CreateChallengeScreen';
 import { ChallengeDetailScreen } from '../screens/ChallengeDetailScreen';
 import { NewsScreen } from '../screens/UpdatesScreen';
 import { TrophyShelfScreen } from '../screens/TrophyShelfScreen';
+import { BlockedAccountsScreen } from '../screens/BlockedAccountsScreen';
 import { SignInScreen } from '../screens/SignInScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { AppColors, Shadows, FontFamily } from '../config/theme';
@@ -26,6 +27,7 @@ import { useTutorial } from '../hooks/useTutorial';
 import { subscribeAddActivityIntent } from '../hooks/useAddActivityIntent';
 import { BOTTOM_TAB_BAR_HEIGHT } from '../config/layout';
 import { BadgeUnlockCelebrationHost } from '../components/BadgeUnlockCelebration';
+import { useFriendPendingCount } from '../queries/useFriends';
 import { APP_STACK_PRESENTATION } from './stackOptions';
 import { handleAppHardwareBack } from './backHandler';
 
@@ -98,7 +100,7 @@ const fabStyles = StyleSheet.create({
   },
 });
 
-function MainTabs({ onFABPress }: { onFABPress: () => void }) {
+function MainTabs({ onFABPress, googleUser }: { onFABPress: () => void; googleUser: GoogleUser }) {
   const { colors } = useTheme();
   const t = useTranslations();
   const { width } = useWindowDimensions();
@@ -109,6 +111,24 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
   const rankTutorialRef = useMemo(() => targetRef('rank'), [targetRef]);
   const tabBarHeight = BOTTOM_TAB_BAR_HEIGHT + insets.bottom;
   const responsiveWidth = containerWidth ?? width;
+
+  // Enabled at authenticated app entry (not gated on Rank being mounted) so
+  // the tab badge is already correct the first time Rank opens. RN has no
+  // `visibilitychange` event, so the query's own `refetchOnWindowFocus`
+  // never fires here — this drives the same refetch off `AppState` directly
+  // instead of wiring the global TanStack `focusManager`, which would
+  // silently change refetch behavior for every other query in the app.
+  const pendingCountQuery = useFriendPendingCount(googleUser.email, googleUser.sub);
+  const refetchPendingCountRef = useRef(pendingCountQuery.refetch);
+  refetchPendingCountRef.current = pendingCountQuery.refetch;
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextState => {
+      if (nextState === 'active') void refetchPendingCountRef.current();
+    });
+    return () => subscription.remove();
+  }, []);
+  const pendingCount = pendingCountQuery.data ?? 0;
+
   return (
     <View
       style={{ flex: 1 }}
@@ -167,6 +187,9 @@ function MainTabs({ onFABPress }: { onFABPress: () => void }) {
           options={{
             title: t.tabRank,
             tabBarIcon: ({ color }) => <View ref={rankTutorialRef} collapsable={false}><IconTrophy color={color} /></View>,
+            tabBarBadge: pendingCount > 0 ? pendingCount : undefined,
+            tabBarBadgeStyle: { backgroundColor: colors.dangerPress, color: colors.white },
+            tabBarAccessibilityLabel: pendingCount > 0 ? `${t.tabRank}, ${t.friendsPendingBadgeLabel(pendingCount)}` : t.tabRank,
           }}
         />
       </Tab.Navigator>
@@ -213,7 +236,7 @@ function AppStack({
     <>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MainTabs">
-          {() => <MainTabs onFABPress={() => setFabVisible(true)} />}
+          {() => <MainTabs onFABPress={() => setFabVisible(true)} googleUser={googleUser} />}
         </Stack.Screen>
         <Stack.Screen
           name="Profile"
@@ -251,6 +274,11 @@ function AppStack({
           name="TrophyShelf"
           component={TrophyShelfScreen}
           options={{ ...modalHeaderOptions, title: t.screenTrophyShelf }}
+        />
+        <Stack.Screen
+          name="BlockedAccounts"
+          component={BlockedAccountsScreen}
+          options={{ ...modalHeaderOptions, title: t.screenBlockedAccounts }}
         />
       </Stack.Navigator>
       <AddActivitySheet

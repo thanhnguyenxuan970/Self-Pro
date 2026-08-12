@@ -1,0 +1,14 @@
+DELETE FROM public.news
+WHERE version = '2.0.1';
+
+INSERT INTO public.news (version, title, title_en, body, body_en, tag, tag_en, published_at)
+VALUES (
+  '2.0.1',
+  'Habi 2.0.1: Kết bạn, thi đua và mượt mà hơn ✨',
+  'Habi 2.0.1: Friends, racing, and a smoother ride ✨',
+  E'Kết bạn & thi đua:\n• Thêm bạn bằng mã 6 ký tự của riêng bạn — sao chép, chia sẻ hoặc đổi mã bất cứ lúc nào.\n• Màn Rank có thêm mục Bạn bè bên cạnh Toàn cầu, với bảng đua tốp xử lý đồng điểm để biết ngay mình đang ở đâu so với bạn bè.\n• Chấp nhận lời mời đến, hủy lời mời đã gửi, gỡ hoặc chặn bạn bè — luôn có xác nhận trước khi thực hiện. Quản lý danh sách đã chặn tại Cài đặt → Tài khoản đã chặn.\n\nBảng xếp hạng rõ ràng hơn:\n• Xem Top 3 và đúng vị trí của bạn ngay cả khi ở ngoài top.\n• Đối thủ trên bảng xếp hạng dùng biệt danh riêng tư kèm streak hiện tại, để biết ai đang thật sự hoạt động.\n\nThử thách linh hoạt hơn:\n• Đổi tên hoặc xóa thử thách đang chạy ngay trong Chi tiết thử thách.\n• Chạy nhiều thử thách cùng lúc: mỗi thử thách hiển thị và ghi nhận riêng, không còn xung đột.\n\nMượt mà & ổn định hơn:\n• Sửa màu sắc/độ tương phản trên nút, Thống kê và heatmap, dễ đọc hơn ở cả giao diện sáng lẫn tối.\n• Sửa lỗi chạm nhầm ngày trên heatmap và lỗi đăng nhập; Multiplier Boost giờ nhớ đúng trạng thái sau khi khởi động lại app.\n• Xóa hoặc hoàn tác hoạt động xấu (BAD) không còn làm sai điểm hạng của bạn.\n\nNâng cấp từ 2.0.0 lên 2.0.1 và rủ bạn bè cùng xây thói quen tốt với Habi!',
+  E'Friends & racing:\n• Add a friend with your own 6-character code — copy, share, or rotate it anytime.\n• Rank now has a Friends tab alongside Global, with a tie-aware race ladder so you know exactly where you stand among friends.\n• Respond to incoming requests, cancel ones you''ve sent, and remove or block friends — always with a confirmation first. Manage everyone you''ve blocked from Settings → Blocked Accounts.\n\nA clearer leaderboard:\n• See the Top 3 and your real position even when you''re outside the top.\n• Leaderboard opponents use privacy-safe pseudonyms, with their current streak shown so you know who''s actually active.\n\nMore flexible challenges:\n• Rename or delete an active challenge right from Challenge Detail.\n• Run multiple challenges at once: each shows and logs separately, with no more conflicts.\n\nSmoother and more reliable:\n• Fixed colors/contrast on buttons, Analytics, and the heatmap for easier reading in both light and dark mode.\n• Fixed heatmap mistaps and a sign-in reliability issue; Multiplier Boost now remembers your claim correctly after restarting the app.\n• Deleting or undoing a bad habit log no longer inflates your rank score.\n\nUpgrade from 2.0.0 to 2.0.1 and invite your friends to build better habits together with Habi!',
+  'Có gì mới',
+  'What''s new',
+  '2026-08-12T00:00:00+07:00'
+);

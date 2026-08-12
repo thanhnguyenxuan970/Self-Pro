@@ -331,7 +331,7 @@ export function ChallengeDetailScreen() {
           </View>
         )}
 
-        {active && !isWeekly && (
+        {active && !isWeekly && challenge.freezesLeft > 0 && (
           <Text style={styles.ruleNote}>{t.challengeRulesBody(challenge.freezesLeft)}</Text>
         )}
 
