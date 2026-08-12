@@ -4,12 +4,15 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
-## [2.0.1.1] - 2026-08-09
+## [2.0.1.1] - 2026-08-12
 
 ### Added
 - **Pseudonymous leaderboard neighborhood**: the global leaderboard now supports a bounded top-three plus current-user neighborhood view, with server-side rank data and profile provisioning migrations.
 - **Human-readable anonymous competition**: leaderboard opponents now receive stable Vietnamese/English pseudonyms, and their current streak is shown as a privacy-safe sign of recent activity.
 - **Localized release news**: added the bilingual Habi 2.0.0 in-app News migration.
+- **Friends backend foundation**: added UUID-backed social identity, privacy-preserving friend requests, blocker-owned account management, friend dashboard ranking, rate limits, relationship caps, and race-safe transitions for the upcoming Friends experience.
+- **Friends race ladder UI**: Rank now has a Global/Friends segment with its own pending-request badge; the Friends segment shows a tie-aware race ladder, incoming/outgoing requests, an Add Friend sheet (own code copy/share/rotate, six-character code entry, full RPC-result messaging), and confirmation sheets for remove/block/cancel/unblock. Added a Settings → Blocked Accounts screen. All states (loading, empty, error, backend-unavailable, stale-with-cache) are covered, matching the approved design mockup.
+- **Challenge management**: active challenges can now be renamed or deleted directly from Challenge Detail with a destructive confirmation.
 
 ### Fixed
 - **Concurrent challenges**: users can now activate multiple challenges, see each active challenge on the hub, log the selected challenge independently, and keep all active challenge rollovers in sync.
@@ -18,9 +21,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **Rank integrity**: deleting or undoing BAD activities no longer mints lifetime stars; reset/delete flows clear all rank-related local tables; challenge reward reversal is challenge-scoped.
 - **Migration repair**: the lifetime-rank backfill is positive-only and safely retries incomplete repairs; migration coverage now includes idempotency and drift cases.
 - **Responsive UI**: Home heatmap, Analytics, Calendar, Feedback, and Rank layouts preserve readability on narrow screens.
+- **Reminder consistency**: deleting a challenge cancels its queued reminder only after the SQLite transaction commits, so a rollback cannot silently remove a still-valid reminder.
+- **Heatmap touch accuracy**: compact day cells no longer expose overlapping touch regions that could select an adjacent date.
+- **Green accent press state**: light-theme green's hover and press colors were identical, so pressing a green button never visibly changed color; they're now distinct shades.
+- **Linked-challenge check-in**: checking in a challenge linked to a habit now resolves the exact habit by id instead of by name, so two habits with names that collide once accents/casing are stripped can no longer cause a check-in to be silently logged against the wrong one.
+- **Duplicate habit names**: creating a habit now rejects a name that collides with an existing one after normalization, closing the same class of misattribution at its source rather than only in one entry point.
+- **Challenge restart after archiving**: restarting a finished or failed challenge now refuses to proceed if its linked habit has since been archived, instead of silently creating a new active challenge that could never be checked off.
+- **Feedback submissions**: removed image attachments from bug/feedback reports; submissions now go through a rate-limited server endpoint instead of a direct, client-throttled-only insert, and the send flow no longer hangs indefinitely if the network stalls.
 
 ### Changed
 - **Leaderboard contract**: malformed and out-of-contract rows are normalized and bounded before rendering, while legacy RPC identity remains compatible.
+- **Friends delivery planning**: added the reviewed product, backend, UI, and rollout plans for the Friends race-ladder work while keeping the superseded podium concept documented as non-authoritative.
 
 ## [2.0.1.0] - 2026-08-03
 
