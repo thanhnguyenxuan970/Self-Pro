@@ -31,7 +31,7 @@ export type LeaderboardEntry = {
  * the server is the authority and clamps this itself.
  */
 export const LEADERBOARD_TOP_LIMIT = 50;
-export const LEADERBOARD_NEIGHBORHOOD_RADIUS = 5;
+const LEADERBOARD_NEIGHBORHOOD_RADIUS = 5;
 
 /**
  * Fills in `starsToNextRank` for a list already sorted by rank ascending.
@@ -39,7 +39,7 @@ export const LEADERBOARD_NEIGHBORHOOD_RADIUS = 5;
  * above, so the top-50 block and the caller's neighbourhood each get correct
  * gaps and nothing is computed across the discontinuity between them.
  */
-export function annotateStarsToNextRank(
+function annotateStarsToNextRank(
   entries: Omit<LeaderboardEntry, 'starsToNextRank'>[],
 ): LeaderboardEntry[] {
   return entries.map((entry, index) => {
@@ -146,7 +146,7 @@ export function buildRankedLeaderboard(
  * curated word list rather than slicing the UUID: identical anonymity, but it
  * reads as a competitor instead of a database row.
  */
-export function publicPlayerName(playerId: string, playerLabel: string, lang: AppLanguage = 'vi'): string {
+function publicPlayerName(playerId: string, playerLabel: string, lang: AppLanguage = 'vi'): string {
   if (playerId === 'unknown') return `${playerLabel} #unknown`;
   return generatePlayerName(playerId, lang, `${playerLabel} #unknown`);
 }

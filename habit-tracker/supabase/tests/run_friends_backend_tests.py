@@ -43,6 +43,7 @@ FRIEND_MIGRATIONS = (
     "030_friend_relationships.sql",
     "031_friend_dashboard.sql",
     "032_friend_blocked_accounts.sql",
+    "033_friend_identity_integrity.sql",
 )
 
 
@@ -230,6 +231,11 @@ def seed_auth_user(
     cur.execute(
         "INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES (%s, %s, %s::jsonb)",
         (user_id, email, json.dumps(metadata or {})),
+    )
+    provider_name = str((metadata or {}).get("full_name") or email.split("@")[0].title())
+    cur.execute(
+        "INSERT INTO auth.identities (user_id, provider, identity_data) VALUES (%s, 'google', %s::jsonb)",
+        (user_id, json.dumps({"full_name": provider_name})),
     )
     return user_id
 
@@ -817,6 +823,72 @@ def test_blocked_accounts_and_pending_consent(
     )
 
 
+def test_identity_integrity(
+    cur: psycopg.Cursor[object],
+    checks: Checks,
+    users: dict[str, tuple[uuid.UUID, str]],
+) -> None:
+    print("\n== migration 033: canonical identity and non-forgeable social output ==")
+    apply_friend_migration(cur, "033_friend_identity_integrity.sql")
+
+    an_id, canonical_email = users["an"]
+    cur.execute(
+        """INSERT INTO activity_log (user_email, local_id, stars_delta, local_date)
+             VALUES (%s, 9001, 1, to_char(current_date, 'YYYY-MM-DD')),
+                    (%s, 9002, 1, to_char(current_date - 1, 'YYYY-MM-DD'))""",
+        (canonical_email, canonical_email),
+    )
+    cur.execute(
+        "INSERT INTO fund_transactions (user_email, local_id, amount) VALUES (%s, 9001, 1)",
+        (canonical_email,),
+    )
+    set_user(cur, an_id, "stale-an@example.com", "Forged Name")
+    cur.execute("SELECT sync_user_profile_v2(2147483647, current_date, 'UTC')")
+    checks.equal(
+        "stale JWT cannot overwrite canonical profile email",
+        scalar(cur, "SELECT user_email FROM users WHERE auth_user_id=%s", (an_id,)),
+        canonical_email,
+    )
+    checks.equal(
+        "provider identity wins over forgeable JWT user metadata",
+        scalar(cur, "SELECT display_name FROM users WHERE auth_user_id=%s", (an_id,)),
+        "An",
+    )
+    checks.equal(
+        "competitive streak stays hidden while activity writes are client-controlled",
+        scalar(cur, "SELECT current_streak FROM users WHERE auth_user_id=%s", (an_id,)),
+        0,
+    )
+    cur.execute("SELECT reset_my_progress()")
+    checks.equal(
+        "reset with stale JWT deletes canonical activity rows",
+        scalar(cur, "SELECT count(*) FROM activity_log WHERE user_email=%s", (canonical_email,)),
+        0,
+    )
+    checks.equal(
+        "reset with stale JWT deletes canonical fund rows",
+        scalar(cur, "SELECT count(*) FROM fund_transactions WHERE user_email=%s", (canonical_email,)),
+        0,
+    )
+
+    delete_id = seed_auth_user(cur, "delete-canonical@example.com", {"full_name": "Delete Me"})
+    cur.execute(
+        "INSERT INTO activity_log (user_email, local_id, stars_delta) VALUES ('delete-canonical@example.com', 9101, 1)"
+    )
+    set_user(cur, delete_id, "delete-stale@example.com", "Forged Delete")
+    cur.execute("SELECT delete_my_account_data()")
+    checks.equal(
+        "account deletion with stale JWT removes canonical activity rows",
+        scalar(cur, "SELECT count(*) FROM activity_log WHERE user_email='delete-canonical@example.com'"),
+        0,
+    )
+    checks.equal(
+        "account deletion removes the canonical profile",
+        scalar(cur, "SELECT count(*) FROM users WHERE auth_user_id=%s", (delete_id,)),
+        0,
+    )
+
+
 def join_threads(threads: tuple[threading.Thread, ...], errors: list[str], timeout: float = 10.0) -> None:
     for thread in threads:
         thread.join(timeout=timeout)
@@ -1082,7 +1154,7 @@ def test_account_lifecycle(cur: psycopg.Cursor[object], checks: Checks, users: d
     checks.equal("account delete cascades relationships", scalar(cur, "SELECT count(*) FROM friend_relationships"), 0)
     checks.equal("account delete removes limiter rows", scalar(cur, "SELECT count(*) FROM friend_code_attempts WHERE auth_user_id=%s", (users["an"][0],)), 0)
 
-    legacy_id = seed_auth_user(cur, "legacy-return@example.com")
+    legacy_id = seed_auth_user(cur, "legacy-return@example.com", {"full_name": "Legacy Return"})
     cur.execute("DELETE FROM users WHERE auth_user_id=%s", (legacy_id,))
     set_user(cur, legacy_id, "legacy-return@example.com", "Legacy Return")
     checks.true(
@@ -1090,12 +1162,12 @@ def test_account_lifecycle(cur: psycopg.Cursor[object], checks: Checks, users: d
         succeeds(cur, "SELECT sync_user_profile(4)"),
     )
     checks.equal(
-        "legacy reprovision restores UUID and streak",
-        scalar(cur, "SELECT (auth_user_id=%s AND current_streak=4) FROM users WHERE auth_user_id=%s", (legacy_id, legacy_id)),
+        "legacy reprovision restores UUID without trusting client streak",
+        scalar(cur, "SELECT (auth_user_id=%s AND current_streak=0) FROM users WHERE auth_user_id=%s", (legacy_id, legacy_id)),
         True,
     )
 
-    v2_id = seed_auth_user(cur, "v2-return@example.com")
+    v2_id = seed_auth_user(cur, "v2-return@example.com", {"full_name": "V2 Return"})
     cur.execute("DELETE FROM users WHERE auth_user_id=%s", (v2_id,))
     set_user(cur, v2_id, "v2-return@example.com", "V2 Return")
     checks.true(
@@ -1106,10 +1178,10 @@ def test_account_lifecycle(cur: psycopg.Cursor[object], checks: Checks, users: d
         ),
     )
     checks.equal(
-        "v2 reprovision restores UUID, streak, and display name",
+        "v2 reprovision restores UUID and provider name without trusting client streak",
         scalar(
             cur,
-            "SELECT (auth_user_id=%s AND current_streak=6 AND display_name='V2 Return') FROM users WHERE auth_user_id=%s",
+            "SELECT (auth_user_id=%s AND current_streak=0 AND display_name='V2 Return') FROM users WHERE auth_user_id=%s",
             (v2_id, v2_id),
         ),
         True,
@@ -1156,6 +1228,7 @@ def main() -> int:
             test_caps_expiry_and_mutations(cur, checks, users)
             test_profile_and_dashboard(cur, checks, users)
             test_blocked_accounts_and_pending_consent(cur, checks, users)
+            test_identity_integrity(cur, checks, users)
         run_pair_races(server.uri, checks, users)
         run_accept_block_races(server.uri, checks, users)
         run_remove_block_race(server.uri, checks, users)

@@ -25,6 +25,16 @@ CREATE TABLE auth.users (
   raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
+CREATE TABLE auth.identities (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  provider text NOT NULL,
+  identity_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  last_sign_in_at timestamptz
+);
+
 CREATE FUNCTION auth.uid()
 RETURNS uuid
 LANGUAGE sql
