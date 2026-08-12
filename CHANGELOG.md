@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [2.0.1.3] - 2026-08-13
+
+### Added
+- **Themed toast notifications**: log/streak/error toasts now follow the app's light/dark surface, border, and typography tokens instead of the library's fixed white/black default.
+
+### Fixed
+- **Startup auth hang**: a returning signed-in user could get stuck on the loading spinner indefinitely — the startup session restore now loads its native-module-adjacent dependency via `require()` instead of an async import, plus a 15s timeout around the silent Google sign-in call as defense-in-depth.
+- **Feedback submissions**: the "Failed to send" error on every feedback submission is resolved — the missing server rate-limit migration and Edge Function deployment are now live.
+- **Analytics readability**: Month-view chart x-axis day labels and the Volume card's POINTS/STARS/DAYS REACHED labels no longer shrink to an illegibly small, inconsistent size on narrow screens.
+- **Leaderboard rank numbers**: no longer wrap to two lines.
+- **Accessibility**: the "No timer" quick-log button now has a screen-reader label.
+
 ## [2.0.1.2] - 2026-08-12
 
 ### Fixed

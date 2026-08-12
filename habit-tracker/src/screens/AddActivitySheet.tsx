@@ -462,6 +462,7 @@ export function AddActivitySheet({ visible, onClose, presetName, presetTaskId }:
                   disabled={!hasName || isPending}
                   activeOpacity={0.8}
                   accessibilityRole="button"
+                  accessibilityLabel={t.addActivityNoTimer}
                   accessibilityState={{ disabled: !hasName || isPending }}
                 >
                   <Text style={[styles.noTimerText, !hasName && styles.noTimerTextDim]}>
