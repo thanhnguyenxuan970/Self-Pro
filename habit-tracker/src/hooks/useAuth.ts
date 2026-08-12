@@ -9,6 +9,13 @@ export { parseGoogleUser, getStoredGoogleUser };
 
 const ONBOARDED_KEY = 'habit_tracker_onboarded';
 
+// GoogleSignin.signInSilently() is a native-bridge call with no cancellation
+// support and no built-in timeout; if it never calls back (flaky Play
+// Services, poor network), startup restoration must not block the app on
+// the loading spinner forever. Same pattern/timeout as feedbackService.ts's
+// SUBMIT_TIMEOUT_MS for the same class of "network call may hang" risk.
+const STARTUP_SESSION_RESTORE_TIMEOUT_MS = 15_000;
+
 export function parseOnboarded(val: string | null): boolean {
   return val === 'true';
 }
@@ -178,8 +185,24 @@ export function useAuth() {
         let restored = { isOnboarded: parseOnboarded(onboarded), googleUser: storedUser };
 
         if (restored.isOnboarded && storedUser) {
-          const { ensureSupabaseSession } = await import('../api/syncService');
-          restored = await restoreStoredGoogleSession(onboarded, userJson, ensureSupabaseSession);
+          // require(), not `await import(...)`: a dynamic import of this module
+          // hung indefinitely on startup in testing (never resolved, no error) --
+          // matches this project's documented rule (see habit-tracker/AGENTS.md,
+          // "Metro And Emulator") that native-module-adjacent code must load via
+          // runtime require, not async Metro imports. The Promise.race below is
+          // additional defense-in-depth for GoogleSignin.signInSilently() itself,
+          // which is a native-bridge call with no timeout of its own.
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { ensureSupabaseSession } = require('../api/syncService') as typeof import('../api/syncService');
+          restored = await Promise.race([
+            restoreStoredGoogleSession(onboarded, userJson, ensureSupabaseSession),
+            new Promise<never>((_, reject) => {
+              setTimeout(
+                () => reject(new Error('Startup session restore timed out')),
+                STARTUP_SESSION_RESTORE_TIMEOUT_MS,
+              );
+            }),
+          ]);
         }
 
         if (!restored.googleUser && storedUser) {
