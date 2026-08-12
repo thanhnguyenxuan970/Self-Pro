@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [2.0.1.2] - 2026-08-12
+
+### Fixed
+- **Home heatmap**: removed the redundant chevron/date-stepper pill under the activity grid, which duplicated day navigation the grid itself already exposes. The screen-reader accessibility stepper on the grid is unaffected and remains the accessible path to per-day detail.
+
 ## [2.0.1.1] - 2026-08-12
 
 ### Added
