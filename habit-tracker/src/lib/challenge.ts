@@ -48,6 +48,47 @@ export function currentDayIndex(startDate: string, today: string): number {
   return dayNumber(today) - dayNumber(startDate);
 }
 
+export function isAtRisk(mode: ChallengeMode, freezesLeft: number): boolean {
+  return mode === 'streak' && freezesLeft === 0;
+}
+
+export type DayCellState = DayEntryState | 'today' | 'future';
+export type DayCell = { label: number; state: DayCellState };
+
+export const GRID_CELL_COUNT = 30;
+
+export function formatDateAtOffset(startDate: string, offset: number): string {
+  const date = new Date(`${startDate}T12:00:00`);
+  date.setDate(date.getDate() + offset);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function dayCellStates(startDate: string, targetDays: number, log: DayEntry[], today: string): DayCell[] {
+  const byDate = new Map(log.map(l => [l.date, l.state]));
+  const todayIndex = currentDayIndex(startDate, today);
+  const maxWindowStart = Math.max(0, targetDays - GRID_CELL_COUNT);
+  const windowStart = Math.min(Math.max(0, todayIndex - (GRID_CELL_COUNT - 1)), maxWindowStart);
+  const cells: DayCell[] = [];
+
+  for (let i = 0; i < GRID_CELL_COUNT; i++) {
+    const dayIndex = windowStart + i;
+    const label = dayIndex + 1;
+    if (dayIndex >= targetDays) {
+      cells.push({ label, state: 'future' });
+      continue;
+    }
+    const dateStr = formatDateAtOffset(startDate, dayIndex);
+    if (byDate.has(dateStr)) cells.push({ label, state: byDate.get(dateStr)! });
+    else if (dateStr === today) cells.push({ label, state: 'today' });
+    else if (dateStr > today) cells.push({ label, state: 'future' });
+    else cells.push({ label, state: 'reset' });
+  }
+  return cells;
+}
+
 export function progress(challenge: Pick<Challenge, 'log' | 'targetDays'>) {
   return computeProgress(challenge.log.filter(day => day.state === 'done').length, challenge.targetDays);
 }

@@ -5,8 +5,12 @@ import { useNavigation } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
-import { useActiveChallenges, useChallengeHistory, useChallengeRollover, useDeleteChallenge, useRestartChallenge } from '../queries/useChallenge';
+import { useActiveChallenges, useChallengeHistory, useChallengeRollover, useDeleteChallenge, useLogChallengeDay, useRestartChallenge } from '../queries/useChallenge';
+import { useTodayTasks } from '../queries/useToday';
+import { requestAddActivity } from '../hooks/useAddActivityIntent';
+import { challengeDate, isAtRisk } from '../lib/challenge';
 import { ChallengeCard } from '../components/ChallengeCard';
+import { ChallengeStatusPill } from '../components/ChallengeStatusPill';
 import { useSelectionMode } from '../hooks/useSelectionMode';
 import { challengeHubViewState } from '../utils/challengeHub';
 
@@ -15,14 +19,33 @@ export function ChallengeHubScreen() {
   const navigation = useNavigation();
   const { data: activeChallenges = [], isLoading: activeLoading } = useActiveChallenges(userId);
   const { data: history = [], isLoading: historyLoading } = useChallengeHistory(userId);
+  const { data: tasks = [] } = useTodayTasks(userId);
   const rollover = useChallengeRollover(userId);
   const restartChallenge = useRestartChallenge(userId);
   const deleteChallenges = useDeleteChallenge(userId);
+  const logDay = useLogChallengeDay(userId);
   const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(history);
   const activeChallengeIds = activeChallenges.map(challenge => challenge.id).join(',');
+  const today = challengeDate();
   const openActiveChallenge = useCallback((challengeId: number) => {
     (navigation as any).navigate('ChallengeDetail', { challengeId });
   }, [navigation]);
+
+  async function handleLog(challengeId: number, taskTypeId: number | null) {
+    // A linked challenge auto-completes from activity_log (see logChallengeDayForRow) — logging it
+    // "for real" means logging the linked task itself, same branch ChallengeDetailScreen's sticky
+    // CTA takes, not the manual-challenge mutation below (which is a no-op for a linked challenge).
+    if (taskTypeId != null) {
+      const linkedTaskName = tasks.find(task => task.id === taskTypeId)?.name;
+      if (linkedTaskName != null) requestAddActivity({ name: linkedTaskName, taskTypeId });
+      return;
+    }
+    try {
+      await logDay.mutateAsync(challengeId);
+    } catch {
+      // ALREADY_LOGGED_TODAY / NO_ACTIVE_CHALLENGE — button reflects the refreshed loggedToday state
+    }
+  }
 
   function confirmDelete(ids: number[]) {
     Alert.alert(
@@ -81,6 +104,86 @@ export function ChallengeHubScreen() {
   }
 
   const viewState = challengeHubViewState(activeChallenges.length > 0, history.length);
+  const doneHistory = history.filter(h => h.status === 'done');
+  const failedHistory = history.filter(h => h.status === 'failed');
+
+  function renderHistoryRow(h: (typeof history)[number], i: number, total: number) {
+    const historyMetaText = h.status === 'done'
+      ? h.mode === 'weekly'
+        ? t.challengeHistoryWeeklyDoneMeta(h.weekly_target ?? 0, h.total_weeks ?? 0, month(h.start_date))
+        : t.challengeHistoryDoneMeta(h.target_days, month(h.start_date))
+      : h.mode === 'weekly'
+        ? t.challengeHistoryResetWeek(Math.ceil((h.reset_day ?? 0) / 7))
+        : t.challengeHistoryReset(h.reset_day ?? 0);
+    return (
+      <View
+        key={h.id}
+        style={[styles.pastRow, i < total - 1 && styles.pastRowBorder, selectedIds.has(h.id) && styles.pastRowSelected]}
+      >
+        <TouchableOpacity
+          style={styles.historyOpenButton}
+          onPress={() => selectionMode ? toggleSelect(h.id) : (navigation as any).navigate('ChallengeDetail', { challengeId: h.id })}
+          onLongPress={() => enterSelection(h.id)}
+          delayLongPress={300}
+          activeOpacity={0.7}
+          accessibilityRole={selectionMode ? 'checkbox' : 'button'}
+          accessibilityLabel={`${h.name}. ${historyMetaText}`}
+          accessibilityState={selectionMode ? { checked: selectedIds.has(h.id) } : undefined}
+        >
+          {selectionMode && (
+            <View style={[styles.checkbox, selectedIds.has(h.id) && styles.checkboxSelected]}>
+              {selectedIds.has(h.id) && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+          )}
+          <View style={[styles.historyIcon, h.status === 'done' ? styles.doneIcon : styles.failedIcon]}>
+            <Text>{h.status === 'done' ? '🏅' : '🧹'}</Text>
+          </View>
+          <View style={styles.historyCopy}>
+            <Text style={styles.pastName} numberOfLines={1}>{h.name}</Text>
+            <Text style={styles.historyMeta} numberOfLines={1}>{historyMetaText}</Text>
+          </View>
+        </TouchableOpacity>
+        {!selectionMode && (
+          <View style={styles.pastRowStatus}>
+            <ChallengeStatusPill status={h.status === 'done' ? 'done' : 'failed'} />
+            {h.status === 'failed' && (
+              <TouchableOpacity
+                onPress={async () => {
+                  try {
+                    const { id: challengeId, notificationDenied } = await restartChallenge.mutateAsync(h.id);
+                    if (notificationDenied) {
+                      Toast.show({ type: 'error', text1: t.reminderScheduleFailed, visibilityTime: 3500 });
+                    }
+                    (navigation as any).navigate('ChallengeDetail', { challengeId });
+                  } catch (e: any) {
+                    Alert.alert(t.error, e?.message === 'LINKED_TASK_ARCHIVED' ? t.challengeRestartLinkedTaskArchived : t.challengeRestartFailed);
+                  }
+                }}
+                disabled={restartChallenge.isPending}
+                style={[styles.retryButton, restartChallenge.isPending && styles.retryDisabled]}
+                accessibilityRole="button"
+                accessibilityLabel={t.challengeRestartCta}
+              >
+                <Text style={styles.retryButtonText} numberOfLines={1}>{t.challengeRestartCta}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+        {!selectionMode && (
+          <TouchableOpacity
+            onPress={() => confirmDelete([h.id])}
+            disabled={deleteChallenges.isPending}
+            style={styles.historyDeleteButton}
+            hitSlop={4}
+            accessibilityRole="button"
+            accessibilityLabel={t.challengeDeleteCta}
+          >
+            <Text style={styles.historyDeleteIcon}>×</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -117,16 +220,26 @@ export function ChallengeHubScreen() {
             )}
             {activeChallenges.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>{t.challengeActiveSection}</Text>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionLabel}>{t.challengeActiveSection}</Text>
+                  <Text style={styles.sectionCount}>{activeChallenges.length}</Text>
+                </View>
                 {activeChallenges.map(active => (
                   <ChallengeCard
                     key={active.id}
                     name={active.name}
                     targetDays={active.targetDays}
                     dayIndex={active.dayIndex}
-                    fraction={active.fraction}
                     streak={active.streak}
+                    atRisk={isAtRisk(active.mode, active.freezesLeft)}
+                    freezesLeft={active.freezesLeft}
+                    loggedToday={active.loggedToday}
+                    startDate={active.startDate}
+                    log={active.log}
+                    today={today}
                     onPress={() => openActiveChallenge(active.id)}
+                    onLog={() => handleLog(active.id, active.taskTypeId)}
+                    logging={logDay.isPending && logDay.variables === active.id}
                   />
                 ))}
               </View>
@@ -134,99 +247,49 @@ export function ChallengeHubScreen() {
 
             {history.length > 0 && (
               <View style={styles.section}>
-                <View style={styles.historyHeader}>
-                  <Text style={styles.sectionLabel}>{t.challengeCompletedSection}</Text>
-                  {selectionMode && (
-                    <View style={styles.historyActions}>
-                      <TouchableOpacity onPress={selectAll} style={styles.historyAction} accessibilityRole="button" accessibilityLabel={t.all}>
-                        <Text style={styles.historyActionText}>{t.all}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => confirmDelete(Array.from(selectedIds))}
-                        style={styles.historyAction}
-                        disabled={selectedIds.size === 0 || deleteChallenges.isPending}
-                        accessibilityRole="button"
-                        accessibilityLabel={t.deleteCount(selectedIds.size)}
-                      >
-                        <Text style={styles.historyDeleteText}>{t.deleteCount(selectedIds.size)}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={cancelSelection} style={styles.historyAction} accessibilityRole="button" accessibilityLabel={t.cancel}>
-                        <Text style={styles.historyActionText}>{t.cancel}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.pastCard}>
-                  {history.map((h, i) => {
-                    const historyMetaText = h.status === 'done'
-                      ? h.mode === 'weekly'
-                        ? t.challengeHistoryWeeklyDoneMeta(h.weekly_target ?? 0, h.total_weeks ?? 0, month(h.start_date))
-                        : t.challengeHistoryDoneMeta(h.target_days, month(h.start_date))
-                      : h.mode === 'weekly'
-                        ? t.challengeHistoryResetWeek(Math.ceil((h.reset_day ?? 0) / 7))
-                        : t.challengeHistoryReset(h.reset_day ?? 0);
-                    return (
-                    <View
-                      key={h.id}
-                      style={[styles.pastRow, i < history.length - 1 && styles.pastRowBorder, selectedIds.has(h.id) && styles.pastRowSelected]}
+                {selectionMode && (
+                  <View style={styles.historyActions}>
+                    <TouchableOpacity onPress={selectAll} style={styles.historyAction} accessibilityRole="button" accessibilityLabel={t.all}>
+                      <Text style={styles.historyActionText}>{t.all}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => confirmDelete(Array.from(selectedIds))}
+                      style={styles.historyAction}
+                      disabled={selectedIds.size === 0 || deleteChallenges.isPending}
+                      accessibilityRole="button"
+                      accessibilityLabel={t.deleteCount(selectedIds.size)}
                     >
-                      <TouchableOpacity
-                        style={styles.historyOpenButton}
-                        onPress={() => selectionMode ? toggleSelect(h.id) : (navigation as any).navigate('ChallengeDetail', { challengeId: h.id })}
-                        onLongPress={() => enterSelection(h.id)}
-                        delayLongPress={300}
-                        activeOpacity={0.7}
-                        accessibilityRole={selectionMode ? 'checkbox' : 'button'}
-                        accessibilityLabel={`${h.name}. ${historyMetaText}`}
-                        accessibilityState={selectionMode ? { checked: selectedIds.has(h.id) } : undefined}
-                      >
-                        {selectionMode && (
-                          <View style={[styles.checkbox, selectedIds.has(h.id) && styles.checkboxSelected]}>
-                            {selectedIds.has(h.id) && <Text style={styles.checkmark}>✓</Text>}
-                          </View>
-                        )}
-                        <View style={[styles.historyIcon, h.status === 'done' ? styles.doneIcon : styles.failedIcon]}>
-                          <Text>{h.status === 'done' ? '🏅' : '🧹'}</Text>
-                        </View>
-                        <View style={styles.historyCopy}>
-                          <Text style={styles.pastName} numberOfLines={1}>{h.name}</Text>
-                          <Text style={styles.historyMeta} numberOfLines={1}>{historyMetaText}</Text>
-                        </View>
-                      </TouchableOpacity>
-                      {!selectionMode && h.status === 'done' ? (
-                        <Text style={[styles.pastStatus, { color: colors.primaryText }]} numberOfLines={1}>{t.challengeHistoryDone}</Text>
-                      ) : !selectionMode ? (
-                        <TouchableOpacity
-                          onPress={async () => {
-                            const { id: challengeId, notificationDenied } = await restartChallenge.mutateAsync(h.id);
-                            if (notificationDenied) {
-                              Toast.show({ type: 'error', text1: t.reminderScheduleFailed, visibilityTime: 3500 });
-                            }
-                            (navigation as any).navigate('ChallengeDetail', { challengeId });
-                          }}
-                          disabled={restartChallenge.isPending}
-                          style={[styles.retryButton, restartChallenge.isPending && styles.retryDisabled]}
-                          accessibilityRole="button"
-                          accessibilityLabel={t.challengeRestartCta}
-                        >
-                          <Text style={[styles.pastStatus, { color: colors.primaryText }]} numberOfLines={1}>{t.challengeRestartCta}</Text>
-                        </TouchableOpacity>
-                      ) : null}
-                      {!selectionMode && (
-                        <TouchableOpacity
-                          onPress={() => confirmDelete([h.id])}
-                          disabled={deleteChallenges.isPending}
-                          style={styles.historyDeleteButton}
-                          hitSlop={4}
-                          accessibilityRole="button"
-                          accessibilityLabel={t.challengeDeleteCta}
-                        >
-                          <Text style={styles.historyDeleteIcon}>×</Text>
-                        </TouchableOpacity>
-                      )}
+                      <Text style={styles.historyDeleteText}>{t.deleteCount(selectedIds.size)}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={cancelSelection} style={styles.historyAction} accessibilityRole="button" accessibilityLabel={t.cancel}>
+                      <Text style={styles.historyActionText}>{t.cancel}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {doneHistory.length > 0 && (
+                  <View style={styles.historySubsection}>
+                    <View style={styles.sectionHeaderRow}>
+                      <Text style={styles.sectionLabel}>{t.challengeCompletedSection}</Text>
+                      <Text style={styles.sectionCount}>{doneHistory.length}</Text>
                     </View>
-                  );})}
-                </View>
+                    <View style={styles.pastCard}>
+                      {doneHistory.map((h, i) => renderHistoryRow(h, i, doneHistory.length))}
+                    </View>
+                  </View>
+                )}
+
+                {failedHistory.length > 0 && (
+                  <View style={styles.historySubsection}>
+                    <View style={styles.sectionHeaderRow}>
+                      <Text style={styles.sectionLabel}>{t.challengeFailedSection}</Text>
+                      <Text style={styles.sectionCount}>{failedHistory.length}</Text>
+                    </View>
+                    <View style={[styles.pastCard, styles.pastCardSunken]}>
+                      {failedHistory.map((h, i) => renderHistoryRow(h, i, failedHistory.length))}
+                    </View>
+                  </View>
+                )}
               </View>
             )}
           </>
@@ -249,26 +312,30 @@ function makeStyles(C: AppColors) {
     emptyCta: { backgroundColor: C.primary, paddingVertical: 14, paddingHorizontal: Spacing.xl, borderRadius: Radii.pill },
     emptyCtaText: { ...Typography.bodyStrong, color: C.onAccent },
     historyOnlyState: { alignItems: 'center', paddingTop: Spacing.sm, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xs },
-    section: { gap: Spacing.sm },
-    historyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    section: { gap: Spacing.lg },
+    historySubsection: { gap: Spacing.sm },
+    sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     sectionLabel: { ...Typography.sectionLabel, color: C.ink2 },
+    sectionCount: { ...Typography.caption, color: C.faint },
     historyActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     historyAction: { minHeight: 48, justifyContent: 'center', paddingHorizontal: Spacing.xs },
     historyActionText: { ...Typography.caption, color: C.ink2, fontFamily: FontFamily.semiBold },
     historyDeleteText: { ...Typography.caption, color: C.dangerText, fontFamily: FontFamily.semiBold },
     pastCard: { backgroundColor: C.surface, borderRadius: Radii.lg, ...Shadows.light },
+    pastCardSunken: { backgroundColor: C.surface2, shadowOpacity: 0, elevation: 0 },
     pastRow: { position: 'relative', flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, paddingRight: 48 },
     pastRowBorder: { borderBottomWidth: 1, borderBottomColor: C.line },
     pastRowSelected: { backgroundColor: C.primarySoft },
     historyOpenButton: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', marginVertical: -5 },
     historyIcon: { width: 34, height: 34, borderRadius: Radii.sm, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm },
     doneIcon: { backgroundColor: C.starSoft },
-    failedIcon: { backgroundColor: C.surface2 },
+    failedIcon: { backgroundColor: C.dangerSoft },
     historyCopy: { flex: 1, marginRight: Spacing.sm },
     pastName: { ...Typography.bodyStrong, color: C.inkDark },
     historyMeta: { ...Typography.caption, color: C.muted },
-    pastStatus: { ...Typography.caption, fontFamily: FontFamily.semiBold },
+    pastRowStatus: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     retryButton: { minHeight: 48, justifyContent: 'center' },
+    retryButtonText: { ...Typography.caption, fontFamily: FontFamily.semiBold, color: C.primaryText },
     retryDisabled: { opacity: 0.55 },
     historyDeleteButton: { position: 'absolute', top: 4, right: 4, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     historyDeleteIcon: { fontSize: 24, lineHeight: 24, color: C.muted, fontFamily: FontFamily.regular },

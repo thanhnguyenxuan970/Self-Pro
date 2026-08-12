@@ -91,6 +91,8 @@ type ChallengeRewardRow = {
   id: number;
   week_start: string;
   stars_delta: number;
+  is_exact?: number;
+  candidate_count?: number;
 };
 
 type ChallengeLogDb = Pick<SQLiteDatabase, 'getFirstAsync' | 'getAllAsync' | 'runAsync'>;
@@ -425,18 +427,18 @@ export async function deleteChallengeById(
   db: Pick<SQLiteDatabase, 'getFirstAsync' | 'runAsync'>,
   userId: number,
   challengeId: number,
-): Promise<void> {
+): Promise<string | null> {
   const challenge = await db.getFirstAsync<ChallengeDeleteRow>(
     `SELECT status, completed_at, notification_id FROM challenges WHERE id = ? AND user_id = ?`,
     [challengeId, userId],
   );
   if (!challenge) throw new Error('CHALLENGE_NOT_FOUND');
 
-  await cancelChallengeReminder(challenge.notification_id);
-
   if (challenge.status === 'done' && challenge.completed_at) {
     const rewardRow = await db.getFirstAsync<ChallengeRewardRow>(
-      `SELECT id, week_start, stars_delta
+      `SELECT id, week_start, stars_delta,
+              (reward.note = ?) AS is_exact,
+              COUNT(*) FILTER (WHERE reward.note IS NULL) OVER () AS candidate_count
        FROM activity_log AS reward
        WHERE reward.user_id = ? AND reward.source = 'CHALLENGE' AND reward.local_date = ?
          AND (
@@ -451,12 +453,15 @@ export async function deleteChallengeById(
              )
            )
          )
-       ORDER BY reward.id DESC
+       ORDER BY is_exact DESC, reward.id DESC
        LIMIT 1`,
-      [userId, challenge.completed_at, `challenge:${challengeId}`, challengeId],
+      [`challenge:${challengeId}`, userId, challenge.completed_at, `challenge:${challengeId}`, challengeId],
     );
 
     if (rewardRow) {
+      if (rewardRow.is_exact !== 1 && (rewardRow.candidate_count ?? 0) > 1) {
+        throw new Error('AMBIGUOUS_CHALLENGE_REWARD');
+      }
       await db.runAsync(
         `UPDATE weekly_summary
          SET weekly_stars = MAX(0, weekly_stars - ?)
@@ -478,6 +483,7 @@ export async function deleteChallengeById(
   await db.runAsync(`DELETE FROM challenge_days WHERE challenge_id = ?`, [challengeId]);
   await db.runAsync(`DELETE FROM challenge_log WHERE challenge_id = ?`, [challengeId]);
   await db.runAsync(`DELETE FROM challenges WHERE id = ? AND user_id = ?`, [challengeId, userId]);
+  return challenge.notification_id;
 }
 
 async function getActiveChallengeRows(db: SQLiteDatabase, userId: number): Promise<ChallengeRow[]> {
@@ -951,11 +957,13 @@ export function useDeleteChallenge(userId: number) {
       const ids = Array.isArray(challengeIds) ? challengeIds : [challengeIds];
       if (ids.length === 0) return;
       const db = await getDb();
+      const notificationIds: Array<string | null> = [];
       await db.withExclusiveTransactionAsync(async txn => {
         for (const challengeId of ids) {
-          await deleteChallengeById(txn as unknown as SQLiteDatabase, userId, challengeId);
+          notificationIds.push(await deleteChallengeById(txn as unknown as SQLiteDatabase, userId, challengeId));
         }
       });
+      await Promise.all(notificationIds.map(cancelChallengeReminder));
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
