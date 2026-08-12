@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { dailyBonusStarsForPoints } from '../config/constants';
-import { MAX_PINNED_ACTIVITIES, PickerTask } from '../utils/activityPicker';
+import { MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../utils/activityPicker';
 import type { LifetimeTierCrossing } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
@@ -24,6 +24,21 @@ export function useCreateTask(userId: number) {
   return useMutation({
     mutationFn: async (params: TaskFormParams): Promise<number> => {
       const db = await getDb();
+      // The UNIQUE index is on the exact stored name, so a different exact
+      // name that collides once normalized (accents/case stripped) can slide
+      // past it and create a second, effectively-duplicate task -- which can
+      // then make a preset/challenge-linked lookup resolve to the wrong one.
+      // AddActivitySheet already guards this client-side, but this is the
+      // only path every caller (e.g. BackfillSheet's template suggestions)
+      // goes through, so enforce it here too.
+      const existing = await db.getAllAsync<{ id: number; name: string }>(
+        `SELECT id, name FROM task_types WHERE user_id = ?`,
+        [userId],
+      );
+      const normalizedTarget = normalizeActivityName(params.name);
+      if (existing.some(task => task.name !== params.name && normalizeActivityName(task.name) === normalizedTarget)) {
+        throw new Error('DUPLICATE_ACTIVITY_NAME');
+      }
       await db.runAsync(
         `INSERT INTO task_types
          (user_id, name, kind, is_time_based, base_points, star_penalty, icon, category_id, archived, is_template)

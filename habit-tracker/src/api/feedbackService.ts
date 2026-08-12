@@ -8,6 +8,7 @@ import {
 } from '../utils/feedbackLogic';
 
 const LAST_SUBMIT_KEY = 'habit_feedback_last_submit';
+const SUBMIT_TIMEOUT_MS = 15_000;
 
 // Keep in sync with app.json "version" (no expo-application dep needed).
 const APP_VERSION = '1.1.0.0';
@@ -24,56 +25,65 @@ function getDeviceInfo(): { device: string; osVersion: string } {
   return { device: device.slice(0, 128), osVersion: release.slice(0, 64) };
 }
 
-async function uploadFeedbackImage(imageUri: string): Promise<string | null> {
-  if (!supabase) return null;
-  try {
-    const response = await fetch(imageUri);
-    const blob = await response.blob();
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-    const { error } = await supabase.storage
-      .from('feedback-attachments')
-      .upload(filename, blob, { contentType: 'image/jpeg', upsert: false });
-    if (error) return null;
-    const { data } = supabase.storage.from('feedback-attachments').getPublicUrl(filename);
-    return data.publicUrl ?? null;
-  } catch {
-    return null;
-  }
-}
-
 /**
- * Insert feedback into Supabase (write-only table — see 003_create_feedback_table.sql).
- * Works with or without an active Supabase Auth session (anon INSERT allowed).
- * imageUri: local file URI from expo-image-picker (optional). Uploaded to feedback-attachments bucket.
+ * Submit feedback via the feedback-submit Edge Function (see
+ * 034_feedback_server_rate_limit.sql) rather than inserting into the
+ * write-only `feedback` table directly — the table revokes client INSERT
+ * entirely so the function's server-side per-IP rate limit can't be
+ * bypassed by calling PostgREST directly with the public anon key.
+ * Works with or without an active Supabase Auth session.
+ *
+ * The AsyncStorage cooldown check below is a fast local pre-check for snappy
+ * UX (skips a network round trip for an obviously-too-soon resubmit); the
+ * Edge Function's server-side check is the actual rate-limit boundary.
  */
 export async function submitFeedback(params: {
   type: FeedbackType;
   message: string;
   userEmail: string | null;
-  imageUri?: string | null;
 }): Promise<FeedbackResult> {
   if (!validateFeedbackMessage(params.message)) return 'INVALID';
   if (!supabase) return 'UNAVAILABLE';
 
-  const raw = await AsyncStorage.getItem(LAST_SUBMIT_KEY).catch(() => null);
-  const last = raw ? parseInt(raw, 10) || null : null;
+  // A read failure here (or a "0"/corrupt stored value) is treated as "no
+  // record" and falls through to the network call -- safe to fail open
+  // because the Edge Function's server-side cooldown is the actual
+  // rate-limit boundary; this check only saves a round trip.
+  let last: number | null = null;
+  try {
+    const raw = await AsyncStorage.getItem(LAST_SUBMIT_KEY);
+    const parsed = raw === null ? NaN : parseInt(raw, 10);
+    last = Number.isFinite(parsed) ? parsed : null;
+  } catch { /* fail open — see comment above */ }
   if (!canSubmitFeedback(last, Date.now())) return 'RATE_LIMITED';
 
   const { device, osVersion } = getDeviceInfo();
 
-  const imageUrl = params.imageUri ? await uploadFeedbackImage(params.imageUri) : null;
-
-  const { error } = await supabase.from('feedback').insert({
-    user_email: params.userEmail,
-    type: params.type,
-    message: params.message.trim(),
-    app_version: APP_VERSION,
-    device,
-    os_version: osVersion,
-    ...(imageUrl ? { image_url: imageUrl } : {}),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SUBMIT_TIMEOUT_MS);
+  let data: unknown, error: unknown;
+  try {
+    ({ data, error } = await supabase.functions.invoke('feedback-submit', {
+      body: {
+        userEmail: params.userEmail,
+        type: params.type,
+        message: params.message.trim(),
+        appVersion: APP_VERSION,
+        device,
+        osVersion,
+      },
+      signal: controller.signal,
+    }));
+  } finally {
+    clearTimeout(timeout);
+  }
   if (error) return 'FAILED';
+  const result = (data as { result?: FeedbackResult } | null)?.result;
+  if (result !== 'OK') return result ?? 'FAILED';
 
+  // A write failure here just means the next submit re-checks the (now
+  // stale) local cooldown -- harmless, since the server enforces the real
+  // limit regardless of what this local timestamp says.
   await AsyncStorage.setItem(LAST_SUBMIT_KEY, String(Date.now())).catch(() => {});
   return 'OK';
 }

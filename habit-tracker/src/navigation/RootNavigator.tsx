@@ -185,6 +185,7 @@ function AppStack({
 }) {
   const [fabVisible, setFabVisible] = useState(false);
   const [presetName, setPresetName] = useState<string | null>(null);
+  const [presetTaskId, setPresetTaskId] = useState<number | null>(null);
   const { colors } = useTheme();
   const t = useTranslations();
   const navigation = useNavigation();
@@ -196,6 +197,7 @@ function AppStack({
 
   useEffect(() => subscribeAddActivityIntent(intent => {
     setPresetName(intent.name);
+    setPresetTaskId(intent.taskTypeId ?? null);
     setFabVisible(true);
   }), []);
 
@@ -254,7 +256,8 @@ function AppStack({
       <AddActivitySheet
         visible={fabVisible}
         presetName={presetName}
-        onClose={() => { setFabVisible(false); setPresetName(null); }}
+        presetTaskId={presetTaskId}
+        onClose={() => { setFabVisible(false); setPresetName(null); setPresetTaskId(null); }}
       />
       <BadgeUnlockCelebrationHost />
     </>

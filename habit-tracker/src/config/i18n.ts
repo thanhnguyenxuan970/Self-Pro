@@ -426,6 +426,8 @@ const vi = {
   challengeAlreadyActive: 'Bạn đang có một thử thách đang diễn ra',
   challengeNameRequired: 'Vui lòng nhập tên thử thách',
   challengeRenameFailed: 'Không thể đổi tên thử thách. Thử lại.',
+  challengeRestartFailed: 'Không thể bắt đầu lại thử thách. Thử lại.',
+  challengeRestartLinkedTaskArchived: 'Thói quen gắn với thử thách này đã bị ẩn. Khôi phục thói quen đó trước khi bắt đầu lại.',
 
   // Trophy Shelf / achievements
   screenTrophyShelf: 'Huy hiệu',
@@ -625,8 +627,6 @@ const vi = {
   feedbackTooShort: 'Nội dung quá ngắn.',
   feedbackUnavailable: 'Tính năng chưa khả dụng. Thử lại sau.',
   feedbackFailed: 'Gửi thất bại. Kiểm tra mạng và thử lại.',
-  feedbackAttachImage: 'Đính kèm ảnh',
-  feedbackImagePermission: 'Cần quyền truy cập thư viện ảnh.',
 
   // Notifications
   addReminder: '+ Thêm nhắc nhở',
@@ -1194,6 +1194,8 @@ const en: typeof vi = {
   challengeAlreadyActive: 'You already have an active challenge',
   challengeNameRequired: 'Please enter a challenge name',
   challengeRenameFailed: 'Could not rename challenge. Try again.',
+  challengeRestartFailed: 'Could not restart challenge. Try again.',
+  challengeRestartLinkedTaskArchived: 'The habit linked to this challenge is hidden. Restore it before restarting.',
 
   // Trophy Shelf / achievements
   screenTrophyShelf: 'Trophy',
@@ -1393,8 +1395,6 @@ const en: typeof vi = {
   feedbackTooShort: 'Message is too short.',
   feedbackUnavailable: 'Not available right now. Try again later.',
   feedbackFailed: 'Failed to send. Check your connection and retry.',
-  feedbackAttachImage: 'Attach image',
-  feedbackImagePermission: 'Photo library permission is required.',
 
   // Notifications
   addReminder: '+ Add reminder',

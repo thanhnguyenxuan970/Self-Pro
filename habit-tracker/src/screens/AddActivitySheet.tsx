@@ -16,12 +16,12 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 import { Strings } from '../config/i18n';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
-import { activityGroup, activityMatches, activityPinAccessibilityLabel, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../utils/activityPicker';
+import { activityGroup, activityMatches, activityPinAccessibilityLabel, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask, resolvePresetTask } from '../utils/activityPicker';
 import { DurationClockInput } from '../components/DurationClockInput';
 import { DurationPresetChips } from '../components/DurationPresetChips';
 import { clockMinutes } from '../utils/durationClock';
 
-interface Props { visible: boolean; onClose: () => void; presetName?: string | null; }
+interface Props { visible: boolean; onClose: () => void; presetName?: string | null; presetTaskId?: number | null; }
 
 type SuggestionChipProps = {
   s: TemplateTask;
@@ -133,7 +133,7 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onBack, onClo
 }
 
 // fallow-ignore-next-line complexity
-export function AddActivitySheet({ visible, onClose, presetName }: Props) {
+export function AddActivitySheet({ visible, onClose, presetName, presetTaskId }: Props) {
   const userId = useAuthUser();
   const { colors } = useTheme();
   const t = useTranslations();
@@ -168,9 +168,16 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
     if (visible && presetName) {
       setName(presetName);
       setSelectedSuggestion(null);
-      setSelectedExistingTask(null);
+      // A preset name always names an existing task (e.g. a challenge's linked
+      // habit) -- wire it up here so the duplicate-name guard in handleCreate
+      // doesn't reject it as a name collision with itself. Prefer the exact
+      // task id when the caller has it (e.g. challenge.taskTypeId): two tasks
+      // can have different exact names that collide once normalized (accent/
+      // case-insensitive), so a name-only lookup could resolve to the wrong
+      // task and silently misattribute the log.
+      setSelectedExistingTask(resolvePresetTask(pickerTasks, presetName, presetTaskId));
     }
-  }, [visible, presetName]);
+  }, [visible, presetName, presetTaskId, pickerTasks]);
 
   useEffect(() => {
     if (visible) {
@@ -291,8 +298,8 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
         Toast.show({ type: 'success', text1: t.taskAdded, text2: resolveTaskDisplayName(storeName, t, !!selectedSuggestion), visibilityTime: 2000 });
         handleClose();
       }
-    } catch {
-      Alert.alert(t.error, t.cantLog);
+    } catch (e: any) {
+      Alert.alert(t.error, e?.message === 'DUPLICATE_ACTIVITY_NAME' ? t.activityDuplicate : t.cantLog);
       submittingRef.current = false;
     }
   }

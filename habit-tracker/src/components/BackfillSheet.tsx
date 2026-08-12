@@ -233,7 +233,9 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
     try {
       const taskTypeId = await createTask.mutateAsync({ name: s.name, kind: s.kind, isTimeBased: s.isTimeBased, basePoints: s.basePoints, starPenalty: s.starPenalty, icon: s.icon, isTemplate: true });
       setEntries(prev => [...prev, { id: String(nextEntryId.current++), taskTypeId, name: s.name, icon: s.icon, kind: s.kind, isTimeBased: s.isTimeBased, basePoints: s.basePoints, starPenalty: s.starPenalty, durationMin: s.isTimeBased ? 30 : null }]);
-    } catch { Alert.alert(t.error, t.cantLog); }
+    } catch (e: any) {
+      Alert.alert(t.error, e?.message === 'DUPLICATE_ACTIVITY_NAME' ? t.activityDuplicate : t.cantLog);
+    }
   }
 
   async function submitSession() {

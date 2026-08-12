@@ -900,6 +900,20 @@ export function useRestartChallenge(userId: number) {
           [challengeId, userId],
         );
         if (!previous) throw new Error('CHALLENGE_NOT_RESTARTABLE');
+        // useArchiveTask blocks archiving a task linked to an *active*
+        // challenge, but this challenge is terminal (done/failed) -- its
+        // linked task could have been archived since. Restarting would
+        // otherwise create a new active challenge that can never be checked
+        // off: an archived task never gets new activity_log rows, so
+        // logChallengeDayForRow's linked-task branch would silently no-op
+        // forever.
+        if (previous.task_type_id != null) {
+          const task = await txn.getFirstAsync<{ archived: number }>(
+            `SELECT archived FROM task_types WHERE id = ? AND user_id = ?`,
+            [previous.task_type_id, userId],
+          );
+          if (!task || task.archived) throw new Error('LINKED_TASK_ARCHIVED');
+        }
         const result = await txn.runAsync(
           `INSERT INTO challenges (user_id, name, task_type_id, mode, target_days, weekly_target, total_weeks, start_date, streak_current, freezes_left, freeze_used, before_photo, notifications_enabled, min_duration, min_count)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?, ?, ?)`,

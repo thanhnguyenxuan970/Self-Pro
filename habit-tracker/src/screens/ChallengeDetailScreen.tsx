@@ -45,11 +45,15 @@ export function ChallengeDetailScreen() {
   const today = challengeDate();
 
   async function handleRestart() {
-    const { id, notificationDenied } = await restartChallenge.mutateAsync(challengeId!);
-    if (notificationDenied) {
-      Toast.show({ type: 'error', text1: t.reminderScheduleFailed, visibilityTime: 3500 });
+    try {
+      const { id, notificationDenied } = await restartChallenge.mutateAsync(challengeId!);
+      if (notificationDenied) {
+        Toast.show({ type: 'error', text1: t.reminderScheduleFailed, visibilityTime: 3500 });
+      }
+      (navigation as any).replace('ChallengeDetail', { challengeId: id });
+    } catch (e: any) {
+      Alert.alert(t.error, e?.message === 'LINKED_TASK_ARCHIVED' ? t.challengeRestartLinkedTaskArchived : t.challengeRestartFailed);
     }
-    (navigation as any).replace('ChallengeDetail', { challengeId: id });
   }
 
   async function handleRetryReminder() {
@@ -71,8 +75,8 @@ export function ChallengeDetailScreen() {
     }
   }
 
-  function handleLogNow(name: string) {
-    requestAddActivity({ name });
+  function handleLogNow(name: string, taskTypeId: number | null) {
+    requestAddActivity({ name, taskTypeId });
   }
 
   async function handleShare() {
@@ -404,7 +408,7 @@ export function ChallengeDetailScreen() {
         <View style={styles.stickyCta}>
           <TouchableOpacity
             style={[styles.logBtn, (!canLogToday || logDay.isPending) && styles.logBtnDisabled]}
-            onPress={linkedTaskName == null ? handleLogToday : () => handleLogNow(linkedTaskName)}
+            onPress={linkedTaskName == null ? handleLogToday : () => handleLogNow(linkedTaskName, challenge.taskTypeId)}
             disabled={!canLogToday || logDay.isPending}
             activeOpacity={0.85}
             accessibilityRole="button"

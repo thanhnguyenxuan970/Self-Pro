@@ -1,15 +1,15 @@
-type AddActivityIntent = { name: string };
+type AddActivityIntent = { name: string; taskTypeId?: number | null };
 type Listener = (intent: AddActivityIntent) => void;
 
 const listeners = new Set<Listener>();
 
 /** Cross-screen trigger to open the globally-mounted AddActivitySheet with a
- *  preset task name pre-filled. AddActivitySheet resolves tasks by
- *  (user_id, name) — see useCreateTask's ON CONFLICT upsert — so passing the
- *  linked habit's name (not its id) reuses that existing find-or-create path
- *  instead of adding a second lookup. Mirrors the app's existing
- *  queryClient-singleton pattern for cross-screen coordination — no new
- *  state-management dependency. */
+ *  preset task pre-filled. AddActivitySheet resolves the exact existing task
+ *  by taskTypeId when the caller already knows it (e.g. a challenge's linked
+ *  habit) — falling back to a name match otherwise — so two tasks whose names
+ *  collide after diacritic/case normalization can't cause the wrong one to be
+ *  selected. Mirrors the app's existing queryClient-singleton pattern for
+ *  cross-screen coordination — no new state-management dependency. */
 export function requestAddActivity(intent: AddActivityIntent): void {
   listeners.forEach(listener => listener(intent));
 }
