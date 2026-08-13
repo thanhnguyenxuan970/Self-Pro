@@ -553,7 +553,14 @@ function makeStyles(C: AppColors) {
       alignItems: 'center', ...Shadows.light,
     },
     statValue: { ...Typography.title, color: C.inkDark },
-    statLabel: { ...Typography.caption, color: C.ink2, marginTop: 2 },
+    statLabel: {
+      ...Typography.caption,
+      color: C.ink2,
+      marginTop: 2,
+      alignSelf: 'stretch',
+      paddingHorizontal: Spacing.xs,
+      textAlign: 'center',
+    },
     overachieverBanner: {
       alignSelf: 'stretch', backgroundColor: C.starSoft, borderRadius: Radii.lg, padding: Spacing.md,
     },
