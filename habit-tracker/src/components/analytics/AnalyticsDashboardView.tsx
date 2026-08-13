@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
-import { analyticsBarAccessibilityLabel, AnalyticsDashboard, AnalyticsRange } from '../../analytics/dashboardModel';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle, Line, Rect, Text as SvgText } from 'react-native-svg';
+import { analyticsBarAccessibilityLabel, AnalyticsDashboard, AnalyticsRange, getAnalyticsChartLayout, getMonthChartAnchor } from '../../analytics/dashboardModel';
 import { AppColors, FontFamily, Radii } from '../../config/theme';
 
 type Props = { data: AnalyticsDashboard; colors: AppColors; isDark: boolean; language: 'vi' | 'en'; range: AnalyticsRange; reduceMotion: boolean; animationKey: number };
@@ -93,6 +93,8 @@ function AnimatedMetricValue({ value, suffix, style, reduceMotion, animationKey,
 }
 
 export const AnalyticsDashboardView = React.memo(function AnalyticsDashboardView({ data, colors, isDark, language, range, reduceMotion, animationKey }: Props) {
+  const chartScrollRef = useRef<ScrollView>(null);
+  const [chartViewportWidth, setChartViewportWidth] = useState(0);
   const C = useMemo(() => ({ ...colors, starGoldText: colors.primary, starGoldMuted: colors.primaryLine }), [colors]);
   const s = useMemo(() => styles(C, isDark, colors.starGoldText), [C, colors.starGoldText, isDark]);
   const t = useMemo(() => copy(language === 'vi'), [language]);
@@ -128,6 +130,21 @@ export const AnalyticsDashboardView = React.memo(function AnalyticsDashboardView
     ? WEEKDAY_SHORT[label]?.[language] ?? label
     : range === 'Y' ? MONTH_SHORT[language][label] ?? label : label;
   const showPrevious = range === 'W';
+  const chartLayout = getAnalyticsChartLayout(range, data.bars.length);
+  const monthChartAnchor = getMonthChartAnchor(data.bars.length, chartViewportWidth);
+  const scrollToChartDefault = () => {
+    if (range === 'M') {
+      chartScrollRef.current?.scrollTo({ x: monthChartAnchor.scrollOffset, animated: false });
+      return;
+    }
+    chartScrollRef.current?.scrollToEnd({ animated: false });
+  };
+  useEffect(() => {
+    if (!chartLayout.isScrollable) return;
+    if (range === 'M' && chartViewportWidth === 0) return;
+    const frame = requestAnimationFrame(scrollToChartDefault);
+    return () => cancelAnimationFrame(frame);
+  }, [chartLayout.contentWidth, chartLayout.isScrollable, chartViewportWidth, monthChartAnchor.scrollOffset, range]);
   const barWidth = range === 'M' ? 5 : range === 'Y' ? 10 : 7;
   const chartHeight = 188;
   const chartTop = 14;
@@ -157,32 +174,40 @@ export const AnalyticsDashboardView = React.memo(function AnalyticsDashboardView
       ? t.yearNote(monthsCleared, data.bars.length, (chartGoal).toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US'), yearChange, yearFrom)
       : t.goalNote(data.daysAtGoal, data.possibleDays, chartLabel(peak?.label ?? ''), peak?.current ?? 0);
   const hourSummary = t.hourSummary(weekdayName(weekdayLowest.label), weekdayLowest.value, weekdayName(weekdayHighest.label), weekdayRatioText, String(hourStart), hourEnd, hourShare);
+  const chartGrid = [0, 50, 100].map((percent) => <View key={percent} pointerEvents="none" style={{ borderTopColor: C.line, borderTopWidth: 1, borderStyle: 'dotted', bottom: chartY(chartMax * percent / 100), left: 0, position: 'absolute', right: 0 }} />);
+  const chartColumns = data.bars.map((bar, index) => <View
+    style={[s.chartColumn, chartLayout.isScrollable && { flexGrow: 0, flexShrink: 0, width: chartLayout.columnWidth }]}
+    key={index}
+    accessible
+    accessibilityRole="image"
+    accessibilityLabel={analyticsBarAccessibilityLabel(language, chartLabel(bar.label), bar.current, bar.previous, chartGoal, showPrevious)}
+  ><View style={s.barPair}>{showPrevious && <AnimatedBar value={bar.previous} max={chartMax} color={C.surface3} style={s.barPrevious} reduceMotion={reduceMotion} animationKey={animationKey} delay={index * 12} />}<AnimatedBar value={bar.current} max={chartMax} color={chartGoal > 0 && bar.current < chartGoal ? C.starGoldMuted : C.starGoldText} style={[s.barCurrent, !showPrevious && s.barCurrentSolo, { width: barWidth }]} reduceMotion={reduceMotion} animationKey={animationKey} delay={index * 12 + (showPrevious ? 30 : 0)} /></View><Text pointerEvents="none" style={s.barLabel} numberOfLines={1}>{chartLabel(bar.label)}</Text></View>);
+  const chartContent = () => <View style={[s.chartContent, { paddingTop: chartTop }, s.chartContentFixed]}>{chartGrid}{chartGoal > 0 && <><View style={[s.goalLine, { bottom: chartY(chartGoal), left: 0 }]} /><Text style={[s.goalText, { backgroundColor: isDark ? C.surface2 : C.surface, bottom: chartY(chartGoal), left: -2, paddingHorizontal: 3, right: undefined }]}>{language === 'vi' ? `MỤC TIÊU ${chartNumber(chartGoal)}` : `GOAL ${chartNumber(chartGoal)}`}</Text></>}<View style={s.chartTrack}>{chartColumns}</View></View>;
+  const svgBaseline = chartHeight - chartLabelHeight;
+  const svgPlotHeight = svgBaseline - chartTop;
+  const svgY = (value: number) => svgBaseline - value / chartMax * svgPlotHeight;
+  const goalText = language === 'vi' ? `MỤC TIÊU ${chartNumber(chartGoal)}` : `GOAL ${chartNumber(chartGoal)}`;
+  const scrollableChart = <Svg width={chartLayout.contentWidth} height={chartHeight} accessible accessibilityLabel={language === 'vi' ? 'Biểu đồ điểm có thể cuộn ngang' : 'Horizontally scrollable points chart'}>
+    {[0, 50, 100].map(percent => <Line key={percent} x1={0} x2={chartLayout.contentWidth} y1={svgY(chartMax * percent / 100)} y2={svgY(chartMax * percent / 100)} stroke={C.line} strokeDasharray="2 2" strokeWidth={1} />)}
+    {chartGoal > 0 && <><Line x1={0} x2={chartLayout.contentWidth} y1={svgY(chartGoal)} y2={svgY(chartGoal)} stroke={C.starGoldText} strokeDasharray="6 5" strokeWidth={1.5} /><Rect x={0} y={svgY(chartGoal) - 14} width={92} height={16} fill={isDark ? C.surface2 : C.surface} /><SvgText x={3} y={svgY(chartGoal) - 3} fill={C.starGoldText} fontFamily={FontFamily.bold} fontSize={9}>{goalText}</SvgText></>}
+    {data.bars.map((bar, index) => {
+      const height = bar.current > 0 ? Math.max(6, bar.current / chartMax * svgPlotHeight) : 0;
+      const x = index * chartLayout.columnWidth + (chartLayout.columnWidth - barWidth) / 2;
+      return <React.Fragment key={index}><Rect x={x} y={svgBaseline - height} width={barWidth} height={height} rx={3} fill={chartGoal > 0 && bar.current < chartGoal ? C.starGoldMuted : C.starGoldText} /><SvgText x={index * chartLayout.columnWidth + chartLayout.columnWidth / 2} y={chartHeight - 4} fill={C.muted} fontFamily={FontFamily.regular} fontSize={12} textAnchor="middle">{chartLabel(bar.label)}</SvgText></React.Fragment>;
+    })}
+  </Svg>;
   return <View>
     <Text style={s.section}>{t.volume}</Text>
     <View style={[s.metrics, { marginBottom: 14 }]}>{metric(data.points, data.previousPoints, t.points, '', 'primary', 0)}{metric(data.stars, data.previousStars, t.stars, '', 'gold', 70)}{metric(data.daysAtGoal, data.previousDaysAtGoal, t.goal, `/${data.possibleDays}`, 'ink', 140)}</View>
     <View style={s.card}>
       <View style={s.chartHeader}><Text style={s.cardTitle}>{range === 'Y' ? (language === 'vi' ? 'Điểm theo tháng' : 'Points per month') : t.chart}</Text><Text style={s.legend}><Text style={s.dotCurrent}>●</Text> {range === 'W' ? t.thisWeek : range === 'M' ? (language === 'vi' ? 'Tổng theo ngày' : 'Daily total') : (language === 'vi' ? 'Tổng theo tháng' : 'Monthly total')}{showPrevious && <><Text style={s.dotPrevious}> ●</Text> {t.last}</>} <Text style={s.dotBelow}>●</Text> {language === 'vi' ? 'Dưới mục tiêu' : 'Below goal'}</Text></View>
-      <View style={[s.chart, { height: chartHeight, paddingTop: chartTop, paddingBottom: chartLabelHeight, paddingLeft: 34, paddingRight: 0 }]}>
-        {[0, 50, 100].map((percent) => <View key={percent} pointerEvents="none" style={{ borderTopColor: C.line, borderTopWidth: 1, borderStyle: 'dotted', bottom: chartY(chartMax * percent / 100), left: 34, position: 'absolute', right: 0 }} />)}
+      <View style={[s.chart, { height: chartHeight }]}>
         <Text pointerEvents="none" style={{ color: C.muted, fontFamily: FontFamily.regular, fontSize: 9, left: 0, position: 'absolute', textAlign: 'right', bottom: chartY(chartMax) - 7, width: 30 }}>{chartNumber(chartMax)}</Text>
         <Text pointerEvents="none" style={{ color: C.muted, fontFamily: FontFamily.regular, fontSize: 9, left: 0, position: 'absolute', textAlign: 'right', bottom: chartY(chartMax / 2) - 7, width: 30 }}>{chartNumber(chartMax / 2)}</Text>
         <Text pointerEvents="none" style={{ color: C.muted, fontFamily: FontFamily.regular, fontSize: 9, left: 0, position: 'absolute', textAlign: 'right', bottom: chartY(0) - 2, width: 30 }}>0</Text>
-        {chartGoal > 0 && <><View style={[s.goalLine, { bottom: chartY(chartGoal), left: 34 }]} /><Text style={[s.goalText, { backgroundColor: isDark ? C.surface2 : C.surface, bottom: chartY(chartGoal), left: 32, paddingHorizontal: 3, right: undefined }]}>{language === 'vi' ? `MỤC TIÊU ${chartNumber(chartGoal)}` : `GOAL ${chartNumber(chartGoal)}`}</Text></>}
-        {data.bars.map((bar, index) => <View
-          style={s.barCol}
-          key={index}
-          accessible
-          accessibilityRole="image"
-          accessibilityLabel={analyticsBarAccessibilityLabel(language, chartLabel(bar.label), bar.current, bar.previous, chartGoal, showPrevious)}
-        ><View style={s.barPair}>{showPrevious && <AnimatedBar value={bar.previous} max={chartMax} color={C.surface3} style={s.barPrevious} reduceMotion={reduceMotion} animationKey={animationKey} delay={index * 12} />}<AnimatedBar value={bar.current} max={chartMax} color={chartGoal > 0 && bar.current < chartGoal ? C.starGoldMuted : C.starGoldText} style={[s.barCurrent, !showPrevious && s.barCurrentSolo, { width: barWidth }]} reduceMotion={reduceMotion} animationKey={animationKey} delay={index * 12 + (showPrevious ? 30 : 0)} /></View></View>)}
-        {range === 'M'
-          ? <View pointerEvents="none" style={[s.xAxisLabelsAbs, { height: chartLabelHeight }]}>{data.bars.map((bar, index) => {
-              const label = chartLabel(bar.label);
-              if (!label) return null;
-              const center = (index + 0.5) / data.bars.length * 100;
-              return <Text key={`label-${index}`} style={[s.barLabel, s.barLabelAbs, { left: `${center}%` }]} numberOfLines={1}>{label}</Text>;
-            })}</View>
-          : <View pointerEvents="none" style={[s.xAxisLabels, { height: chartLabelHeight }]}>{data.bars.map((bar, index) => <View style={s.xAxisColumn} key={`label-${index}`}><Text style={s.barLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.9}>{chartLabel(bar.label)}</Text></View>)}</View>}
+        <View style={s.chartViewport} onLayout={({ nativeEvent }) => setChartViewportWidth(nativeEvent.layout.width)}>{chartLayout.isScrollable
+          ? <ScrollView ref={chartScrollRef} horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={[s.chartScrollContent, range === 'M' && { paddingRight: monthChartAnchor.trailingInset }]} onContentSizeChange={scrollToChartDefault}>{scrollableChart}</ScrollView>
+          : chartContent()}</View>
       </View>
       <View style={s.rule} /><Text style={s.note}>{chartNote}</Text>
     </View>
@@ -199,5 +224,5 @@ export const AnalyticsDashboardView = React.memo(function AnalyticsDashboardView
 
 function styles(C: AppColors, isDark: boolean, metricGoldText: string) { const card = isDark ? C.surface2 : C.surface; return StyleSheet.create({
   sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, marginBottom: 9 }, section: { color: C.starGoldText, fontFamily: FontFamily.bold, fontSize: 10, marginTop: 18, marginBottom: 8, letterSpacing: .3 }, sectionHeaderTitle: { color: C.starGoldText, fontFamily: FontFamily.bold, fontSize: 12, letterSpacing: .3 }, sectionHint: { color: C.muted, fontFamily: FontFamily.regular, fontSize: 11 },
-  metrics: { backgroundColor: card, borderColor: C.line, borderWidth: 1, borderRadius: Radii.lg, flexDirection: 'row', overflow: 'hidden' }, metric: { flex: 1, padding: 13, borderRightColor: C.line, borderRightWidth: 1 }, metricPrimary: { backgroundColor: C.starGoldText }, metricLabel: { color: C.muted, fontFamily: FontFamily.bold, fontSize: 10, height: 26, lineHeight: 13 }, metricPrimaryText: { color: C.onAccent }, metricValue: { color: C.starGoldText, fontFamily: FontFamily.extraBold, fontSize: 24, letterSpacing: -1, marginTop: 3 }, metricGold: { color: metricGoldText }, metricInk: { color: C.inkDark }, delta: { color: C.successText, fontFamily: FontFamily.bold, fontSize: 10 }, deltaBad: { color: C.dangerText }, card: { backgroundColor: card, borderColor: C.line, borderWidth: 1, borderRadius: Radii.lg, padding: 14, marginBottom: 2 }, cardTitle: { color: C.inkDark, fontFamily: FontFamily.bold, fontSize: 14 }, chartHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }, legend: { color: C.muted, flexShrink: 1, fontFamily: FontFamily.regular, fontSize: 10, textAlign: 'right' }, dotCurrent: { color: C.starGoldText }, dotPrevious: { color: C.surface3 }, dotBelow: { color: C.starGoldMuted }, chart: { height: 188, marginTop: 14, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', position: 'relative' }, goalLine: { borderTopColor: C.starGoldText, borderTopWidth: 1, borderStyle: 'dashed', left: 0, position: 'absolute', right: 0 }, goalText: { color: C.starGoldText, elevation: 1, fontFamily: FontFamily.bold, fontSize: 9, position: 'absolute', right: 0, zIndex: 1 }, barCol: { alignItems: 'center', flex: 1, height: '100%', justifyContent: 'flex-end', minHeight: 0 }, barPair: { alignItems: 'flex-end', flex: 1, flexDirection: 'row', justifyContent: 'center', minHeight: 0, width: '100%' }, xAxisLabels: { bottom: 0, flexDirection: 'row', left: 34, position: 'absolute', right: 0 }, xAxisColumn: { alignItems: 'center', flex: 1, justifyContent: 'center' }, xAxisLabelsAbs: { bottom: 0, left: 34, position: 'absolute', right: 0 }, barLabelAbs: { marginLeft: -13, position: 'absolute', textAlign: 'center', width: 26 }, barCurrent: { backgroundColor: C.starGoldText, borderTopLeftRadius: 3, borderTopRightRadius: 3, marginLeft: 3, width: 8 }, barCurrentSolo: { marginLeft: 0, width: 10 }, barPrevious: { backgroundColor: C.surface3, borderTopLeftRadius: 3, borderTopRightRadius: 3, width: 8 }, barLabel: { color: C.muted, fontFamily: FontFamily.bold, fontSize: 12, height: 16, lineHeight: 16 }, rule: { backgroundColor: C.line, height: 1, marginTop: 14 }, note: { color: C.ink2, fontFamily: FontFamily.regular, fontSize: 11, lineHeight: 16, marginTop: 10 }, rings: { flexDirection: 'row', justifyContent: 'space-around' }, ringItem: { alignItems: 'center' }, ringValue: { color: C.inkDark, fontFamily: FontFamily.extraBold, fontSize: 16 }, ringLabel: { color: C.muted, fontFamily: FontFamily.regular, fontSize: 10, marginTop: 7 }, rhythmRow: { alignItems: 'center', flexDirection: 'row', marginTop: 9 }, rhythmLabel: { color: C.muted, fontFamily: FontFamily.bold, fontSize: 10, width: 28 }, rhythmTrack: { backgroundColor: C.surface3, borderRadius: 5, flex: 1, height: 9 }, rhythmValue: { color: C.inkDark, fontFamily: FontFamily.bold, textAlign: 'right', width: 30 }, hours: { alignItems: 'flex-end', flexDirection: 'row', height: 80, justifyContent: 'space-around', marginTop: 8 }, hourCol: { alignItems: 'center', height: '100%', justifyContent: 'flex-end', width: 28 }, hourBarArea: { alignItems: 'center', flex: 1, justifyContent: 'flex-end', minHeight: 0, width: '100%' }, hourBar: { backgroundColor: C.starGoldText, borderTopLeftRadius: 2, borderTopRightRadius: 2, width: '100%' }, hourLabel: { color: C.muted, fontFamily: FontFamily.regular, fontSize: 9, marginTop: 5 }, compHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 7 }, compMeta: { color: C.muted, fontFamily: FontFamily.bold, fontSize: 9 }, compRow: { alignItems: 'center', flexDirection: 'row', marginTop: 11 }, compName: { color: C.inkDark, flex: 1, fontFamily: FontFamily.bold, fontSize: 12 }, compTrack: { backgroundColor: C.surface3, borderRadius: 4, height: 6, width: 76 }, compFill: { backgroundColor: C.starGoldText, borderRadius: 4, height: 6 }, compCount: { color: C.inkDark, fontFamily: FontFamily.bold, textAlign: 'right', width: 34 }, compDelta: { color: C.successText, fontFamily: FontFamily.bold, textAlign: 'right', width: 31 },
+  metrics: { backgroundColor: card, borderColor: C.line, borderWidth: 1, borderRadius: Radii.lg, flexDirection: 'row', overflow: 'hidden' }, metric: { flex: 1, padding: 13, borderRightColor: C.line, borderRightWidth: 1 }, metricPrimary: { backgroundColor: C.starGoldText }, metricLabel: { color: C.muted, fontFamily: FontFamily.bold, fontSize: 10, height: 26, lineHeight: 13 }, metricPrimaryText: { color: C.onAccent }, metricValue: { color: C.starGoldText, fontFamily: FontFamily.extraBold, fontSize: 24, letterSpacing: -1, marginTop: 3 }, metricGold: { color: metricGoldText }, metricInk: { color: C.inkDark }, delta: { color: C.successText, fontFamily: FontFamily.bold, fontSize: 10 }, deltaBad: { color: C.dangerText }, card: { backgroundColor: card, borderColor: C.line, borderWidth: 1, borderRadius: Radii.lg, padding: 14, marginBottom: 2 }, cardTitle: { color: C.inkDark, fontFamily: FontFamily.bold, fontSize: 14 }, chartHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }, legend: { color: C.muted, flexShrink: 1, fontFamily: FontFamily.regular, fontSize: 10, textAlign: 'right' }, dotCurrent: { color: C.starGoldText }, dotPrevious: { color: C.surface3 }, dotBelow: { color: C.starGoldMuted }, chart: { height: 188, marginTop: 14, position: 'relative' }, chartViewport: { bottom: 0, left: 34, position: 'absolute', right: 0, top: 0 }, chartScrollContent: { minHeight: '100%' }, chartContent: { height: '100%', position: 'relative' }, chartContentFixed: { width: '100%' }, chartTrack: { flex: 1, flexDirection: 'row' }, goalLine: { borderTopColor: C.starGoldText, borderTopWidth: 1, borderStyle: 'dashed', left: 0, position: 'absolute', right: 0 }, goalText: { color: C.starGoldText, elevation: 1, fontFamily: FontFamily.bold, fontSize: 9, position: 'absolute', right: 0, zIndex: 1 }, chartColumn: { alignItems: 'center', flex: 1, height: '100%', minHeight: 0 }, barPair: { alignItems: 'flex-end', flex: 1, flexDirection: 'row', justifyContent: 'center', minHeight: 0, width: '100%' }, barCurrent: { backgroundColor: C.starGoldText, borderTopLeftRadius: 3, borderTopRightRadius: 3, marginLeft: 3, width: 8 }, barCurrentSolo: { marginLeft: 0, width: 10 }, barPrevious: { backgroundColor: C.surface3, borderTopLeftRadius: 3, borderTopRightRadius: 3, width: 8 }, barLabel: { color: C.muted, fontFamily: FontFamily.regular, fontSize: 12, height: 22, lineHeight: 16, textAlign: 'center', width: '100%' }, rule: { backgroundColor: C.line, height: 1, marginTop: 14 }, note: { color: C.ink2, fontFamily: FontFamily.regular, fontSize: 11, lineHeight: 16, marginTop: 10 }, rings: { flexDirection: 'row', justifyContent: 'space-around' }, ringItem: { alignItems: 'center' }, ringValue: { color: C.inkDark, fontFamily: FontFamily.extraBold, fontSize: 16 }, ringLabel: { color: C.muted, fontFamily: FontFamily.regular, fontSize: 10, marginTop: 7 }, rhythmRow: { alignItems: 'center', flexDirection: 'row', marginTop: 9 }, rhythmLabel: { color: C.muted, fontFamily: FontFamily.bold, fontSize: 10, width: 28 }, rhythmTrack: { backgroundColor: C.surface3, borderRadius: 5, flex: 1, height: 9 }, rhythmValue: { color: C.inkDark, fontFamily: FontFamily.bold, textAlign: 'right', width: 30 }, hours: { alignItems: 'flex-end', flexDirection: 'row', height: 80, justifyContent: 'space-around', marginTop: 8 }, hourCol: { alignItems: 'center', height: '100%', justifyContent: 'flex-end', width: 28 }, hourBarArea: { alignItems: 'center', flex: 1, justifyContent: 'flex-end', minHeight: 0, width: '100%' }, hourBar: { backgroundColor: C.starGoldText, borderTopLeftRadius: 2, borderTopRightRadius: 2, width: '100%' }, hourLabel: { color: C.muted, fontFamily: FontFamily.regular, fontSize: 9, marginTop: 5 }, compHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 7 }, compMeta: { color: C.muted, fontFamily: FontFamily.bold, fontSize: 9 }, compRow: { alignItems: 'center', flexDirection: 'row', marginTop: 11 }, compName: { color: C.inkDark, flex: 1, fontFamily: FontFamily.bold, fontSize: 12 }, compTrack: { backgroundColor: C.surface3, borderRadius: 4, height: 6, width: 76 }, compFill: { backgroundColor: C.starGoldText, borderRadius: 4, height: 6 }, compCount: { color: C.inkDark, fontFamily: FontFamily.bold, textAlign: 'right', width: 34 }, compDelta: { color: C.successText, fontFamily: FontFamily.bold, textAlign: 'right', width: 31 },
 }); }

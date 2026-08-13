@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [2.0.1.4] - 2026-08-13
+
+### Fixed
+- **Analytics Month/Year charts**: point bars and x-axis labels now use horizontally scrollable fixed-width tracks instead of compressing every value into one phone viewport. The Month chart opens with today centered for immediate context.
+
 ## [2.0.1.3] - 2026-08-13
 
 ### Added

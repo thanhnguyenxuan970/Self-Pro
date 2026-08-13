@@ -17,6 +17,22 @@ export type AnalyticsDashboard = {
   composition: { name: string; count: number; previous: number }[];
 };
 
+export function getAnalyticsChartLayout(range: AnalyticsRange, barCount: number) {
+  const columnWidth = range === 'M' ? 36 : range === 'Y' ? 56 : 0;
+  return { isScrollable: range !== 'W', columnWidth, contentWidth: columnWidth * barCount };
+}
+
+export function getMonthChartAnchor(barCount: number, viewportWidth: number) {
+  const { columnWidth, contentWidth } = getAnalyticsChartLayout('M', barCount);
+  // The rolling Month range ends on today. Reserve just enough space after its
+  // final bar for the initial scroll offset to place it at viewport center.
+  const trailingInset = Math.max(0, viewportWidth / 2 - columnWidth / 2);
+  return {
+    trailingInset,
+    scrollOffset: Math.max(0, contentWidth + trailingInset - viewportWidth),
+  };
+}
+
 export function analyticsBarAccessibilityLabel(
   language: 'vi' | 'en',
   periodLabel: string,
@@ -64,9 +80,9 @@ export function buildAnalyticsDashboard(
   const previousDates = currentDates.map<Date | null>(date => range === 'Y'
     ? new Date(date.getFullYear() - 1, date.getMonth(), 1)
     : addDays(previousStart, Math.round((date.getTime() - start.getTime()) / 86400000)));
-  const labels = currentDates.map((date, index) => range === 'W'
+  const labels = currentDates.map((date) => range === 'W'
     ? ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][date.getDay()]
-    : range === 'M' ? (index % 7 === 0 ? String(date.getDate()) : '')
+    : range === 'M' ? String(date.getDate())
     : date.toLocaleString('en-US', { month: 'short' }));
   const monthTotal = (month: Date, from: Date, to: Date) => sum(daily.filter(row => {
     const date = new Date(`${row.local_date}T00:00:00`);
