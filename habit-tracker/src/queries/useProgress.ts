@@ -66,14 +66,17 @@ export function useAnalyticsDashboard(userId: number, range: AnalyticsRange) {
     queryFn: async (): Promise<AnalyticsDashboard> => {
       if (__DEV__ && process.env.EXPO_PUBLIC_ANALYTICS_DEMO === '1') return analyticsDemo;
       const db = await getDb();
-      const [daily, logs] = await Promise.all([
+      const [daily, logs, activeDays] = await Promise.all([
         db.getAllAsync<AnalyticsDaily>(`SELECT local_date, total_points FROM daily_summary WHERE user_id = ?`, [userId]),
         db.getAllAsync<AnalyticsLog>(`
           SELECT a.local_date, a.logged_at, a.points_earned, a.stars_delta, tt.name AS task_name
           FROM activity_log a LEFT JOIN task_types tt ON tt.id = a.task_type_id
           WHERE a.user_id = ? AND a.source = 'TASK' AND a.local_date >= ?`, [userId, logsFromDate]),
+        db.getAllAsync<{ local_date: string }>(`
+          SELECT DISTINCT local_date FROM activity_log
+          WHERE user_id = ? AND source IN ('TASK', 'CHALLENGE')`, [userId]),
       ]);
-      return buildAnalyticsDashboard(daily, logs, range);
+      return buildAnalyticsDashboard(daily, logs, range, new Date(), activeDays.map(row => row.local_date));
     },
   });
 }

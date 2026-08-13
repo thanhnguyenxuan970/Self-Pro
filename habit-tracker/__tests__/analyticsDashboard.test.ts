@@ -21,6 +21,22 @@ describe('buildAnalyticsDashboard', () => {
     expect(result.daysAtGoal).toBe(0);
   });
 
+  it('counts activity days for volume and consistency even below the point goal', () => {
+    const result = buildAnalyticsDashboard(
+      [{ local_date: '2026-07-28', total_points: 10 }],
+      [
+        { local_date: '2026-07-28', logged_at: new Date(2026, 6, 28, 9).getTime(), points_earned: 10, stars_delta: 1, task_name: 'Read' },
+        { local_date: '2026-07-27', logged_at: new Date(2026, 6, 27, 9).getTime(), points_earned: 5, stars_delta: 1, task_name: 'Walk' },
+      ],
+      'W',
+      new Date(2026, 6, 28),
+      ['2026-07-27', '2026-07-28'],
+    );
+
+    expect(result.daysAtGoal).toBe(2);
+    expect(result.consistency.week).toBe(29);
+  });
+
   it('uses January through the current month for the year range', () => {
     const result = buildAnalyticsDashboard([{ local_date: '2026-07-28', total_points: 92 }], [], 'Y', new Date(2026, 6, 28));
 
