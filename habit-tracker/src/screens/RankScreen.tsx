@@ -69,7 +69,12 @@ export function RankScreen() {
   // ['friends', 'anon'] both existing as distinct, equally-inert cache keys.
   const accountSub = googleUser?.sub ?? 'anon';
 
-  const { data: leaderboard = [], isLoading: lbLoading, isError: lbError } = useLeaderboard(
+  const {
+    data: leaderboard = [],
+    isLoading: lbLoading,
+    isError: lbError,
+    isUnavailable: lbUnavailable,
+  } = useLeaderboard(
     currentUserEmail,
     googleUser?.name ?? null,
     t.leaderboardPlayer,
@@ -80,7 +85,9 @@ export function RankScreen() {
     playerId: googleUser?.sub ?? 'current-user',
     displayName: googleUser?.name ?? t.leaderboardYou,
     lifetimeStars: data?.currentStars ?? 0,
-    rank: 1,
+    // Until the authenticated server response arrives, the local database
+    // does not know this user's global rank. Do not present a fabricated #1.
+    rank: 0,
     isCurrentUser: true,
     starsToNextRank: null,
     currentStreak: 0,
@@ -265,6 +272,7 @@ export function RankScreen() {
             leaderboard={leaderboard}
             lbLoading={lbLoading}
             lbError={lbError}
+            lbUnavailable={lbUnavailable}
             colors={colors}
             youLabel={t.leaderboardYou}
             emptyNote={t.leaderboardEmpty}

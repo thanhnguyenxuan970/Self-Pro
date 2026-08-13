@@ -127,6 +127,28 @@ test('disables the query when there is no signed-in email', () => {
   expect(query.enabled).toBe(false);
 });
 
+test('query function returns no rows when no signed-in email is available', async () => {
+  const query = useLeaderboard(null, null, 'Player') as unknown as {
+    queryFn: () => Promise<unknown>;
+  };
+  await expect(query.queryFn()).resolves.toEqual([]);
+});
+
+test('exposes missing Supabase configuration separately from an empty remote response', () => {
+  const configuredClient = mockSupabase.supabase;
+  mockSupabase.supabase = null as never;
+  try {
+    const query = useLeaderboard('me@example.com', 'Thanh', 'Player') as unknown as {
+      enabled: boolean;
+      isUnavailable: boolean;
+    };
+    expect(query.enabled).toBe(false);
+    expect(query.isUnavailable).toBe(true);
+  } finally {
+    mockSupabase.supabase = configuredClient;
+  }
+});
+
 test('returns the caller rank neighbourhood alongside the top block, in rank order', () => {
   const result = mapRemoteLeaderboardRows([
     { player_id: 'top-1', lifetime_stars: 900, rank: 1, is_current_user: false },

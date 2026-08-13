@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.1.5 - 2026-08-13
+
+- Sửa bảng xếp hạng toàn cầu sau cập nhật: hiển thị đúng người chơi có dữ liệu thật và không còn hiển thị thứ hạng `#1` giả khi backend chưa sẵn sàng.
+
 ## 2.0.1.4 - 2026-08-13
 
 - Sửa đồng bộ sao lifetime trên bảng xếp hạng: hiệu chỉnh lịch sử được giữ bền qua các lần sync.

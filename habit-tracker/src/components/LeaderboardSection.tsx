@@ -23,6 +23,7 @@ type LeaderboardSectionProps = {
   leaderboard: LeaderboardEntry[];
   lbLoading: boolean;
   lbError: boolean;
+  lbUnavailable: boolean;
   colors: AppColors;
   youLabel: string;
   emptyNote: string;
@@ -88,7 +89,7 @@ const LeaderboardRow = React.memo(function LeaderboardRow({
 });
 
 export const LeaderboardSection = React.memo(function LeaderboardSection({
-  leaderboard, lbLoading, lbError, colors, youLabel, emptyNote, noSyncNote, currentUserEntry, copy,
+  leaderboard, lbLoading, lbError, lbUnavailable, colors, youLabel, emptyNote, noSyncNote, currentUserEntry, copy,
 }: LeaderboardSectionProps) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -99,9 +100,9 @@ export const LeaderboardSection = React.memo(function LeaderboardSection({
   if (lbLoading) {
     return <View style={styles.lbEmpty}><ActivityIndicator color={colors.primary} /></View>;
   }
-  // Loading and error are distinct from "confirmed zero global entries" — never
-  // fabricate the current user's rank as #1 on a fetch failure.
-  if (lbError) {
+  // A missing Supabase build configuration is distinct from a confirmed empty
+  // response. Never render the local placeholder row as if it were global data.
+  if (lbUnavailable || lbError) {
     return <Text style={styles.lbEmptyTxt}>{noSyncNote}</Text>;
   }
   if (leaderboard.length === 0) {
@@ -111,7 +112,7 @@ export const LeaderboardSection = React.memo(function LeaderboardSection({
           key={currentUserEntry.playerId}
           style={[styles.lbRow, styles.lbRowLast, styles.lbRowMe]}
         >
-          <Text style={[styles.lbRank, styles.lbRankTop]} numberOfLines={1}>#{currentUserEntry.rank}</Text>
+          <Text style={styles.lbRank} numberOfLines={1}>—</Text>
           <View style={styles.lbInfo}>
             <Text style={styles.lbName} numberOfLines={1}>
               {currentUserEntry.displayName} ({youLabel})

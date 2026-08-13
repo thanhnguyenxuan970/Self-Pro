@@ -193,7 +193,7 @@ export function useLeaderboard(
   playerLabel: string,
   lang: AppLanguage = 'vi',
 ) {
-  return useQuery({
+  const query = useQuery({
     // `lang` is part of the key because generated names are language-specific;
     // switching language must re-derive them rather than serve stale copy.
     queryKey: ['leaderboard', currentUserEmail, currentUserName, playerLabel, lang],
@@ -214,4 +214,9 @@ export function useLeaderboard(
       return mapRemoteLeaderboardRows((data ?? []) as RemoteLeaderboardRow[], currentUserName, playerLabel, lang);
     },
   });
+
+  // A production build without the public Supabase variables disables the
+  // query entirely. Keep that state explicit so the UI cannot mistake a
+  // missing backend configuration for a genuinely empty global board.
+  return { ...query, isUnavailable: !supabase };
 }

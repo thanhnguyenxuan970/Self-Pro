@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [2.0.1.5] - 2026-08-13
+
+### Fixed
+- **Global leaderboard availability**: production now loads the real ranked-player list, and an unavailable backend no longer appears as a misleading local `#1` plus empty-board message.
+
 ## [2.0.1.4] - 2026-08-13
 
 ### Fixed
