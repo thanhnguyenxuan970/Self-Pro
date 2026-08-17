@@ -1,9 +1,8 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView,
+  KeyboardAvoidingView, Platform, ScrollView, NativeModules,
 } from 'react-native';
-import * as Localization from 'expo-localization';
 import Toast from 'react-native-toast-message';
 import { Typography, Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useTheme, useTranslations, useLanguage } from '../hooks/useSettings';
@@ -14,7 +13,7 @@ import {
   FEEDBACK_MAX_LENGTH, SURVEY_D0_VERSION, validateFeedbackMessage,
   SurveyD0Answers, SurveyD0Q1, SurveyD0Q2, SurveyD0Q3, SurveyD0Q4, SurveyD0Q5,
 } from '../utils/feedbackLogic';
-import { resolveDeviceLocaleTag, resolveDeviceLanguageCode } from '../utils/localeLogic';
+import { resolveDeviceLocaleTag, resolveDeviceLanguageCode, DeviceLocale } from '../utils/localeLogic';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Props { visible: boolean; onClose: () => void; }
@@ -87,7 +86,19 @@ export function SurveyD0Sheet({ visible, onClose }: Props) {
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      const locales = Localization.getLocales();
+      // Lazily required, and gated behind the NativeModules registry check —
+      // same reasoning as SettingsContext.tsx: a JS-only reload/OTA update can
+      // reach a device whose native binary predates this dependency, and
+      // requireNativeModule() crashes the whole app rather than throwing a
+      // catchable error if invoked directly. Falling back to 'unknown' here
+      // only degrades this one answer's precision, never blocks the submit.
+      let locales: DeviceLocale[] = [];
+      try {
+        if (NativeModules.ExpoLocalization) {
+          const Localization = require('expo-localization');
+          locales = Localization.getLocales();
+        }
+      } catch { /* fall through with locales = [] */ }
       const answers: SurveyD0Answers = {
         survey: SURVEY_D0_VERSION,
         q1_motivation: q1,

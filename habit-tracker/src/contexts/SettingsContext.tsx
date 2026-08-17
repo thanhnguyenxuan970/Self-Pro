@@ -55,12 +55,22 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         if (langVal === null) {
           let deviceLang = 'unknown';
           try {
-            // Runtime require (not a static import) — expo-localization is
-            // native-module-adjacent, and this codebase's established fix for
-            // that class of module (see Google Sign-In elsewhere) is to defer
-            // loading it to the call site instead of eagerly at import time.
-            const Localization = require('expo-localization');
-            deviceLang = resolveDeviceLanguageCode(Localization.getLocales());
+            // expo-localization ships a native module (autolinked from
+            // app.json's plugin list). A JS-only update (Metro fast-refresh,
+            // or a real EAS Update OTA push) can reach a device whose
+            // installed native binary predates this dependency — Expo's
+            // requireNativeModule() treats that as fatal and crashes the
+            // whole app rather than throwing a catchable error, so this
+            // checks the plain NativeModules registry (a safe property
+            // lookup) *before* requiring the wrapper, instead of relying on
+            // try/catch around the require() call. Runtime require (not a
+            // static import) still matters too — same reasoning as the
+            // Google Sign-In modules elsewhere in this codebase.
+            const { NativeModules } = require('react-native');
+            if (NativeModules.ExpoLocalization) {
+              const Localization = require('expo-localization');
+              deviceLang = resolveDeviceLanguageCode(Localization.getLocales());
+            }
           } catch (e) { if (__DEV__) console.warn('[SettingsContext] failed to read device locale', e); }
           setLang(resolveDefaultAppLanguage(deviceLang));
         } else {

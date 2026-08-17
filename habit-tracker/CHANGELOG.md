@@ -4,6 +4,8 @@
 
 - Rank sync now drains every pending activity batch and self-reconciles the signed-in account when the protected server total falls behind its local lifetime total; leaderboard rows remain server-derived rather than being overridden in the UI.
 - Reconciled the authorized account `thanhnguyenxuan970@gmail.com` to 279 lifetime stars with a durable server-side adjustment that continues to advance from uploaded activity.
+- Added a one-time D0 growth survey (`SurveyD0Sheet`) shown once, ~800ms after a user's very first log, to diagnose retention/localization hypotheses; answers land in `public.feedback.answers` (migration 044) via the `feedback-submit` Edge Function. Always skippable, never re-shown once seen.
+- New installs now default their display language from the device's own locale (`expo-localization`) instead of always defaulting to Vietnamese; anyone who has already picked a language in Settings is unaffected.
 
 ## 2.0.1.5 - 2026-08-13
 
