@@ -12,3 +12,14 @@
 -keep class com.facebook.react.turbomodule.** { *; }
 
 # Add any project specific keep options here:
+
+# expo-modules-core's ReactActivityDelegateWrapper reflectively reads/writes
+# these private RN core fields to wrap the app's entry point at startup.
+# Without explicit keep rules R8 renames/strips them and the app crashes on
+# launch with NoSuchFieldException (mDelegate / mReactDelegate).
+-keepclassmembers class com.facebook.react.ReactActivity {
+    private *** mDelegate;
+}
+-keepclassmembers class com.facebook.react.ReactActivityDelegate {
+    private *** mReactDelegate;
+}

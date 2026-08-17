@@ -84,3 +84,51 @@ test('a response body with no result field maps to FAILED, never crashes on the 
 
   expect(result).toBe('FAILED');
 });
+
+const surveyAnswers = {
+  survey: 'd0_v1' as const,
+  q1_motivation: 'C' as const,
+  q2_impression: 'B' as const,
+  q3_friction: ['A' as const],
+  q4_feature: 'F' as const,
+  q5_return_intent: 'B' as const,
+  locale: 'en-PK',
+  device_lang: 'en',
+  app_lang: 'vi',
+};
+
+test('SURVEY_D0 submits with an empty message and the answers payload', async () => {
+  mockSupabase.supabase.functions.invoke.mockResolvedValue({ data: { result: 'OK' }, error: null });
+
+  const result = await submitFeedback({ type: 'SURVEY_D0', message: '', userEmail: 'a@b.com', answers: surveyAnswers });
+
+  expect(result).toBe('OK');
+  expect(mockSupabase.supabase.functions.invoke).toHaveBeenCalledWith(
+    'feedback-submit',
+    expect.objectContaining({
+      body: expect.objectContaining({ type: 'SURVEY_D0', message: '', answers: surveyAnswers }),
+    }),
+  );
+});
+
+test('SURVEY_D0 is exempt from the local cooldown — a BUG submitted right after it still goes through', async () => {
+  mockSupabase.supabase.functions.invoke.mockResolvedValue({ data: { result: 'OK' }, error: null });
+
+  const survey = await submitFeedback({ type: 'SURVEY_D0', message: '', userEmail: 'a@b.com', answers: surveyAnswers });
+  const bug = await submitFeedback({ type: 'BUG', message: 'found a real bug here', userEmail: 'a@b.com' });
+
+  expect(survey).toBe('OK');
+  expect(bug).toBe('OK');
+  expect(mockSupabase.supabase.functions.invoke).toHaveBeenCalledTimes(2);
+});
+
+test('a BUG submitted right before SURVEY_D0 does not block the survey', async () => {
+  mockSupabase.supabase.functions.invoke.mockResolvedValue({ data: { result: 'OK' }, error: null });
+
+  const bug = await submitFeedback({ type: 'BUG', message: 'found a real bug here', userEmail: 'a@b.com' });
+  const survey = await submitFeedback({ type: 'SURVEY_D0', message: '', userEmail: 'a@b.com', answers: surveyAnswers });
+
+  expect(bug).toBe('OK');
+  expect(survey).toBe('OK');
+  expect(mockSupabase.supabase.functions.invoke).toHaveBeenCalledTimes(2);
+});

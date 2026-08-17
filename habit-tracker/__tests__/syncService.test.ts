@@ -322,4 +322,48 @@ describe('syncToSupabase', () => {
 
     await expect(syncToSupabase('google-sub', 'user@example.com')).rejects.toThrow('RLS denied');
   });
+
+  it('re-uploads the signed-in user activity when the server rank total lags the local lifetime total', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } }, error: null });
+    mockStorageGetItem.mockResolvedValue(null);
+    const activityRows = [
+      { id: 1, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 275, source: 'TASK', logged_at: 1, local_date: '2026-08-10', week_start: '2026-08-10', note: null },
+      { id: 2, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 4, source: 'TASK', logged_at: 2, local_date: '2026-08-11', week_start: '2026-08-10', note: null },
+    ];
+    const uploadedActivityIds: number[][] = [];
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('SELECT id FROM users')) return { id: 1 };
+        if (sql.includes('SELECT lifetime_stars FROM users')) return { lifetime_stars: 279 };
+        if (sql.includes('daily_summary')) return { current_streak: 7 };
+        if (sql.includes('activity_log')) return { last_active_local_date: '2026-08-11' };
+        throw new Error(`Unexpected sync query: ${sql}`);
+      }),
+      getAllAsync: jest.fn(async (sql: string, params: unknown[]) => {
+        if (!sql.includes('activity_log')) return [];
+        const afterId = params[1] as number;
+        return activityRows.filter(row => row.id > afterId);
+      }),
+      runAsync: jest.fn(),
+    };
+    mockGetDb.mockResolvedValue(db);
+    mockUpsert.mockImplementation((rows: Array<{ local_id: number }>) => {
+      uploadedActivityIds.push(rows.map(row => row.local_id));
+      return { select: jest.fn().mockResolvedValue({ data: null, error: null }) };
+    });
+    let lifetimeSyncCalls = 0;
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'sync_lifetime_stars') {
+        lifetimeSyncCalls += 1;
+        return { data: lifetimeSyncCalls === 1 ? 275 : 279, error: null };
+      }
+      return { data: null, error: null };
+    });
+
+    await syncToSupabase('google-sub', 'user@example.com');
+
+    expect(uploadedActivityIds).toEqual([[1, 2], [1, 2]]);
+    expect(mockRpc).toHaveBeenCalledTimes(3);
+    expect(mockRpc).toHaveBeenLastCalledWith('sync_lifetime_stars');
+  });
 });

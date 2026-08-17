@@ -191,18 +191,26 @@ async function syncActivity(
   userId: number,
   userEmail: string,
   assertActive: AssertSyncActive,
+  fromBeginning = false,
 ): Promise<void> {
   const key = activityKey(userId);
-  const raw = await AsyncStorage.getItem(key);
-  const lastId = raw ? (parseInt(raw, 10) || 0) : 0;
+  const raw = fromBeginning ? null : await AsyncStorage.getItem(key);
+  let lastId = raw ? (parseInt(raw, 10) || 0) : 0;
 
-  const rows = await db.getAllAsync<ActivityRow>(
-    `SELECT ${ACTIVITY_SYNC_COLUMNS} FROM activity_log WHERE user_id = ? AND id > ? ORDER BY id ASC LIMIT ?`,
-    [userId, lastId, BATCH]
-  );
-  if (!rows.length) return;
-  const upserted = await upsertBatch('activity_log', rows, userEmail, key, assertActive);
-  await flagClockSuspectRows(db, upserted);
+  // Drain every pending batch before calculating the remote lifetime total.
+  // A single 100-row batch left a valid but stale server total whenever a
+  // device had accumulated more activity than one sync pass could upload.
+  while (true) {
+    const rows = await db.getAllAsync<ActivityRow>(
+      `SELECT ${ACTIVITY_SYNC_COLUMNS} FROM activity_log WHERE user_id = ? AND id > ? ORDER BY id ASC LIMIT ?`,
+      [userId, lastId, BATCH]
+    );
+    if (!rows.length) return;
+    const upserted = await upsertBatch('activity_log', rows, userEmail, key, assertActive);
+    await flagClockSuspectRows(db, upserted);
+    lastId = rows[rows.length - 1].id;
+    if (rows.length < BATCH) return;
+  }
 }
 
 async function syncFund(
@@ -260,10 +268,20 @@ async function syncUserProfile(db: SQLiteDatabase, userId: number, assertActive:
   if (error) throw error;
 }
 
-async function syncLifetimeStars(assertActive: AssertSyncActive): Promise<void> {
+async function syncLifetimeStars(assertActive: AssertSyncActive): Promise<number | null> {
   assertActive();
-  const { error } = await supabase!.rpc('sync_lifetime_stars');
+  const { data, error } = await supabase!.rpc('sync_lifetime_stars');
   if (error) throw error;
+  const stars = Number(data);
+  return Number.isFinite(stars) ? Math.max(0, stars) : null;
+}
+
+async function readLocalLifetimeStars(db: SQLiteDatabase, userId: number): Promise<number> {
+  const user = await db.getFirstAsync<{ lifetime_stars: number }>(
+    'SELECT lifetime_stars FROM users WHERE id = ?',
+    [userId],
+  );
+  return Math.max(0, Number(user?.lifetime_stars) || 0);
 }
 
 /** Establish the short-lived Supabase session required by RLS before syncing.
@@ -349,7 +367,16 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
     // Publish the local social projection only after activity upload so remote
     // progress and freshness converge within this serialized account sync.
     await syncUserProfile(db, userId, assertActive);
-    await syncLifetimeStars(assertActive);
+    const remoteStars = await syncLifetimeStars(assertActive);
+    const localStars = await readLocalLifetimeStars(db, userId);
+    if (remoteStars !== null && remoteStars < localStars) {
+      // A stale or advanced local cursor must never leave the backend frozen.
+      // Re-upload only this caller's append-only local source of truth, then
+      // let the protected RPC recalculate rank; no client total is written to
+      // `public.users`, and no other account's rows are touched.
+      await syncActivity(db, userId, userEmail, assertActive, true);
+      await syncLifetimeStars(assertActive);
+    }
   });
 }
 

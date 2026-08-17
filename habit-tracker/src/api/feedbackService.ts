@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 import {
   FeedbackType,
+  SurveyD0Answers,
   canSubmitFeedback,
   validateFeedbackMessage,
 } from '../utils/feedbackLogic';
@@ -41,21 +42,29 @@ export async function submitFeedback(params: {
   type: FeedbackType;
   message: string;
   userEmail: string | null;
+  /** D0 survey MCQ answers — only meaningful (and only sent) for type SURVEY_D0. */
+  answers?: SurveyD0Answers;
 }): Promise<FeedbackResult> {
-  if (!validateFeedbackMessage(params.message)) return 'INVALID';
+  if (!validateFeedbackMessage(params.message, params.type)) return 'INVALID';
   if (!supabase) return 'UNAVAILABLE';
 
-  // A read failure here (or a "0"/corrupt stored value) is treated as "no
-  // record" and falls through to the network call -- safe to fail open
-  // because the Edge Function's server-side cooldown is the actual
-  // rate-limit boundary; this check only saves a round trip.
-  let last: number | null = null;
-  try {
-    const raw = await AsyncStorage.getItem(LAST_SUBMIT_KEY);
-    const parsed = raw === null ? NaN : parseInt(raw, 10);
-    last = Number.isFinite(parsed) ? parsed : null;
-  } catch { /* fail open — see comment above */ }
-  if (!canSubmitFeedback(last, Date.now())) return 'RATE_LIMITED';
+  // SURVEY_D0 is exempt from the cooldown outright (canSubmitFeedback
+  // returns true unconditionally for it) — skip both the read here and the
+  // write below, so filling the survey never blocks, and never itself
+  // blocks, a real feedback submission sent moments apart.
+  if (params.type !== 'SURVEY_D0') {
+    // A read failure here (or a "0"/corrupt stored value) is treated as "no
+    // record" and falls through to the network call -- safe to fail open
+    // because the Edge Function's server-side cooldown is the actual
+    // rate-limit boundary; this check only saves a round trip.
+    let last: number | null = null;
+    try {
+      const raw = await AsyncStorage.getItem(LAST_SUBMIT_KEY);
+      const parsed = raw === null ? NaN : parseInt(raw, 10);
+      last = Number.isFinite(parsed) ? parsed : null;
+    } catch { /* fail open — see comment above */ }
+    if (!canSubmitFeedback(last, Date.now(), params.type)) return 'RATE_LIMITED';
+  }
 
   const { device, osVersion } = getDeviceInfo();
 
@@ -71,6 +80,7 @@ export async function submitFeedback(params: {
         appVersion: APP_VERSION,
         device,
         osVersion,
+        answers: params.answers ?? null,
       },
       signal: controller.signal,
     }));
@@ -84,6 +94,8 @@ export async function submitFeedback(params: {
   // A write failure here just means the next submit re-checks the (now
   // stale) local cooldown -- harmless, since the server enforces the real
   // limit regardless of what this local timestamp says.
-  await AsyncStorage.setItem(LAST_SUBMIT_KEY, String(Date.now())).catch(() => {});
+  if (params.type !== 'SURVEY_D0') {
+    await AsyncStorage.setItem(LAST_SUBMIT_KEY, String(Date.now())).catch(() => {});
+  }
   return 'OK';
 }

@@ -13,10 +13,17 @@
 //
 // Deploy: supabase functions deploy feedback-submit --no-verify-jwt
 //
-// Request body:  { type, message, userEmail, appVersion, device, osVersion }
+// Request body:  { type, message, userEmail, appVersion, device, osVersion, answers }
 // Response body: { result: 'OK' | 'INVALID' | 'RATE_LIMITED' | 'FAILED' }
 // (always HTTP 200 for expected outcomes; non-200 only for genuine
 // misconfiguration/transport failure, which the client treats as FAILED)
+//
+// `answers` (migration 044) carries the D0 growth survey's structured MCQ
+// responses as JSON — only type SURVEY_D0 populates it today, but the field
+// is accepted for any type since a future survey may reuse it. It must stay
+// whitelisted here explicitly: this table has no client INSERT grant
+// (migration 034), so an unlisted field doesn't error, it just silently
+// never reaches the row.
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -28,7 +35,8 @@ const COOLDOWN_SECONDS = 60; // mirrors FEEDBACK_COOLDOWN_MS in src/utils/feedba
 const DAILY_CAP_PER_IP = 20; // guards the shared Resend 100/day quota against slow-drip abuse
 const MIN_LENGTH = 3; // mirrors FEEDBACK_MIN_LENGTH
 const MAX_LENGTH = 2000; // mirrors FEEDBACK_MAX_LENGTH
-const VALID_TYPES = ['BUG', 'SUGGESTION', 'OTHER'];
+const VALID_TYPES = ['BUG', 'SUGGESTION', 'OTHER', 'SURVEY_D0'];
+const SURVEY_TYPE = 'SURVEY_D0';
 
 function respond(result: string, status = 200): Response {
   return new Response(JSON.stringify({ result }), { status, headers: JSON_HEADERS });
@@ -52,6 +60,7 @@ type ParsedBody = {
   appVersion: string | null;
   device: string | null;
   osVersion: string | null;
+  answers: Record<string, unknown> | null;
 };
 
 async function parseBody(req: Request): Promise<ParsedBody | null> {
@@ -65,6 +74,9 @@ async function parseBody(req: Request): Promise<ParsedBody | null> {
       appVersion: typeof body.appVersion === 'string' ? body.appVersion : null,
       device: typeof body.device === 'string' ? body.device : null,
       osVersion: typeof body.osVersion === 'string' ? body.osVersion : null,
+      answers: (body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers))
+        ? body.answers as Record<string, unknown>
+        : null,
     };
   } catch {
     return null;
@@ -81,10 +93,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const parsed = await parseBody(req);
   if (!parsed) return respond('INVALID');
 
+  if (!VALID_TYPES.includes(parsed.type)) return respond('INVALID');
+
   const trimmed = parsed.message.trim();
-  if (trimmed.length < MIN_LENGTH || trimmed.length > MAX_LENGTH || !VALID_TYPES.includes(parsed.type)) {
-    return respond('INVALID');
-  }
+  // SURVEY_D0's Q6 (free text) is optional — an empty message is only valid
+  // for this type; a non-empty one still has to clear the normal bound.
+  const messageOk = parsed.type === SURVEY_TYPE && trimmed.length === 0
+    ? true
+    : trimmed.length >= MIN_LENGTH && trimmed.length <= MAX_LENGTH;
+  if (!messageOk) return respond('INVALID');
 
   const ipHash = await hashIp(clientIp(req));
   const restHeaders = {
@@ -93,14 +110,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
     'Content-Type': 'application/json',
   };
 
-  // Per-IP cooldown: any row for this ip_hash in the last COOLDOWN_SECONDS.
-  const cooldownSince = new Date(Date.now() - COOLDOWN_SECONDS * 1000).toISOString();
-  const cooldownRes = await fetch(
-    `${restUrl}/rest/v1/feedback?select=id&ip_hash=eq.${ipHash}&created_at=gte.${cooldownSince}&limit=1`,
-    { headers: restHeaders },
-  );
-  if (!cooldownRes.ok) return respond('FAILED', 502);
-  if ((await cooldownRes.json()).length > 0) return respond('RATE_LIMITED');
+  // Per-IP cooldown: any non-survey row for this ip_hash in the last
+  // COOLDOWN_SECONDS. SURVEY_D0 is exempt in both directions — the survey
+  // itself is never blocked by a recent submission, and a prior survey row
+  // never blocks a real bug/suggestion sent moments later (see
+  // canSubmitFeedback in src/utils/feedbackLogic.ts for the client-side half).
+  if (parsed.type !== SURVEY_TYPE) {
+    const cooldownSince = new Date(Date.now() - COOLDOWN_SECONDS * 1000).toISOString();
+    const cooldownRes = await fetch(
+      `${restUrl}/rest/v1/feedback?select=id&ip_hash=eq.${ipHash}&created_at=gte.${cooldownSince}&type=neq.${SURVEY_TYPE}&limit=1`,
+      { headers: restHeaders },
+    );
+    if (!cooldownRes.ok) return respond('FAILED', 502);
+    if ((await cooldownRes.json()).length > 0) return respond('RATE_LIMITED');
+  }
 
   // Daily cap: total rows for this ip_hash in the last 24h, via exact count.
   const daySince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -123,6 +146,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       device: parsed.device,
       os_version: parsed.osVersion,
       ip_hash: ipHash,
+      answers: parsed.answers,
     }),
   });
   if (!insertRes.ok) return respond('FAILED', 502);

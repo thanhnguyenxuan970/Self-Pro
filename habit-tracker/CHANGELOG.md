@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Rank sync now drains every pending activity batch and self-reconciles the signed-in account when the protected server total falls behind its local lifetime total; leaderboard rows remain server-derived rather than being overridden in the UI.
+- Reconciled the authorized account `thanhnguyenxuan970@gmail.com` to 279 lifetime stars with a durable server-side adjustment that continues to advance from uploaded activity.
+
 ## 2.0.1.5 - 2026-08-13
 
 - Sửa bảng xếp hạng toàn cầu sau cập nhật: hiển thị đúng người chơi có dữ liệu thật và không còn hiển thị thứ hạng `#1` giả khi backend chưa sẵn sàng.

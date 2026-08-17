@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { parseSettingsBool, parseSettingsLang, parseSettingsAccent } from '../utils/settingsLogic';
+import { resolveDefaultAppLanguage, resolveDeviceLanguageCode } from '../utils/localeLogic';
 import { setAudioEnabled as syncAudioEnabled } from '../audio/audioEnabled';
 import type { AppLanguage } from '../config/i18n';
 import { AccentKey, DEFAULT_ACCENT } from '../config/accents';
@@ -48,7 +49,23 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     ])
       .then(([darkVal, langVal, audioVal, accentVal]) => {
         setIsDark(parseSettingsBool(darkVal));
-        setLang(parseSettingsLang(langVal));
+        // No stored preference yet (first launch, or a fresh install) —
+        // default from the device's own locale instead of hardcoding 'vi'.
+        // Once the user has an explicit stored value, it always wins below.
+        if (langVal === null) {
+          let deviceLang = 'unknown';
+          try {
+            // Runtime require (not a static import) — expo-localization is
+            // native-module-adjacent, and this codebase's established fix for
+            // that class of module (see Google Sign-In elsewhere) is to defer
+            // loading it to the call site instead of eagerly at import time.
+            const Localization = require('expo-localization');
+            deviceLang = resolveDeviceLanguageCode(Localization.getLocales());
+          } catch (e) { if (__DEV__) console.warn('[SettingsContext] failed to read device locale', e); }
+          setLang(resolveDefaultAppLanguage(deviceLang));
+        } else {
+          setLang(parseSettingsLang(langVal));
+        }
         // Default true when key absent (null → true)
         const audio = audioVal === null ? true : parseSettingsBool(audioVal);
         setAudioState(audio);

@@ -28,6 +28,9 @@ import { LevelUpCelebrationModal } from '../components/LevelUpCelebrationModal';
 import { StreakMilestoneCelebrationModal } from '../components/StreakMilestoneCelebrationModal';
 import { EditActivityModal } from '../components/EditActivityModal';
 import { ShareCardModal } from './ShareCardModal';
+import { SurveyD0Sheet } from './SurveyD0Sheet';
+import { readSurveyD0Pending, markSurveyD0Shown } from '../game/pendingSurveyD0';
+import { subscribeFirstEverLog } from '../hooks/useSurveyD0Intent';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { cueStreakMilestone } from '../audio/uiSounds';
@@ -227,6 +230,8 @@ export function TodayScreen() {
   const [backfillDate, setBackfillDate] = useState<string | null>(null);
   const [backfillNudgeDismissed, setBackfillNudgeDismissed] = useState(false);
   const [boostPhase, setBoostPhase] = useState<BoostPhase>('none');
+  const [surveyD0Due, setSurveyD0Due] = useState(false);
+  const [showSurveyD0, setShowSurveyD0] = useState(false);
 
   const { data: shareCardData } = useShareCardData(userId);
 
@@ -239,6 +244,30 @@ export function TodayScreen() {
     };
     return () => { rankMascotBridge.onRankUp = null; };
   }, []);
+
+  // D0 survey trigger: useLogTask (useToday.ts) marks it pending — via
+  // AsyncStorage for the case the first-ever log happened on another mounted
+  // screen (e.g. AddActivitySheet from a different tab), and via a live
+  // pub/sub notify for the case Today is already mounted when it happens.
+  useEffect(() => {
+    let active = true;
+    readSurveyD0Pending().then(pending => { if (active && pending) setSurveyD0Due(true); }).catch(() => {});
+    const unsubscribe = subscribeFirstEverLog(() => setSurveyD0Due(true));
+    return () => { active = false; unsubscribe(); };
+  }, []);
+
+  // Don't interrupt a rank-up/streak-milestone celebration already in
+  // progress — wait until the queue's clear, then give the log's own reward
+  // animation 800ms before covering the screen (see the survey doc's point 4).
+  useEffect(() => {
+    if (!surveyD0Due || pendingLevelUp !== null || pendingStreakMilestone !== null) return undefined;
+    const timer = setTimeout(() => {
+      markSurveyD0Shown().catch(() => {});
+      setSurveyD0Due(false);
+      setShowSurveyD0(true);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [surveyD0Due, pendingLevelUp, pendingStreakMilestone]);
 
   useEffect(() => {
     readPendingLevelUpQueue().then(queue => {
@@ -507,6 +536,7 @@ export function TodayScreen() {
         weeklyStars={weeklyStars}
         tierName={rankDisplayName}
       />
+      <SurveyD0Sheet visible={showSurveyD0} onClose={() => setShowSurveyD0(false)} />
       <View style={styles.topbar}>
         <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile' as never)} activeOpacity={0.85} hitSlop={4} accessibilityLabel={t.openProfile} accessibilityRole="button">
           <Text style={styles.avatarText}>{avatarInitial}</Text>

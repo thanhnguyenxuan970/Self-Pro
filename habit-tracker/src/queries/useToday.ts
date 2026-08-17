@@ -6,7 +6,7 @@ import { syncCurrentUserToSupabase, syncUserStreak } from '../api/syncService';
 import { cancelTerminalChallengeReminders, logActiveChallengeDay, reconcileUnloggedLinkedChallenges, restoreReactivatedChallengeReminders, type ReactivatedLinkedChallenge } from './useChallenge';
 import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
-import { dailyBonusStarsForPoints } from '../config/constants';
+import { dailyBonusStarsForPoints, SOURCE_TASK } from '../config/constants';
 import { crossedStreakMilestone, type StreakMilestone } from '../game/streakMilestones';
 import {
   boostEndOfDayMs,
@@ -19,6 +19,8 @@ import {
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
+import { markSurveyD0Pending } from '../game/pendingSurveyD0';
+import { notifyFirstEverLog } from '../hooks/useSurveyD0Intent';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { useLanguage } from '../hooks/useSettings';
 
@@ -367,7 +369,10 @@ export function useLogTask(userId: number) {
       basePoints: number;
       starPenalty: number;
       durationMin?: number;
-    }): Promise<{ newStreak: number; prevStreak: number; milestone: StreakMilestone | null; lifetimeCrossings: LifetimeTierCrossing[] }> => {
+    }): Promise<{
+      newStreak: number; prevStreak: number; milestone: StreakMilestone | null;
+      lifetimeCrossings: LifetimeTierCrossing[]; isFirstEverLog: boolean;
+    }> => {
       const db = await getDb();
       const today = getLocalDate();
       const weekStart = getWeekStart();
@@ -386,6 +391,7 @@ export function useLogTask(userId: number) {
       let streakResult = { newStreak: 1, prevStreak: 0 };
       let milestone: StreakMilestone | null = null;
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
+      let isFirstEverLog = false;
 
       // All volatile reads + computation + writes inside one transaction.
       // This prevents TOCTOU: two concurrent mutateAsync calls can no longer
@@ -440,6 +446,17 @@ export function useLogTask(userId: number) {
         const totalStarsDelta = activityRow.stars_delta + (bonusRow?.stars_delta ?? 0);
         await insertLogRows(db, activityRow, bonusRow);
 
+        // Cheap, indexed (user_id is the leading column of idx_log_user_date/
+        // idx_log_user_week) — count() === 1 right after this insert means
+        // this was the user's very first-ever real log, the D0 survey's
+        // trigger condition. DAILY_BONUS rows are a same-transaction side
+        // effect of logging, not a log themselves, so they're excluded.
+        const taskLogCount = await db.getFirstAsync<{ count: number }>(
+          `SELECT COUNT(*) AS count FROM activity_log WHERE user_id = ? AND source = ?`,
+          [userId, SOURCE_TASK],
+        );
+        isFirstEverLog = (taskLogCount?.count ?? 0) === 1;
+
         await db.runAsync(
           `INSERT INTO daily_summary (user_id, local_date, total_points, bonus_star_awarded, streak_count)
            VALUES (?, ?, ?, ?, ?)
@@ -472,7 +489,7 @@ export function useLogTask(userId: number) {
       });
       await cancelTerminalChallengeReminders(db, userId);
 
-      return { ...streakResult, milestone, lifetimeCrossings };
+      return { ...streakResult, milestone, lifetimeCrossings, isFirstEverLog };
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['today'] });
@@ -487,6 +504,9 @@ export function useLogTask(userId: number) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(data.lifetimeCrossings);
         enqueuePendingLevelUps(data.lifetimeCrossings).catch(() => {});
+      }
+      if (data.isFirstEverLog) {
+        markSurveyD0Pending().then(notifyFirstEverLog).catch(() => {});
       }
       // Fire-and-forget streak sync — non-fatal if Supabase absent or table not migrated
       getStoredGoogleUser()

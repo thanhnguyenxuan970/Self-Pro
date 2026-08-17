@@ -1,9 +1,12 @@
 import {
   validateFeedbackMessage,
   canSubmitFeedback,
+  validateSurveyD0Answers,
   FEEDBACK_MIN_LENGTH,
   FEEDBACK_MAX_LENGTH,
   FEEDBACK_COOLDOWN_MS,
+  SURVEY_D0_VERSION,
+  SurveyD0Answers,
 } from '../src/utils/feedbackLogic';
 
 describe('validateFeedbackMessage', () => {
@@ -57,5 +60,74 @@ describe('canSubmitFeedback', () => {
 
   it('fails open when stored timestamp is in the future (clock change)', () => {
     expect(canSubmitFeedback(NOW + 5_000, NOW)).toBe(true);
+  });
+
+  it('SURVEY_D0 is exempt from cooldown even seconds after a prior submission', () => {
+    expect(canSubmitFeedback(NOW - 1, NOW, 'SURVEY_D0')).toBe(true);
+  });
+});
+
+describe('validateFeedbackMessage — SURVEY_D0 bypass', () => {
+  it('accepts an empty message for SURVEY_D0 (Q6 is optional)', () => {
+    expect(validateFeedbackMessage('', 'SURVEY_D0')).toBe(true);
+    expect(validateFeedbackMessage('   ', 'SURVEY_D0')).toBe(true);
+  });
+
+  it('still enforces the normal 3–2000 bound for SURVEY_D0 once Q6 is non-empty', () => {
+    expect(validateFeedbackMessage('ab', 'SURVEY_D0')).toBe(false);
+    expect(validateFeedbackMessage('abc', 'SURVEY_D0')).toBe(true);
+    expect(validateFeedbackMessage('a'.repeat(FEEDBACK_MAX_LENGTH + 1), 'SURVEY_D0')).toBe(false);
+  });
+
+  it('non-SURVEY_D0 types are unaffected by the bypass (default type is BUG)', () => {
+    expect(validateFeedbackMessage('')).toBe(false);
+  });
+});
+
+const validAnswers: SurveyD0Answers = {
+  survey: SURVEY_D0_VERSION,
+  q1_motivation: 'C',
+  q2_impression: 'B',
+  q3_friction: ['A', 'C'],
+  q4_feature: 'F',
+  q5_return_intent: 'B',
+  locale: 'en-PK',
+  device_lang: 'en',
+  app_lang: 'vi',
+};
+
+describe('validateSurveyD0Answers', () => {
+  it('accepts a fully valid answer set', () => {
+    expect(validateSurveyD0Answers(validAnswers)).toBe(true);
+  });
+
+  it('accepts the exclusive F-only friction answer', () => {
+    expect(validateSurveyD0Answers({ ...validAnswers, q3_friction: ['F'] })).toBe(true);
+  });
+
+  it('rejects F combined with any other friction option', () => {
+    expect(validateSurveyD0Answers({ ...validAnswers, q3_friction: ['F', 'A'] })).toBe(false);
+  });
+
+  it('rejects an empty q3_friction array', () => {
+    expect(validateSurveyD0Answers({ ...validAnswers, q3_friction: [] })).toBe(false);
+  });
+
+  it('rejects a wrong survey version tag', () => {
+    expect(validateSurveyD0Answers({ ...validAnswers, survey: 'd0_v2' as typeof SURVEY_D0_VERSION })).toBe(false);
+  });
+
+  it('rejects an invalid MCQ option letter', () => {
+    expect(validateSurveyD0Answers({ ...validAnswers, q1_motivation: 'Z' as SurveyD0Answers['q1_motivation'] })).toBe(false);
+  });
+
+  it('rejects a missing locale field', () => {
+    const { locale, ...rest } = validAnswers;
+    expect(validateSurveyD0Answers(rest as SurveyD0Answers)).toBe(false);
+  });
+
+  it('rejects null/undefined', () => {
+    expect(validateSurveyD0Answers(null)).toBe(false);
+    expect(validateSurveyD0Answers(undefined)).toBe(false);
   });
 });

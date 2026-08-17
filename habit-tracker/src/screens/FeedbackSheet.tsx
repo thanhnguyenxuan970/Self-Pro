@@ -14,7 +14,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Props { visible: boolean; onClose: () => void; }
 
-const TYPES: { key: FeedbackType; icon: string }[] = [
+// This sheet is the manual, user-initiated feedback form — it never offers
+// SURVEY_D0 as a selectable type (that's the auto-triggered SurveyD0Sheet).
+type ManualFeedbackType = Exclude<FeedbackType, 'SURVEY_D0'>;
+
+const TYPES: { key: ManualFeedbackType; icon: string }[] = [
   { key: 'BUG', icon: '🐛' },
   { key: 'SUGGESTION', icon: '💡' },
   { key: 'OTHER', icon: '💬' },
@@ -28,7 +32,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
   const { bottom } = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors, bottom), [colors, bottom]);
 
-  const [type, setType] = useState<FeedbackType>('BUG');
+  const [type, setType] = useState<ManualFeedbackType>('BUG');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   // React state re-renders asynchronously, leaving a window for two rapid
@@ -37,7 +41,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
   // guard AddActivitySheet uses for the same reason.
   const submittingRef = useRef(false);
 
-  const typeLabel: Record<FeedbackType, string> = {
+  const typeLabel: Record<ManualFeedbackType, string> = {
     BUG: t.feedbackTypeBug,
     SUGGESTION: t.feedbackTypeSuggestion,
     OTHER: t.feedbackTypeOther,
