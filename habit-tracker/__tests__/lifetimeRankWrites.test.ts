@@ -10,7 +10,11 @@ const tiers: LifetimeTierRow[] = [
 
 function createDb(userRow: { lifetime_stars: number; current_tier_id: number | null }) {
   const getFirstAsync = jest.fn(async () => userRow);
-  const runAsync = jest.fn(async () => ({ changes: 1 }));
+  const runAsync = jest.fn(async (_sql: string, params: unknown[]) => {
+    userRow.lifetime_stars = params[0] as number;
+    userRow.current_tier_id = params[1] as number | null;
+    return { changes: 1 };
+  });
   return { getFirstAsync, runAsync } as unknown as SQLiteDatabase;
 }
 
@@ -43,11 +47,33 @@ test('positive delta crossing multiple tiers in one call returns every crossing,
   );
 });
 
-test('negative delta never decreases lifetime high-water mark, tier, or crossings', async () => {
-  const db = createDb({ lifetime_stars: 15, current_tier_id: 2 });
+test('unchecking a task decrements stars and rechecking restores the previous total without a duplicate tier crossing', async () => {
+  const db = createDb({ lifetime_stars: 11, current_tier_id: 2 });
+  const uncheckResult = await applyLifetimeStarsDelta(db, 1, -1, tiers);
+  const recheckResult = await applyLifetimeStarsDelta(db, 1, 1, tiers);
+
+  expect(uncheckResult.crossings).toHaveLength(0);
+  expect(recheckResult.crossings).toHaveLength(0);
+  expect(db.runAsync).toHaveBeenNthCalledWith(
+    1,
+    `UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?`,
+    [10, 2, 1],
+  );
+  expect(db.runAsync).toHaveBeenNthCalledWith(
+    2,
+    `UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?`,
+    [11, 2, 1],
+  );
+});
+
+test('negative delta clamps stars at zero while preserving the achieved tier', async () => {
+  const db = createDb({ lifetime_stars: 3, current_tier_id: 1 });
   const result = await applyLifetimeStarsDelta(db, 1, -5, tiers);
   expect(result.crossings).toHaveLength(0);
-  expect(db.runAsync).not.toHaveBeenCalled();
+  expect(db.runAsync).toHaveBeenCalledWith(
+    `UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?`,
+    [0, 1, 1],
+  );
 });
 
 test('positive deltas remain the only way callers can advance lifetime rank', async () => {
