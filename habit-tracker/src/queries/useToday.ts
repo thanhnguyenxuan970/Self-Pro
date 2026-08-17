@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { getStoredGoogleUser } from '../hooks/useAuth';
 import { syncCurrentUserToSupabase, syncUserStreak } from '../api/syncService';
-import { cancelTerminalChallengeReminders, logActiveChallengeDay } from './useChallenge';
+import { cancelTerminalChallengeReminders, logActiveChallengeDay, reconcileUnloggedLinkedChallenges, restoreReactivatedChallengeReminders, type ReactivatedLinkedChallenge } from './useChallenge';
 import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
 import { dailyBonusStarsForPoints } from '../config/constants';
@@ -20,6 +20,7 @@ import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
+import { useLanguage } from '../hooks/useSettings';
 
 type FullTierRow = LifetimeTierRow;
 
@@ -519,12 +520,14 @@ export function useTodayTaskTotalDurations(userId: number) {
 
 export function useUnlogTask(userId: number) {
   const qc = useQueryClient();
+  const [lang] = useLanguage();
   return useMutation({
     mutationFn: async (params: { taskTypeId: number; kind: 'GOOD' | 'BAD' }): Promise<{ lifetimeCrossings: LifetimeTierCrossing[] }> => {
       const db = await getDb();
       const today = getLocalDate();
       const weekStart = getWeekStart();
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
+      let reactivatedChallenges: ReactivatedLinkedChallenge[] = [];
 
       // tiers is a static lookup — never written, safe to read outside transaction
       const tiers = await db.getAllAsync<FullTierRow>(
@@ -571,7 +574,11 @@ export function useUnlogTask(userId: number) {
         lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, -totalStarsDelta, tiers)).crossings;
 
         await revertTreatStarsUnlog(db, userId, params.kind, totalStarsDelta, taskStars);
+        const reconciliation = await reconcileUnloggedLinkedChallenges(db, { userId, taskTypeId: params.taskTypeId, localDate: today });
+        lifetimeCrossings = [...lifetimeCrossings, ...reconciliation.lifetimeCrossings];
+        reactivatedChallenges = reconciliation.reactivatedChallenges;
       });
+      await restoreReactivatedChallengeReminders(db, reactivatedChallenges, lang);
 
       return { lifetimeCrossings };
     },
@@ -581,6 +588,7 @@ export function useUnlogTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
+      qc.invalidateQueries({ queryKey: ['challenge'] });
       void syncCurrentUserToSupabase()
         .catch(error => { if (__DEV__) console.warn('[sync] activity delete sync failed:', error); })
         .finally(() => { qc.invalidateQueries({ queryKey: ['leaderboard'] }); });
