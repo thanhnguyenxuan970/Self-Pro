@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [2.0.2.1] - 2026-08-18
+
+### Fixed
+- **Active challenge cleanup**: ongoing challenges created by mistake can now be deleted from Challenge Detail with a destructive confirmation; queued reminder cancellation and stale-reminder behavior are covered by regression tests.
+- **Clean-install patching**: corrected the Expo native patch header so `patch-package` applies successfully on a fresh dependency install.
+
 ## [2.0.2] - 2026-08-18
 
 ### Added

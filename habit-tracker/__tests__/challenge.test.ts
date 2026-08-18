@@ -1,6 +1,6 @@
 import { challengeDate, challengeStreak, completeChallenge, currentDay, currentDayIndex, computeProgress, computeRollover, dateRange, dayCellStates, GRID_CELL_COUNT, isAtRisk, isComplete, logToday, progress, restart, type Challenge, type DayEntry } from '../src/lib/challenge';
 import { CHALLENGE_DURATIONS, CHALLENGE_NAME_MAX_LENGTH, challengeCompletionStars, isValidCustomChallengeValue } from '../src/config/challenges.config';
-import { challengeDetailMenuActions } from '../src/utils/challengeDetail';
+import { canRequestChallengeDelete, challengeDeletePrompt, challengeDetailMenuActions, deleteChallengeAndExit } from '../src/utils/challengeDetail';
 import { challengeHubViewState } from '../src/utils/challengeHub';
 
 const challenge: Challenge = {
@@ -24,6 +24,54 @@ describe('challenge detail menu', () => {
   it('keeps terminal challenge actions out of the active-only menu', () => {
     expect(challengeDetailMenuActions('done')).toEqual([]);
     expect(challengeDetailMenuActions('failed')).toEqual([]);
+  });
+
+  it('blocks delete requests without an id or while a deletion is pending', () => {
+    expect(canRequestChallengeDelete(null, false)).toBe(false);
+    expect(canRequestChallengeDelete(42, true)).toBe(false);
+    expect(canRequestChallengeDelete(42, false)).toBe(true);
+  });
+
+  it('builds a cancel-safe destructive confirmation prompt', () => {
+    const onConfirm = jest.fn();
+    const prompt = challengeDeletePrompt(
+      { title: 'Delete?', message: 'This cannot be undone.', cancel: 'Cancel', delete: 'Delete' },
+      onConfirm,
+    );
+
+    expect(prompt).toMatchObject({
+      title: 'Delete?',
+      message: 'This cannot be undone.',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive' },
+      ],
+    });
+    expect(prompt.buttons[0].onPress).toBeUndefined();
+    prompt.buttons[1].onPress?.();
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('deletes then exits, and stays on screen with an error when deletion fails', async () => {
+    const navigateBack = jest.fn();
+    const showError = jest.fn();
+    const deleteChallenge = jest.fn().mockResolvedValue(undefined);
+
+    await deleteChallengeAndExit(42, deleteChallenge, navigateBack, showError);
+    expect(deleteChallenge).toHaveBeenCalledWith(42);
+    expect(navigateBack).toHaveBeenCalledTimes(1);
+    expect(showError).not.toHaveBeenCalled();
+
+    deleteChallenge.mockRejectedValueOnce(new Error('DB_BUSY'));
+    navigateBack.mockClear();
+    await deleteChallengeAndExit(42, deleteChallenge, navigateBack, showError);
+    expect(navigateBack).not.toHaveBeenCalled();
+    expect(showError).toHaveBeenCalledTimes(1);
+
+    showError.mockClear();
+    navigateBack.mockImplementationOnce(() => { throw new Error('NO_BACK_ROUTE'); });
+    await deleteChallengeAndExit(42, deleteChallenge, navigateBack, showError);
+    expect(showError).not.toHaveBeenCalled();
   });
 });
 

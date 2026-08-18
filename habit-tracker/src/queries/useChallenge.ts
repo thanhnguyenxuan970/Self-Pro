@@ -615,7 +615,23 @@ export async function deleteChallengeById(
   await db.runAsync(`DELETE FROM challenge_days WHERE challenge_id = ?`, [challengeId]);
   await db.runAsync(`DELETE FROM challenge_log WHERE challenge_id = ?`, [challengeId]);
   await db.runAsync(`DELETE FROM challenges WHERE id = ? AND user_id = ?`, [challengeId, userId]);
-  return challenge.notification_id;
+  return challenge.notification_id ?? null;
+}
+
+export async function deleteChallengesById(
+  db: Pick<SQLiteDatabase, 'withExclusiveTransactionAsync'>,
+  userId: number,
+  challengeIds: number[],
+): Promise<void> {
+  const reminderIds: string[] = [];
+  await db.withExclusiveTransactionAsync(async txn => {
+    for (const challengeId of challengeIds) {
+      const reminderId = await deleteChallengeById(txn, userId, challengeId);
+      if (reminderId) reminderIds.push(reminderId);
+    }
+  });
+
+  await Promise.all(reminderIds.map(cancelChallengeReminder));
 }
 
 async function getActiveChallengeRows(db: SQLiteDatabase, userId: number): Promise<ChallengeRow[]> {
@@ -1089,13 +1105,7 @@ export function useDeleteChallenge(userId: number) {
       const ids = Array.isArray(challengeIds) ? challengeIds : [challengeIds];
       if (ids.length === 0) return;
       const db = await getDb();
-      const notificationIds: Array<string | null> = [];
-      await db.withExclusiveTransactionAsync(async txn => {
-        for (const challengeId of ids) {
-          notificationIds.push(await deleteChallengeById(txn as unknown as SQLiteDatabase, userId, challengeId));
-        }
-      });
-      await Promise.all(notificationIds.map(cancelChallengeReminder));
+      await deleteChallengesById(db, userId, ids);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });

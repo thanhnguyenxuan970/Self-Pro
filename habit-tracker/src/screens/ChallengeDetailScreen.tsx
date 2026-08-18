@@ -12,7 +12,7 @@ import { useChallengeById, useDeleteChallenge, useLogChallengeDay, useRestartCha
 import { useTodayTasks } from '../queries/useToday';
 import { requestAddActivity } from '../hooks/useAddActivityIntent';
 import { challengeDate, isAtRisk, isComplete } from '../lib/challenge';
-import { challengeDetailMenuActions } from '../utils/challengeDetail';
+import { canRequestChallengeDelete, challengeDeletePrompt, challengeDetailMenuActions, deleteChallengeAndExit } from '../utils/challengeDetail';
 import { computeChallengeReward } from '../config/challenges.config';
 import { ChallengeProgressRing } from '../components/ChallengeProgressRing';
 import { ChallengeDayGrid, GRID_CELL_COUNT } from '../components/ChallengeDayGrid';
@@ -129,22 +129,25 @@ export function ChallengeDetailScreen() {
   }
 
   function confirmDelete() {
-    if (challengeId == null) return;
+    if (!canRequestChallengeDelete(challengeId, deleteChallenge.isPending)) return;
     setMenuVisible(false);
-    Alert.alert(
-      t.challengeDeleteTitle,
-      t.challengeDeleteMsg,
-      [
-        { text: t.cancel, style: 'cancel' },
-        {
-          text: t.delete,
-          style: 'destructive',
-          onPress: () => deleteChallenge.mutateAsync(challengeId)
-            .then(() => navigation.goBack())
-            .catch(() => Alert.alert(t.error, t.challengeDeleteFailed)),
-        },
-      ],
+    const prompt = challengeDeletePrompt(
+      {
+        title: t.challengeDeleteTitle,
+        message: t.challengeDeleteMsg,
+        cancel: t.cancel,
+        delete: t.delete,
+      },
+      () => {
+        void deleteChallengeAndExit(
+          challengeId,
+          id => deleteChallenge.mutateAsync(id),
+          () => navigation.goBack(),
+          () => Alert.alert(t.error, t.challengeDeleteFailed),
+        );
+      },
     );
+    Alert.alert(prompt.title, prompt.message, prompt.buttons);
   }
 
   useLayoutEffect(() => {
