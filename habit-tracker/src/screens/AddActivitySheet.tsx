@@ -16,12 +16,12 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 import { Strings } from '../config/i18n';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
-import { activityGroup, activityMatches, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../utils/activityPicker';
+import { activityGroup, activityMatches, activityPinAccessibilityLabel, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask, resolvePresetTask } from '../utils/activityPicker';
 import { DurationClockInput } from '../components/DurationClockInput';
 import { DurationPresetChips } from '../components/DurationPresetChips';
 import { clockMinutes } from '../utils/durationClock';
 
-interface Props { visible: boolean; onClose: () => void; presetName?: string | null; }
+interface Props { visible: boolean; onClose: () => void; presetName?: string | null; presetTaskId?: number | null; }
 
 type SuggestionChipProps = {
   s: TemplateTask;
@@ -53,12 +53,13 @@ const SuggestionChip = React.memo(function SuggestionChip({ s, isSelected, onPre
 const PickerTaskRow = React.memo(function PickerTaskRow({ task, onPress, onPin, styles, t }: {
   task: PickerTask; onPress: (task: PickerTask) => void; onPin: (task: PickerTask) => void; styles: ReturnType<typeof makeStyles>; t: Strings;
 }) {
+  const taskLabel = resolveTaskDisplayName(task.name, t, task.is_template === 1);
   return <View style={styles.pickerRow}>
-    <TouchableOpacity style={styles.pickerTask} onPress={() => onPress(task)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={resolveTaskDisplayName(task.name, t, task.is_template === 1)}>
-      <Text style={styles.pickerTaskName} numberOfLines={1}>{task.icon ? `${task.icon} ` : ''}{resolveTaskDisplayName(task.name, t, task.is_template === 1)}</Text>
+    <TouchableOpacity style={styles.pickerTask} onPress={() => onPress(task)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={taskLabel}>
+      <Text style={styles.pickerTaskName} numberOfLines={1}>{task.icon ? `${task.icon} ` : ''}{taskLabel}</Text>
       {task.archived === 1 ? <Text style={styles.hiddenBadge}>{t.activityHidden}</Text> : null}
     </TouchableOpacity>
-    <TouchableOpacity style={styles.pinButton} onPress={() => onPin(task)} activeOpacity={0.7} hitSlop={4} accessibilityRole="button" accessibilityLabel={task.is_pinned === 1 ? t.activityUnpin : t.activityPin} accessibilityState={{ selected: task.is_pinned === 1 }}>
+    <TouchableOpacity style={styles.pinButton} onPress={() => onPin(task)} activeOpacity={0.7} hitSlop={4} accessibilityRole="button" accessibilityLabel={activityPinAccessibilityLabel(task.is_pinned === 1 ? t.activityUnpin : t.activityPin, taskLabel)} accessibilityState={{ selected: task.is_pinned === 1 }}>
       <Text style={[styles.pinText, task.is_pinned === 1 && styles.pinTextActive]}>{task.is_pinned === 1 ? '★' : '☆'}</Text>
     </TouchableOpacity>
   </View>;
@@ -132,7 +133,7 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onBack, onClo
 }
 
 // fallow-ignore-next-line complexity
-export function AddActivitySheet({ visible, onClose, presetName }: Props) {
+export function AddActivitySheet({ visible, onClose, presetName, presetTaskId }: Props) {
   const userId = useAuthUser();
   const { colors } = useTheme();
   const t = useTranslations();
@@ -167,9 +168,16 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
     if (visible && presetName) {
       setName(presetName);
       setSelectedSuggestion(null);
-      setSelectedExistingTask(null);
+      // A preset name always names an existing task (e.g. a challenge's linked
+      // habit) -- wire it up here so the duplicate-name guard in handleCreate
+      // doesn't reject it as a name collision with itself. Prefer the exact
+      // task id when the caller has it (e.g. challenge.taskTypeId): two tasks
+      // can have different exact names that collide once normalized (accent/
+      // case-insensitive), so a name-only lookup could resolve to the wrong
+      // task and silently misattribute the log.
+      setSelectedExistingTask(resolvePresetTask(pickerTasks, presetName, presetTaskId));
     }
-  }, [visible, presetName]);
+  }, [visible, presetName, presetTaskId, pickerTasks]);
 
   useEffect(() => {
     if (visible) {
@@ -290,8 +298,8 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
         Toast.show({ type: 'success', text1: t.taskAdded, text2: resolveTaskDisplayName(storeName, t, !!selectedSuggestion), visibilityTime: 2000 });
         handleClose();
       }
-    } catch {
-      Alert.alert(t.error, t.cantLog);
+    } catch (e: any) {
+      Alert.alert(t.error, e?.message === 'DUPLICATE_ACTIVITY_NAME' ? t.activityDuplicate : t.cantLog);
       submittingRef.current = false;
     }
   }
@@ -396,9 +404,9 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
 
                 {presetName == null && query.length === 0 && activePickerTasks.length > 0 && (
                   <>
-                    <TouchableOpacity style={styles.browseButton} onPress={() => setShowAll(value => !value)} accessibilityRole="button"><Text style={styles.browseText}>{showAll ? t.activityHideAll : t.activityBrowseAll}</Text></TouchableOpacity>
+                    <TouchableOpacity style={styles.browseButton} onPress={() => setShowAll(value => !value)} accessibilityRole="button" accessibilityLabel={showAll ? t.activityHideAll : t.activityBrowseAll} accessibilityState={{ expanded: showAll }}><Text style={styles.browseText}>{showAll ? t.activityHideAll : t.activityBrowseAll}</Text></TouchableOpacity>
                     {showAll && Object.entries(groupedTasks).map(([group, tasks]) => <View key={group}>
-                      <TouchableOpacity style={styles.groupHeader} onPress={() => setCollapsedGroups(value => ({ ...value, [group]: !value[group] }))} accessibilityRole="button"><Text style={styles.groupTitle}>{group}</Text><Text style={styles.groupToggle}>{collapsedGroups[group] ? '⌄' : '⌃'}</Text></TouchableOpacity>
+                      <TouchableOpacity style={styles.groupHeader} onPress={() => setCollapsedGroups(value => ({ ...value, [group]: !value[group] }))} accessibilityRole="button" accessibilityLabel={group} accessibilityState={{ expanded: !collapsedGroups[group] }}><Text style={styles.groupTitle}>{group}</Text><Text style={styles.groupToggle}>{collapsedGroups[group] ? '⌄' : '⌃'}</Text></TouchableOpacity>
                       {!collapsedGroups[group] && tasks.map(renderPickerTaskRow)}
                     </View>)}
                   </>
@@ -454,6 +462,7 @@ export function AddActivitySheet({ visible, onClose, presetName }: Props) {
                   disabled={!hasName || isPending}
                   activeOpacity={0.8}
                   accessibilityRole="button"
+                  accessibilityLabel={t.addActivityNoTimer}
                   accessibilityState={{ disabled: !hasName || isPending }}
                 >
                   <Text style={[styles.noTimerText, !hasName && styles.noTimerTextDim]}>

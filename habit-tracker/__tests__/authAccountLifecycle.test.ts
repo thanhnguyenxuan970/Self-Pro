@@ -1,5 +1,12 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { resolveUserRow, RESET_PROGRESS_STATEMENTS, DELETE_ACCOUNT_STATEMENTS } from '../src/hooks/useAuth';
+const mockCancelChallengeReminder = jest.fn();
+jest.mock('../src/utils/notifications', () => ({ cancelChallengeReminder: mockCancelChallengeReminder }));
+import {
+  cancelUserChallengeReminders,
+  resolveUserRow,
+  RESET_PROGRESS_STATEMENTS,
+  DELETE_ACCOUNT_STATEMENTS,
+} from '../src/hooks/useAuth';
 
 function createMockDb(config: {
   bySubResult?: { id: number } | null;
@@ -70,10 +77,30 @@ function tableNameFromDeleteStatement(sql: string): string {
  */
 const TABLES_WITH_USER_ID_COLUMN = [
   'activity_log', 'achievements', 'categories', 'challenges', 'daily_summary', 'fund_transactions',
-  'reward_unlocks', 'streak_freezes', 'task_types', 'treat_history', 'treats', 'weekly_summary',
+  'boost_events', 'milestone_stars', 'reward_unlocks', 'streak_freezes', 'task_types', 'treat_history', 'treats', 'weekly_summary',
 ];
 
 describe('destructive account-delete SQL covers every per-user table', () => {
+  beforeEach(() => mockCancelChallengeReminder.mockClear());
+
+  it('cancels every persisted challenge reminder before challenge rows are purged', async () => {
+    const db = {
+      getAllAsync: jest.fn().mockResolvedValue([
+        { notification_id: 'notification-1' },
+        { notification_id: 'notification-2' },
+      ]),
+    } as unknown as SQLiteDatabase;
+
+    await cancelUserChallengeReminders(db, 7);
+
+    expect(db.getAllAsync).toHaveBeenCalledWith(
+      'SELECT notification_id FROM challenges WHERE user_id = ? AND notification_id IS NOT NULL',
+      [7],
+    );
+    expect(mockCancelChallengeReminder).toHaveBeenCalledWith('notification-1');
+    expect(mockCancelChallengeReminder).toHaveBeenCalledWith('notification-2');
+  });
+
   it('deleteAccount purges every table that has a user_id column', () => {
     const deletedTables = new Set(DELETE_ACCOUNT_STATEMENTS.map(tableNameFromDeleteStatement));
     const missing = TABLES_WITH_USER_ID_COLUMN.filter(t => !deletedTables.has(t));
@@ -90,5 +117,7 @@ describe('destructive account-delete SQL covers every per-user table', () => {
     expect(resetTables.has('achievements')).toBe(true);
     expect(resetTables.has('challenges')).toBe(true);
     expect(resetTables.has('fund_transactions')).toBe(true);
+    expect(resetTables.has('milestone_stars')).toBe(true);
+    expect(resetTables.has('boost_events')).toBe(true);
   });
 });

@@ -1,6 +1,16 @@
-import { buildAnalyticsDashboard } from '../src/analytics/dashboardModel';
+import { analyticsBarAccessibilityLabel, buildAnalyticsDashboard, getAnalyticsChartLayout, getMonthChartAnchor } from '../src/analytics/dashboardModel';
 
 describe('buildAnalyticsDashboard', () => {
+  it('gives each month and year point a fixed-width scroll track', () => {
+    expect(getAnalyticsChartLayout('W', 7)).toEqual({ isScrollable: false, columnWidth: 0, contentWidth: 0 });
+    expect(getAnalyticsChartLayout('M', 30)).toEqual({ isScrollable: true, columnWidth: 36, contentWidth: 1080 });
+    expect(getAnalyticsChartLayout('Y', 12)).toEqual({ isScrollable: true, columnWidth: 56, contentWidth: 672 });
+  });
+
+  it('centers today when the rolling month chart opens', () => {
+    expect(getMonthChartAnchor(30, 800)).toEqual({ trailingInset: 382, scrollOffset: 662 });
+  });
+
   it('uses the fixed 50-point daily goal', () => {
     const result = buildAnalyticsDashboard(
       [{ local_date: '2026-07-27', total_points: 92 }, { local_date: '2026-07-28', total_points: 60 }],
@@ -21,6 +31,22 @@ describe('buildAnalyticsDashboard', () => {
     expect(result.daysAtGoal).toBe(0);
   });
 
+  it('counts activity days for volume and consistency even below the point goal', () => {
+    const result = buildAnalyticsDashboard(
+      [{ local_date: '2026-07-28', total_points: 10 }],
+      [
+        { local_date: '2026-07-28', logged_at: new Date(2026, 6, 28, 9).getTime(), points_earned: 10, stars_delta: 1, task_name: 'Read' },
+        { local_date: '2026-07-27', logged_at: new Date(2026, 6, 27, 9).getTime(), points_earned: 5, stars_delta: 1, task_name: 'Walk' },
+      ],
+      'W',
+      new Date(2026, 6, 28),
+      ['2026-07-27', '2026-07-28'],
+    );
+
+    expect(result.daysAtGoal).toBe(2);
+    expect(result.consistency.week).toBe(29);
+  });
+
   it('uses January through the current month for the year range', () => {
     const result = buildAnalyticsDashboard([{ local_date: '2026-07-28', total_points: 92 }], [], 'Y', new Date(2026, 6, 28));
 
@@ -31,11 +57,15 @@ describe('buildAnalyticsDashboard', () => {
     expect(result.bars[6].current).toBe(92);
   });
 
-  it('keeps a rolling 30-day month window and weekly labels', () => {
+  it('keeps a rolling 30-day month window with a readable label for every day', () => {
     const result = buildAnalyticsDashboard([], [], 'M', new Date(2026, 6, 28));
 
     expect(result.bars).toHaveLength(30);
-    expect(result.bars.map(bar => bar.label).filter(Boolean)).toEqual(['29', '6', '13', '20', '27']);
+    expect(result.bars.map(bar => bar.label)).toEqual([
+      '29', '30', '1', '2', '3', '4', '5', '6', '7', '8',
+      '9', '10', '11', '12', '13', '14', '15', '16', '17', '18',
+      '19', '20', '21', '22', '23', '24', '25', '26', '27', '28',
+    ]);
   });
 
   it('pairs each rolling-month day with the preceding 30-day period', () => {
@@ -104,5 +134,19 @@ describe('buildAnalyticsDashboard', () => {
     expect(result.weekday.find(w => w.dayOfWeek === 1)?.value).toBe(5); // Monday = the 07-27 log
     expect(result.weekday.map(day => day.dayOfWeek)).toEqual([1, 2, 3, 4, 5, 6, 0]);
     expect(result.hours.find(hour => hour.label === '8')?.value).toBe(35); // 8-12 bucket = all three logs (9am, 10am, and the 07-27 9am log)
+  });
+});
+
+describe('analyticsBarAccessibilityLabel', () => {
+  it('announces live current, previous, and goal values in English', () => {
+    expect(analyticsBarAccessibilityLabel('en', 'Monday', 60, 40, 50, true)).toBe(
+      'Monday: 60 points, previous 40 points, goal 50 points',
+    );
+  });
+
+  it('announces the localized current value without a hidden previous series', () => {
+    expect(analyticsBarAccessibilityLabel('vi', 'T2', 42, 18, 50, false)).toBe(
+      'T2: 42 điểm, mục tiêu 50 điểm',
+    );
   });
 });

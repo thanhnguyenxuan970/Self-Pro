@@ -38,6 +38,8 @@ export function OnboardingScreen({ onComplete }: Props) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    fadeAnim.stopAnimation();
+    slideAnim.stopAnimation();
     if (reduceMotion) { fadeAnim.setValue(1); slideAnim.setValue(0); return; }
     fadeAnim.setValue(0);
     slideAnim.setValue(24);
@@ -47,10 +49,11 @@ export function OnboardingScreen({ onComplete }: Props) {
     ]);
     anim.start();
     return () => anim.stop();
-  }, [step]);
+  }, [fadeAnim, reduceMotion, slideAnim, step]);
 
   useEffect(() => {
-    if (reduceMotion) return;
+    pulseAnim.stopAnimation();
+    if (reduceMotion) { pulseAnim.setValue(1); return; }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.06, duration: 1800, useNativeDriver: true }),
@@ -59,7 +62,7 @@ export function OnboardingScreen({ onComplete }: Props) {
     );
     loop.start();
     return () => loop.stop();
-  }, []);
+  }, [pulseAnim, reduceMotion]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {

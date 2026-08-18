@@ -3,6 +3,7 @@ package com.habitring.app
 import android.os.Build
 import android.os.Bundle
 
+import androidx.activity.OnBackPressedCallback
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -11,12 +12,31 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
+  private val appBackPressedCallback = object : OnBackPressedCallback(true) {
+    override fun handleOnBackPressed() {
+      onBackPressed()
+    }
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     // Set the theme to AppTheme BEFORE onCreate to support
     // coloring the background, status bar, and navigation bar.
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
     super.onCreate(null)
+    onBackPressedDispatcher.addCallback(this, appBackPressedCallback)
+  }
+
+  @Deprecated("Use OnBackPressedDispatcher for Android back navigation")
+  override fun onBackPressed() {
+    if (!reactActivityDelegate.onBackPressed()) {
+      appBackPressedCallback.isEnabled = false
+      try {
+        invokeDefaultOnBackPressed()
+      } finally {
+        appBackPressedCallback.isEnabled = true
+      }
+    }
   }
 
   /**

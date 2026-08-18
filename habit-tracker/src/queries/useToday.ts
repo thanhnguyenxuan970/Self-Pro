@@ -3,11 +3,10 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { getStoredGoogleUser } from '../hooks/useAuth';
 import { syncCurrentUserToSupabase, syncUserStreak } from '../api/syncService';
-import { cancelTerminalChallengeReminders, logActiveChallengeDay } from './useChallenge';
+import { cancelTerminalChallengeReminders, logActiveChallengeDay, reconcileUnloggedLinkedChallenges, restoreReactivatedChallengeReminders, type ReactivatedLinkedChallenge } from './useChallenge';
 import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
-import { TierRow } from '../game/tierUnlocks';
-import { dailyBonusStarsForPoints } from '../config/constants';
+import { dailyBonusStarsForPoints, SOURCE_TASK } from '../config/constants';
 import { crossedStreakMilestone, type StreakMilestone } from '../game/streakMilestones';
 import {
   boostEndOfDayMs,
@@ -18,11 +17,14 @@ import {
   type BoostSummary,
 } from '../game/boost';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
-import type { LifetimeTierCrossing } from '../game/lifetimeRank';
+import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
+import { markSurveyD0Pending } from '../game/pendingSurveyD0';
+import { notifyFirstEverLog } from '../hooks/useSurveyD0Intent';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
+import { useLanguage } from '../hooks/useSettings';
 
-type FullTierRow = TierRow & { tier_order: number; rank_name: string };
+type FullTierRow = LifetimeTierRow;
 
 type DailySummaryRow = { total_points: number; bonus_star_awarded: number; streak_count: number };
 export type TodayBoost = BoostEventRow & { id: number; local_date: string };
@@ -348,10 +350,8 @@ export function useWeeklySummary(userId: number) {
     queryKey: ['week', userId, weekStart],
     queryFn: async () => {
       const db = await getDb();
-      return db.getFirstAsync<{
-        weekly_stars: number; peak_stars: number; current_tier_id: number | null;
-      }>(
-        `SELECT weekly_stars, peak_stars, current_tier_id
+      return db.getFirstAsync<{ weekly_stars: number }>(
+        `SELECT weekly_stars
          FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
         [userId, weekStart]
       );
@@ -369,7 +369,10 @@ export function useLogTask(userId: number) {
       basePoints: number;
       starPenalty: number;
       durationMin?: number;
-    }): Promise<{ newStreak: number; prevStreak: number; milestone: StreakMilestone | null; lifetimeCrossings: LifetimeTierCrossing[] }> => {
+    }): Promise<{
+      newStreak: number; prevStreak: number; milestone: StreakMilestone | null;
+      lifetimeCrossings: LifetimeTierCrossing[]; isFirstEverLog: boolean;
+    }> => {
       const db = await getDb();
       const today = getLocalDate();
       const weekStart = getWeekStart();
@@ -388,6 +391,7 @@ export function useLogTask(userId: number) {
       let streakResult = { newStreak: 1, prevStreak: 0 };
       let milestone: StreakMilestone | null = null;
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
+      let isFirstEverLog = false;
 
       // All volatile reads + computation + writes inside one transaction.
       // This prevents TOCTOU: two concurrent mutateAsync calls can no longer
@@ -403,14 +407,11 @@ export function useLogTask(userId: number) {
           `SELECT COALESCE(MAX(streak_count), 0) AS best FROM daily_summary WHERE user_id = ?`,
           [userId],
         );
-        const weeklyRow = await db.getFirstAsync<{ weekly_stars: number; peak_stars: number; current_tier_id: number | null }>(
-          `SELECT weekly_stars, peak_stars, current_tier_id FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
+        const weeklyRow = await db.getFirstAsync<{ weekly_stars: number }>(
+          `SELECT weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
           [userId, weekStart]
         );
-        // Weekly rows remain useful for charts/share cards, but never drive
-        // lifetime rank or carry a rank across a Monday boundary.
         const weeklyStars = weeklyRow?.weekly_stars ?? 0;
-        const weeklyPeakStars = weeklyRow?.peak_stars ?? 0;
 
         const { todayStreak, streakResult: sr } = await computeTodayStreak(db, userId, today, yesterdayDate, daily);
         streakResult = sr;
@@ -445,6 +446,17 @@ export function useLogTask(userId: number) {
         const totalStarsDelta = activityRow.stars_delta + (bonusRow?.stars_delta ?? 0);
         await insertLogRows(db, activityRow, bonusRow);
 
+        // Cheap, indexed (user_id is the leading column of idx_log_user_date/
+        // idx_log_user_week) — count() === 1 right after this insert means
+        // this was the user's very first-ever real log, the D0 survey's
+        // trigger condition. DAILY_BONUS rows are a same-transaction side
+        // effect of logging, not a log themselves, so they're excluded.
+        const taskLogCount = await db.getFirstAsync<{ count: number }>(
+          `SELECT COUNT(*) AS count FROM activity_log WHERE user_id = ? AND source = ?`,
+          [userId, SOURCE_TASK],
+        );
+        isFirstEverLog = (taskLogCount?.count ?? 0) === 1;
+
         await db.runAsync(
           `INSERT INTO daily_summary (user_id, local_date, total_points, bonus_star_awarded, streak_count)
            VALUES (?, ?, ?, ?, ?)
@@ -456,15 +468,13 @@ export function useLogTask(userId: number) {
         );
 
         await db.runAsync(
-          `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars, peak_stars, current_tier_id)
-           VALUES (?, ?, ?, ?, ?, ?)
+          `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars)
+           VALUES (?, ?, ?, ?)
            ON CONFLICT(user_id, week_start) DO UPDATE SET
              total_points = total_points + ?,
-             weekly_stars = weekly_stars + ?,
-             peak_stars = MAX(peak_stars, weekly_stars + ?)`,
+             weekly_stars = weekly_stars + ?`,
           [userId, weekStart, activityRow.points_earned, weeklyStars + totalStarsDelta,
-           Math.max(weeklyPeakStars, weeklyStars + totalStarsDelta), weeklyRow?.current_tier_id ?? null,
-           activityRow.points_earned, totalStarsDelta, totalStarsDelta]
+           activityRow.points_earned, totalStarsDelta]
         );
 
         lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, totalStarsDelta, tiers)).crossings;
@@ -479,7 +489,7 @@ export function useLogTask(userId: number) {
       });
       await cancelTerminalChallengeReminders(db, userId);
 
-      return { ...streakResult, milestone, lifetimeCrossings };
+      return { ...streakResult, milestone, lifetimeCrossings, isFirstEverLog };
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['today'] });
@@ -494,6 +504,9 @@ export function useLogTask(userId: number) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(data.lifetimeCrossings);
         enqueuePendingLevelUps(data.lifetimeCrossings).catch(() => {});
+      }
+      if (data.isFirstEverLog) {
+        markSurveyD0Pending().then(notifyFirstEverLog).catch(() => {});
       }
       // Fire-and-forget streak sync — non-fatal if Supabase absent or table not migrated
       getStoredGoogleUser()
@@ -527,18 +540,20 @@ export function useTodayTaskTotalDurations(userId: number) {
 
 export function useUnlogTask(userId: number) {
   const qc = useQueryClient();
+  const [lang] = useLanguage();
   return useMutation({
     mutationFn: async (params: { taskTypeId: number; kind: 'GOOD' | 'BAD' }): Promise<{ lifetimeCrossings: LifetimeTierCrossing[] }> => {
       const db = await getDb();
       const today = getLocalDate();
       const weekStart = getWeekStart();
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
+      let reactivatedChallenges: ReactivatedLinkedChallenge[] = [];
 
       // tiers is a static lookup — never written, safe to read outside transaction
       const tiers = await db.getAllAsync<FullTierRow>(
-        `SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY stars_required ASC`
+        `SELECT id, tier_order, rank_name, stars_required
+         FROM tiers ORDER BY stars_required ASC`,
       );
-
       // fallow-ignore-next-line complexity
       await db.withTransactionAsync(async () => {
         const taskRows = await db.getAllAsync<{ id: number; points_earned: number; stars_delta: number }>(
@@ -555,11 +570,6 @@ export function useUnlogTask(userId: number) {
           `SELECT total_points, bonus_star_awarded FROM daily_summary WHERE user_id = ? AND local_date = ?`,
           [userId, today]
         );
-        const weeklyRow = await db.getFirstAsync<{ weekly_stars: number }>(
-          `SELECT weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start = ?`,
-          [userId, weekStart]
-        );
-
         const remainingPoints = (daily?.total_points ?? 0) - taskPoints;
         const currentBonusStars = daily?.bonus_star_awarded ?? 0;
         const remainingBonusStars = dailyBonusStarsForPoints(remainingPoints);
@@ -567,8 +577,6 @@ export function useUnlogTask(userId: number) {
         if (bonusStars > 0) await replaceDailyBonusRows(db, userId, today, weekStart, remainingBonusStars);
 
         const totalStarsDelta = taskStars + bonusStars;
-        const newWeeklyStars = Math.max(0, (weeklyRow?.weekly_stars ?? 0) - totalStarsDelta);
-
         // Batched into one query instead of one round-trip per row.
         const rowPlaceholders = taskRows.map(() => '?').join(',');
         await db.runAsync(`DELETE FROM activity_log WHERE id IN (${rowPlaceholders})`, taskRows.map(row => row.id));
@@ -583,20 +591,14 @@ export function useUnlogTask(userId: number) {
           [taskPoints, totalStarsDelta, userId, weekStart]
         );
 
-        await db.runAsync(
-          `DELETE FROM reward_unlocks
-           WHERE user_id = ? AND week_start = ? AND claimed = 0
-             AND tier_id IN (SELECT id FROM tiers WHERE stars_required > ?)`,
-          [userId, weekStart, newWeeklyStars]
-        );
-
-        // Lifetime rank ignores removal deltas. Undoing a BAD/penalty entry is
-        // a net gain (removing a penalty restores stars), so it can still
-        // cross a tier threshold upward.
         lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, -totalStarsDelta, tiers)).crossings;
 
         await revertTreatStarsUnlog(db, userId, params.kind, totalStarsDelta, taskStars);
+        const reconciliation = await reconcileUnloggedLinkedChallenges(db, { userId, taskTypeId: params.taskTypeId, localDate: today });
+        lifetimeCrossings = [...lifetimeCrossings, ...reconciliation.lifetimeCrossings];
+        reactivatedChallenges = reconciliation.reactivatedChallenges;
       });
+      await restoreReactivatedChallengeReminders(db, reactivatedChallenges, lang);
 
       return { lifetimeCrossings };
     },
@@ -606,6 +608,7 @@ export function useUnlogTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
+      qc.invalidateQueries({ queryKey: ['challenge'] });
       void syncCurrentUserToSupabase()
         .catch(error => { if (__DEV__) console.warn('[sync] activity delete sync failed:', error); })
         .finally(() => { qc.invalidateQueries({ queryKey: ['leaderboard'] }); });

@@ -1,4 +1,18 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"C:\\\\Users\\\\Admin\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Admin-Desktop-Self-Pro\\\\6aabca97-e225-49d1-b1fb-95c327689c9b\\\\scratchpad\")",
+      "Bash(mv \"C:\\\\Users\\\\Admin\\\\Desktop\\\\Self-Pro\\\\.scratch_dc_ladder.html\" \"C:\\\\Users\\\\Admin\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Admin-Desktop-Self-Pro\\\\6aabca97-e225-49d1-b1fb-95c327689c9b\\\\scratchpad\\\\dc_ladder.html\")",
+      "Bash(node -e ' *)",
+      "Bash(nohup emulator -avd Pixel_7 -no-snapshot-load)",
+      "Bash(disown)",
+      "Bash(adb wait-for-device *)",
+      "Bash(adb reverse *)",
+      "Bash(npx jest *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8081/status)",
+      "PowerShell(Move-Item *)"
+    ]
+  },
   "enabledMcpjsonServers": [
     "code-review-graph"
   ],

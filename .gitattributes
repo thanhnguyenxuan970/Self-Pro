@@ -1,0 +1,55 @@
+# Normalize line endings.
+#
+# Without this, files committed from Windows tools land in the index with CRLF
+# while files committed from WSL/CI land with LF, and every subsequent diff
+# shows whole files as rewritten. (This file was added after a 507-file diff
+# turned out to contain zero actual content changes.)
+#
+# `text=auto eol=lf` means: git decides text-vs-binary by content, stores text
+# as LF in the repository, and checks it out as LF. Editors on Windows handle
+# LF fine; the exceptions that genuinely need CRLF are listed below.
+* text=auto eol=lf
+
+# Windows-native scripts. Batch files in particular can misbehave with LF-only
+# line endings around labels and goto, so pin these to CRLF on checkout.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Unix shell scripts must stay LF even when checked out on Windows, or the
+# shebang line carries a stray CR and the interpreter is not found.
+*.sh text eol=lf
+gradlew text eol=lf
+
+# Patch files are byte-sensitive (patch-package matches exact context lines),
+# so they must be pinned rather than left to content sniffing. They are already
+# stored LF in this repository, so `text eol=lf` is the byte-preserving choice
+# here -- marking them `-text` instead would commit the working tree's CRLF
+# bytes verbatim and break patch application on the next install.
+*.patch text eol=lf
+*.diff text eol=lf
+
+# Binaries: never inspect, never normalize.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.svg text eol=lf
+*.mp3 binary
+*.wav binary
+*.mp4 binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.zip binary
+*.jar binary
+*.bin binary
+*.apk binary
+*.aab binary
+*.keystore binary
+*.jks binary
+*.p12 binary
+*.hprof binary

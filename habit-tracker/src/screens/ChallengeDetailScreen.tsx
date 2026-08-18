@@ -8,10 +8,11 @@ import { pickSquareImage } from '../utils/pickImage';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
-import { useChallengeById, useLogChallengeDay, useRestartChallenge, useRetryChallengeReminder, useSetChallengeAfterPhoto, useSetChallengeBeforePhoto, useUpdateChallengeName } from '../queries/useChallenge';
+import { useChallengeById, useDeleteChallenge, useLogChallengeDay, useRestartChallenge, useRetryChallengeReminder, useSetChallengeAfterPhoto, useSetChallengeBeforePhoto, useUpdateChallengeName } from '../queries/useChallenge';
 import { useTodayTasks } from '../queries/useToday';
 import { requestAddActivity } from '../hooks/useAddActivityIntent';
-import { challengeDate, isComplete } from '../lib/challenge';
+import { challengeDate, isAtRisk, isComplete } from '../lib/challenge';
+import { challengeDetailMenuActions } from '../utils/challengeDetail';
 import { computeChallengeReward } from '../config/challenges.config';
 import { ChallengeProgressRing } from '../components/ChallengeProgressRing';
 import { ChallengeDayGrid, GRID_CELL_COUNT } from '../components/ChallengeDayGrid';
@@ -36,6 +37,7 @@ export function ChallengeDetailScreen() {
   const restartChallenge = useRestartChallenge(userId);
   const retryReminder = useRetryChallengeReminder(userId);
   const updateChallengeName = useUpdateChallengeName(userId);
+  const deleteChallenge = useDeleteChallenge(userId);
   const [menuVisible, setMenuVisible] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
@@ -45,11 +47,15 @@ export function ChallengeDetailScreen() {
   const today = challengeDate();
 
   async function handleRestart() {
-    const { id, notificationDenied } = await restartChallenge.mutateAsync(challengeId!);
-    if (notificationDenied) {
-      Toast.show({ type: 'error', text1: t.reminderScheduleFailed, visibilityTime: 3500 });
+    try {
+      const { id, notificationDenied } = await restartChallenge.mutateAsync(challengeId!);
+      if (notificationDenied) {
+        Toast.show({ type: 'error', text1: t.reminderScheduleFailed, visibilityTime: 3500 });
+      }
+      (navigation as any).replace('ChallengeDetail', { challengeId: id });
+    } catch (e: any) {
+      Alert.alert(t.error, e?.message === 'LINKED_TASK_ARCHIVED' ? t.challengeRestartLinkedTaskArchived : t.challengeRestartFailed);
     }
-    (navigation as any).replace('ChallengeDetail', { challengeId: id });
   }
 
   async function handleRetryReminder() {
@@ -64,14 +70,15 @@ export function ChallengeDetailScreen() {
 
   async function handleLogToday() {
     try {
-      await logDay.mutateAsync();
+      if (challengeId == null) return;
+      await logDay.mutateAsync(challengeId);
     } catch {
       // ALREADY_LOGGED_TODAY / NO_ACTIVE_CHALLENGE — surfaced via button disabled state
     }
   }
 
-  function handleLogNow(name: string) {
-    requestAddActivity({ name });
+  function handleLogNow(name: string, taskTypeId: number | null) {
+    requestAddActivity({ name, taskTypeId });
   }
 
   async function handleShare() {
@@ -121,6 +128,25 @@ export function ChallengeDetailScreen() {
     }
   }
 
+  function confirmDelete() {
+    if (challengeId == null) return;
+    setMenuVisible(false);
+    Alert.alert(
+      t.challengeDeleteTitle,
+      t.challengeDeleteMsg,
+      [
+        { text: t.cancel, style: 'cancel' },
+        {
+          text: t.delete,
+          style: 'destructive',
+          onPress: () => deleteChallenge.mutateAsync(challengeId)
+            .then(() => navigation.goBack())
+            .catch(() => Alert.alert(t.error, t.challengeDeleteFailed)),
+        },
+      ],
+    );
+  }
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: challenge?.status !== 'active' || completedBeforeRender ? undefined : () => (
@@ -150,6 +176,8 @@ export function ChallengeDetailScreen() {
   const completed = challenge.status === 'done' || (!isWeekly && isComplete(challenge.daysDone, challenge.targetDays));
   const failed = !completed && challenge.status === 'failed';
   const active = !completed && !failed;
+  const atRisk = isAtRisk(challenge.mode, challenge.freezesLeft);
+  const menuActions = challengeDetailMenuActions(challenge.status);
   const canLogToday = active && !challenge.loggedToday;
   const calendarDaysLeft = Math.max(0, challenge.targetDays - (challenge.dayIndex + 1));
   const linkedTaskName = challenge.taskTypeId != null
@@ -303,6 +331,10 @@ export function ChallengeDetailScreen() {
           </View>
         )}
 
+        {active && !isWeekly && challenge.freezesLeft > 0 && (
+          <Text style={styles.ruleNote}>{t.challengeRulesBody(challenge.freezesLeft)}</Text>
+        )}
+
         {failed && (
           <>
             <View style={styles.outcomeCopy}>
@@ -338,6 +370,7 @@ export function ChallengeDetailScreen() {
               startDate={challenge.startDate}
               log={challenge.log}
               today={today}
+              atRisk={atRisk}
             />
           </>
         )}
@@ -391,9 +424,22 @@ export function ChallengeDetailScreen() {
             accessibilityLabel={t.cancel}
           />
           <View style={[styles.menu, { top: headerHeight + Spacing.xs }]} accessibilityViewIsModal>
-            {active && (
+            {menuActions.includes('rename') && (
               <TouchableOpacity style={styles.menuRow} onPress={openNameEditor} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.editActivity}>
                 <Text style={styles.menuEdit}>🖊️ {t.editActivity}</Text>
+              </TouchableOpacity>
+            )}
+            {menuActions.includes('delete') && (
+              <TouchableOpacity
+                style={styles.menuRow}
+                onPress={confirmDelete}
+                disabled={deleteChallenge.isPending}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t.challengeDeleteCta}
+                accessibilityState={{ disabled: deleteChallenge.isPending }}
+              >
+                <Text style={styles.menuDelete}>{t.challengeDeleteCta}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -403,7 +449,7 @@ export function ChallengeDetailScreen() {
         <View style={styles.stickyCta}>
           <TouchableOpacity
             style={[styles.logBtn, (!canLogToday || logDay.isPending) && styles.logBtnDisabled]}
-            onPress={linkedTaskName == null ? handleLogToday : () => handleLogNow(linkedTaskName)}
+            onPress={linkedTaskName == null ? handleLogToday : () => handleLogNow(linkedTaskName, challenge.taskTypeId)}
             disabled={!canLogToday || logDay.isPending}
             activeOpacity={0.85}
             accessibilityRole="button"
@@ -467,6 +513,7 @@ function makeStyles(C: AppColors) {
     },
     menuRow: { minHeight: 48, justifyContent: 'center', paddingHorizontal: Spacing.md },
     menuEdit: { ...Typography.bodyStrong, color: C.inkDark },
+    menuDelete: { ...Typography.bodyStrong, color: C.dangerText },
     editOverlay: { flex: 1, backgroundColor: C.scrim, justifyContent: 'center', padding: Spacing.lg },
     editCard: { backgroundColor: C.surface, borderRadius: Radii.lg, padding: Spacing.lg, gap: Spacing.md, alignSelf: 'center', width: '100%', maxWidth: 480 },
     editTitle: { ...Typography.subheading, color: C.inkDark },
@@ -498,6 +545,7 @@ function makeStyles(C: AppColors) {
       paddingVertical: 6, paddingHorizontal: 14, marginTop: -Spacing.sm,
     },
     daysLeftText: { ...Typography.caption, fontFamily: FontFamily.semiBold, color: C.ink2 },
+    ruleNote: { ...Typography.secondary, color: C.ink2, textAlign: 'center', paddingHorizontal: Spacing.md },
     sectionLabel: { ...Typography.sectionLabel, color: C.ink2, alignSelf: 'flex-start' },
     statRow: { flexDirection: 'row', gap: Spacing.md, alignSelf: 'stretch' },
     statCard: {
@@ -505,7 +553,14 @@ function makeStyles(C: AppColors) {
       alignItems: 'center', ...Shadows.light,
     },
     statValue: { ...Typography.title, color: C.inkDark },
-    statLabel: { ...Typography.caption, color: C.ink2, marginTop: 2 },
+    statLabel: {
+      ...Typography.caption,
+      color: C.ink2,
+      marginTop: 2,
+      alignSelf: 'stretch',
+      paddingHorizontal: Spacing.xs,
+      textAlign: 'center',
+    },
     overachieverBanner: {
       alignSelf: 'stretch', backgroundColor: C.starSoft, borderRadius: Radii.lg, padding: Spacing.md,
     },

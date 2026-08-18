@@ -156,11 +156,6 @@ export function CalendarScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>{t.calendarTitle}</Text>
-      </View>
-
       {/* Month Nav */}
       <View style={styles.monthNav}>
         <TouchableOpacity onPress={prevMonth} style={styles.navBtn} activeOpacity={0.7} accessibilityLabel={t.prevMonth} accessibilityRole="button">
@@ -185,36 +180,41 @@ export function CalendarScreen() {
 
       {/* Calendar Grid */}
       <View style={styles.grid}>
-        {cells.map((day, idx) => {
-          if (!day) return <View key={idx} style={styles.cell} />;
-          const { dateStr, isEligible, isBackfilled, hasActivity, cellBg, numColor, cellIcon } = resolveDayCellProps(
-            day, dayMap, backfillStatus, yearMonth, todayStr, currentWeekStart, colors,
-          );
-          const isToday = day === today;
-          const dayLabel = `${day}${isToday ? `, ${t.calDayToday}` : ''}: ${hasActivity ? t.calDayLogged : t.calDayEmpty}`;
-          const cellStyle = [
-            styles.cell,
-            { backgroundColor: cellBg },
-            isToday && styles.cellToday,
-            isEligible && styles.cellEligible,
-          ];
-          const cellContent = (
-            <>
-              <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
-              <View style={styles.cellBottom}>
-                {cellIcon ?? (isEligible ? <Text style={styles.backfillHint}>+</Text> : null)}
-              </View>
-            </>
-          );
-          if (isEligible) {
-            return (
-              <TouchableOpacity key={idx} style={cellStyle} onPress={() => setBackfillDate(dateStr)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={`${dayLabel}, ${t.backfillEligible}`} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
-                {cellContent}
-              </TouchableOpacity>
-            );
-          }
-          return <View key={idx} style={cellStyle} accessible accessibilityLabel={dayLabel}>{cellContent}</View>;
-        })}
+        {Array.from({ length: cells.length / 7 }, (_, rowIndex) => (
+          <View key={`row-${rowIndex}`} style={styles.gridRow}>
+            {cells.slice(rowIndex * 7, rowIndex * 7 + 7).map((day, columnIndex) => {
+              const idx = rowIndex * 7 + columnIndex;
+              if (!day) return <View key={idx} style={styles.cell} />;
+              const { dateStr, isEligible, hasActivity, cellBg, numColor, cellIcon } = resolveDayCellProps(
+                day, dayMap, backfillStatus, yearMonth, todayStr, currentWeekStart, colors,
+              );
+              const isToday = day === today;
+              const dayLabel = `${day}${isToday ? `, ${t.calDayToday}` : ''}: ${hasActivity ? t.calDayLogged : t.calDayEmpty}`;
+              const cellStyle = [
+                styles.cell,
+                { backgroundColor: cellBg },
+                isToday && styles.cellToday,
+                isEligible && styles.cellEligible,
+              ];
+              const cellContent = (
+                <>
+                  <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
+                  <View style={styles.cellBottom}>
+                    {cellIcon ?? (isEligible ? <Text style={styles.backfillHint}>+</Text> : null)}
+                  </View>
+                </>
+              );
+              if (isEligible) {
+                return (
+                  <TouchableOpacity key={idx} style={cellStyle} onPress={() => setBackfillDate(dateStr)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={`${dayLabel}, ${t.backfillEligible}`} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
+                    {cellContent}
+                  </TouchableOpacity>
+                );
+              }
+              return <View key={idx} style={cellStyle} accessible accessibilityLabel={dayLabel}>{cellContent}</View>;
+            })}
+          </View>
+        ))}
       </View>
 
       {/* Legend */}
@@ -269,8 +269,6 @@ function makeStyles(colors: AppColors, bottomInset: number) {
     safeArea: { flex: 1, backgroundColor: colors.surface },
     container: { flex: 1 },
     content: { paddingHorizontal: Spacing.md, paddingBottom: 40 + bottomInset, paddingTop: 16 },
-    header: { marginBottom: 12, marginTop: 8 },
-    title: { fontSize: 28, fontFamily: FontFamily.extraBold, color: colors.inkDark },
     monthNav: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -293,10 +291,9 @@ function makeStyles(colors: AppColors, bottomInset: number) {
       paddingVertical: 4,
     },
     grid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      paddingHorizontal: 1,
+      width: '100%',
     },
+    gridRow: { flexDirection: 'row', width: '100%' },
     cell: {
       width: '13.5%',
       aspectRatio: 1,

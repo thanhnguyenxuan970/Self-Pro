@@ -233,7 +233,9 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
     try {
       const taskTypeId = await createTask.mutateAsync({ name: s.name, kind: s.kind, isTimeBased: s.isTimeBased, basePoints: s.basePoints, starPenalty: s.starPenalty, icon: s.icon, isTemplate: true });
       setEntries(prev => [...prev, { id: String(nextEntryId.current++), taskTypeId, name: s.name, icon: s.icon, kind: s.kind, isTimeBased: s.isTimeBased, basePoints: s.basePoints, starPenalty: s.starPenalty, durationMin: s.isTimeBased ? 30 : null }]);
-    } catch { Alert.alert(t.error, t.cantLog); }
+    } catch (e: any) {
+      Alert.alert(t.error, e?.message === 'DUPLICATE_ACTIVITY_NAME' ? t.activityDuplicate : t.cantLog);
+    }
   }
 
   async function submitSession() {
@@ -267,10 +269,9 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
   const ctaDisabled = entries.length === 0 || isPending || locked;
 
   return (
-    // Own Modal hides itself while a child sheet (AddActivitySheet/EditActivityModal, each a
-    // Modal of its own) is up -- RN doesn't guarantee stacking order between two simultaneously
-    // visible Modals on Android, so only one of the three is ever actually shown at once. Local
-    // draft state (entries, etc.) survives since this just toggles native visibility, not unmount.
+    // Hide this Modal while a child sheet is up. The child Modals stay outside this tree so
+    // hiding the parent does not hide the child too; local draft state survives the toggle.
+    <>
     <Modal visible={visible && !showAddActivity && !editTask} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel={t.close} />
@@ -384,9 +385,10 @@ export function BackfillSheet({ visible, date, backfillsUsedThisWeek, userId, on
           )}
         </View>
       </KeyboardAvoidingView>
-      <AddActivitySheet visible={showAddActivity} onClose={() => setShowAddActivity(false)} />
-      <EditActivityModal visible={!!editTask} task={editTask} totalDurationMin={entries.find(entry => entry.taskTypeId === editTask?.id)?.durationMin ?? undefined} onClose={() => setEditTask(null)} onSave={(taskId, name, isTimeBased, durationMin) => { void saveEditedTask(taskId, name, isTimeBased, durationMin); }} />
     </Modal>
+    <AddActivitySheet visible={showAddActivity} onClose={() => setShowAddActivity(false)} />
+    <EditActivityModal visible={!!editTask} task={editTask} totalDurationMin={entries.find(entry => entry.taskTypeId === editTask?.id)?.durationMin ?? undefined} onClose={() => setEditTask(null)} onSave={(taskId, name, isTimeBased, durationMin) => { void saveEditedTask(taskId, name, isTimeBased, durationMin); }} />
+    </>
   );
 }
 

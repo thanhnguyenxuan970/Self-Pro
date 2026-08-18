@@ -315,9 +315,6 @@ async function v10(db: SQLiteDatabase): Promise<void> {
       after_photo TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_challenges_one_active
-      ON challenges(user_id) WHERE status='active';
-
     CREATE TABLE IF NOT EXISTS challenge_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       challenge_id INTEGER NOT NULL,
@@ -487,8 +484,6 @@ async function v15(db: SQLiteDatabase): Promise<void> {
       DROP TABLE challenges;
       ALTER TABLE challenges_new RENAME TO challenges;
 
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_challenges_one_active
-        ON challenges(user_id) WHERE status='active';
       CREATE INDEX IF NOT EXISTS idx_challenges_user_status ON challenges(user_id, status);
     `);
   });
@@ -599,37 +594,69 @@ async function v22(db: SQLiteDatabase): Promise<void> {
 // lifetime_stars/current_tier_id live on `users` (same pattern as the existing
 // treat_stars_lifetime column) rather than on weekly_summary, which stays untouched
 // for its other (non-rank) weekly stats/challenge-pacing consumers.
-async function v23(db: SQLiteDatabase): Promise<void> {
-  try {
-    await db.runAsync(`ALTER TABLE users ADD COLUMN lifetime_stars REAL NOT NULL DEFAULT 0`);
-  } catch (e: any) {
-    if (!e?.message?.includes('duplicate column')) throw e;
+async function ensureLifetimeRankColumns(db: SQLiteDatabase, forceBackfill = false): Promise<void> {
+  const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(users)');
+  const columnNames = new Set(columns.map(column => column.name));
+  let repaired = false;
+
+  if (!columnNames.has('lifetime_stars')) {
+    await db.runAsync('ALTER TABLE users ADD COLUMN lifetime_stars REAL NOT NULL DEFAULT 0');
+    repaired = true;
   }
-  try {
-    await db.runAsync(`ALTER TABLE users ADD COLUMN current_tier_id INTEGER`);
-  } catch (e: any) {
-    if (!e?.message?.includes('duplicate column')) throw e;
+  if (!columnNames.has('current_tier_id')) {
+    await db.runAsync('ALTER TABLE users ADD COLUMN current_tier_id INTEGER');
+    repaired = true;
+  }
+  if (!repaired && !forceBackfill) {
+    // A migration can be interrupted after ALTER TABLE but before its
+    // backfill. Detect that partial state cheaply so a later startup retries
+    // the repair instead of trusting the recorded schema version forever.
+    const incomplete = await db.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) AS count
+       FROM users AS u
+       WHERE COALESCE(u.lifetime_stars, 0) < COALESCE((
+         SELECT SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END)
+         FROM activity_log WHERE user_id = u.id
+       ), 0)
+       OR (u.current_tier_id IS NULL AND COALESCE(u.lifetime_stars, 0) >= COALESCE((
+         SELECT MIN(stars_required) FROM tiers
+       ), 1))`,
+    );
+    if ((incomplete?.count ?? 0) === 0) return;
   }
 
   // Backfill from activity_log (the source of truth), not from weekly_summary sums,
   // since activity_log is authoritative and this is a one-time derivation, not a
   // reconciliation against potentially-drifted weekly rollups.
-  const users = await db.getAllAsync<{ id: number }>(`SELECT id FROM users`);
+  const users = await db.getAllAsync<{ id: number; lifetime_stars: number | null }>(
+    `SELECT id, lifetime_stars FROM users`,
+  );
   const tiers = await db.getAllAsync<{ id: number; tier_order: number; stars_required: number }>(
     `SELECT id, tier_order, stars_required FROM tiers ORDER BY tier_order ASC`,
   );
   for (const user of users) {
     const totals = await db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(stars_delta) AS total FROM activity_log WHERE user_id = ?`,
+      `SELECT SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END) AS total
+       FROM activity_log WHERE user_id = ?`,
       [user.id],
     );
-    const lifetimeStars = Math.max(0, totals?.total ?? 0);
+    // Rank is a high-water mark. Preserve an already-recorded lifetime total
+    // when repairing only the missing tier column or recovering from a partial
+    // migration; activity_log remains the source for newly-added totals.
+    const activityTotal = Math.max(0, totals?.total ?? 0);
+    const lifetimeStars = Math.max(0, user.lifetime_stars ?? 0, activityTotal);
     const reachedTier = [...tiers].reverse().find(t => t.stars_required <= lifetimeStars) ?? null;
     await db.runAsync(
       `UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?`,
       [lifetimeStars, reachedTier?.id ?? null, user.id],
     );
   }
+}
+
+async function v23(db: SQLiteDatabase): Promise<void> {
+  // Force the backfill on the migration path so an interrupted run retries
+  // even when both ALTER TABLE statements already committed.
+  await ensureLifetimeRankColumns(db, true);
 }
 
 // v23 -> v24: tier 9 rebrand Singularity -> Cosmic (Mock A chosen).
@@ -659,7 +686,28 @@ async function v25(db: SQLiteDatabase): Promise<void> {
   `);
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25];
+// v25 -> v26: allow a user to run multiple challenges concurrently. Older
+// builds enforced one active challenge with a partial unique index; remove it
+// while retaining the non-unique lookup index for challenge screens.
+async function removeLegacyOneActiveChallengeIndex(db: SQLiteDatabase): Promise<void> {
+  // Keep these as separate calls. Some Expo SQLite versions do not reliably
+  // apply a DROP followed by CREATE when both statements are passed to
+  // execAsync, which could leave the old unique index behind.
+  await db.runAsync('DROP INDEX IF EXISTS idx_challenges_one_active');
+  await db.runAsync('CREATE INDEX IF NOT EXISTS idx_challenges_user_status ON challenges(user_id, status)');
+}
+
+async function v26(db: SQLiteDatabase): Promise<void> {
+  await removeLegacyOneActiveChallengeIndex(db);
+}
+
+// v26 -> v27: repair databases that already recorded v26 before the index
+// cleanup was made reliable.
+async function v27(db: SQLiteDatabase): Promise<void> {
+  await removeLegacyOneActiveChallengeIndex(db);
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -670,4 +718,9 @@ export async function runMigrations(db: SQLiteDatabase): Promise<void> {
     // Integer literal -- safe to interpolate (never derived from user input)
     await db.execAsync(`PRAGMA user_version = ${version + 1}`);
   }
+
+  // Some released builds advanced user_version despite not applying the
+  // lifetime-rank columns. Repair the schema by shape as well as version so
+  // RankScreen cannot remain on an infinite loading state.
+  await ensureLifetimeRankColumns(db);
 }

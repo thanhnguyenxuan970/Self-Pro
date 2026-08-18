@@ -177,15 +177,13 @@ async function runBackfillTx(
   let lifetimeCrossings: LifetimeTierCrossing[] = [];
   if (session.rankPointsDelta !== 0 || session.rankStarsDelta !== 0) {
     await db.runAsync(
-      `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars, peak_stars, current_tier_id)
-       VALUES (?, ?, ?, ?, ?, (SELECT current_tier_id FROM weekly_summary WHERE user_id = ? AND week_start = ?))
+      `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars)
+       VALUES (?, ?, ?, ?)
        ON CONFLICT(user_id, week_start) DO UPDATE SET
          total_points = total_points + ?,
-         weekly_stars = weekly_stars + ?,
-         peak_stars = MAX(peak_stars, weekly_stars + ?)`,
+         weekly_stars = weekly_stars + ?`,
       [userId, currentWeekStart, session.rankPointsDelta, session.rankStarsDelta,
-       Math.max(0, session.rankStarsDelta), userId, currentWeekStart,
-       session.rankPointsDelta, session.rankStarsDelta, session.rankStarsDelta],
+       session.rankPointsDelta, session.rankStarsDelta],
     );
 
     if (session.rankStarsDelta !== 0) {

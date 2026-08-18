@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert, Platform, Animated, Easing } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert, Platform, Animated, Easing, useWindowDimensions } from 'react-native';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -261,10 +261,12 @@ export function ProgressScreen() {
   const userId = useAuthUser();
   const { colors, isDark } = useTheme();
   const [language] = useLanguage();
+  const { width } = useWindowDimensions();
   const t = useTranslations();
   const reduceMotion = useReduceMotion();
   const queryClient = useQueryClient();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const compactDashboardHeader = width < 360;
 
   // Re-trigger entrance animations every time the screen gains focus (tab
   // screens stay mounted, so a one-shot mount effect would only fire once).
@@ -328,7 +330,7 @@ export function ProgressScreen() {
   const isEmpty = allTimeStats?.totalActivities === 0;
 
   const rangeSegmentedControl = (
-    <View style={styles.segbar}>
+    <View style={[styles.segbar, compactDashboardHeader && styles.segbarCompact]}>
       {RANGES.map(({ key, label }) => (
         <TouchableOpacity
           key={key}
@@ -372,9 +374,8 @@ export function ProgressScreen() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView ref={dashboardScrollRef} removeClippedSubviews style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
-          <View style={styles.dashboardHeader}>
-            <View style={styles.dashboardTitleGroup}>
-              <Text style={styles.title}>{t.analyticsTitle}</Text>
+          <View style={[styles.dashboardHeader, compactDashboardHeader && styles.dashboardHeaderCompact]}>
+            <View style={[styles.dashboardTitleGroup, compactDashboardHeader && styles.dashboardTitleGroupCompact]}>
               <Text style={styles.dashboardSubtitle}>{range === 'W' ? t.filterLast7Days : range === 'M' ? t.periodThisMonth : t.periodThisYear}</Text>
             </View>
             {rangeSegmentedControl}
@@ -391,8 +392,6 @@ export function ProgressScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
-        <Text style={styles.title}>{t.analyticsTitle}</Text>
-
         <Text style={styles.sectionLabel}>{t.analyticsMomentum}</Text>
         <View style={styles.momentumCard}>
           <View style={styles.momentumHalf}><Text style={styles.momentumValue}>{streak}</Text><Text style={styles.statL}>{t.currentStreak}</Text></View>
@@ -478,13 +477,15 @@ function makeStyles(C: AppColors) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.bgBase },
     container: { flex: 1 },
-    title: { fontSize: 28, fontFamily: FontFamily.extraBold, letterSpacing: -0.7, color: C.inkDark, marginTop: 10 },
     dashboardHeader: { alignItems: 'center', flexDirection: 'row', gap: Spacing.sm, marginHorizontal: Spacing.lg, marginBottom: 14 },
+    dashboardHeaderCompact: { alignItems: 'stretch', flexDirection: 'column' },
     dashboardTitleGroup: { flex: 1, minWidth: 0 },
-    dashboardSubtitle: { color: C.muted, fontFamily: FontFamily.bold, fontSize: 11, marginTop: -2 },
+    dashboardTitleGroupCompact: { flex: 0 },
+    dashboardSubtitle: { color: C.muted, fontFamily: FontFamily.bold, fontSize: 11 },
     dashboardWrap: { marginHorizontal: Spacing.lg },
 
     segbar: { backgroundColor: C.surface2, borderRadius: Radii.pill, flexDirection: 'row', padding: 4, alignSelf: 'center', maxWidth: 210 },
+    segbarCompact: { alignSelf: 'stretch' },
     segBtn: {
       flex: 1, minHeight: 36, justifyContent: 'center', borderRadius: Radii.pill, alignItems: 'center',
     },
