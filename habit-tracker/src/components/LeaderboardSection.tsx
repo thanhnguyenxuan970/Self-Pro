@@ -7,7 +7,7 @@ import { capLeaderboardRows, hasRankGapBefore, LEADERBOARD_TOP_LIMIT, type Leade
 // outer ScrollView (so it can't be its own virtualized FlatList).
 const LEADERBOARD_ROW_CAP = LEADERBOARD_TOP_LIMIT;
 
-export type LeaderboardRowCopy = {
+type LeaderboardRowCopy = {
   youLabel: string;
   nearYouLabel: string;
   gapToNext: (stars: number) => string;

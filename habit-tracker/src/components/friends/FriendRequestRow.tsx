@@ -6,7 +6,7 @@ import { daysAgo, daysUntil, formatAbsoluteDate, formatAbsoluteDateTime, type Fr
 import { InitialsAvatar } from './InitialsAvatar';
 import { OverflowMenu } from './OverflowMenu';
 
-export type FriendRequestRowCopy = {
+type FriendRequestRowCopy = {
   accept: string;
   reject: string;
   cancel: string;

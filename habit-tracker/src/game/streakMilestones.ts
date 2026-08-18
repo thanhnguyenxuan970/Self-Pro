@@ -1,4 +1,4 @@
-export const STREAK_MILESTONES = [7, 14, 30, 60, 90, 100, 180, 365] as const;
+const STREAK_MILESTONES = [7, 14, 30, 60, 90, 100, 180, 365] as const;
 const TRIPLE_BOOST_START_DAYS = 60;
 
 function milestoneMultiplier(days: number): 2 | 3 {
