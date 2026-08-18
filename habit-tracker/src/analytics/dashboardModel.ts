@@ -22,14 +22,20 @@ export function getAnalyticsChartLayout(range: AnalyticsRange, barCount: number)
   return { isScrollable: range !== 'W', columnWidth, contentWidth: columnWidth * barCount };
 }
 
-export function getMonthChartAnchor(barCount: number, viewportWidth: number) {
+export function getMonthChartAnchor(barCount: number, todayIndex: number, viewportWidth: number) {
   const { columnWidth, contentWidth } = getAnalyticsChartLayout('M', barCount);
-  // The rolling Month range ends on today. Reserve just enough space after its
-  // final bar for the initial scroll offset to place it at viewport center.
-  const trailingInset = Math.max(0, viewportWidth / 2 - columnWidth / 2);
+  // The Month range now spans the whole calendar month, including days after
+  // today left at 0, and its last bar is a fixed month boundary rather than
+  // always "today" -- so unlike the old rolling window, it no longer needs a
+  // half-viewport of blank scroll space reserved to center that last bar.
+  // Keep just enough trailing room that the final day isn't flush against
+  // the edge; centering today can fall short of dead-center near month-end.
+  const trailingInset = Math.min(viewportWidth / 2, columnWidth);
+  const maxOffset = Math.max(0, contentWidth + trailingInset - viewportWidth);
+  const centeredOffset = (todayIndex + 0.5) * columnWidth - viewportWidth / 2;
   return {
     trailingInset,
-    scrollOffset: Math.max(0, contentWidth + trailingInset - viewportWidth),
+    scrollOffset: Math.min(maxOffset, Math.max(0, centeredOffset)),
   };
 }
 
@@ -51,6 +57,7 @@ const ANALYTICS_DAILY_GOAL = 50;
 const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const addDays = (date: Date, days: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 const sum = (items: number[]) => items.reduce((total, value) => total + value, 0);
+const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
 
 function windowFor(range: AnalyticsRange, today: Date) {
   const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -59,7 +66,11 @@ function windowFor(range: AnalyticsRange, today: Date) {
     const start = addDays(end, -mondayOffset);
     return { start, previousStart: addDays(start, -7), count: 7 };
   }
-  if (range === 'M') return { start: addDays(end, -29), previousStart: addDays(end, -59), count: 30 };
+  if (range === 'M') {
+    const start = new Date(end.getFullYear(), end.getMonth(), 1);
+    const previousStart = new Date(end.getFullYear(), end.getMonth() - 1, 1);
+    return { start, previousStart, count: daysInMonth(end.getFullYear(), end.getMonth()) };
+  }
   const start = new Date(end.getFullYear(), 0, 1);
   return { start, previousStart: new Date(end.getFullYear() - 1, 0, 1), count: Math.round((end.getTime() - start.getTime()) / 86400000) + 1 };
 }
@@ -77,9 +88,15 @@ export function buildAnalyticsDashboard(
   const currentDates = Array.from({ length: range === 'Y' ? 12 : count }, (_, index) => range === 'Y'
     ? new Date(start.getFullYear(), start.getMonth() + index, 1)
     : addDays(start, index));
-  const previousDates = currentDates.map<Date | null>(date => range === 'Y'
-    ? new Date(date.getFullYear() - 1, date.getMonth(), 1)
-    : addDays(previousStart, Math.round((date.getTime() - start.getTime()) / 86400000)));
+  const previousMonthLength = daysInMonth(previousStart.getFullYear(), previousStart.getMonth());
+  const previousDates = currentDates.map<Date | null>(date => {
+    if (range === 'Y') return new Date(date.getFullYear() - 1, date.getMonth(), 1);
+    // The calendar month can run longer than the prior one (e.g. a 31-day
+    // month compared against a 28/30-day one) -- days past the prior month's
+    // end have no comparison date rather than spilling into the month after.
+    if (range === 'M') return date.getDate() <= previousMonthLength ? new Date(previousStart.getFullYear(), previousStart.getMonth(), date.getDate()) : null;
+    return addDays(previousStart, Math.round((date.getTime() - start.getTime()) / 86400000));
+  });
   const labels = currentDates.map((date) => range === 'W'
     ? ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][date.getDay()]
     : range === 'M' ? String(date.getDate())
@@ -93,7 +110,9 @@ export function buildAnalyticsDashboard(
   const currentEnd = today;
   const previousEnd = range === 'Y'
     ? new Date(today.getFullYear() - 1, today.getMonth(), today.getDate())
-    : addDays(previousStart, count - 1);
+    : range === 'M'
+      ? new Date(previousStart.getFullYear(), previousStart.getMonth(), previousMonthLength)
+      : addDays(previousStart, count - 1);
   const currentLogs = logs.filter(log => inWindow(log.local_date, start, currentEnd));
   const previousLogs = logs.filter(log => inWindow(log.local_date, previousStart, previousEnd));
   const points = sum(bars.map(bar => bar.current));

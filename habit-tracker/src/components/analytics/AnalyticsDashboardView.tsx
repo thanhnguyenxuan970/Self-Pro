@@ -105,7 +105,11 @@ export const AnalyticsDashboardView = React.memo(function AnalyticsDashboardView
   const lowestWeekdayIndex = data.weekday.reduce((lowest, day, index) => day.value < data.weekday[lowest].value ? index : lowest, 0);
   const hourMax = Math.max(1, ...data.hours.map(hour => hour.value));
   const totalLogs = data.composition.reduce((total, row) => total + row.count, 0);
-  const monthZeroDays = data.bars.filter(bar => bar.current === 0).length;
+  // Month bars now run through the full calendar month, including days after
+  // today left at 0 -- those haven't happened yet and shouldn't count as
+  // "zero-point" days.
+  const elapsedMonthBars = range === 'M' ? data.bars.slice(0, new Date().getDate()) : data.bars;
+  const monthZeroDays = elapsedMonthBars.filter(bar => bar.current === 0).length;
   const completedYearBars = range === 'Y' ? data.bars.slice(0, new Date().getMonth()) : data.bars;
   const monthsCleared = completedYearBars.filter(bar => bar.current >= chartGoal).length;
   const firstActiveIndex = completedYearBars.findIndex(bar => bar.current > 0);
@@ -131,7 +135,8 @@ export const AnalyticsDashboardView = React.memo(function AnalyticsDashboardView
     : range === 'Y' ? MONTH_SHORT[language][label] ?? label : label;
   const showPrevious = range === 'W';
   const chartLayout = getAnalyticsChartLayout(range, data.bars.length);
-  const monthChartAnchor = getMonthChartAnchor(data.bars.length, chartViewportWidth);
+  const todayMonthIndex = Math.min(data.bars.length - 1, Math.max(0, new Date().getDate() - 1));
+  const monthChartAnchor = getMonthChartAnchor(data.bars.length, todayMonthIndex, chartViewportWidth);
   const scrollToChartDefault = () => {
     if (range === 'M') {
       chartScrollRef.current?.scrollTo({ x: monthChartAnchor.scrollOffset, animated: false });
