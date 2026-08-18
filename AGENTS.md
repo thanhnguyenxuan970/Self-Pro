@@ -40,6 +40,7 @@ Do not append session diaries or completed release notes to this file. Put them 
 - Use `apply_patch` for focused manual edits.
 - Do not add secrets, credentials, OAuth files, signing keys, or machine-local paths to tracked configuration.
 - Ask before destructive cleanup. User-requested installation or removal may proceed through the relevant package/plugin manager.
+- Spawn subagents only when the user explicitly requests subagents, delegation, or parallel agent work.
 
 ## Delivery Process
 
@@ -53,30 +54,6 @@ Implementation work follows these project skills in order:
 6. `ship`: run final verification and prepare the commit when the user asks to ship.
 
 Do not create a commit unless the user requests shipping or committing. Never stage unrelated changes.
-
-## Codex Skills
-
-Skills live in `.agents/skills/<name>/SKILL.md`. Use the skill when the user names it or the request clearly matches its description. Important workspace skills include:
-
-- `emulator`: prepare and interact with the Android emulator.
-- `metro-fix`: repair Metro and device connection failures.
-- `impeccable`: design, audit, or polish frontend UI.
-- `review-board`: user-requested parallel specialist review.
-- `process`: full repository delivery workflow.
-- `ship`: final review, docs, and commit workflow.
-
-Claude skills remain under `.claude/skills/`; keep tool-specific adaptations separate.
-
-## Codex Agents
-
-Project custom agents live in `.codex/agents/*.toml`:
-
-- `test-runner`: execute tests and report failures without editing.
-- `stress-test-agent`: probe concurrency, auth, malformed input, and boundaries.
-- `code-reviewer`: review correctness, security, invariants, and coverage.
-- `pr-preparer`: prepare commit and PR text after tests and review pass.
-
-Spawn subagents only when the user explicitly requests subagents, delegation, or parallel agent work.
 
 ## Verification
 

@@ -1,11 +1,20 @@
-import { challengeDate, challengeStreak, completeChallenge, currentDay, currentDayIndex, computeProgress, computeRollover, dateRange, isComplete, logToday, progress, restart, type Challenge, type DayEntry } from '../src/lib/challenge';
+import { challengeDate, challengeStreak, completeChallenge, currentDay, currentDayIndex, computeProgress, computeRollover, dateRange, dayCellStates, GRID_CELL_COUNT, isAtRisk, isComplete, logToday, progress, restart, type Challenge, type DayEntry } from '../src/lib/challenge';
 import { CHALLENGE_DURATIONS, CHALLENGE_NAME_MAX_LENGTH, challengeCompletionStars, isValidCustomChallengeValue } from '../src/config/challenges.config';
 import { canRequestChallengeDelete, challengeDeletePrompt, challengeDetailMenuActions, deleteChallengeAndExit } from '../src/utils/challengeDetail';
+import { challengeHubViewState } from '../src/utils/challengeHub';
 
 const challenge: Challenge = {
   id: 4, name: 'Read', taskType: null, targetDays: 7, startDate: '2026-06-17',
   status: 'active', freezesLeft: 1, log: [{ date: '2026-06-17', state: 'done' }],
 };
+
+describe('challenge hub view state', () => {
+  it('keeps a history-only user out of the blank first-run state', () => {
+    expect(challengeHubViewState(false, 0)).toBe('empty');
+    expect(challengeHubViewState(false, 1)).toBe('history-only');
+    expect(challengeHubViewState(true, 1)).toBe('active');
+  });
+});
 
 describe('challenge detail menu', () => {
   it('exposes both rename and delete for an active challenge', () => {
@@ -276,5 +285,52 @@ describe('computeRollover', () => {
     });
     expect(result.failed).toBe(false);
     expect(result.fillDays).toEqual([]);
+  });
+});
+
+describe('isAtRisk', () => {
+  it('a streak challenge with no freezes left is at risk', () => {
+    expect(isAtRisk('streak', 0)).toBe(true);
+  });
+  it('a streak challenge with a freeze in reserve is not at risk', () => {
+    expect(isAtRisk('streak', 1)).toBe(false);
+  });
+  it('a weekly challenge is never at risk, even at zero freezes (it has no freeze concept)', () => {
+    expect(isAtRisk('weekly', 0)).toBe(false);
+  });
+});
+
+describe('dayCellStates', () => {
+  const day = (date: string, state: DayEntry['state']): DayEntry => ({ date, state });
+
+  it('a short run (< 30 days) windows to the whole run, padding the tail with future cells', () => {
+    const cells = dayCellStates('2026-06-17', 7, [
+      day('2026-06-17', 'done'), day('2026-06-18', 'done'), day('2026-06-19', 'done'),
+    ], '2026-06-20');
+    expect(cells).toHaveLength(GRID_CELL_COUNT);
+    expect(cells.slice(0, 7)).toEqual([
+      { label: 1, state: 'done' }, { label: 2, state: 'done' }, { label: 3, state: 'done' },
+      { label: 4, state: 'today' }, { label: 5, state: 'future' }, { label: 6, state: 'future' }, { label: 7, state: 'future' },
+    ]);
+    expect(cells[7]).toEqual({ label: 8, state: 'future' });
+    expect(cells[29]).toEqual({ label: 30, state: 'future' });
+  });
+
+  it('a run past 30 days windows to the last 30, with the day numeral carrying the absolute position', () => {
+    // day index 50 into a 100-day challenge started 2026-01-01 lands on 2026-02-20.
+    const cells = dayCellStates('2026-01-01', 100, [], '2026-02-20');
+    expect(cells).toHaveLength(GRID_CELL_COUNT);
+    expect(cells[0]).toEqual({ label: 22, state: 'reset' });
+    expect(cells[29]).toEqual({ label: 51, state: 'today' });
+  });
+
+  it('freeze days windows correctly next to done and reset days', () => {
+    const cells = dayCellStates('2026-06-17', 7, [
+      day('2026-06-17', 'done'), day('2026-06-18', 'freeze'), day('2026-06-19', 'done'),
+    ], '2026-06-21');
+    expect(cells.slice(0, 5)).toEqual([
+      { label: 1, state: 'done' }, { label: 2, state: 'freeze' }, { label: 3, state: 'done' },
+      { label: 4, state: 'reset' }, { label: 5, state: 'today' },
+    ]);
   });
 });

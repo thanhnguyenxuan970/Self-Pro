@@ -4,8 +4,7 @@ import { getDb } from '../db/client';
 import { dailyBonusStarsForPoints } from '../config/constants';
 import { getLocalDate, getWeekStart, getLocalDateOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
 import { AnalyticsDashboard, AnalyticsRange, AnalyticsDaily, AnalyticsLog, analyticsDemo, buildAnalyticsDashboard } from '../analytics/dashboardModel';
-import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
-import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
+import type { LifetimeTierCrossing } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { syncCurrentUserToSupabase } from '../api/syncService';
@@ -67,14 +66,17 @@ export function useAnalyticsDashboard(userId: number, range: AnalyticsRange) {
     queryFn: async (): Promise<AnalyticsDashboard> => {
       if (__DEV__ && process.env.EXPO_PUBLIC_ANALYTICS_DEMO === '1') return analyticsDemo;
       const db = await getDb();
-      const [daily, logs] = await Promise.all([
+      const [daily, logs, activeDays] = await Promise.all([
         db.getAllAsync<AnalyticsDaily>(`SELECT local_date, total_points FROM daily_summary WHERE user_id = ?`, [userId]),
         db.getAllAsync<AnalyticsLog>(`
           SELECT a.local_date, a.logged_at, a.points_earned, a.stars_delta, tt.name AS task_name
           FROM activity_log a LEFT JOIN task_types tt ON tt.id = a.task_type_id
           WHERE a.user_id = ? AND a.source = 'TASK' AND a.local_date >= ?`, [userId, logsFromDate]),
+        db.getAllAsync<{ local_date: string }>(`
+          SELECT DISTINCT local_date FROM activity_log
+          WHERE user_id = ? AND source IN ('TASK', 'CHALLENGE')`, [userId]),
       ]);
-      return buildAnalyticsDashboard(daily, logs, range);
+      return buildAnalyticsDashboard(daily, logs, range, new Date(), activeDays.map(row => row.local_date));
     },
   });
 }
@@ -201,16 +203,6 @@ async function revertWeeklySummariesForDelete(
        WHERE user_id = ? AND week_start = ?`,
       [points, stars, userId, week]
     );
-    await db.runAsync(
-      `DELETE FROM reward_unlocks
-       WHERE user_id = ? AND week_start = ? AND claimed = 0
-         AND tier_id IN (
-           SELECT id FROM tiers WHERE stars_required > (
-             SELECT MAX(0, weekly_stars) FROM weekly_summary WHERE user_id = ? AND week_start = ?
-           )
-         )`,
-      [userId, week, userId, week]
-    );
   }
 }
 
@@ -223,10 +215,6 @@ export function useDeleteActivityLogs(userId: number) {
       const db = await getDb();
       const placeholders = ids.map(() => '?').join(',');
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
-
-      const tiers = await db.getAllAsync<LifetimeTierRow>(
-        `SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY stars_required ASC`
-      );
 
       await db.withTransactionAsync(async () => {
         const rows = await db.getAllAsync<DeleteRow>(
@@ -253,9 +241,10 @@ export function useDeleteActivityLogs(userId: number) {
           );
         }
 
-        // Lifetime rank is a high-water mark: removing earned rows never lowers
-        // it. Removing a BAD/penalty row is a net gain and can cross upward.
-        lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, badPenaltyAmt - goodStarsDelta, tiers)).crossings;
+        // Lifetime rank is a high-water mark. Deleting activity never lowers it
+        // and must not mint stars for a BAD row whose negative penalty was
+        // already ignored when the row was logged.
+        lifetimeCrossings = [];
 
         await db.runAsync(
           `DELETE FROM activity_log WHERE user_id = ? AND id IN (${placeholders})`,

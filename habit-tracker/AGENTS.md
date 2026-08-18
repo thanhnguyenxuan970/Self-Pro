@@ -32,7 +32,7 @@ Use `EXPO_METRO_MAX_WORKERS=1` for release bundling when Node 24 triggers Metro 
 - Backfill writes use `withExclusiveTransactionAsync` to prevent quota races.
 - Normal logs set `streak_count` on insert. `recomputeStreakChain` is the documented backfill exception that updates later summary rows.
 - TanStack Query owns local asynchronous data. Log mutations invalidate `today`, `week`, `progress`, and `calendar` queries.
-- Rank is lifetime, not weekly: `users.lifetime_stars`/`current_tier_id` are a high-water-mark that only advances (never resets or demotes). `weekly_summary`'s own tier-carry columns and `src/game/weeklyRank.ts` still run alongside this as legacy bookkeeping nothing reads for rank display (tracked in TODOS.md for removal).
+- Rank is lifetime, not weekly: `users.lifetime_stars` tracks the current activity-derived total and reverses an unchecked activity; `current_tier_id` is the high-water rank and never demotes. `weekly_summary.weekly_stars` remains a derived chart/share-card rollup; its legacy tier-carry columns and `reward_unlocks` table are retained for existing local databases but no runtime rank logic writes or reads them.
 
 ## Navigation And Auth
 

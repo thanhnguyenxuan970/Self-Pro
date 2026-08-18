@@ -2,9 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { dailyBonusStarsForPoints } from '../config/constants';
-import { MAX_PINNED_ACTIVITIES, PickerTask } from '../utils/activityPicker';
-import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
-import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
+import { MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../utils/activityPicker';
+import type { LifetimeTierCrossing } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { syncCurrentUserToSupabase } from '../api/syncService';
@@ -25,6 +24,21 @@ export function useCreateTask(userId: number) {
   return useMutation({
     mutationFn: async (params: TaskFormParams): Promise<number> => {
       const db = await getDb();
+      // The UNIQUE index is on the exact stored name, so a different exact
+      // name that collides once normalized (accents/case stripped) can slide
+      // past it and create a second, effectively-duplicate task -- which can
+      // then make a preset/challenge-linked lookup resolve to the wrong one.
+      // AddActivitySheet already guards this client-side, but this is the
+      // only path every caller (e.g. BackfillSheet's template suggestions)
+      // goes through, so enforce it here too.
+      const existing = await db.getAllAsync<{ id: number; name: string }>(
+        `SELECT id, name FROM task_types WHERE user_id = ?`,
+        [userId],
+      );
+      const normalizedTarget = normalizeActivityName(params.name);
+      if (existing.some(task => task.name !== params.name && normalizeActivityName(task.name) === normalizedTarget)) {
+        throw new Error('DUPLICATE_ACTIVITY_NAME');
+      }
       await db.runAsync(
         `INSERT INTO task_types
          (user_id, name, kind, is_time_based, base_points, star_penalty, icon, category_id, archived, is_template)
@@ -198,31 +212,13 @@ async function revertWeeklySummaries(
 ): Promise<void> {
   const weeks = [...byWeek.keys()];
   if (weeks.length === 0) return;
-  // Batched into one query instead of one round-trip per week.
-  const weekPlaceholders = weeks.map(() => '?').join(',');
-  const weeklyRows = await db.getAllAsync<{ week_start: string; weekly_stars: number }>(
-    `SELECT week_start, weekly_stars FROM weekly_summary WHERE user_id = ? AND week_start IN (${weekPlaceholders})`,
-    [userId, ...weeks],
-  );
-  const weeklyByWeek = new Map(weeklyRows.map(r => [r.week_start, r]));
-
   for (const [weekStart, { points, stars }] of byWeek) {
-    const weeklyRow = weeklyByWeek.get(weekStart);
-    const newWeeklyStars = Math.max(0, (weeklyRow?.weekly_stars ?? 0) - stars);
-
     await db.runAsync(
       `UPDATE weekly_summary SET
          total_points = MAX(0, total_points - ?),
          weekly_stars = MAX(0, weekly_stars - ?)
        WHERE user_id = ? AND week_start = ?`,
       [points, stars, userId, weekStart]
-    );
-
-    await db.runAsync(
-      `DELETE FROM reward_unlocks
-       WHERE user_id = ? AND week_start = ? AND claimed = 0
-         AND tier_id IN (SELECT id FROM tiers WHERE stars_required > ?)`,
-      [userId, weekStart, newWeeklyStars]
     );
   }
 }
@@ -283,10 +279,6 @@ export function useArchiveTask(userId: number) {
       const db = await getDb();
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
 
-      const tiers = await db.getAllAsync<LifetimeTierRow>(
-        `SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY stars_required ASC`
-      );
-
       await db.withTransactionAsync(async () => {
         for (const taskId of taskIds) {
           // Archiving hard-deletes this task_type's activity_log rows below --
@@ -321,10 +313,8 @@ export function useArchiveTask(userId: number) {
             await recomputeStreaks(db, userId);
 
             // Archiving removes weekly/history rows, but lifetime rank is a
-            // high-water mark and never subtracts earned stars.
-            const totalStarsDelta = allLogs.reduce((s, r) => s + r.stars_delta, 0);
-            const result = await applyLifetimeStarsDelta(db, userId, -totalStarsDelta, tiers);
-            lifetimeCrossings = lifetimeCrossings.concat(result.crossings);
+            // high-water mark and never mints stars as a side effect of
+            // removing either GOOD or BAD activity.
           }
 
           await db.runAsync(

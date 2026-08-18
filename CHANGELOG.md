@@ -4,11 +4,82 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
-## [2.0.2.0] - 2026-08-10
+## [2.0.2.1] - 2026-08-18
 
 ### Fixed
 - **Active challenge cleanup**: ongoing challenges created by mistake can now be deleted from Challenge Detail with a destructive confirmation; queued reminder cancellation and stale-reminder behavior are covered by regression tests.
 - **Clean-install patching**: corrected the Expo native patch header so `patch-package` applies successfully on a fresh dependency install.
+
+## [2.0.2] - 2026-08-18
+
+### Added
+- **D0 growth survey**: a one-time, skippable 6-question sheet (`SurveyD0Sheet`) shown ~800ms after a user's very first log, to diagnose retention/localization hypotheses; answers land in `public.feedback.answers` via the `feedback-submit` Edge Function.
+- **Device-locale default**: new installs now default their display language from the device's own locale instead of always defaulting to Vietnamese; anyone who already picked a language in Settings is unaffected.
+
+### Fixed
+- **Lifetime rank sync**: rank sync now drains every pending activity batch and self-reconciles the signed-in account when the protected server total falls behind its local lifetime total; leaderboard rows remain server-derived.
+- **Star inflation on uncheck**: unchecking a completed activity now correctly reverses the stars it previously earned.
+- **Linked Daily/Challenge sync**: unchecking a Daily linked to a Challenge now syncs correctly instead of leaving the Challenge state stale.
+- **D0 survey crash guard**: fixed a crash in the survey's locale lookup when `expo-localization` isn't natively linked (JS-only reload/OTA on an older binary).
+- **Analytics Month view**: now renders the actual calendar month (day 1 through the last day, future days at 0) instead of a rolling 30-day window that always ended on today.
+- **Dark mode contrast**: choice-card borders, the survey progress track, and the drag handle were nearly invisible (~1.1-1.6:1 contrast); now meet WCAG 1.4.11's 3:1 minimum for UI-component boundaries.
+
+## [2.0.1.5] - 2026-08-13
+
+### Fixed
+- **Global leaderboard availability**: production now loads the real ranked-player list, and an unavailable backend no longer appears as a misleading local `#1` plus empty-board message.
+
+## [2.0.1.4] - 2026-08-13
+
+### Fixed
+- **Analytics Month/Year charts**: point bars and x-axis labels now use horizontally scrollable fixed-width tracks instead of compressing every value into one phone viewport. The Month chart opens with today centered for immediate context.
+
+## [2.0.1.3] - 2026-08-13
+
+### Added
+- **Themed toast notifications**: log/streak/error toasts now follow the app's light/dark surface, border, and typography tokens instead of the library's fixed white/black default.
+
+### Fixed
+- **Challenge statistic labels**: multiline totals now stay centered inside their statistic cards instead of wrapping against the left edge.
+- **Startup auth hang**: a returning signed-in user could get stuck on the loading spinner indefinitely — the startup session restore now loads its native-module-adjacent dependency via `require()` instead of an async import, plus a 15s timeout around the silent Google sign-in call as defense-in-depth.
+- **Feedback submissions**: the "Failed to send" error on every feedback submission is resolved — the missing server rate-limit migration and Edge Function deployment are now live.
+- **Analytics readability**: Month-view chart x-axis day labels and the Volume card's POINTS/STARS/DAYS REACHED labels no longer shrink to an illegibly small, inconsistent size on narrow screens.
+- **Leaderboard rank numbers**: no longer wrap to two lines.
+- **Accessibility**: the "No timer" quick-log button now has a screen-reader label.
+
+## [2.0.1.2] - 2026-08-12
+
+### Fixed
+- **Home heatmap**: removed the redundant chevron/date-stepper pill under the activity grid, which duplicated day navigation the grid itself already exposes. The screen-reader accessibility stepper on the grid is unaffected and remains the accessible path to per-day detail.
+
+## [2.0.1.1] - 2026-08-12
+
+### Added
+- **Pseudonymous leaderboard neighborhood**: the global leaderboard now supports a bounded top-three plus current-user neighborhood view, with server-side rank data and profile provisioning migrations.
+- **Human-readable anonymous competition**: leaderboard opponents now receive stable Vietnamese/English pseudonyms, and their current streak is shown as a privacy-safe sign of recent activity.
+- **Localized release news**: added the bilingual Habi 2.0.0 in-app News migration.
+- **Friends backend foundation**: added UUID-backed social identity, privacy-preserving friend requests, blocker-owned account management, friend dashboard ranking, rate limits, relationship caps, and race-safe transitions for the upcoming Friends experience.
+- **Friends race ladder UI**: Rank now has a Global/Friends segment with its own pending-request badge; the Friends segment shows a tie-aware race ladder, incoming/outgoing requests, an Add Friend sheet (own code copy/share/rotate, six-character code entry, full RPC-result messaging), and confirmation sheets for remove/block/cancel/unblock. Added a Settings → Blocked Accounts screen. All states (loading, empty, error, backend-unavailable, stale-with-cache) are covered, matching the approved design mockup.
+- **Challenge management**: active challenges can now be renamed or deleted directly from Challenge Detail with a destructive confirmation.
+
+### Fixed
+- **Concurrent challenges**: users can now activate multiple challenges, see each active challenge on the hub, log the selected challenge independently, and keep all active challenge rollovers in sync.
+- **Theme contrast**: accent buttons, Analytics metrics, heatmap controls, and related text now use theme-aware, readable ink colors, including the green light-theme surface.
+- **Account safety**: sign-in now resolves the local account before publishing session state and failed credential restoration no longer falls back to a local user.
+- **Rank integrity**: deleting or undoing BAD activities no longer mints lifetime stars; reset/delete flows clear all rank-related local tables; challenge reward reversal is challenge-scoped.
+- **Migration repair**: the lifetime-rank backfill is positive-only and safely retries incomplete repairs; migration coverage now includes idempotency and drift cases.
+- **Responsive UI**: Home heatmap, Analytics, Calendar, Feedback, and Rank layouts preserve readability on narrow screens.
+- **Reminder consistency**: deleting a challenge cancels its queued reminder only after the SQLite transaction commits, so a rollback cannot silently remove a still-valid reminder.
+- **Heatmap touch accuracy**: compact day cells no longer expose overlapping touch regions that could select an adjacent date.
+- **Green accent press state**: light-theme green's hover and press colors were identical, so pressing a green button never visibly changed color; they're now distinct shades.
+- **Linked-challenge check-in**: checking in a challenge linked to a habit now resolves the exact habit by id instead of by name, so two habits with names that collide once accents/casing are stripped can no longer cause a check-in to be silently logged against the wrong one.
+- **Duplicate habit names**: creating a habit now rejects a name that collides with an existing one after normalization, closing the same class of misattribution at its source rather than only in one entry point.
+- **Challenge restart after archiving**: restarting a finished or failed challenge now refuses to proceed if its linked habit has since been archived, instead of silently creating a new active challenge that could never be checked off.
+- **Feedback submissions**: removed image attachments from bug/feedback reports; submissions now go through a rate-limited server endpoint instead of a direct, client-throttled-only insert, and the send flow no longer hangs indefinitely if the network stalls.
+
+### Changed
+- **Leaderboard contract**: malformed and out-of-contract rows are normalized and bounded before rendering, while legacy RPC identity remains compatible.
+- **Friends delivery planning**: added the reviewed product, backend, UI, and rollout plans for the Friends race-ladder work while keeping the superseded podium concept documented as non-authoritative.
 
 ## [2.0.1.0] - 2026-08-03
 

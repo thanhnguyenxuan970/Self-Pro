@@ -1,9 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Alert,
-  KeyboardAvoidingView, Platform, Image, ScrollView,
+  KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import Toast from 'react-native-toast-message';
 import { Typography, Radii, Spacing, AppColors, FontFamily } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
@@ -15,7 +14,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Props { visible: boolean; onClose: () => void; }
 
-const TYPES: { key: FeedbackType; icon: string }[] = [
+// This sheet is the manual, user-initiated feedback form — it never offers
+// SURVEY_D0 as a selectable type (that's the auto-triggered SurveyD0Sheet).
+type ManualFeedbackType = Exclude<FeedbackType, 'SURVEY_D0'>;
+
+const TYPES: { key: ManualFeedbackType; icon: string }[] = [
   { key: 'BUG', icon: '🐛' },
   { key: 'SUGGESTION', icon: '💡' },
   { key: 'OTHER', icon: '💬' },
@@ -29,12 +32,16 @@ export function FeedbackSheet({ visible, onClose }: Props) {
   const { bottom } = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors, bottom), [colors, bottom]);
 
-  const [type, setType] = useState<FeedbackType>('BUG');
+  const [type, setType] = useState<ManualFeedbackType>('BUG');
   const [message, setMessage] = useState('');
-  const [imageUri, setImageUri] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  // React state re-renders asynchronously, leaving a window for two rapid
+  // taps to both pass the `!sending` check before the first re-render lands.
+  // A ref is readable/settable synchronously in the same tick, matching the
+  // guard AddActivitySheet uses for the same reason.
+  const submittingRef = useRef(false);
 
-  const typeLabel: Record<FeedbackType, string> = {
+  const typeLabel: Record<ManualFeedbackType, string> = {
     BUG: t.feedbackTypeBug,
     SUGGESTION: t.feedbackTypeSuggestion,
     OTHER: t.feedbackTypeOther,
@@ -45,35 +52,18 @@ export function FeedbackSheet({ visible, onClose }: Props) {
   function handleClose() {
     setMessage('');
     setType('BUG');
-    setImageUri(null);
     onClose();
   }
 
-  async function handlePickImage() {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(t.error, t.feedbackImagePermission);
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images',
-      allowsEditing: false,
-      quality: 0.6,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
-    }
-  }
-
   async function handleSend() {
-    if (!canSend) return;
+    if (!canSend || submittingRef.current) return;
+    submittingRef.current = true;
     setSending(true);
     try {
       const result = await submitFeedback({
         type,
         message,
         userEmail: googleUser?.email ?? null,
-        imageUri,
       });
       if (result === 'OK') {
         Toast.show({ type: 'success', text1: t.feedbackThanks, visibilityTime: 2500 });
@@ -90,6 +80,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
     } catch {
       Alert.alert(t.error, t.feedbackFailed);
     } finally {
+      submittingRef.current = false;
       setSending(false);
     }
   }
@@ -132,36 +123,9 @@ export function FeedbackSheet({ visible, onClose }: Props) {
             textAlignVertical="top"
             accessibilityLabel={t.feedbackPlaceholder}
           />
-          <Text style={styles.counter}>{message.trim().length}/{FEEDBACK_MAX_LENGTH}</Text>
-
-          <View style={styles.imageRow}>
-            {imageUri ? (
-              <View style={styles.imagePreviewer}>
-                <Image source={{ uri: imageUri }} style={styles.imageThumb} resizeMode="cover" />
-                <TouchableOpacity
-                  style={styles.imageRemoveBtn}
-                  onPress={() => setImageUri(null)}
-                  disabled={sending}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={t.cancel}
-                >
-                  <Text style={styles.imageRemoveText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.imagePickBtn}
-                onPress={handlePickImage}
-                disabled={sending}
-                activeOpacity={0.75}
-                accessibilityRole="button"
-                accessibilityLabel={t.feedbackAttachImage}
-              >
-                <Text style={styles.imagePickText}>📎 {t.feedbackAttachImage}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          {/* Array.from counts Unicode codepoints (matches the server's char_length check),
+              not UTF-16 code units, so astral-plane emoji don't overstate the count by 2x. */}
+          <Text style={styles.counter}>{Array.from(message.trim()).length}/{FEEDBACK_MAX_LENGTH}</Text>
 
           <TouchableOpacity
             style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
@@ -171,7 +135,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
             accessibilityRole="button"
             accessibilityState={{ disabled: !canSend }}
           >
-            <Text style={styles.sendBtnText}>{sending ? '…' : t.feedbackSend}</Text>
+            <Text style={[styles.sendBtnText, !canSend && styles.sendBtnDisabledText]}>{sending ? '…' : t.feedbackSend}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.cancelBtn} onPress={handleClose} disabled={sending} accessibilityRole="button" accessibilityLabel={t.cancel}>
@@ -214,31 +178,13 @@ function makeStyles(C: AppColors, bottomInset: number) {
       borderWidth: 1.5, borderColor: C.line2,
     },
     counter: { fontSize: 11, color: C.faint, textAlign: 'right', marginTop: 4, marginBottom: Spacing.sm },
-    imageRow: { marginBottom: Spacing.sm },
-    imagePickBtn: {
-      flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start',
-      backgroundColor: C.surface2, borderRadius: Radii.md,
-      paddingVertical: 8, paddingHorizontal: 14,
-      borderWidth: 1.5, borderColor: C.line2,
-    },
-    imagePickText: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark },
-    imagePreviewer: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    imageThumb: {
-      width: 72, height: 72, borderRadius: Radii.md,
-      borderWidth: 1, borderColor: C.line2,
-    },
-    imageRemoveBtn: {
-      backgroundColor: C.surface2, borderRadius: 12,
-      width: 24, height: 24, alignItems: 'center', justifyContent: 'center',
-      borderWidth: 1, borderColor: C.line2,
-    },
-    imageRemoveText: { fontSize: 12, fontFamily: FontFamily.bold, color: C.muted },
     sendBtn: {
       backgroundColor: C.primary, padding: 15, borderRadius: Radii.md,
       alignItems: 'center', marginBottom: 8,
     },
     sendBtnDisabled: { backgroundColor: C.line2 },
     sendBtnText: { color: C.onAccent, fontSize: 15, fontFamily: FontFamily.bold },
+    sendBtnDisabledText: { color: C.ink2 },
     cancelBtn: { minHeight: 44, justifyContent: 'center' },
     cancel: { textAlign: 'center', color: C.muted, padding: 8 },
   });

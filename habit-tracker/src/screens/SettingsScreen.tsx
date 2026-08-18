@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView, Platform, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Radii, Spacing, Shadows, Typography, AppColors, FontFamily } from '../config/theme';
 import { useDarkMode, useLanguage, useAudioEnabled, useAccent, AppLanguage, useTheme, useTranslations } from '../hooks/useSettings';
@@ -61,6 +62,7 @@ function LanguageOption({ lang, l, isLast, onPress, styles }: { lang: string; l:
 }
 
 export function SettingsScreen({ onDeleteAccount }: Props) {
+  const navigation = useNavigation();
   const userId = useAuthUser();
   const [isDark, setIsDark] = useDarkMode();
   const [lang, setLanguage] = useLanguage();
@@ -284,6 +286,17 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
         {/* Danger zone */}
         <Text style={styles.sectionLabel}>{t.sectionAccount}</Text>
         <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate('BlockedAccounts' as never)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t.settingsBlockedAccountsRow}
+          >
+            <Text style={styles.rowIc} importantForAccessibility="no">🚫</Text>
+            <Text style={styles.rowLabel}>{t.settingsBlockedAccountsRow}</Text>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.row, styles.rowLast, { opacity: deleting ? 0.5 : 1 }]}
             onPress={handleDeleteAccount}

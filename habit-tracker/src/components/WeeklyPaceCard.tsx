@@ -25,7 +25,7 @@ export function WeeklyPaceCard({ weeklyTarget, sessionsDone, sessionsRemaining, 
     : paceState === 'impossible' ? t.challengePaceSentenceImpossible
     : t.challengePaceSentenceBehind(sessionsRemaining, daysRemaining);
 
-  const pillColor = paceState === 'impossible' ? C.danger : paceState === 'behind' ? C.starGoldText : C.primary;
+  const pillColor = paceState === 'impossible' ? C.dangerText : paceState === 'behind' ? C.starGoldText : C.primaryText;
   const pillBg = paceState === 'impossible' ? C.dangerSoft : paceState === 'behind' ? C.starSoft : C.primarySoft;
 
   return (

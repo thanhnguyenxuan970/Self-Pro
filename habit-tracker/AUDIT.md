@@ -1,3 +1,11 @@
+# Current reconciliation (verified 2026-08-05)
+
+- H1 cross-account sync and H2 leaderboard email exposure are fixed.
+- Clean Pixel_7 retest reproduced and fixed the BackfillSheet child-modal reachability bug; ChallengeHub navigation also passed.
+- Live RLS is enabled on `users`, `activity_log`, and `fund_transactions`; anon has no table privileges.
+- M2 BAD penalty, M3 Google `sub` identity, and M5 streak sync are already fixed in current source; older entries below are historical audit notes.
+- Remaining security blocker: C1 historical keystore password still needs credential rotation and history scrubbing.
+
 # Codebase Audit — Habi (`Self-Pro/habit-tracker`)
 
 **Scope:** bugs · compilation · dependency conflicts · logic flaws · performance · security · best practices.
@@ -32,7 +40,7 @@ Status: ✅ Fixed this pass · 🔧 Recommended (left for you) · 🔎 Verify.
 ## Critical
 
 ### C1 — Keystore signing password in a public repo
-`CLAUDE.md:150` contained a release-keystore password for `habitring-release.keystore`. The git remote is the **public** `github.com/thanhnguyenxuan970/Self-Pro`, and the value is in committed history (commit `efcea2b`).
+`CLAUDE.md:150` contained a release-keystore password for `habitring-release.keystore`. The git remote is the **public** `github.com/thanhnguyenxuan970/Self-Pro`, and the value is in committed history (commit `b087a240c83201661d5c29c3013f773c561972d4`).
 - The `.keystore` file itself was **never committed** (verified) and is correctly gitignored, so exploitability is limited (an attacker needs the key file too) — but a signing password in public history must be treated as **compromised**.
 - ✅ **Done:** redacted the value in `CLAUDE.md` (working copy).
 - 🔧 **You must:** (1) change the keystore password (`keytool -storepasswd -keystore habitring-release.keystore`); (2) scrub git history (`git filter-repo` or BFG) and force-push, or make the repo private; (3) never commit the password again — keep it in `android/keystore.properties` (already gitignored) or a secret manager. SHA fingerprints in `CLAUDE.md` are public info and fine.
@@ -45,7 +53,10 @@ Status: ✅ Fixed this pass · 🔧 Recommended (left for you) · 🔎 Verify.
 `src/api/syncService.ts` — `syncActivity`/`syncFund` selected `WHERE id > <cursor>` with **no `user_id` filter**, using a single global cursor. `resolveUserRow` (in `useAuth.ts`) can create multiple local user rows on one device, so `activity_log` may hold rows for several accounts. The sync pushed **every** row above the cursor tagged with the **currently** signed-in email — i.e. account A's data uploaded as account B's. RLS does **not** catch this (rows are tagged with the authenticated email, so `WITH CHECK` passes).
 - **Fix applied:** added `resolveUserId(email)`, filtered both queries by `user_id`, and made cursors **per-user** (`...:<userId>`); `resetSyncCursors` now clears all per-user keys. Verified `tsc`/`jest` green.
 
-### H2 — Confirm RLS is live 🔎 Verify
+### H2 — Global leaderboard exposed full email addresses ✅ Fixed
+`supabase/migrations/021_secure_lifetime_leaderboard.sql` returned `user_email` from a `SECURITY DEFINER` RPC granted to authenticated users. Migration 022 removed email output; migration 023 restores the old RPC shape with opaque player labels for already-released clients and adds `get_global_leaderboard_v2` for the UUID/current-user contract. The live RPCs are authenticated-only; the client now renders only the current user's local name or an anonymized player label.
+
+### H3 — Confirm RLS is live 🔎 Verify
 `supabase/migrations/001_enable_rls.sql` / `002_create_users_table.sql` are correct (`USING (user_email = auth.email())`), but they're applied **manually** ("run in SQL Editor"). The anon key ships in the client bundle (by design), so if RLS/policies are **not** actually enabled on the live project, any user could read/write/delete every table.
 - 🔧 Verify in the Supabase dashboard that RLS is ON and the `own rows only` policies exist on `activity_log`, `fund_transactions`, `users`. Also apply the currently-commented hardening (`REVOKE ALL … FROM anon; GRANT … TO authenticated;`, lines 34–38).
 

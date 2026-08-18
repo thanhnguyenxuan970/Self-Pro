@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as Sentry from '@sentry/react-native';
 import {
   useFonts,
@@ -20,6 +20,7 @@ import { syncToSupabase } from './src/api/syncService';
 import { SettingsProvider } from './src/contexts/SettingsContext';
 import { useTheme } from './src/hooks/useSettings';
 import { FontFamily } from './src/config/theme';
+import { createToastConfig } from './src/config/toastConfig';
 import { TutorialProvider } from './src/hooks/useTutorial';
 import { rolloverChallenge } from './src/queries/useChallenge';
 
@@ -78,6 +79,7 @@ function AppInner() {
   const [dbError, setDbError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const { colors } = useTheme();
+  const toastConfig = useMemo(() => createToastConfig(colors), [colors]);
   const retryInit = useCallback(() => {
     setDbError(null);
     setDbReady(false);
@@ -149,8 +151,13 @@ function AppInner() {
     return (
       <View style={[appStyles.center, { backgroundColor: colors.bgBase }]}>
         <Text style={[appStyles.errorMsg, { color: colors.ink2 }]}>{'Failed to open database.\nPlease restart or tap Retry.'}</Text>
-        <TouchableOpacity style={[appStyles.retryBtn, { backgroundColor: colors.primary }]} onPress={retryInit}>
-          <Text style={appStyles.retryTxt}>Retry</Text>
+        <TouchableOpacity
+          style={[appStyles.retryBtn, { backgroundColor: colors.primary }]}
+          onPress={retryInit}
+          accessibilityRole="button"
+          accessibilityLabel="Retry"
+        >
+          <Text style={[appStyles.retryTxt, { color: colors.onAccent }]}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
@@ -176,7 +183,7 @@ function AppInner() {
           onSignOut={signOut}
           onDeleteAccount={deleteAccount}
         />
-        <Toast />
+        <Toast config={toastConfig} />
       </TutorialProvider>
     </GoogleUserContext.Provider>
     </UserIdContext.Provider>
@@ -186,8 +193,8 @@ function AppInner() {
 const appStyles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   errorMsg: { fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
-  retryBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 8 },
-  retryTxt: { color: '#fff', fontSize: 15, fontFamily: FontFamily.semiBold },
+  retryBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 10 },
+  retryTxt: { fontSize: 15, fontFamily: FontFamily.semiBold },
 });
 
 function App() {

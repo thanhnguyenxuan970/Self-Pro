@@ -54,9 +54,13 @@ replay_pid*.log
 # QA/verification scratch artifacts (screenshots, UI dumps, temp DBs)
 .visual-verify/
 .audit/
+/artifacts/
 metro-*.log
 /*.png
 /*.mp4
 *.zip
 /repomix-output.xml
 /src/config/i18n-patch.txt
+
+# Test coverage output
+/coverage/
