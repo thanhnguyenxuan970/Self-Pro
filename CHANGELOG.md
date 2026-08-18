@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [2.0.3.0] - 2026-08-18
+
+### Changed
+- **Challenge Detail refactor**: extracted `ChallengeDetailScreen`'s inline handlers and render sections into a dedicated `useChallengeDetailActions` hook and `ChallengeDetailSections` component (no behavior change); removed the now-unused `CalendarIcons` component.
+- **Analytics dashboard refactor**: split the monolithic `AnalyticsDashboardView` into focused sub-components (metrics row, chart, consistency rings, rhythm, composition) to keep each render function's complexity in check.
+- **Dead-code cleanup**: de-exported several component prop-copy types and helper functions (`LeaderboardRowCopy`, `FriendRequestRowCopy`, `FriendRowCopy`, `OverflowMenuItem`, `STREAK_MILESTONES`, `formatDateAtOffset`) and an unused `FriendsUnavailableError.kind` field that had no external callers.
+
 ## [2.0.2.1] - 2026-08-18
 
 ### Fixed

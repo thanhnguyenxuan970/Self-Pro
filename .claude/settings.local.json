@@ -10,7 +10,10 @@
       "Bash(adb reverse *)",
       "Bash(npx jest *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8081/status)",
-      "PowerShell(Move-Item *)"
+      "PowerShell(Move-Item *)",
+      "Bash(cd \"/c/Users/Admin/Desktop/Self-Pro/habit-tracker\")",
+      "Bash(cd /c/Users/Admin/Desktop/Self-Pro/habit-tracker)",
+      "Bash(cd \"C:/Users/Admin/Desktop/Self-Pro/habit-tracker\")"
     ]
   },
   "enabledMcpjsonServers": [
