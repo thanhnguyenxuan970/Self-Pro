@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [2.0.2] - 2026-08-18
+
+### Added
+- **D0 growth survey**: a one-time, skippable 6-question sheet (`SurveyD0Sheet`) shown ~800ms after a user's very first log, to diagnose retention/localization hypotheses; answers land in `public.feedback.answers` via the `feedback-submit` Edge Function.
+- **Device-locale default**: new installs now default their display language from the device's own locale instead of always defaulting to Vietnamese; anyone who already picked a language in Settings is unaffected.
+
+### Fixed
+- **Lifetime rank sync**: rank sync now drains every pending activity batch and self-reconciles the signed-in account when the protected server total falls behind its local lifetime total; leaderboard rows remain server-derived.
+- **Star inflation on uncheck**: unchecking a completed activity now correctly reverses the stars it previously earned.
+- **Linked Daily/Challenge sync**: unchecking a Daily linked to a Challenge now syncs correctly instead of leaving the Challenge state stale.
+- **D0 survey crash guard**: fixed a crash in the survey's locale lookup when `expo-localization` isn't natively linked (JS-only reload/OTA on an older binary).
+- **Analytics Month view**: now renders the actual calendar month (day 1 through the last day, future days at 0) instead of a rolling 30-day window that always ended on today.
+- **Dark mode contrast**: choice-card borders, the survey progress track, and the drag handle were nearly invisible (~1.1-1.6:1 contrast); now meet WCAG 1.4.11's 3:1 minimum for UI-component boundaries.
+
 ## [2.0.1.5] - 2026-08-13
 
 ### Fixed
