@@ -86,7 +86,11 @@ const DarkColors = {
   successText: '#72DFA4',
   scrim: '#00000088',
   line: '#2B3028',
-  line2: '#3A403C',
+  // Contrast-checked against both dark surfaces (surface 1.4:1, surface2
+  // 1.6:1 pre-fix) — line2 is the only cue on borders that have no fill
+  // contrast to fall back on (survey choice cards, progress track). Now
+  // clears WCAG 1.4.11's 3:1 non-text minimum against both: ~3.7:1 / ~3.3:1.
+  line2: '#707872',
   onAccent: '#FFFFFF',
   white: '#FFFFFF',
 };
