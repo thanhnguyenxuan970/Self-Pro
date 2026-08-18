@@ -29,6 +29,22 @@ const MONTH_SHORT: Record<'en' | 'vi', Record<string, string>> = {
   vi: { Jan: 'T1', Feb: 'T2', Mar: 'T3', Apr: 'T4', May: 'T5', Jun: 'T6', Jul: 'T7', Aug: 'T8', Sep: 'T9', Oct: 'T10', Nov: 'T11', Dec: 'T12' },
 };
 
+/** Shared by the chart and rhythm cards, so it's hoisted instead of duplicated. */
+function chartLabelFor(range: AnalyticsRange, language: 'vi' | 'en', label: string): string {
+  return range === 'W'
+    ? WEEKDAY_SHORT[label]?.[language] ?? label
+    : range === 'Y' ? MONTH_SHORT[language][label] ?? label : label;
+}
+
+/** Shared by the rhythm and composition cards, so it's hoisted instead of duplicated. */
+function getRangeLabels(range: AnalyticsRange, language: 'vi' | 'en') {
+  return range === 'W'
+    ? { first: language === 'vi' ? 'tuần này' : 'this week', second: language === 'vi' ? '30 ngày' : '30 days', rhythm: language === 'vi' ? '12 tuần gần đây' : '12-week averages', period: language === 'vi' ? 'tuần này' : 'this week', delta: 'WK' }
+    : range === 'M'
+      ? { first: language === 'vi' ? 'tháng này' : 'this month', second: language === 'vi' ? 'tháng trước' : 'prev month', rhythm: language === 'vi' ? '4 tuần gần đây' : '4-week averages', period: language === 'vi' ? 'tháng này' : 'this month', delta: 'MO' }
+      : { first: language === 'vi' ? 'năm nay' : 'this year', second: language === 'vi' ? 'tháng tốt nhất' : 'best month', rhythm: language === 'vi' ? '52 tuần gần đây' : '52-week averages', period: language === 'vi' ? 'năm nay' : 'this year', delta: 'YR' };
+}
+
 /** Drives the daily-chart bars from 0 to their data value. */
 function useFillAnimation(opts: {
   reduceMotion: boolean; duration: number; delay?: number; useNativeDriver: boolean; deps: React.DependencyList;
@@ -92,19 +108,31 @@ function AnimatedMetricValue({ value, suffix, style, reduceMotion, animationKey,
   return <Text style={style} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{displayValue}{suffix}</Text>;
 }
 
-export const AnalyticsDashboardView = React.memo(function AnalyticsDashboardView({ data, colors, isDark, language, range, reduceMotion, animationKey }: Props) {
+// --- Volume metrics row (points / stars / active days) ---------------------
+
+function AnalyticsMetricsRow({ data, language, reduceMotion, animationKey, s }: {
+  data: AnalyticsDashboard; language: 'vi' | 'en'; reduceMotion: boolean; animationKey: number; s: ReturnType<typeof styles>;
+}) {
+  const t = useMemo(() => copy(language === 'vi'), [language]);
+  const metric = (value: number, previous: number, label: string, suffix: string, tone: 'primary' | 'gold' | 'ink', delay: number) => <View style={[s.metric, tone === 'primary' && s.metricPrimary]} key={label}><Text style={[s.metricLabel, tone === 'primary' && s.metricPrimaryText]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</Text><AnimatedMetricValue value={value} suffix={suffix} style={[s.metricValue, tone === 'primary' && s.metricPrimaryText, tone === 'gold' && s.metricGold, tone === 'ink' && s.metricInk]} reduceMotion={reduceMotion} animationKey={animationKey} delay={delay} /><Text style={[s.delta, delta(value, previous) < 0 && s.deltaBad, tone === 'primary' && s.metricPrimaryText]}>{delta(value, previous) >= 0 ? '▲' : '▼'}{Math.abs(delta(value, previous))}</Text></View>;
+  return <>
+    <Text style={s.section}>{t.volume}</Text>
+    <View style={[s.metrics, { marginBottom: 14 }]}>{metric(data.points, data.previousPoints, t.points, '', 'primary', 0)}{metric(data.stars, data.previousStars, t.stars, '', 'gold', 70)}{metric(data.daysAtGoal, data.previousDaysAtGoal, t.goal, `/${data.possibleDays}`, 'ink', 140)}</View>
+  </>;
+}
+
+// --- Daily/monthly points chart --------------------------------------------
+
+function AnalyticsChartCard({ data, range, language, C, s, isDark, reduceMotion, animationKey }: {
+  data: AnalyticsDashboard; range: AnalyticsRange; language: 'vi' | 'en'; C: AppColors; s: ReturnType<typeof styles>;
+  isDark: boolean; reduceMotion: boolean; animationKey: number;
+}) {
+  const t = useMemo(() => copy(language === 'vi'), [language]);
   const chartScrollRef = useRef<ScrollView>(null);
   const [chartViewportWidth, setChartViewportWidth] = useState(0);
-  const C = useMemo(() => ({ ...colors, starGoldText: colors.primary, starGoldMuted: colors.primaryLine }), [colors]);
-  const s = useMemo(() => styles(C, isDark, colors.starGoldText), [C, colors.starGoldText, isDark]);
-  const t = useMemo(() => copy(language === 'vi'), [language]);
   const chartGoal = range === 'Y' ? data.goal * 30 : data.goal;
   const chartMax = Math.max(chartGoal * 2, (Math.floor(Math.max(chartGoal, ...data.bars.flatMap(bar => [bar.current, bar.previous])) / (chartGoal * 2)) + 1) * chartGoal * 2);
   const peak = data.bars.reduce((best, bar) => bar.current > best.current ? bar : best, data.bars[0]);
-  const weekdayMax = Math.max(1, ...data.weekday.map(day => day.value));
-  const lowestWeekdayIndex = data.weekday.reduce((lowest, day, index) => day.value < data.weekday[lowest].value ? index : lowest, 0);
-  const hourMax = Math.max(1, ...data.hours.map(hour => hour.value));
-  const totalLogs = data.composition.reduce((total, row) => total + row.count, 0);
   // Month bars now run through the full calendar month, including days after
   // today left at 0 -- those haven't happened yet and shouldn't count as
   // "zero-point" days.
@@ -118,21 +146,7 @@ export const AnalyticsDashboardView = React.memo(function AnalyticsDashboardView
     ? Math.round((completedYearBars[lastActiveIndex].current - completedYearBars[firstActiveIndex].current) / completedYearBars[firstActiveIndex].current * 100)
     : null;
   const yearFrom = firstActiveIndex >= 0 ? MONTH_NAMES[language][firstActiveIndex] ?? '' : '';
-  const hourPeak = data.hours.reduce((best, hour) => hour.value > best.value ? hour : best, data.hours[0]);
-  const hourTotal = data.hours.reduce((total, hour) => total + hour.value, 0);
-  const hourStart = Number(hourPeak.label);
-  const hourEnd = hourStart + 4;
-  const hourShare = Math.round(hourPeak.value / Math.max(1, hourTotal) * 100);
-  const weekdayLowest = data.weekday.reduce((lowest, day) => day.value < lowest.value ? day : lowest, data.weekday[0]);
-  const weekdayHighest = data.weekday.reduce((highest, day) => day.value > highest.value ? day : highest, data.weekday[0]);
-  const weekdayRatio = weekdayHighest.value > weekdayLowest.value && weekdayLowest.value > 0
-    ? weekdayHighest.value / weekdayLowest.value
-    : null;
-  const weekdayRatioText = weekdayRatio === null || Math.round(weekdayRatio * 10) <= 10 ? null : language === 'vi' ? weekdayRatio.toFixed(1).replace('.', ',') : weekdayRatio.toFixed(1);
-  const weekdayName = (label: string) => WEEKDAY_NAMES[label as keyof typeof WEEKDAY_NAMES]?.[language] ?? label;
-  const chartLabel = (label: string) => range === 'W'
-    ? WEEKDAY_SHORT[label]?.[language] ?? label
-    : range === 'Y' ? MONTH_SHORT[language][label] ?? label : label;
+  const chartLabel = (label: string) => chartLabelFor(range, language, label);
   const showPrevious = range === 'W';
   const chartLayout = getAnalyticsChartLayout(range, data.bars.length);
   const todayMonthIndex = Math.min(data.bars.length - 1, Math.max(0, new Date().getDate() - 1));
@@ -149,6 +163,9 @@ export const AnalyticsDashboardView = React.memo(function AnalyticsDashboardView
     if (range === 'M' && chartViewportWidth === 0) return;
     const frame = requestAnimationFrame(scrollToChartDefault);
     return () => cancelAnimationFrame(frame);
+    // scrollToChartDefault is recreated every render; the values it closes
+    // over (range/monthChartAnchor) are already tracked below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartLayout.contentWidth, chartLayout.isScrollable, chartViewportWidth, monthChartAnchor.scrollOffset, range]);
   const barWidth = range === 'M' ? 5 : range === 'Y' ? 10 : 7;
   const chartHeight = 188;
@@ -156,29 +173,11 @@ export const AnalyticsDashboardView = React.memo(function AnalyticsDashboardView
   const chartLabelHeight = 22;
   const chartY = (value: number) => chartLabelHeight + value / chartMax * (chartHeight - chartTop - chartLabelHeight);
   const chartNumber = (value: number) => value >= 1000 ? `${value / 1000}k` : String(value);
-  const rangeLabels = range === 'W'
-    ? { first: language === 'vi' ? 'tuần này' : 'this week', second: language === 'vi' ? '30 ngày' : '30 days', rhythm: language === 'vi' ? '12 tuần gần đây' : '12-week averages', period: language === 'vi' ? 'tuần này' : 'this week', delta: 'WK' }
-    : range === 'M'
-      ? { first: language === 'vi' ? 'tháng này' : 'this month', second: language === 'vi' ? 'tháng trước' : 'prev month', rhythm: language === 'vi' ? '4 tuần gần đây' : '4-week averages', period: language === 'vi' ? 'tháng này' : 'this month', delta: 'MO' }
-      : { first: language === 'vi' ? 'năm nay' : 'this year', second: language === 'vi' ? 'tháng tốt nhất' : 'best month', rhythm: language === 'vi' ? '52 tuần gần đây' : '52-week averages', period: language === 'vi' ? 'năm nay' : 'this year', delta: 'YR' };
-  const metric = (value: number, previous: number, label: string, suffix: string, tone: 'primary' | 'gold' | 'ink', delay: number) => <View style={[s.metric, tone === 'primary' && s.metricPrimary]} key={label}><Text style={[s.metricLabel, tone === 'primary' && s.metricPrimaryText]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</Text><AnimatedMetricValue value={value} suffix={suffix} style={[s.metricValue, tone === 'primary' && s.metricPrimaryText, tone === 'gold' && s.metricGold, tone === 'ink' && s.metricInk]} reduceMotion={reduceMotion} animationKey={animationKey} delay={delay} /><Text style={[s.delta, delta(value, previous) < 0 && s.deltaBad, tone === 'primary' && s.metricPrimaryText]}>{delta(value, previous) >= 0 ? '▲' : '▼'}{Math.abs(delta(value, previous))}</Text></View>;
-  // data.consistency.week/month/all are always fixed 7-day/30-day/all-time
-  // stats regardless of the selected chart range (buildAnalyticsDashboard
-  // never varies them by `range`), so their labels must stay fixed too --
-  // rangeLabels.first/second only coincidentally matched on the Week tab.
-  const consistencyWeekLabel = language === 'vi' ? 'tuần này' : 'this week';
-  const consistencyMonthLabel = language === 'vi' ? '30 ngày' : '30 days';
-  const consistency = [[data.consistency.week, consistencyWeekLabel], [data.consistency.month, consistencyMonthLabel], [data.consistency.all, t.all]] as const;
-  const consistencyValues = consistency.map(([value]) => Number(value));
-  const consistencyMin = Math.min(...consistencyValues);
-  const consistencyMax = Math.max(...consistencyValues);
-  const consistencyColor = (value: number) => value === consistencyMax ? C.starGoldText : value === consistencyMin ? C.line2 : C.starGoldMuted;
   const chartNote = range === 'M'
     ? t.monthNote(data.daysAtGoal, data.possibleDays, monthZeroDays, peak?.current ?? 0)
     : range === 'Y'
       ? t.yearNote(monthsCleared, data.bars.length, (chartGoal).toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US'), yearChange, yearFrom)
       : t.goalNote(data.daysAtGoal, data.possibleDays, chartLabel(peak?.label ?? ''), peak?.current ?? 0);
-  const hourSummary = t.hourSummary(weekdayName(weekdayLowest.label), weekdayLowest.value, weekdayName(weekdayHighest.label), weekdayRatioText, String(hourStart), hourEnd, hourShare);
   const chartGrid = [0, 50, 100].map((percent) => <View key={percent} pointerEvents="none" style={{ borderTopColor: C.line, borderTopWidth: 1, borderStyle: 'dotted', bottom: chartY(chartMax * percent / 100), left: 0, position: 'absolute', right: 0 }} />);
   const chartColumns = data.bars.map((bar, index) => <View
     style={[s.chartColumn, chartLayout.isScrollable && { flexGrow: 0, flexShrink: 0, width: chartLayout.columnWidth }]}
@@ -201,29 +200,99 @@ export const AnalyticsDashboardView = React.memo(function AnalyticsDashboardView
       return <React.Fragment key={index}><Rect x={x} y={svgBaseline - height} width={barWidth} height={height} rx={3} fill={chartGoal > 0 && bar.current < chartGoal ? C.starGoldMuted : C.starGoldText} /><SvgText x={index * chartLayout.columnWidth + chartLayout.columnWidth / 2} y={chartHeight - 4} fill={C.muted} fontFamily={FontFamily.regular} fontSize={12} textAnchor="middle">{chartLabel(bar.label)}</SvgText></React.Fragment>;
     })}
   </Svg>;
-  return <View>
-    <Text style={s.section}>{t.volume}</Text>
-    <View style={[s.metrics, { marginBottom: 14 }]}>{metric(data.points, data.previousPoints, t.points, '', 'primary', 0)}{metric(data.stars, data.previousStars, t.stars, '', 'gold', 70)}{metric(data.daysAtGoal, data.previousDaysAtGoal, t.goal, `/${data.possibleDays}`, 'ink', 140)}</View>
-    <View style={s.card}>
-      <View style={s.chartHeader}><Text style={s.cardTitle}>{range === 'Y' ? (language === 'vi' ? 'Điểm theo tháng' : 'Points per month') : t.chart}</Text><Text style={s.legend}><Text style={s.dotCurrent}>●</Text> {range === 'W' ? t.thisWeek : range === 'M' ? (language === 'vi' ? 'Tổng theo ngày' : 'Daily total') : (language === 'vi' ? 'Tổng theo tháng' : 'Monthly total')}{showPrevious && <><Text style={s.dotPrevious}> ●</Text> {t.last}</>} <Text style={s.dotBelow}>●</Text> {language === 'vi' ? 'Dưới mục tiêu' : 'Below goal'}</Text></View>
-      <View style={[s.chart, { height: chartHeight }]}>
-        <Text pointerEvents="none" style={{ color: C.muted, fontFamily: FontFamily.regular, fontSize: 9, left: 0, position: 'absolute', textAlign: 'right', bottom: chartY(chartMax) - 7, width: 30 }}>{chartNumber(chartMax)}</Text>
-        <Text pointerEvents="none" style={{ color: C.muted, fontFamily: FontFamily.regular, fontSize: 9, left: 0, position: 'absolute', textAlign: 'right', bottom: chartY(chartMax / 2) - 7, width: 30 }}>{chartNumber(chartMax / 2)}</Text>
-        <Text pointerEvents="none" style={{ color: C.muted, fontFamily: FontFamily.regular, fontSize: 9, left: 0, position: 'absolute', textAlign: 'right', bottom: chartY(0) - 2, width: 30 }}>0</Text>
-        <View style={s.chartViewport} onLayout={({ nativeEvent }) => setChartViewportWidth(nativeEvent.layout.width)}>{chartLayout.isScrollable
-          ? <ScrollView ref={chartScrollRef} horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={[s.chartScrollContent, range === 'M' && { paddingRight: monthChartAnchor.trailingInset }]} onContentSizeChange={scrollToChartDefault}>{scrollableChart}</ScrollView>
-          : chartContent()}</View>
-      </View>
-      <View style={s.rule} /><Text style={s.note}>{chartNote}</Text>
+  return <View style={s.card}>
+    <View style={s.chartHeader}><Text style={s.cardTitle}>{range === 'Y' ? (language === 'vi' ? 'Điểm theo tháng' : 'Points per month') : t.chart}</Text><Text style={s.legend}><Text style={s.dotCurrent}>●</Text> {range === 'W' ? t.thisWeek : range === 'M' ? (language === 'vi' ? 'Tổng theo ngày' : 'Daily total') : (language === 'vi' ? 'Tổng theo tháng' : 'Monthly total')}{showPrevious && <><Text style={s.dotPrevious}> ●</Text> {t.last}</>} <Text style={s.dotBelow}>●</Text> {language === 'vi' ? 'Dưới mục tiêu' : 'Below goal'}</Text></View>
+    <View style={[s.chart, { height: chartHeight }]}>
+      <Text pointerEvents="none" style={{ color: C.muted, fontFamily: FontFamily.regular, fontSize: 9, left: 0, position: 'absolute', textAlign: 'right', bottom: chartY(chartMax) - 7, width: 30 }}>{chartNumber(chartMax)}</Text>
+      <Text pointerEvents="none" style={{ color: C.muted, fontFamily: FontFamily.regular, fontSize: 9, left: 0, position: 'absolute', textAlign: 'right', bottom: chartY(chartMax / 2) - 7, width: 30 }}>{chartNumber(chartMax / 2)}</Text>
+      <Text pointerEvents="none" style={{ color: C.muted, fontFamily: FontFamily.regular, fontSize: 9, left: 0, position: 'absolute', textAlign: 'right', bottom: chartY(0) - 2, width: 30 }}>0</Text>
+      <View style={s.chartViewport} onLayout={({ nativeEvent }) => setChartViewportWidth(nativeEvent.layout.width)}>{chartLayout.isScrollable
+        ? <ScrollView ref={chartScrollRef} horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={[s.chartScrollContent, range === 'M' && { paddingRight: monthChartAnchor.trailingInset }]} onContentSizeChange={scrollToChartDefault}>{scrollableChart}</ScrollView>
+        : chartContent()}</View>
     </View>
+    <View style={s.rule} /><Text style={s.note}>{chartNote}</Text>
+  </View>;
+}
+
+// --- Consistency rings (week / 30-day / all-time) ---------------------------
+
+function AnalyticsConsistencyCard({ data, language, C, s, reduceMotion, animationKey }: {
+  data: AnalyticsDashboard; language: 'vi' | 'en'; C: AppColors; s: ReturnType<typeof styles>;
+  reduceMotion: boolean; animationKey: number;
+}) {
+  const t = useMemo(() => copy(language === 'vi'), [language]);
+  // data.consistency.week/month/all are always fixed 7-day/30-day/all-time
+  // stats regardless of the selected chart range (buildAnalyticsDashboard
+  // never varies them by `range`), so their labels must stay fixed too --
+  // this only coincidentally matches the Week tab.
+  const consistencyWeekLabel = language === 'vi' ? 'tuần này' : 'this week';
+  const consistencyMonthLabel = language === 'vi' ? '30 ngày' : '30 days';
+  const consistency = [[data.consistency.week, consistencyWeekLabel], [data.consistency.month, consistencyMonthLabel], [data.consistency.all, t.all]] as const;
+  const consistencyValues = consistency.map(([value]) => Number(value));
+  const consistencyMin = Math.min(...consistencyValues);
+  const consistencyMax = Math.max(...consistencyValues);
+  const consistencyColor = (value: number) => value === consistencyMax ? C.starGoldText : value === consistencyMin ? C.line2 : C.starGoldMuted;
+  return <>
     <Text style={s.section}>{t.consistency}</Text>
     <View style={s.card}><View style={s.rings}>{consistency.map(([value, label], index) => <View style={s.ringItem} key={String(label)}><ProgressRing value={Number(value)} label={String(label)} color={consistencyColor(Number(value))} track={C.surface3} textStyle={s.ringValue} reduceMotion={reduceMotion} animationKey={animationKey} delay={160 + index * 35} /><Text style={s.ringLabel}>{label}</Text></View>)}</View></View>
+  </>;
+}
+
+// --- Weekday + hour-of-day rhythm -------------------------------------------
+
+function AnalyticsRhythmCard({ data, range, language, C, s, reduceMotion, animationKey }: {
+  data: AnalyticsDashboard; range: AnalyticsRange; language: 'vi' | 'en'; C: AppColors; s: ReturnType<typeof styles>;
+  reduceMotion: boolean; animationKey: number;
+}) {
+  const t = useMemo(() => copy(language === 'vi'), [language]);
+  const weekdayMax = Math.max(1, ...data.weekday.map(day => day.value));
+  const lowestWeekdayIndex = data.weekday.reduce((lowest, day, index) => day.value < data.weekday[lowest].value ? index : lowest, 0);
+  const hourMax = Math.max(1, ...data.hours.map(hour => hour.value));
+  const hourPeak = data.hours.reduce((best, hour) => hour.value > best.value ? hour : best, data.hours[0]);
+  const hourTotal = data.hours.reduce((total, hour) => total + hour.value, 0);
+  const hourStart = Number(hourPeak.label);
+  const hourEnd = hourStart + 4;
+  const hourShare = Math.round(hourPeak.value / Math.max(1, hourTotal) * 100);
+  const weekdayLowest = data.weekday.reduce((lowest, day) => day.value < lowest.value ? day : lowest, data.weekday[0]);
+  const weekdayHighest = data.weekday.reduce((highest, day) => day.value > highest.value ? day : highest, data.weekday[0]);
+  const weekdayRatio = weekdayHighest.value > weekdayLowest.value && weekdayLowest.value > 0
+    ? weekdayHighest.value / weekdayLowest.value
+    : null;
+  const weekdayRatioText = weekdayRatio === null || Math.round(weekdayRatio * 10) <= 10 ? null : language === 'vi' ? weekdayRatio.toFixed(1).replace('.', ',') : weekdayRatio.toFixed(1);
+  const weekdayName = (label: string) => WEEKDAY_NAMES[label as keyof typeof WEEKDAY_NAMES]?.[language] ?? label;
+  const rangeLabels = getRangeLabels(range, language);
+  const hourSummary = t.hourSummary(weekdayName(weekdayLowest.label), weekdayLowest.value, weekdayName(weekdayHighest.label), weekdayRatioText, String(hourStart), hourEnd, hourShare);
+  return <>
     <View style={s.sectionHeader}><Text style={s.sectionHeaderTitle}>{t.rhythm}</Text><Text style={s.sectionHint}>{rangeLabels.rhythm}</Text></View>
-    <View style={s.card}><Text style={s.cardTitle}>{t.weekday}</Text>{data.weekday.map((day, index) => <View style={s.rhythmRow} key={day.label}><Text style={s.rhythmLabel}>{chartLabel(day.label)}</Text><View style={s.rhythmTrack}><AnimatedRhythmFill value={day.value} max={weekdayMax} color={index === lowestWeekdayIndex ? C.ink2 : C.starGoldText} reduceMotion={reduceMotion} animationKey={animationKey} delay={index * 45} /></View><Text style={s.rhythmValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{day.value}</Text></View>)}
+    <View style={s.card}><Text style={s.cardTitle}>{t.weekday}</Text>{data.weekday.map((day, index) => <View style={s.rhythmRow} key={day.label}><Text style={s.rhythmLabel}>{chartLabelFor(range, language, day.label)}</Text><View style={s.rhythmTrack}><AnimatedRhythmFill value={day.value} max={weekdayMax} color={index === lowestWeekdayIndex ? C.ink2 : C.starGoldText} reduceMotion={reduceMotion} animationKey={animationKey} delay={index * 45} /></View><Text style={s.rhythmValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{day.value}</Text></View>)}
       <View style={s.rule} /><View style={s.chartHeader}><Text style={s.cardTitle}>{t.hour}</Text><Text style={s.legend}>{t.hourNote(String(hourStart), hourEnd, hourShare)}</Text></View><View style={s.hours}>{data.hours.map((hour, index) => <View accessible accessibilityLabel={`${hour.label}: ${hour.value}`} style={s.hourCol} key={hour.label}><View style={s.hourBarArea}><AnimatedBar value={hour.value} max={hourMax} color={hour.value === hourMax ? C.starGoldText : C.starGoldMuted} style={s.hourBar} reduceMotion={reduceMotion} animationKey={animationKey} delay={index * 50} /></View><Text style={s.hourLabel}>{hour.label}</Text></View>)}</View><View style={s.rule} /><Text style={s.note}>{hourSummary}</Text>
     </View>
+  </>;
+}
+
+// --- Habit composition breakdown --------------------------------------------
+
+function AnalyticsCompositionCard({ data, range, language, s }: {
+  data: AnalyticsDashboard; range: AnalyticsRange; language: 'vi' | 'en'; s: ReturnType<typeof styles>;
+}) {
+  const t = useMemo(() => copy(language === 'vi'), [language]);
+  const totalLogs = data.composition.reduce((total, row) => total + row.count, 0);
+  const rangeLabels = getRangeLabels(range, language);
+  return <>
     <View style={s.sectionHeader}><Text style={s.sectionHeaderTitle}>{t.composition}</Text><Text style={s.sectionHint}>{totalLogs} {language === 'vi' ? 'lượt' : 'logs'} {rangeLabels.period}</Text></View>
     <View style={s.card}><View style={s.compHead}><Text style={s.compName}>{language === 'vi' ? 'THÓI QUEN' : 'HABIT'}</Text><Text style={s.compMeta}>{t.share}   {t.logs}   Δ {rangeLabels.delta}</Text></View>{data.composition.map(row => <View style={s.compRow} key={row.name}><Text style={s.compName} numberOfLines={1}>{row.name}</Text><View style={s.compTrack}><View style={[s.compFill, { width: `${row.count / Math.max(1, data.composition[0]?.count ?? 1) * 100}%` }]} /></View><Text style={s.compCount}>{row.count}</Text><Text style={[s.compDelta, row.count < row.previous && s.deltaBad]}>{row.count - row.previous >= 0 ? '+' : ''}{row.count - row.previous}</Text></View>)}</View>
+  </>;
+}
+
+export const AnalyticsDashboardView = React.memo(function AnalyticsDashboardView({ data, colors, isDark, language, range, reduceMotion, animationKey }: Props) {
+  const C = useMemo(() => ({ ...colors, starGoldText: colors.primary, starGoldMuted: colors.primaryLine }), [colors]);
+  const s = useMemo(() => styles(C, isDark, colors.starGoldText), [C, colors.starGoldText, isDark]);
+  return <View>
+    <AnalyticsMetricsRow data={data} language={language} reduceMotion={reduceMotion} animationKey={animationKey} s={s} />
+    <AnalyticsChartCard data={data} range={range} language={language} C={C} s={s} isDark={isDark} reduceMotion={reduceMotion} animationKey={animationKey} />
+    <AnalyticsConsistencyCard data={data} language={language} C={C} s={s} reduceMotion={reduceMotion} animationKey={animationKey} />
+    <AnalyticsRhythmCard data={data} range={range} language={language} C={C} s={s} reduceMotion={reduceMotion} animationKey={animationKey} />
+    <AnalyticsCompositionCard data={data} range={range} language={language} s={s} />
   </View>;
 });
 
