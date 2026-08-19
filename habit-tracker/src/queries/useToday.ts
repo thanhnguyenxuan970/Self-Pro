@@ -19,6 +19,7 @@ import {
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
+import { enqueuePendingActivityDeletes } from '../game/pendingActivityDeletes';
 import { markSurveyD0Pending } from '../game/pendingSurveyD0';
 import { notifyFirstEverLog } from '../hooks/useSurveyD0Intent';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
@@ -177,7 +178,11 @@ async function insertLogRows(
 
 async function replaceDailyBonusRows(
   db: SQLiteDatabase, userId: number, localDate: string, weekStart: string, stars: number,
-): Promise<void> {
+): Promise<number[]> {
+  const staleRows = await db.getAllAsync<{ id: number }>(
+    `SELECT id FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS'`,
+    [userId, localDate],
+  );
   await db.runAsync(
     `DELETE FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS'`,
     [userId, localDate],
@@ -190,6 +195,7 @@ async function replaceDailyBonusRows(
       [userId, stars, Date.now(), localDate, weekStart],
     );
   }
+  return staleRows.map(row => row.id);
 }
 
 async function updateTreatPool(
@@ -548,6 +554,7 @@ export function useUnlogTask(userId: number) {
       const weekStart = getWeekStart();
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
       let reactivatedChallenges: ReactivatedLinkedChallenge[] = [];
+      let deletedActivityIds: number[] = [];
 
       // tiers is a static lookup — never written, safe to read outside transaction
       const tiers = await db.getAllAsync<FullTierRow>(
@@ -574,12 +581,15 @@ export function useUnlogTask(userId: number) {
         const currentBonusStars = daily?.bonus_star_awarded ?? 0;
         const remainingBonusStars = dailyBonusStarsForPoints(remainingPoints);
         const bonusStars = Math.max(0, currentBonusStars - remainingBonusStars);
-        if (bonusStars > 0) await replaceDailyBonusRows(db, userId, today, weekStart, remainingBonusStars);
+        if (bonusStars > 0) {
+          deletedActivityIds.push(...(await replaceDailyBonusRows(db, userId, today, weekStart, remainingBonusStars)));
+        }
 
         const totalStarsDelta = taskStars + bonusStars;
         // Batched into one query instead of one round-trip per row.
         const rowPlaceholders = taskRows.map(() => '?').join(',');
         await db.runAsync(`DELETE FROM activity_log WHERE id IN (${rowPlaceholders})`, taskRows.map(row => row.id));
+        deletedActivityIds.push(...taskRows.map(row => row.id));
 
         await revertDailySummaryUnlog(db, userId, today, taskPoints, remainingBonusStars, remainingPoints);
 
@@ -597,8 +607,10 @@ export function useUnlogTask(userId: number) {
         const reconciliation = await reconcileUnloggedLinkedChallenges(db, { userId, taskTypeId: params.taskTypeId, localDate: today });
         lifetimeCrossings = [...lifetimeCrossings, ...reconciliation.lifetimeCrossings];
         reactivatedChallenges = reconciliation.reactivatedChallenges;
+        deletedActivityIds.push(...reconciliation.deletedActivityIds);
       });
       await restoreReactivatedChallengeReminders(db, reactivatedChallenges, lang);
+      await enqueuePendingActivityDeletes(userId, deletedActivityIds);
 
       return { lifetimeCrossings };
     },

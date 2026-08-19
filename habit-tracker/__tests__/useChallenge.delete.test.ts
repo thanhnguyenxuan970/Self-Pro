@@ -7,9 +7,11 @@ jest.mock('@tanstack/react-query', () => ({
   useMutation: jest.fn((options) => options),
   useQueryClient: jest.fn(() => ({ invalidateQueries: jest.fn() })),
 }));
+jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletes: jest.fn() }));
 import * as Notifications from 'expo-notifications';
 import { getDb } from '../src/db/client';
 import { deleteChallengeById, deleteChallengesById, useDeleteChallenge } from '../src/queries/useChallenge';
+import { enqueuePendingActivityDeletes } from '../src/game/pendingActivityDeletes';
 
 function createDeleteDb(config: {
   challenge: { status: 'active' | 'done' | 'failed'; completed_at: string | null; notification_id?: string | null } | null;
@@ -38,7 +40,10 @@ describe('deleteChallengeById', () => {
       challenge: { status: 'active', completed_at: null, notification_id: 'challenge-reminder-active' },
     });
 
-    await expect(deleteChallengeById(db, 5, 10)).resolves.toBe('challenge-reminder-active');
+    await expect(deleteChallengeById(db, 5, 10)).resolves.toEqual({
+      notificationId: 'challenge-reminder-active',
+      deletedActivityIds: [],
+    });
 
     expect(Notifications.cancelScheduledNotificationAsync).not.toHaveBeenCalled();
     expect(db.runAsync).toHaveBeenCalledWith('DELETE FROM challenge_days WHERE challenge_id = ?', [10]);
@@ -51,7 +56,10 @@ describe('deleteChallengeById', () => {
       challenge: { status: 'active', completed_at: null, notification_id: null },
     });
 
-    await expect(deleteChallengeById(db, 5, 13)).resolves.toBeNull();
+    await expect(deleteChallengeById(db, 5, 13)).resolves.toEqual({
+      notificationId: null,
+      deletedActivityIds: [],
+    });
 
     expect(Notifications.cancelScheduledNotificationAsync).not.toHaveBeenCalled();
     expect(db.runAsync).toHaveBeenCalledWith('DELETE FROM challenges WHERE id = ? AND user_id = ?', [13, 5]);
@@ -111,7 +119,7 @@ describe('deleteChallengeById', () => {
       withExclusiveTransactionAsync: jest.fn(async (callback: (inner: SQLiteDatabase) => Promise<void>) => callback(txn)),
     } as unknown as SQLiteDatabase;
 
-    await expect(deleteChallengesById(db, 5, [14])).resolves.toBeUndefined();
+    await expect(deleteChallengesById(db, 5, [14])).resolves.toEqual({ deletedActivityIds: [] });
 
     expect(txn.runAsync).toHaveBeenCalledWith('DELETE FROM challenges WHERE id = ? AND user_id = ?', [14, 5]);
   });
@@ -122,7 +130,7 @@ describe('deleteChallengeById', () => {
       rewardRow: { id: 77, week_start: '2026-06-29', stars_delta: 3 },
     });
 
-    await deleteChallengeById(db, 5, 11);
+    await expect(deleteChallengeById(db, 5, 11)).resolves.toMatchObject({ deletedActivityIds: [77] });
 
     expect(db.runAsync).toHaveBeenCalledWith(
       expect.stringContaining('UPDATE weekly_summary'),
@@ -194,6 +202,22 @@ describe('deleteChallengeById', () => {
     await mutation.mutationFn(14);
 
     expect(events).toEqual(['transaction-start', 'commit', 'cancel']);
+  });
+
+  it('enqueues the reversed completion reward row for remote cleanup so a re-add cannot double-count it', async () => {
+    const txn = createDeleteDb({
+      challenge: { status: 'done', completed_at: '2026-07-03' },
+      rewardRow: { id: 77, week_start: '2026-06-29', stars_delta: 3 },
+    });
+    const db = {
+      withExclusiveTransactionAsync: jest.fn(async (callback: (inner: SQLiteDatabase) => Promise<void>) => callback(txn)),
+    } as unknown as SQLiteDatabase;
+    jest.mocked(getDb).mockResolvedValue(db);
+
+    const mutation = useDeleteChallenge(5) as unknown as { mutationFn: (challengeId: number) => Promise<void> };
+    await mutation.mutationFn(11);
+
+    expect(enqueuePendingActivityDeletes).toHaveBeenCalledWith(5, [77]);
   });
 
   it('refuses to guess which legacy reward belongs to a challenge when candidates are ambiguous', async () => {

@@ -5,6 +5,7 @@ import { dailyBonusStarsForPoints } from '../config/constants';
 import { MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../utils/activityPicker';
 import type { LifetimeTierCrossing } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
+import { enqueuePendingActivityDeletes } from '../game/pendingActivityDeletes';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { syncCurrentUserToSupabase } from '../api/syncService';
 
@@ -149,10 +150,11 @@ async function revertDailySummaries(
   byDate: Map<string, DateAccum>,
   byWeek: Map<string, WeekAccum>,
   kind: string,
-): Promise<number> {
+): Promise<{ totalTreatDelta: number; deletedActivityIds: number[] }> {
   let totalTreatDelta = 0;
+  const deletedActivityIds: number[] = [];
   const dates = [...byDate.keys()];
-  if (dates.length === 0) return totalTreatDelta;
+  if (dates.length === 0) return { totalTreatDelta, deletedActivityIds };
   // Batched into one query instead of one round-trip per date.
   const datePlaceholders = dates.map(() => '?').join(',');
   const dailyRows = await db.getAllAsync<{ local_date: string; total_points: number; bonus_star_awarded: number }>(
@@ -170,6 +172,11 @@ async function revertDailySummaries(
     const bonusStars = Math.max(0, daily.bonus_star_awarded - remainingBonusStars);
 
     if (bonusStars > 0) {
+      const staleRows = await db.getAllAsync<{ id: number }>(
+        `SELECT id FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS'`,
+        [userId, date]
+      );
+      deletedActivityIds.push(...staleRows.map(row => row.id));
       await db.runAsync(
         `DELETE FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS'`,
         [userId, date]
@@ -203,7 +210,7 @@ async function revertDailySummaries(
       );
     }
   }
-  return totalTreatDelta;
+  return { totalTreatDelta, deletedActivityIds };
 }
 
 async function revertWeeklySummaries(
@@ -278,6 +285,7 @@ export function useArchiveTask(userId: number) {
       if (taskIds.length === 0) return { lifetimeCrossings: [] };
       const db = await getDb();
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
+      const deletedActivityIds: number[] = [];
 
       await db.withTransactionAsync(async () => {
         for (const taskId of taskIds) {
@@ -301,12 +309,13 @@ export function useArchiveTask(userId: number) {
             const byDate = groupLogsByDate(allLogs);
             const byWeek = groupLogsByWeek(allLogs);
 
-            const totalTreatDelta = await revertDailySummaries(db, userId, byDate, byWeek, kind);
+            const { totalTreatDelta, deletedActivityIds: bonusRowIds } = await revertDailySummaries(db, userId, byDate, byWeek, kind);
 
             await db.runAsync(
               `DELETE FROM activity_log WHERE user_id = ? AND task_type_id = ? AND source = 'TASK'`,
               [userId, taskId]
             );
+            deletedActivityIds.push(...allLogs.map(log => log.id), ...bonusRowIds);
 
             await revertWeeklySummaries(db, userId, byWeek);
             await revertTreatStars(db, userId, kind, allLogs, totalTreatDelta);
@@ -323,6 +332,7 @@ export function useArchiveTask(userId: number) {
           );
         }
       });
+      await enqueuePendingActivityDeletes(userId, deletedActivityIds);
 
       return { lifetimeCrossings };
     },

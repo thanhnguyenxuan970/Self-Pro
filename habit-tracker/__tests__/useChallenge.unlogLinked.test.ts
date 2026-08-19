@@ -95,8 +95,9 @@ describe('reconcileUnloggedLinkedChallenges', () => {
     const runAsync = jest.fn(async () => ({ changes: 1 }));
     const db = { getAllAsync, getFirstAsync, runAsync } as unknown as SQLiteDatabase;
 
-    await reconcileUnloggedLinkedChallenges(db, { userId: 5, taskTypeId: 42, localDate: '2026-08-17' });
+    const result = await reconcileUnloggedLinkedChallenges(db, { userId: 5, taskTypeId: 42, localDate: '2026-08-17' });
 
+    expect(result.deletedActivityIds).toEqual([91]);
     expect(runAsync).toHaveBeenCalledWith(
       expect.stringContaining("SET status = 'active', completed_at = NULL, streak_current = ?"),
       expect.arrayContaining([0, 17, 5]),

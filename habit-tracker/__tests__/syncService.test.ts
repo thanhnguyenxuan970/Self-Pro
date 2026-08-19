@@ -1,13 +1,18 @@
 const mockGetSession = jest.fn();
 const mockSignInWithIdToken = jest.fn();
 const mockUpsert = jest.fn();
+const mockDeleteIn = jest.fn().mockResolvedValue({ error: null });
+const mockDeleteEq = jest.fn(() => ({ in: mockDeleteIn }));
+const mockDelete = jest.fn(() => ({ eq: mockDeleteEq }));
 const mockRpc = jest.fn().mockResolvedValue({ data: null, error: null });
-const mockFrom = jest.fn(() => ({ upsert: mockUpsert }));
+const mockFrom = jest.fn(() => ({ upsert: mockUpsert, delete: mockDelete }));
 const mockConfigure = jest.fn();
 const mockGetTokens = jest.fn();
 const mockSignInSilently = jest.fn();
 const mockGetDb = jest.fn();
 const mockStorageGetItem = jest.fn();
+const mockStorageSetItem = jest.fn();
+const mockStorageRemoveItem = jest.fn();
 
 jest.mock('../src/api/supabase', () => ({
   supabase: {
@@ -24,7 +29,8 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: mockStorageGetItem,
-  setItem: jest.fn(),
+  setItem: mockStorageSetItem,
+  removeItem: mockStorageRemoveItem,
 }));
 
 jest.mock('../src/db/client', () => ({ getDb: mockGetDb }));
@@ -393,6 +399,52 @@ describe('syncToSupabase', () => {
     expect(uploadedActivityIds).toEqual([[1, 2], [1, 2]]);
     expect(mockRpc).toHaveBeenCalledTimes(3);
     expect(mockRpc).toHaveBeenLastCalledWith('sync_lifetime_stars');
+  });
+
+  it('deletes already-uploaded twins of locally-deleted rows before uploading, then clears the queue', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } }, error: null });
+    mockStorageGetItem.mockImplementation(async (key: string) =>
+      (key === 'pending_activity_deletes:1' ? JSON.stringify([55, 56]) : null));
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('FROM users')) return { id: 1 };
+        if (sql.includes('daily_summary')) return { current_streak: 7 };
+        if (sql.includes('activity_log')) return { last_active_local_date: '2026-08-10' };
+        throw new Error(`Unexpected sync query: ${sql}`);
+      }),
+      getAllAsync: jest.fn(() => []),
+      runAsync: jest.fn(),
+    };
+    mockGetDb.mockResolvedValue(db);
+    const dateTimeFormat = jest.spyOn(Intl, 'DateTimeFormat').mockImplementation(() => (
+      { resolvedOptions: () => ({ timeZone: 'Asia/Bangkok' }) } as Intl.DateTimeFormat
+    ));
+
+    try {
+      await syncToSupabase('google-sub', 'user@example.com');
+    } finally {
+      dateTimeFormat.mockRestore();
+    }
+
+    expect(mockDeleteEq).toHaveBeenCalledWith('user_email', 'user@example.com');
+    expect(mockDeleteIn).toHaveBeenCalledWith('local_id', [55, 56]);
+    expect(mockStorageRemoveItem).toHaveBeenCalledWith('pending_activity_deletes:1');
+  });
+
+  it('keeps the pending-delete queue when the remote delete fails, so the next sync retries it', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } }, error: null });
+    mockStorageGetItem.mockImplementation(async (key: string) =>
+      (key === 'pending_activity_deletes:1' ? JSON.stringify([55]) : null));
+    mockGetDb.mockResolvedValue({
+      getFirstAsync: jest.fn().mockResolvedValue({ id: 1 }),
+      getAllAsync: jest.fn(() => []),
+      runAsync: jest.fn(),
+    });
+    mockDeleteIn.mockResolvedValueOnce({ error: new Error('RLS denied') });
+
+    await expect(syncToSupabase('google-sub', 'user@example.com')).rejects.toThrow('RLS denied');
+
+    expect(mockStorageRemoveItem).not.toHaveBeenCalled();
   });
 });
 

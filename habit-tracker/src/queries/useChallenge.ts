@@ -13,6 +13,7 @@ import type { LifetimeTierRow } from '../game/lifetimeRank';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierCrossing } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
+import { enqueuePendingActivityDeletes } from '../game/pendingActivityDeletes';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { getWeekStart } from '../utils/formatters';
 import { scheduleChallengeReminder, cancelChallengeReminder } from '../utils/notifications';
@@ -185,7 +186,7 @@ export async function restoreReactivatedChallengeReminders(
 export async function reconcileUnloggedLinkedChallenges(
   db: ChallengeLogDb,
   params: { userId: number; taskTypeId: number; localDate: string },
-): Promise<{ lifetimeCrossings: LifetimeTierCrossing[]; reactivatedChallenges: ReactivatedLinkedChallenge[] }> {
+): Promise<{ lifetimeCrossings: LifetimeTierCrossing[]; reactivatedChallenges: ReactivatedLinkedChallenge[]; deletedActivityIds: number[] }> {
   const rows = await db.getAllAsync<ChallengeLogRow & { name: string; notifications_enabled: number; notification_id: string | null }>(
     `SELECT id, name, task_type_id, target_days, mode, weekly_target, total_weeks, start_date, min_duration, min_count, notifications_enabled, notification_id
      FROM challenges
@@ -195,6 +196,7 @@ export async function reconcileUnloggedLinkedChallenges(
   );
   const lifetimeCrossings: LifetimeTierCrossing[] = [];
   const reactivatedChallenges: ReactivatedLinkedChallenge[] = [];
+  const deletedActivityIds: number[] = [];
   let tiers: FullTierRow[] | null = null;
 
   for (const row of rows) {
@@ -245,6 +247,7 @@ export async function reconcileUnloggedLinkedChallenges(
         [rewardRow.stars_delta, rewardRow.stars_delta, params.userId],
       );
       await db.runAsync(`DELETE FROM activity_log WHERE id = ? AND user_id = ?`, [rewardRow.id, params.userId]);
+      deletedActivityIds.push(rewardRow.id);
     }
     await db.runAsync(
       `DELETE FROM achievements WHERE user_id = ? AND source_type = 'challenge' AND source_id = ?`,
@@ -268,7 +271,7 @@ export async function reconcileUnloggedLinkedChallenges(
       previousNotificationId: row.notification_id,
     });
   }
-  return { lifetimeCrossings, reactivatedChallenges };
+  return { lifetimeCrossings, reactivatedChallenges, deletedActivityIds };
 }
 
 function challengeAchievementKey(params: { mode: ChallengeMode; targetDays: number; weeklyTarget: number | null; totalWeeks: number | null }): string {
@@ -559,7 +562,8 @@ export async function deleteChallengeById(
   db: Pick<SQLiteDatabase, 'getFirstAsync' | 'runAsync'>,
   userId: number,
   challengeId: number,
-): Promise<string | null> {
+): Promise<{ notificationId: string | null; deletedActivityIds: number[] }> {
+  const deletedActivityIds: number[] = [];
   const challenge = await db.getFirstAsync<ChallengeDeleteRow>(
     `SELECT status, completed_at, notification_id FROM challenges WHERE id = ? AND user_id = ?`,
     [challengeId, userId],
@@ -605,6 +609,7 @@ export async function deleteChallengeById(
         [rewardRow.stars_delta, userId],
       );
       await db.runAsync(`DELETE FROM activity_log WHERE id = ? AND user_id = ?`, [rewardRow.id, userId]);
+      deletedActivityIds.push(rewardRow.id);
     }
   }
 
@@ -615,23 +620,26 @@ export async function deleteChallengeById(
   await db.runAsync(`DELETE FROM challenge_days WHERE challenge_id = ?`, [challengeId]);
   await db.runAsync(`DELETE FROM challenge_log WHERE challenge_id = ?`, [challengeId]);
   await db.runAsync(`DELETE FROM challenges WHERE id = ? AND user_id = ?`, [challengeId, userId]);
-  return challenge.notification_id ?? null;
+  return { notificationId: challenge.notification_id ?? null, deletedActivityIds };
 }
 
 export async function deleteChallengesById(
   db: Pick<SQLiteDatabase, 'withExclusiveTransactionAsync'>,
   userId: number,
   challengeIds: number[],
-): Promise<void> {
+): Promise<{ deletedActivityIds: number[] }> {
   const reminderIds: string[] = [];
+  const deletedActivityIds: number[] = [];
   await db.withExclusiveTransactionAsync(async txn => {
     for (const challengeId of challengeIds) {
-      const reminderId = await deleteChallengeById(txn, userId, challengeId);
-      if (reminderId) reminderIds.push(reminderId);
+      const result = await deleteChallengeById(txn, userId, challengeId);
+      if (result.notificationId) reminderIds.push(result.notificationId);
+      deletedActivityIds.push(...result.deletedActivityIds);
     }
   });
 
   await Promise.all(reminderIds.map(cancelChallengeReminder));
+  return { deletedActivityIds };
 }
 
 async function getActiveChallengeRows(db: SQLiteDatabase, userId: number): Promise<ChallengeRow[]> {
@@ -1093,7 +1101,8 @@ export function useDeleteChallenge(userId: number) {
       const ids = Array.isArray(challengeIds) ? challengeIds : [challengeIds];
       if (ids.length === 0) return;
       const db = await getDb();
-      await deleteChallengesById(db, userId, ids);
+      const { deletedActivityIds } = await deleteChallengesById(db, userId, ids);
+      await enqueuePendingActivityDeletes(userId, deletedActivityIds);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
