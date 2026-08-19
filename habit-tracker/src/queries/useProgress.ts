@@ -6,6 +6,7 @@ import { getLocalDate, getWeekStart, getLocalDateOffset, getMonthOffset, getYear
 import { AnalyticsDashboard, AnalyticsRange, AnalyticsDaily, AnalyticsLog, analyticsDemo, buildAnalyticsDashboard } from '../analytics/dashboardModel';
 import type { LifetimeTierCrossing } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
+import { enqueuePendingActivityDeletes } from '../game/pendingActivityDeletes';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { syncCurrentUserToSupabase } from '../api/syncService';
 
@@ -143,10 +144,11 @@ function groupDeleteRows(rows: DeleteRow[]): { byDate: Map<string, DateEntry>; g
 
 async function revertDailySummariesForDelete(
   db: SQLiteDatabase, userId: number, byDate: Map<string, DateEntry>,
-): Promise<number> {
+): Promise<{ bonusStarsRemoved: number; deletedActivityIds: number[] }> {
   let bonusStarsRemoved = 0;
+  const deletedActivityIds: number[] = [];
   const dates = [...byDate.keys()];
-  if (dates.length === 0) return bonusStarsRemoved;
+  if (dates.length === 0) return { bonusStarsRemoved, deletedActivityIds };
   // Batched into one query instead of one round-trip per date.
   const datePlaceholders = dates.map(() => '?').join(',');
   const dailyRows = await db.getAllAsync<{ local_date: string; total_points: number; bonus_star_awarded: number }>(
@@ -163,6 +165,11 @@ async function revertDailySummariesForDelete(
     entry.stars += removed;
     bonusStarsRemoved += removed;
     if (removed > 0 || entry.selectedBonus) {
+      const staleRows = await db.getAllAsync<{ id: number }>(
+        `SELECT id FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS'`,
+        [userId, date],
+      );
+      deletedActivityIds.push(...staleRows.map(row => row.id));
       await db.runAsync(`DELETE FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS'`, [userId, date]);
       if (remainingBonusStars > 0) await db.runAsync(
         `INSERT INTO activity_log (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
@@ -182,7 +189,7 @@ async function revertDailySummariesForDelete(
       );
     }
   }
-  return bonusStarsRemoved;
+  return { bonusStarsRemoved, deletedActivityIds };
 }
 
 async function revertWeeklySummariesForDelete(
@@ -215,6 +222,7 @@ export function useDeleteActivityLogs(userId: number) {
       const db = await getDb();
       const placeholders = ids.map(() => '?').join(',');
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
+      let deletedActivityIds: number[] = [];
 
       await db.withTransactionAsync(async () => {
         const rows = await db.getAllAsync<DeleteRow>(
@@ -225,7 +233,7 @@ export function useDeleteActivityLogs(userId: number) {
         if (rows.length === 0) return;
 
         const { byDate, goodStarsDelta, badPenaltyAmt } = groupDeleteRows(rows);
-        const bonusStarsRemoved = await revertDailySummariesForDelete(db, userId, byDate);
+        const { bonusStarsRemoved, deletedActivityIds: bonusRowIds } = await revertDailySummariesForDelete(db, userId, byDate);
         await revertWeeklySummariesForDelete(db, userId, byDate);
 
         if (goodStarsDelta + bonusStarsRemoved > 0) {
@@ -250,7 +258,9 @@ export function useDeleteActivityLogs(userId: number) {
           `DELETE FROM activity_log WHERE user_id = ? AND id IN (${placeholders})`,
           [userId, ...ids]
         );
+        deletedActivityIds = [...rows.map(row => row.id), ...bonusRowIds];
       });
+      await enqueuePendingActivityDeletes(userId, deletedActivityIds);
 
       return { lifetimeCrossings };
     },

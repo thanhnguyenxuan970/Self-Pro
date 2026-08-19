@@ -8,6 +8,7 @@ import { getStoredGoogleUser } from '../lib/googleUserStorage';
 import { NoSavedGoogleCredentialError } from './syncErrors';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierRow } from '../game/lifetimeRank';
+import { readPendingActivityDeletes, clearPendingActivityDeletes } from '../game/pendingActivityDeletes';
 
 const KEY_LAST_ACTIVITY = 'habit_sync_last_activity_id';
 const KEY_LAST_FUND = 'habit_sync_last_fund_id';
@@ -216,6 +217,31 @@ async function syncActivity(
   }
 }
 
+/**
+ * Delete this account's already-uploaded twins of local rows that were hard-
+ * deleted since the last sync (uncheck, backfill edit, challenge reward
+ * reversal, task archive). Must run before syncActivity/sync_lifetime_stars
+ * so a recheck's freshly-uploaded row is never summed alongside a stale
+ * orphan for the same logical activity instance.
+ */
+async function syncPendingActivityDeletes(
+  userId: number,
+  userEmail: string,
+  assertActive: AssertSyncActive,
+): Promise<void> {
+  const pendingIds = await readPendingActivityDeletes(userId);
+  if (!pendingIds.length) return;
+  assertActive();
+  const { error } = await supabase!
+    .from('activity_log')
+    .delete()
+    .eq('user_email', userEmail)
+    .in('local_id', pendingIds);
+  if (error) throw error;
+  assertActive();
+  await clearPendingActivityDeletes(userId, pendingIds);
+}
+
 async function syncFund(
   db: SQLiteDatabase,
   userId: number,
@@ -377,6 +403,7 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
     const db = await getDb();
     const userId = await resolveUserId(db, userSub, userEmail);
     if (userId == null) return;
+    await syncPendingActivityDeletes(userId, userEmail, assertActive);
     await Promise.all([
       syncActivity(db, userId, userEmail, assertActive),
       syncFund(db, userId, userEmail, assertActive),
