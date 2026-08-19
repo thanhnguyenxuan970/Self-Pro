@@ -270,6 +270,22 @@ describe('ensureSupabaseSession', () => {
 
     expect(mockSignInWithIdToken).toHaveBeenCalledWith({ provider: 'google', token: 'fresh-google-id-token' });
   });
+
+  it('accepts a freshly-refreshed token whose email only differs in case, same as an already-fresh session', async () => {
+    const expiredAt = Math.floor(Date.now() / 1000) - 10;
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { email: 'user@example.com' }, expires_at: expiredAt } },
+      error: null,
+    });
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: {} });
+    mockGetTokens.mockResolvedValue({ idToken: 'fresh-google-id-token' });
+    mockSignInWithIdToken.mockResolvedValue({
+      data: { user: { email: 'User@Example.com' } },
+      error: null,
+    });
+
+    await expect(ensureSupabaseSession('user@example.com')).resolves.toBeUndefined();
+  });
 });
 
 describe('syncToSupabase', () => {
@@ -434,8 +450,31 @@ describe('restoreLifetimeStarsFromSupabase', () => {
 
     await restoreLifetimeStarsFromSupabase(1, 'user@example.com');
 
-    expect(db.withTransactionAsync).not.toHaveBeenCalled();
+    // The local-vs-remote check now runs inside the transaction (reading the
+    // local total there too, not just before it) so a concurrent write can't
+    // be silently overshot -- so withTransactionAsync itself is still called,
+    // but it must never reach an actual write.
     expect(db.runAsync).not.toHaveBeenCalled();
+  });
+
+  it('re-reads the local total inside the transaction, so a concurrent local write applied between the outer RPC read and the transaction is never overshot', async () => {
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'sync_lifetime_stars' ? { data: 39, error: null } : { data: null, error: null });
+    // Simulate a concurrent local write: by the time the transaction opens
+    // and re-reads, local has already caught up past the remote total.
+    const runAsync = jest.fn();
+    const db = {
+      getFirstAsync: jest.fn(async () => ({ lifetime_stars: 50, current_tier_id: 4 })),
+      getAllAsync: jest.fn(async () => tiers),
+      runAsync,
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await restoreLifetimeStarsFromSupabase(1, 'user@example.com');
+
+    expect(db.withTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(runAsync).not.toHaveBeenCalled();
   });
 
   it('is best-effort: swallows a failure instead of throwing, and reports it', async () => {

@@ -309,7 +309,13 @@ async function refreshSupabaseSession(userEmail: string): Promise<void> {
   if (!idToken) throw new Error('Google did not provide an ID token for Supabase sync');
   const { data, error } = await supabase!.auth.signInWithIdToken({ provider: 'google', token: idToken });
   if (error) throw error;
-  if (data.user?.email !== userEmail) throw new Error('Google token does not match the signed-in user');
+  // Same case-insensitive comparison as ensureSupabaseSession below — this is
+  // the other half of the same check (post-refresh instead of pre-existing
+  // session), and a strict `!==` here would silently block every sync for any
+  // account whose Google token email ever came back with different casing.
+  if (data.user?.email?.trim().toLowerCase() !== userEmail.trim().toLowerCase()) {
+    throw new Error('Google token does not match the signed-in user');
+  }
 }
 
 function refreshSupabaseSessionOnce(userEmail: string): Promise<void> {
@@ -415,22 +421,27 @@ export async function restoreLifetimeStarsFromSupabase(userId: number, userEmail
       const remoteStars = Number(data);
       if (!Number.isFinite(remoteStars) || remoteStars <= 0) return;
 
-      const db = await getDb();
-      const local = await db.getFirstAsync<{ lifetime_stars: number }>(
-        'SELECT lifetime_stars FROM users WHERE id = ?',
-        [userId],
-      );
-      const localStars = local?.lifetime_stars ?? 0;
-      if (remoteStars <= localStars) return;
-
       assertActive();
+      const db = await getDb();
       const tiers = await db.getAllAsync<LifetimeTierRow>(
         'SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY tier_order',
       );
       await db.withTransactionAsync(async () => {
+        // Read the local total inside the same transaction that decides
+        // whether to write it. Reading it outside, then writing based on that
+        // stale reading once inside the transaction, left a window where a
+        // concurrent local write landing in between would get silently
+        // overshot -- the write would add (remoteStars - staleLocalStars) on
+        // top of the row's now-newer value instead of on top of what it read.
         // Crossings are discarded on purpose -- this silently restores prior
         // progress and must never replay the level-up celebration for a tier
         // the account actually earned before this local install existed.
+        const local = await db.getFirstAsync<{ lifetime_stars: number }>(
+          'SELECT lifetime_stars FROM users WHERE id = ?',
+          [userId],
+        );
+        const localStars = local?.lifetime_stars ?? 0;
+        if (remoteStars <= localStars) return;
         await applyLifetimeStarsDelta(db, userId, remoteStars - localStars, tiers);
       });
     });

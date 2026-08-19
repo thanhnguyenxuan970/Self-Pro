@@ -42,7 +42,10 @@ export const FriendRow = React.memo(function FriendRow({ row, isLast, playerLabe
   const a11yLabel = [
     `#${row.friendRank}`,
     `${row.displayName}${row.isCurrentUser ? ` (${copy.youChip})` : ''}`,
-    copy.lifetimeLine(row.lifetimeStars),
+    // Rounded, matching `starsLabel` above -- Supabase's `lifetime_stars` is
+    // a `real` column and can be fractional, and this a11y string is the
+    // only other place that number reaches the user.
+    copy.lifetimeLine(Math.round(row.lifetimeStars)),
     row.effectiveStreak > 0 ? copy.streakLine(row.effectiveStreak) : null,
   ].filter(Boolean).join(', ');
 
