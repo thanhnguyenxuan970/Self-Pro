@@ -245,6 +245,24 @@ export function useAuth() {
       throw e;
     }
 
+    // Establish Supabase Auth session so RLS policies can verify identity, and
+    // -- before any screen renders for this user -- best-effort restore the
+    // highest lifetime-star total Supabase already knows for this account.
+    // Must run before the state setters below: a fresh local install (reinstall,
+    // new device, cleared app data) otherwise renders Home/Rank with a bare
+    // local total and nothing ever tells those screens to re-fetch once the
+    // restore lands, so the user would see stale progress rather than none.
+    if (idToken) {
+      try {
+        const { supabase } = await import('../api/supabase');
+        if (supabase) {
+          await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
+          const { restoreLifetimeStarsFromSupabase } = await import('../api/syncService');
+          await restoreLifetimeStarsFromSupabase(result.id, user.email);
+        }
+      } catch (e) { if (__DEV__) console.warn('[auth] Supabase signInWithIdToken failed:', e); }
+    }
+
     await writeGoogleUser(JSON.stringify(user));
     await AsyncStorage.setItem('habit_tracker_display_name', user.name);
     await (result.isNew ? AsyncStorage.removeItem(ONBOARDED_KEY) : AsyncStorage.setItem(ONBOARDED_KEY, 'true'));
@@ -252,15 +270,6 @@ export function useAuth() {
     setGoogleUser(user);
     setIsOnboarded(!result.isNew);
 
-    // Establish Supabase Auth session so RLS policies can verify identity.
-    if (idToken) {
-      try {
-        const { supabase } = await import('../api/supabase');
-        if (supabase) {
-          await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
-        }
-      } catch (e) { if (__DEV__) console.warn('[auth] Supabase signInWithIdToken failed:', e); }
-    }
     return result.isNew;
   }, []);
 

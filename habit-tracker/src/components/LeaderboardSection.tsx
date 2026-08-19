@@ -83,7 +83,7 @@ const LeaderboardRow = React.memo(function LeaderboardRow({
           </Text>
         )}
       </View>
-      <Text style={styles.lbStars} numberOfLines={1}>{entry.lifetimeStars} ★</Text>
+      <Text style={styles.lbStars} numberOfLines={1}>{Math.round(entry.lifetimeStars)} ★</Text>
     </TouchableOpacity>
   );
 });
@@ -118,7 +118,7 @@ export const LeaderboardSection = React.memo(function LeaderboardSection({
               {currentUserEntry.displayName} ({youLabel})
             </Text>
           </View>
-          <Text style={styles.lbStars} numberOfLines={1}>{currentUserEntry.lifetimeStars} ★</Text>
+          <Text style={styles.lbStars} numberOfLines={1}>{Math.round(currentUserEntry.lifetimeStars)} ★</Text>
         </View>
         <Text style={styles.lbEmptyTxt}>{emptyNote}</Text>
       </>
@@ -176,7 +176,7 @@ export const LeaderboardSection = React.memo(function LeaderboardSection({
               {currentUserRow.displayName} ({youLabel})
             </Text>
           </View>
-          <Text style={styles.lbStars} numberOfLines={1}>{currentUserRow.lifetimeStars} ★</Text>
+          <Text style={styles.lbStars} numberOfLines={1}>{Math.round(currentUserRow.lifetimeStars)} ★</Text>
         </View>
       )}
     </>

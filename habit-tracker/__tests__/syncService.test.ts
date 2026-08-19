@@ -29,10 +29,12 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 jest.mock('../src/db/client', () => ({ getDb: mockGetDb }));
 
+import * as Sentry from '@sentry/react-native';
 import {
   ensureSupabaseSession,
   pauseAccountSync,
   readSocialProfile,
+  restoreLifetimeStarsFromSupabase,
   runAccountSync,
   syncToSupabase,
   syncUserStreak,
@@ -375,5 +377,71 @@ describe('syncToSupabase', () => {
     expect(uploadedActivityIds).toEqual([[1, 2], [1, 2]]);
     expect(mockRpc).toHaveBeenCalledTimes(3);
     expect(mockRpc).toHaveBeenLastCalledWith('sync_lifetime_stars');
+  });
+});
+
+describe('restoreLifetimeStarsFromSupabase', () => {
+  const tiers = [
+    { id: 1, tier_order: 1, rank_name: 'Delulu', stars_required: 5 },
+    { id: 2, tier_order: 2, rank_name: 'Mewing', stars_required: 10 },
+    { id: 3, tier_order: 3, rank_name: 'Rizz', stars_required: 20 },
+    { id: 4, tier_order: 4, rank_name: 'Gigachad', stars_required: 40 },
+  ];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } }, error: null });
+  });
+
+  it('pulls a higher server total down into local SQLite and advances the tier to match', async () => {
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'sync_lifetime_stars' ? { data: 39, error: null } : { data: null, error: null });
+    const userRow: { lifetime_stars: number; current_tier_id: number | null } = { lifetime_stars: 8, current_tier_id: 1 };
+    const runAsync = jest.fn(async (sql: string, params: unknown[]) => {
+      if (sql.includes('UPDATE users SET lifetime_stars')) {
+        userRow.lifetime_stars = params[0] as number;
+        userRow.current_tier_id = params[1] as number | null;
+      }
+      return { changes: 1 };
+    });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => (sql.includes('FROM users') ? { ...userRow } : null)),
+      getAllAsync: jest.fn(async (sql: string) => (sql.includes('FROM tiers') ? tiers : [])),
+      runAsync,
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await restoreLifetimeStarsFromSupabase(1, 'user@example.com');
+
+    // 39 stars clears Delulu/Mewing/Rizz (5/10/20) but not Gigachad (40).
+    expect(runAsync).toHaveBeenCalledWith(
+      'UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?',
+      [39, 3, 1],
+    );
+  });
+
+  it('never lowers or rewrites local data when the server total is not ahead of local', async () => {
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'sync_lifetime_stars' ? { data: 8, error: null } : { data: null, error: null });
+    const db = {
+      getFirstAsync: jest.fn(async () => ({ lifetime_stars: 39, current_tier_id: 4 })),
+      getAllAsync: jest.fn(async () => tiers),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await restoreLifetimeStarsFromSupabase(1, 'user@example.com');
+
+    expect(db.withTransactionAsync).not.toHaveBeenCalled();
+    expect(db.runAsync).not.toHaveBeenCalled();
+  });
+
+  it('is best-effort: swallows a failure instead of throwing, and reports it', async () => {
+    mockGetSession.mockRejectedValue(new Error('offline'));
+
+    await expect(restoreLifetimeStarsFromSupabase(1, 'user@example.com')).resolves.toBeUndefined();
+    expect(Sentry.captureException).toHaveBeenCalledWith(expect.any(Error));
   });
 });
