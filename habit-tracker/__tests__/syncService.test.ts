@@ -241,6 +241,16 @@ describe('ensureSupabaseSession', () => {
     expect(mockGetTokens).not.toHaveBeenCalled();
   });
 
+  it('accepts a session email that only differs in case or surrounding whitespace', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { email: 'User@Example.com  ' } } },
+      error: null,
+    });
+
+    await expect(ensureSupabaseSession(' user@example.com')).resolves.toBeUndefined();
+    expect(mockGetTokens).not.toHaveBeenCalled();
+  });
+
   it('re-authenticates instead of trusting an expired cached session', async () => {
     const expiredAt = Math.floor(Date.now() / 1000) - 10;
     mockGetSession.mockResolvedValue({
