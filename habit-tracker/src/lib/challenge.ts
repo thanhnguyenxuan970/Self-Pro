@@ -57,7 +57,7 @@ export type DayCell = { label: number; state: DayCellState };
 
 export const GRID_CELL_COUNT = 30;
 
-export function formatDateAtOffset(startDate: string, offset: number): string {
+function formatDateAtOffset(startDate: string, offset: number): string {
   const date = new Date(`${startDate}T12:00:00`);
   date.setDate(date.getDate() + offset);
   const year = date.getFullYear();

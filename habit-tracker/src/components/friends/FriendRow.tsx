@@ -7,7 +7,7 @@ import { formatStarCount } from '../../lib/friends';
 import { InitialsAvatar } from './InitialsAvatar';
 import { OverflowMenu } from './OverflowMenu';
 
-export type FriendRowCopy = {
+type FriendRowCopy = {
   youChip: string;
   removeMenuItem: string;
   blockMenuItemShort: string;

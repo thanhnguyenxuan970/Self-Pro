@@ -20,3 +20,6 @@ repomix-output.xml
 /node_modules/
 /package.json
 /package-lock.json
+
+# JetBrains IDE workspace state (machine-local)
+.idea/

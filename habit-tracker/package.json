@@ -1,6 +1,6 @@
 {
   "name": "habit-tracker",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "main": "index.ts",
   "dependencies": {
     "@expo-google-fonts/be-vietnam-pro": "^0.4.1",
@@ -8,6 +8,7 @@
     "@react-native-community/datetimepicker": "9.1.0",
     "@react-native-google-signin/google-signin": "^16.1.2",
     "@react-navigation/bottom-tabs": "^7.16.2",
+    "@react-navigation/elements": "^2.9.38",
     "@react-navigation/native": "^7.2.5",
     "@react-navigation/native-stack": "^7.16.0",
     "@sentry/react-native": "~7.11.0",

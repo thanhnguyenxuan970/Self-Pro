@@ -19,7 +19,7 @@ import { scheduleChallengeReminder, cancelChallengeReminder } from '../utils/not
 import { syncCurrentUserToSupabase } from '../api/syncService';
 import { useLanguage } from '../hooks/useSettings';
 
-interface ActiveChallenge {
+export interface ActiveChallenge {
   id: number;
   name: string;
   taskTypeId: number | null;
@@ -651,18 +651,6 @@ export function useActiveChallenges(userId: number) {
       const today = challengeDate();
       const rows = await getActiveChallengeRows(db, userId);
       return Promise.all(rows.map(row => loadChallengeWithLog(db, row, today, userId)));
-    },
-  });
-}
-
-/** Compatibility query for callers that only need the first active challenge. */
-export function useActiveChallenge(userId: number) {
-  return useQuery({
-    queryKey: ['challenge', 'active', 'first', userId],
-    queryFn: async (): Promise<ActiveChallenge | null> => {
-      const db = await getDb();
-      const row = (await getActiveChallengeRows(db, userId))[0];
-      return row ? loadChallengeWithLog(db, row, challengeDate(), userId) : null;
     },
   });
 }

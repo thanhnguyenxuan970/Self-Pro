@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet, useWindowDimensions } from 'react-native';
 import { AppColors, FontFamily, Radii, Shadows } from '../../config/theme';
 
-export type OverflowMenuItem = {
+type OverflowMenuItem = {
   label: string;
   onPress: () => void;
   danger?: boolean;

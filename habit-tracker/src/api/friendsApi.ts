@@ -19,7 +19,6 @@ export type RemoteBlockedAccountRow = {
  * empty list and never conflated with a plain connectivity retry state.
  */
 export class FriendsUnavailableError extends Error {
-  readonly kind = 'UNAVAILABLE' as const;
   constructor(cause?: unknown) {
     super('Friends backend unavailable');
     this.name = 'FriendsUnavailableError';

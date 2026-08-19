@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SQLiteDatabase } from 'expo-sqlite';
+import * as Sentry from '@sentry/react-native';
 import { supabase } from './supabase';
 import { getDb } from '../db/client';
 import { selectClockSuspectLocalIds } from '../lib/clockSuspect';
@@ -339,7 +340,15 @@ export async function ensureSupabaseSession(userEmail: string): Promise<void> {
   const sessionIsFresh = session != null
     && (session.expires_at == null || session.expires_at > Math.floor(Date.now() / 1000) + SESSION_EXPIRY_SKEW_SECONDS);
   if (sessionIsFresh) {
-    if (session!.user.email !== userEmail) throw new Error('Supabase session does not match the signed-in user');
+    // Compare case-insensitively: Gmail/Google treat email case as
+    // insignificant, but GoTrue's stored session email and the locally
+    // cached Google user email are not guaranteed byte-identical across
+    // re-logins. A strict `!==` here silently blocked every sync for any
+    // account that ever picked up a casing difference, with no error
+    // surfaced anywhere the failure could be diagnosed from.
+    if (session!.user.email?.trim().toLowerCase() !== userEmail.trim().toLowerCase()) {
+      throw new Error('Supabase session does not match the signed-in user');
+    }
     return;
   }
 
@@ -383,7 +392,18 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
 /** Sync all pending rows for the currently stored Google account. */
 export async function syncCurrentUserToSupabase(): Promise<void> {
   const user = await getStoredGoogleUser();
-  if (user) await syncToSupabase(user.sub, user.email);
+  if (!user) return;
+  try {
+    await syncToSupabase(user.sub, user.email);
+  } catch (error) {
+    // Every call site fires this without awaiting and only console.warns in
+    // __DEV__, so a broken sync (this account's lifetime_stars silently
+    // freezing while local kept climbing) had no signal anywhere in
+    // production -- discoverable only by manually inspecting the live DB.
+    // Report it centrally so future occurrences show up without that.
+    Sentry.captureException(error);
+    throw error;
+  }
 }
 
 /** Reset all sync cursors (call on sign-out so next sign-in re-syncs from scratch). */
