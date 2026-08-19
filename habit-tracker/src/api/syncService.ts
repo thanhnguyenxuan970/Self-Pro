@@ -6,6 +6,8 @@ import { getDb } from '../db/client';
 import { selectClockSuspectLocalIds } from '../lib/clockSuspect';
 import { getStoredGoogleUser } from '../lib/googleUserStorage';
 import { NoSavedGoogleCredentialError } from './syncErrors';
+import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
+import type { LifetimeTierRow } from '../game/lifetimeRank';
 
 const KEY_LAST_ACTIVITY = 'habit_sync_last_activity_id';
 const KEY_LAST_FUND = 'habit_sync_last_fund_id';
@@ -387,6 +389,54 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
       await syncLifetimeStars(assertActive);
     }
   });
+}
+
+/**
+ * Pull this account's highest known lifetime-star total down from Supabase
+ * into local SQLite, advancing `current_tier_id` to match. Normal sync only
+ * ever pushes local -> server (see `syncLifetimeStars` above), so a fresh
+ * local install -- reinstall, new device, cleared app data -- has no way on
+ * its own to recover rank progress the server already remembers for this
+ * account; `public.users.lifetime_stars` is a permanent high-water mark that
+ * survives exactly that scenario. Only ever raises the local total, mirroring
+ * `sync_lifetime_stars()`'s own GREATEST semantics in the opposite direction
+ * -- never overwrites a local total that is already ahead of the server.
+ * Best-effort: swallows and reports every failure rather than blocking sign-in.
+ */
+export async function restoreLifetimeStarsFromSupabase(userId: number, userEmail: string): Promise<void> {
+  if (!supabase) return;
+  try {
+    await runAccountSync(userEmail, async (assertActive) => {
+      assertActive();
+      await ensureSupabaseSession(userEmail);
+      assertActive();
+      const { data, error } = await supabase!.rpc('sync_lifetime_stars');
+      if (error) throw error;
+      const remoteStars = Number(data);
+      if (!Number.isFinite(remoteStars) || remoteStars <= 0) return;
+
+      const db = await getDb();
+      const local = await db.getFirstAsync<{ lifetime_stars: number }>(
+        'SELECT lifetime_stars FROM users WHERE id = ?',
+        [userId],
+      );
+      const localStars = local?.lifetime_stars ?? 0;
+      if (remoteStars <= localStars) return;
+
+      assertActive();
+      const tiers = await db.getAllAsync<LifetimeTierRow>(
+        'SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY tier_order',
+      );
+      await db.withTransactionAsync(async () => {
+        // Crossings are discarded on purpose -- this silently restores prior
+        // progress and must never replay the level-up celebration for a tier
+        // the account actually earned before this local install existed.
+        await applyLifetimeStarsDelta(db, userId, remoteStars - localStars, tiers);
+      });
+    });
+  } catch (error) {
+    Sentry.captureException(error);
+  }
 }
 
 /** Sync all pending rows for the currently stored Google account. */
