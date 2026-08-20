@@ -18,11 +18,12 @@ import { getDb } from './src/db/client';
 import { useAuth, resolveUserRow, UserIdContext, GoogleUserContext } from './src/hooks/useAuth';
 import { syncToSupabase } from './src/api/syncService';
 import { SettingsProvider } from './src/contexts/SettingsContext';
-import { useTheme } from './src/hooks/useSettings';
+import { useTheme, useLanguage } from './src/hooks/useSettings';
 import { FontFamily } from './src/config/theme';
 import { createToastConfig } from './src/config/toastConfig';
 import { TutorialProvider } from './src/hooks/useTutorial';
 import { rolloverChallenge } from './src/queries/useChallenge';
+import { scheduleAllHabitReminders } from './src/utils/notifications';
 
 // Crash reporting: hard no-op until EXPO_PUBLIC_SENTRY_DSN is supplied (no
 // Sentry account/project exists yet -- see TODOS.md). Guarded in try/catch
@@ -79,6 +80,7 @@ function AppInner() {
   const [dbError, setDbError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const { colors } = useTheme();
+  const [lang] = useLanguage();
   const toastConfig = useMemo(() => createToastConfig(colors), [colors]);
   const retryInit = useCallback(() => {
     setDbError(null);
@@ -146,6 +148,31 @@ function AppInner() {
       appStateSubscription.remove();
     };
   }, [dbReady, userId]);
+
+  // Android clears AlarmManager-backed local notifications on events the app
+  // never hears about (force-stop, OS "unused apps" auto-restriction, an
+  // update/reinstall) -- scheduleAllHabitReminders is otherwise only called
+  // from Settings, so a wiped schedule stayed wiped forever with the saved
+  // time still showing in Settings. Re-arm from the DB on cold start and
+  // every foreground so the OS schedule can't silently drift from it.
+  useEffect(() => {
+    if (!dbReady) return;
+    const run = () => getDb()
+      .then(db => db.getFirstAsync<{ notification_time: string | null; notification_time_2: string | null; notification_time_3: string | null }>(
+        'SELECT notification_time, notification_time_2, notification_time_3 FROM users WHERE id = ?',
+        [userId],
+      ))
+      .then(row => scheduleAllHabitReminders(
+        [row?.notification_time ?? null, row?.notification_time_2 ?? null, row?.notification_time_3 ?? null],
+        lang,
+      ))
+      .catch(error => console.warn('[notifications] reminder rehydration failed:', error));
+    run();
+    const appStateSubscription = AppState.addEventListener('change', state => {
+      if (state === 'active') run();
+    });
+    return () => appStateSubscription.remove();
+  }, [dbReady, userId, lang]);
 
   if (dbError) {
     return (
