@@ -10,7 +10,7 @@ jest.mock('../src/api/syncService', () => ({
   ensureSupabaseSession: jest.fn(),
 }));
 
-import { aggregateLifetimeStarsByPlayerId, buildRankedLeaderboard, capLeaderboardRows, hasRankGapBefore, mapRemoteLeaderboardRows, useLeaderboard } from '../src/queries/useLeaderboard';
+import { aggregateLifetimeStarsByPlayerId, buildRankedLeaderboard, capLeaderboardRows, hasRankGapBefore, initialsForName, mapRemoteLeaderboardRows, useLeaderboard } from '../src/queries/useLeaderboard';
 
 const mockSupabase = jest.requireMock('../src/api/supabase') as { supabase: { rpc: jest.Mock } };
 const mockSyncService = jest.requireMock('../src/api/syncService') as { ensureSupabaseSession: jest.Mock };
@@ -109,6 +109,22 @@ test('establishes the authenticated Supabase session before loading global rows'
 
   expect(mockSyncService.ensureSupabaseSession).toHaveBeenCalledWith('me@example.com');
   expect(mockSupabase.supabase.rpc).toHaveBeenCalledWith('get_global_leaderboard_v2', { p_limit: 50 });
+});
+
+test('records this visit as a rank snapshot, best-effort, without blocking or failing the load', async () => {
+  mockSyncService.ensureSupabaseSession.mockResolvedValue(undefined);
+  mockSupabase.supabase.rpc.mockImplementation((fn: string) =>
+    fn === 'record_leaderboard_snapshot'
+      ? Promise.reject(new Error('snapshot write failed'))
+      : Promise.resolve({ data: [], error: null }),
+  );
+
+  const query = useLeaderboard('me@example.com', 'Thanh', 'Player') as unknown as {
+    queryFn: () => Promise<unknown>;
+  };
+  await expect(query.queryFn()).resolves.toEqual([]);
+
+  expect(mockSupabase.supabase.rpc).toHaveBeenCalledWith('record_leaderboard_snapshot');
 });
 
 test('does not call the RPC when session restoration fails', async () => {
@@ -236,4 +252,39 @@ test('the render cap drops distant out-of-contract rows', () => {
   expect(capped.some(entry => entry.playerId === 'me')).toBe(true);
   expect(capped.some(entry => entry.playerId === 'far-below')).toBe(false);
   expect(capped).toHaveLength(52);
+});
+
+test('initialsForName takes the first letter of the first two words, stripping the jersey-number suffix', () => {
+  expect(initialsForName('Tireless Camel #98')).toBe('TC');
+  expect(initialsForName('Unyielding Wolf #87')).toBe('UW');
+  expect(initialsForName('james bonds')).toBe('JB');
+});
+
+test('initialsForName falls back to a single initial for a one-word name', () => {
+  expect(initialsForName('Cher')).toBe('C');
+});
+
+test('maps rank_delta_7d through as a signed integer, and null stays null rather than becoming a fabricated 0', () => {
+  const result = mapRemoteLeaderboardRows([
+    { player_id: 'climbed', lifetime_stars: 10, rank: 1, is_current_user: false, rank_delta_7d: 12 },
+    { player_id: 'dropped', lifetime_stars: 10, rank: 2, is_current_user: false, rank_delta_7d: -4 },
+    { player_id: 'flat', lifetime_stars: 10, rank: 3, is_current_user: false, rank_delta_7d: 0 },
+    { player_id: 'no-history', lifetime_stars: 10, rank: 4, is_current_user: false, rank_delta_7d: null },
+    { player_id: 'legacy-server', lifetime_stars: 10, rank: 5, is_current_user: false },
+  ], 'Thanh', 'Player');
+
+  expect(result.map(e => e.rankDelta7d)).toEqual([12, -4, 0, null, null]);
+});
+
+test('the local (offline) leaderboard path always reports no 7-day history', () => {
+  const result = buildRankedLeaderboard(new Map([['player-a', 5]]), null);
+  expect(result[0].rankDelta7d).toBeNull();
+});
+
+test('initialsForName falls back to "?" for a name with no letters', () => {
+  // Punctuation-only and whitespace-only names must never surface a stray
+  // symbol in the avatar circle -- regression for a name like "!!!" or "   ".
+  expect(initialsForName('!!!')).toBe('?');
+  expect(initialsForName('   ')).toBe('?');
+  expect(initialsForName('#98')).toBe('?');
 });

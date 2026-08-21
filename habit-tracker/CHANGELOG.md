@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Unified Analytics Week, Month, and Year bar rendering while preserving dense-range horizontal scrolling and accessibility context.
+- Fixed completed/selected task rows escaping the rounded Today card; removed the full-row shrink animation and respect reduced-motion settings.
+- Lifetime rank totals now render as whole stars, and normal account sync pulls higher Supabase high-water totals into local SQLite so Rank and the authenticated leaderboard stay aligned.
+- Validation status: source, automated, and live Android verification pass; release-artifact verification remains the final ship gate.
+
 ## 2.0.2 - 2026-08-18
 
 - Rank sync now drains every pending activity batch and self-reconciles the signed-in account when the protected server total falls behind its local lifetime total; leaderboard rows remain server-derived rather than being overridden in the UI.

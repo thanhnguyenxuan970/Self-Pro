@@ -21,32 +21,31 @@ function fmtDuration(mins: number): string {
 function useTaskRowAnimation(justLogged: boolean, done: boolean) {
   const reduceMotion = useReduceMotion();
   const fadeAnim = useRef(new Animated.Value(1)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
   const checkScaleAnim = useRef(new Animated.Value(1)).current;
   const prevLogged = useRef(false);
   const prevDone = useRef<boolean | null>(null);
 
   useEffect(() => {
     if (justLogged && !prevLogged.current) {
-      const anim = Animated.parallel([
-        Animated.spring(scaleAnim, { toValue: 0.85, tension: 200, friction: 10, useNativeDriver: true }),
-        Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-      ]);
+      if (reduceMotion) {
+        fadeAnim.setValue(1);
+        prevLogged.current = justLogged;
+        return;
+      }
+      const anim = Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true });
       anim.start(({ finished }) => {
         if (finished) {
           fadeAnim.setValue(1);
-          scaleAnim.setValue(1);
         }
       });
       prevLogged.current = justLogged;
       return () => {
         anim.stop();
         fadeAnim.setValue(1);
-        scaleAnim.setValue(1);
       };
     }
     prevLogged.current = justLogged;
-  }, [justLogged]);
+  }, [justLogged, reduceMotion]);
 
   useEffect(() => {
     if (prevDone.current === null) {
@@ -62,7 +61,7 @@ function useTaskRowAnimation(justLogged: boolean, done: boolean) {
     prevDone.current = done;
   }, [done, reduceMotion]);
 
-  return { fadeAnim, scaleAnim, checkScaleAnim };
+  return { fadeAnim, checkScaleAnim };
 }
 
 type Styles = ReturnType<typeof makeTaskRowStyles>;
@@ -114,12 +113,12 @@ type Props = {
 function TaskRowComponent({ item, done, isBad, isLast, isSelected, selectionMode, justLogged, totalDurationMin, starsEarned, pointsEarned, boostMultiplier = 1, boostedMultiplier = 1, onPress, onLongPress, onEdit, logPending, colors }: Props) {
   const t = useTranslations();
   const styles = useMemo(() => makeTaskRowStyles(colors), [colors]);
-  const { fadeAnim, scaleAnim, checkScaleAnim } = useTaskRowAnimation(justLogged, done);
+  const { fadeAnim, checkScaleAnim } = useTaskRowAnimation(justLogged, done);
   const rowMultiplier = done ? boostedMultiplier : boostMultiplier;
   const isBoostPreview = !isBad && boostMultiplier > 1;
 
   return (
-    <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
+    <Animated.View style={{ opacity: fadeAnim }}>
       {/* The edit button must sit outside the checkbox Pressable's subtree: an
           accessible/role-bearing parent collapses all descendants into one
           TalkBack/VoiceOver node, which made the nested edit TouchableOpacity

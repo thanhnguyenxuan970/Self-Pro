@@ -1,13 +1,13 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, AccessibilityInfo, findNodeHandle } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, AccessibilityInfo, findNodeHandle, Animated, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import type { Strings } from '../config/i18n';
 import { useRankData } from '../queries/useRank';
-import { useLeaderboard } from '../queries/useLeaderboard';
+import { useLeaderboard, initialsForName } from '../queries/useLeaderboard';
 import { useScreenCommons } from '../hooks/useScreenCommons';
-import { useLanguage } from '../hooks/useSettings';
+import { useLanguage, useTheme } from '../hooks/useSettings';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { RankMascot, type RankMascotHandle } from '../components/RankMascot';
 import { LevelUpCelebrationModal } from '../components/LevelUpCelebrationModal';
@@ -16,7 +16,9 @@ import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { RankInfoSheet } from '../components/RankInfoSheet';
 import { RankEmptyState } from '../components/RankEmptyState';
 import { SkeletonRow } from '../components/SkeletonRow';
-import { LeaderboardSection } from '../components/LeaderboardSection';
+import { RankBoardTop15 } from '../components/RankBoardTop15';
+import { useLeaderboardPromotion } from '../hooks/useLeaderboardPromotion';
+import { boardRowsWithCurrentUserFallback } from '../lib/leaderboardPromotion';
 import { FriendsSection } from '../components/friends/FriendsSection';
 import { AddFriendSheet, type AddFriendSheetCopy } from '../components/friends/AddFriendSheet';
 import { useFriendCode, useFriendDashboard, useFriendPendingCount, useRequestFriendByCode, useRotateFriendCode } from '../queries/useFriends';
@@ -45,10 +47,24 @@ function friendResultMessage(result: FriendActionResult, t: Strings): string | n
 // fallow-ignore-next-line complexity
 export function RankScreen() {
   const { userId, googleUser, colors, t, styles } = useScreenCommons(makeStyles);
+  const { isDark } = useTheme();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const mascotRef = useRef<RankMascotHandle>(null);
   const { data, isLoading } = useRankData(userId);
   const [lang] = useLanguage();
   const reduceMotion = useReduceMotion();
+
+  // Sticky "jump to your row" bar: lives outside the global tab's ScrollView
+  // so it can float above it, and tracks visibility via real page-coordinate
+  // measurement (mirrors the source design's getBoundingClientRect diff)
+  // rather than trying to derive it from scroll offsets and row heights.
+  const scrollRef = useRef<ScrollView>(null);
+  const viewportRef = useRef<View>(null);
+  const youRowRef = useRef<View>(null);
+  const scrollYRef = useRef(0);
+  const stickyRaf = useRef<number | null>(null);
+  const [stickyVisible, setStickyVisible] = useState(false);
+  const stickyAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     rankMascotBridge.ref = mascotRef;
@@ -74,6 +90,7 @@ export function RankScreen() {
     isLoading: lbLoading,
     isError: lbError,
     isUnavailable: lbUnavailable,
+    refetch: refetchLeaderboard,
   } = useLeaderboard(
     currentUserEmail,
     googleUser?.name ?? null,
@@ -91,19 +108,117 @@ export function RankScreen() {
     isCurrentUser: true,
     starsToNextRank: null,
     currentStreak: 0,
+    rankDelta7d: null,
   }), [googleUser?.sub, googleUser?.name, data?.currentStars, t.leaderboardYou]);
 
-  const leaderboardCopy = useMemo(() => ({
-    youLabel: t.leaderboardYou,
-    nearYouLabel: t.leaderboardNearYou,
-    gapToNext: t.leaderboardGapToNext,
-    gapLevelLabel: t.leaderboardGapLevel,
-    topOfLadderLabel: t.leaderboardTopOfLadder,
-    lifetimeStars: t.leaderboardLifetimeStars,
-    expandLabel: t.leaderboardExpandRow,
-    collapseLabel: t.leaderboardCollapseRow,
-    streakDays: t.leaderboardStreakDays,
-  }), [t]);
+  // Board is capped to the true top 15 by rank; a caller outside that block
+  // is never spliced in as a fabricated 16th row (see RankBoardTop15) — the
+  // sticky bar instead shows their real standing at all times.
+  const top15 = useMemo(() => leaderboard.slice(0, 15), [leaderboard]);
+  const myLeaderboardEntry: LBEntry = useMemo(
+    () => leaderboard.find(entry => entry.isCurrentUser) ?? currentUserEntry,
+    [leaderboard, currentUserEntry],
+  );
+  // Zero-star readers never see a competitive board, they see a CTA to log
+  // their first activity — independent of whether other players are ranked.
+  const isZero = myLeaderboardEntry.lifetimeStars <= 0;
+  const boardRows = useMemo(
+    () => boardRowsWithCurrentUserFallback(top15, currentUserEntry, isZero),
+    [top15, currentUserEntry, isZero],
+  );
+  const localOnlyFallback = !isLoading && !lbLoading && !lbError && !lbUnavailable
+    && !isZero && top15.length === 0 && boardRows.length > 0;
+  const youInTop15 = useMemo(() => boardRows.some(entry => entry.isCurrentUser), [boardRows]);
+  const stickyEligible = segment === 'global'
+    && !isLoading && !!data
+    && !lbLoading && !lbError && !lbUnavailable
+    && !isZero && top15.length > 0;
+  const stickyShown = stickyEligible && (!youInTop15 || stickyVisible);
+
+  // Only a REAL server entry (never the local-only fallback in
+  // `currentUserEntry`) may seed the promotion diff — otherwise the first
+  // successful leaderboard fetch would itself look like a climb and replay
+  // on every cold start.
+  const realMyEntry = useMemo(
+    () => leaderboard.find(entry => entry.isCurrentUser) ?? null,
+    [leaderboard],
+  );
+  const promoSnapshot = useMemo(
+    () => (realMyEntry ? { stars: realMyEntry.lifetimeStars, rank: realMyEntry.rank } : null),
+    [realMyEntry],
+  );
+  const {
+    displayStars: animatedStars,
+    climbed: promoClimbed,
+    canReplay: canReplayPromo,
+    replay: replayPromo,
+  } = useLeaderboardPromotion(promoSnapshot, reduceMotion, () => jumpToMyRow(), data?.currentStars ?? 0);
+  // The sticky bar can be eligible before the real entry has loaded (it only
+  // waits on `data`, a different query than the leaderboard) — fall back to
+  // the same locally-known total the rest of the screen already trusts.
+  const stickyStarsDisplay = realMyEntry ? animatedStars : myLeaderboardEntry.lifetimeStars;
+
+  function checkSticky() {
+    const rowNode = youRowRef.current;
+    const viewportNode = viewportRef.current;
+    if (!rowNode || !viewportNode) { setStickyVisible(false); return; }
+    viewportNode.measure((_vx, _vy, _vw, vh, _vPageX, vPageY) => {
+      // Re-read (not reuse the captured rowNode) — the row can unmount
+      // between scheduling this measurement and it firing (e.g. a fast
+      // segment switch), and measuring a stale native handle returns zeros.
+      const currentRowNode = youRowRef.current;
+      if (!currentRowNode) { setStickyVisible(false); return; }
+      currentRowNode.measure((_rx, _ry, _rw, rh, _rPageX, rPageY) => {
+        const rowTop = rPageY, rowBottom = rPageY + rh;
+        const visible = rowBottom > vPageY + 4 && rowTop < vPageY + vh - 4;
+        setStickyVisible(!visible);
+      });
+    });
+  }
+
+  function handleGlobalScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    scrollYRef.current = e.nativeEvent.contentOffset.y;
+    if (stickyRaf.current != null) return;
+    stickyRaf.current = requestAnimationFrame(() => { stickyRaf.current = null; checkSticky(); });
+  }
+
+  function jumpToMyRow() {
+    const rowNode = youRowRef.current;
+    const viewportNode = viewportRef.current;
+    if (!rowNode || !viewportNode) return;
+    viewportNode.measure((_vx, _vy, _vw, vh, _vPageX, vPageY) => {
+      const currentRowNode = youRowRef.current;
+      if (!currentRowNode) return;
+      currentRowNode.measure((_rx, _ry, _rw, rh, _rPageX, rPageY) => {
+        const rowBottom = rPageY + rh, viewportBottom = vPageY + vh;
+        const target = Math.max(0, scrollYRef.current + (rowBottom - viewportBottom) + 130);
+        scrollRef.current?.scrollTo({ y: target, animated: !reduceMotion });
+      });
+    });
+  }
+
+  useEffect(() => {
+    return () => { if (stickyRaf.current != null) cancelAnimationFrame(stickyRaf.current); };
+  }, []);
+
+  useEffect(() => {
+    if (!stickyEligible) return;
+    // windowWidth/windowHeight aren't read in checkSticky — they're deps so a
+    // rotation or a display-size change (which resizes every row without
+    // firing a scroll event) forces a fresh visibility measurement instead of
+    // leaving the bar stuck showing (or hidden) from the old layout.
+    const id = setTimeout(checkSticky, 100);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stickyEligible, top15, windowWidth, windowHeight]);
+
+  useEffect(() => {
+    Animated.timing(stickyAnim, {
+      toValue: stickyShown ? 1 : 0,
+      duration: reduceMotion ? 0 : 240,
+      useNativeDriver: true,
+    }).start();
+  }, [stickyShown, reduceMotion, stickyAnim]);
 
   // App-level pending count (also driven at authenticated app entry by
   // RootNavigator) — reading the same cached query here just for the badge.
@@ -189,7 +304,13 @@ export function RankScreen() {
     const unlockedRankCount = RANKS.filter(rank => rank.tier < currentTierOrder).length;
 
     return (
-      <ScrollView contentContainerStyle={styles.content}>
+      <View style={styles.globalWrap} ref={viewportRef}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.content}
+        onScroll={handleGlobalScroll}
+        scrollEventThrottle={16}
+      >
         {currentStars >= firstTierStars ? (
           <View style={styles.rankhero}>
             <View style={[styles.rankheroGlow, { backgroundColor: cfg.glow ?? cfg.color }]} importantForAccessibility="no" />
@@ -266,22 +387,57 @@ export function RankScreen() {
           </View>}
         </View>
 
-        <Text style={styles.sectionLabel}>{t.leaderboardSection}</Text>
-        <View style={styles.card}>
-          <LeaderboardSection
-            leaderboard={leaderboard}
+        <View style={styles.leaderboardWrap}>
+          <RankBoardTop15
+            rows={boardRows}
             lbLoading={lbLoading}
             lbError={lbError}
             lbUnavailable={lbUnavailable}
+            isZero={isZero}
+            localOnlyFallback={localOnlyFallback}
             colors={colors}
-            youLabel={t.leaderboardYou}
-            emptyNote={t.leaderboardEmpty}
-            noSyncNote={t.leaderboardNoSync}
-            currentUserEntry={currentUserEntry}
-            copy={leaderboardCopy}
+            isDark={isDark}
+            t={t}
+            youRowRef={youRowRef}
+            displayStars={animatedStars}
+            climbed={promoClimbed}
+            canReplay={canReplayPromo}
+            onReplay={replayPromo}
+            onRetry={() => { void refetchLeaderboard(); }}
+            reduceMotion={reduceMotion}
           />
         </View>
       </ScrollView>
+
+      <Animated.View
+        pointerEvents={stickyShown ? 'auto' : 'none'}
+        style={[
+          styles.stickyBar,
+          {
+            opacity: stickyAnim,
+            transform: [{ translateY: stickyAnim.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+          },
+        ]}
+      >
+        <Text style={styles.stickyRank} numberOfLines={1}>{myLeaderboardEntry.rank > 0 ? `#${myLeaderboardEntry.rank}` : '—'}</Text>
+        <View style={styles.stickyAvatar}>
+          <Text style={styles.stickyAvatarText} numberOfLines={1} allowFontScaling={false}>{initialsForName(myLeaderboardEntry.displayName)}</Text>
+        </View>
+        <Text style={styles.stickyName} numberOfLines={1}>{myLeaderboardEntry.displayName} ({t.leaderboardYou})</Text>
+        <Text style={styles.stickyStars} numberOfLines={1}>{Math.round(stickyStarsDisplay)}</Text>
+        {youInTop15 && (
+          <TouchableOpacity
+            onPress={jumpToMyRow}
+            hitSlop={8}
+            style={styles.stickyBtn}
+            accessibilityRole="button"
+            accessibilityLabel={t.leaderboardJumpToRow}
+          >
+            <Text style={styles.stickyBtnArrow}>↓</Text>
+          </TouchableOpacity>
+        )}
+      </Animated.View>
+      </View>
     );
   }
 
@@ -369,7 +525,7 @@ export function RankScreen() {
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.bgBase },
-    content: { paddingBottom: 40 },
+    content: { paddingBottom: 88 },
     loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bgBase },
     titleRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginTop: 10, marginBottom: 12 },
     title: { fontSize: 24, fontFamily: FontFamily.extraBold, letterSpacing: -0.5, color: C.inkDark, flex: 1, flexShrink: 1 },
@@ -382,7 +538,7 @@ function makeStyles(C: AppColors) {
     },
     segmentBtn: {
       flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      minHeight: 40, borderRadius: Radii.pill,
+      minHeight: 48, borderRadius: Radii.pill,
     },
     segmentBtnActive: { backgroundColor: C.surface, ...Shadows.light },
     segmentText: { fontSize: 14, fontFamily: FontFamily.semiBold, color: C.muted },
@@ -434,14 +590,27 @@ function makeStyles(C: AppColors) {
     barFill: { height: '100%', backgroundColor: C.primary, borderRadius: Radii.pill },
     nextCap: { fontSize: 12, color: C.muted, marginTop: 13, fontFamily: FontFamily.semiBold, textAlign: 'center' },
 
-    sectionLabel: {
-      fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2,
-      marginHorizontal: Spacing.lg, marginTop: 20, marginBottom: 9,
+    leaderboardWrap: { marginTop: 20 },
+
+    globalWrap: { flex: 1 },
+    stickyBar: {
+      position: 'absolute', left: Spacing.lg, right: Spacing.lg, bottom: 16,
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      paddingVertical: 11, paddingHorizontal: 12, borderRadius: Radii.lg,
+      backgroundColor: C.primary, ...Shadows.hero,
     },
-    card: {
-      marginHorizontal: Spacing.lg, backgroundColor: C.surface,
-      borderRadius: Radii.lg, borderWidth: 1, borderColor: C.line,
-      paddingHorizontal: 15, ...Shadows.light,
+    stickyRank: { flexShrink: 0, minWidth: 30, fontSize: 12, fontFamily: FontFamily.extraBold, color: C.onAccent },
+    stickyAvatar: {
+      width: 30, height: 30, flexShrink: 0, borderRadius: 999, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: 'rgba(255,255,255,0.20)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.34)',
     },
+    stickyAvatarText: { fontSize: 11, fontFamily: FontFamily.extraBold, color: C.onAccent },
+    stickyName: { flex: 1, minWidth: 0, fontSize: 14, fontFamily: FontFamily.extraBold, letterSpacing: -0.2, color: C.onAccent },
+    stickyStars: { flexShrink: 0, fontSize: 18, fontFamily: FontFamily.extraBold, letterSpacing: -0.6, color: C.onAccent },
+    stickyBtn: {
+      width: 34, height: 34, flexShrink: 0, borderRadius: 999, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: C.white,
+    },
+    stickyBtnArrow: { fontSize: 15, fontFamily: FontFamily.bold, color: C.primaryPress, lineHeight: 15 },
   });
 }
