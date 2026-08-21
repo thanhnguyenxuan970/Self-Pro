@@ -214,7 +214,7 @@ const vi = {
   noRankTitle: 'Bắt đầu leo hạng!',
   noRankDesc: 'Tích đủ 5 ★ để mở hạng đầu tiên',
   noRankRemaining: (n: number, name: string) => `Còn ${parseFloat(n.toFixed(1))} ★ để mở khóa ${name}`,
-  starsTotal: (n: number) => `★ ${n}`,
+  starsTotal: (n: number) => `★ ${Math.round(n)}`,
   nextRank: (n: number, name: string) => `Sắp lên hạng ${name} · chỉ còn ${n} ★ nữa!`,
   rankPathYou: 'bạn ở đây',
   rankPathNext: (n: number) => `còn ${n} ★`,
@@ -684,25 +684,35 @@ const vi = {
   reminderTimeLabel: (time: string) => `Nhắc lúc ${time}, chạm để đổi`,
   reminderScheduleFailed: 'Không đặt được nhắc nhở. Kiểm tra quyền thông báo trong Cài đặt hệ thống.',
   challengeReminderNotifBody: (name: string) => `Đừng quên ghi nhận "${name}" hôm nay!`,
+  challengeOutcomeNotifBody: (name: string, mode: 'streak' | 'weekly', date: string) => mode === 'streak'
+    ? `Chuỗi "${name}" đã dừng ở ngày ${date}. Bắt đầu lại nhé?`
+    : `Thử thách "${name}" đã lỡ chỉ tiêu ở ngày ${date}. Bắt đầu lại nhé?`,
   habitReminderNotifBody: 'Đến giờ ghi nhận thói quen rồi!',
 
   // Duration picker
   durationCustom: '1h+',
 
   // Leaderboard (global, lifetime — no weekly reset)
-  leaderboardSection: 'BẢNG XẾP HẠNG TOÀN CẦU',
   leaderboardYou: 'Bạn',
   leaderboardPlayer: 'Người chơi',
   leaderboardEmpty: 'Chưa có ai trên bảng xếp hạng — hãy là người đầu tiên!',
   leaderboardNoSync: 'Kết nối mạng để xem bảng xếp hạng',
-  leaderboardNearYou: 'Quanh bạn',
-  leaderboardGapToNext: (stars: number) => `Còn ${Math.round(stars)} ★ để vượt người trên`,
-  leaderboardGapLevel: 'Bằng điểm với người trên',
-  leaderboardTopOfLadder: 'Dẫn đầu bảng xếp hạng',
-  leaderboardLifetimeStars: (stars: number) => `${Math.round(stars)} ★ tích luỹ`,
-  leaderboardExpandRow: 'Xem chi tiết',
-  leaderboardCollapseRow: 'Thu gọn',
-  leaderboardStreakDays: (days: number) => `${days} ngày liên tiếp`,
+  leaderboardPending: 'Đang đồng bộ bảng xếp hạng — sao của bạn đã được lưu.',
+  leaderboardRetry: 'Thử lại',
+  leaderboardChampion: 'QUÁN QUÂN MỌI THỜI ĐIỂM',
+  leaderboardBoardLabel: (count: number) => `BẢNG XẾP HẠNG · ${count} NGƯỜI`,
+  leaderboardStarsHeader: 'SAO',
+  leaderboardJumpToRow: 'Về dòng của bạn',
+  leaderboardZeroEyebrow: 'CHƯA XẾP HẠNG',
+  leaderboardZeroHeadline: 'Ghi nhận 1 ★ để vào bảng.',
+  leaderboardZeroCta: 'Ghi nhận hoạt động',
+  leaderboardReplay: 'XEM LẠI',
+  leaderboardMoveHeader: '7 NGÀY',
+  leaderboardMoveA11y: (delta: number | null) =>
+    delta == null ? 'chưa có dữ liệu 7 ngày'
+    : delta > 0 ? `tăng ${delta} hạng trong 7 ngày`
+    : delta < 0 ? `giảm ${Math.abs(delta)} hạng trong 7 ngày`
+    : 'không đổi hạng trong 7 ngày',
 
   // Friends — segment & badges
   friendsGlobalTab: 'Toàn cầu',
@@ -1148,7 +1158,7 @@ const en: typeof vi = {
   noRankTitle: 'Start climbing!',
   noRankDesc: 'Earn 5 ★ to unlock your first rank',
   noRankRemaining: (n: number, name: string) => `${parseFloat(n.toFixed(1))} ★ more to unlock ${name}`,
-  starsTotal: (n) => `★ ${n}`,
+  starsTotal: (n) => `★ ${Math.round(n)}`,
   nextRank: (n, name) => `Almost at ${name} · just ${n} ★ more!`,
   rankPathYou: 'you are here',
   rankPathNext: (n: number) => `${n} ★ to go`,
@@ -1616,25 +1626,35 @@ const en: typeof vi = {
   reminderTimeLabel: (time: string) => `Reminder at ${time}, tap to change time`,
   reminderScheduleFailed: 'Couldn’t set the reminder. Check notification permissions in system Settings.',
   challengeReminderNotifBody: (name: string) => `Don't forget to log "${name}" today!`,
+  challengeOutcomeNotifBody: (name: string, mode: 'streak' | 'weekly', date: string) => mode === 'streak'
+    ? `Your "${name}" streak stopped on ${date}. Start again?`
+    : `Your "${name}" Challenge missed its target on ${date}. Start again?`,
   habitReminderNotifBody: 'Time to log your tasks!',
 
   // Duration picker
   durationCustom: '1h+',
 
   // Leaderboard (global, lifetime — no weekly reset)
-  leaderboardSection: 'GLOBAL LEADERBOARD',
   leaderboardYou: 'You',
   leaderboardPlayer: 'Player',
   leaderboardEmpty: 'No one on the leaderboard yet — be the first!',
   leaderboardNoSync: 'Connect to the internet to view the leaderboard',
-  leaderboardNearYou: 'Near you',
-  leaderboardGapToNext: (stars: number) => `${Math.round(stars)} ★ to pass the player above`,
-  leaderboardGapLevel: 'Level with the player above',
-  leaderboardTopOfLadder: 'Top of the ladder',
-  leaderboardLifetimeStars: (stars: number) => `${Math.round(stars)} ★ lifetime`,
-  leaderboardExpandRow: 'Show details',
-  leaderboardCollapseRow: 'Hide details',
-  leaderboardStreakDays: (days: number) => `${days}-day streak`,
+  leaderboardPending: 'Leaderboard is syncing — your stars are saved.',
+  leaderboardRetry: 'Retry',
+  leaderboardChampion: 'ALL-TIME CHAMPION',
+  leaderboardBoardLabel: (count: number) => `LEADERBOARD · ${count} PEOPLE`,
+  leaderboardStarsHeader: 'STARS',
+  leaderboardJumpToRow: 'Jump to your row',
+  leaderboardZeroEyebrow: 'NOT RANKED YET',
+  leaderboardZeroHeadline: 'Log 1 ★ to enter the board.',
+  leaderboardZeroCta: 'Log an activity',
+  leaderboardReplay: 'REPLAY',
+  leaderboardMoveHeader: '7 DAYS',
+  leaderboardMoveA11y: (delta: number | null) =>
+    delta == null ? 'no 7-day data yet'
+    : delta > 0 ? `up ${delta} in 7 days`
+    : delta < 0 ? `down ${Math.abs(delta)} in 7 days`
+    : 'no change in 7 days',
 
   // Friends — segment & badges
   friendsGlobalTab: 'Global',

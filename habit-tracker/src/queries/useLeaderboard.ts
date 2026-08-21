@@ -23,6 +23,15 @@ export type LeaderboardEntry = {
    * a star total alone reads as seeded data.
    */
   currentStreak: number;
+  /**
+   * Rank positions climbed (positive) or dropped (negative) over the last
+   * ~7 days, from `public.leaderboard_snapshots` (migration 045). `null`
+   * means no snapshot old enough exists yet for this player — a brand-new
+   * row, a returning player, or the local (offline) leaderboard path, which
+   * has no history at all. Never coerced to 0: a missing comparison point is
+   * not the same fact as "no change".
+   */
+  rankDelta7d: number | null;
 };
 
 /**
@@ -84,6 +93,21 @@ export function capLeaderboardRows(
 }
 
 /**
+ * Two-letter monogram for an avatar circle. Strips the disambiguating
+ * `#NN` suffix `generatePlayerName` appends, then takes the first
+ * character of each of the first two words (case-insensitively upper).
+ */
+export function initialsForName(displayName: string): string {
+  const stripped = displayName.replace(/\s*#\S+$/, '').trim();
+  // Only words starting with an actual letter count -- a name that is pure
+  // punctuation (or empty/whitespace after stripping) falls back to '?'
+  // rather than putting a stray symbol in the avatar circle.
+  const words = stripped.split(/[\s-]+/).filter(w => w.length > 0 && /\p{L}/u.test(w[0]!));
+  if (words.length === 0) return '?';
+  return words.slice(0, 2).map(w => w[0]!.toUpperCase()).join('');
+}
+
+/**
  * True when `entry` does not directly follow `previous` in the global ladder,
  * i.e. the UI is about to draw the caller's neighbourhood after the top 50
  * with an arbitrary number of unshown players in between.
@@ -99,6 +123,8 @@ export type RemoteLeaderboardRow = {
   is_current_user: boolean;
   /** Absent on responses from a server still on migration 026 or earlier. */
   current_streak?: number | null;
+  /** Absent on responses from a server still on migration 044 or earlier. */
+  rank_delta_7d?: number | null;
 };
 
 export function aggregateLifetimeStarsByPlayerId(rows: { player_id: string; lifetime_stars: number | null }[]): Map<string, number> {
@@ -123,6 +149,8 @@ function buildLeaderboardEntries(
       // This local path only ever sees a stars map; streak is a server-only
       // field, so report 0 rather than inventing one.
       currentStreak: 0,
+      // Same reasoning: this path has no snapshot history to compare against.
+      rankDelta7d: null,
     });
   }
   return entries;
@@ -170,6 +198,9 @@ export function mapRemoteLeaderboardRows(
         // Tolerate a server still on 026: a missing column means "unknown",
         // and an unknown streak must render as no signal, never a fake one.
         currentStreak: Math.max(0, Math.floor(Number(row.current_streak) || 0)),
+        // Explicit null check, not `Number(x) || 0` — that idiom would turn a
+        // genuine "no 7-day snapshot yet" into a fabricated "no change".
+        rankDelta7d: row.rank_delta_7d == null ? null : Math.trunc(Number(row.rank_delta_7d)) || 0,
       };
     })
     .sort((a, b) => a.rank - b.rank || a.playerId.localeCompare(b.playerId));
@@ -208,6 +239,10 @@ export function useLeaderboard(
       // so returning users do not get a misleading network error.
       const { ensureSupabaseSession } = await import('../api/syncService');
       await ensureSupabaseSession(currentUserEmail);
+
+      // Best-effort: record this instant's rank so a visit ~7 days from now
+      // can show movement. Never let this delay or fail the leaderboard load.
+      void Promise.resolve(supabase.rpc('record_leaderboard_snapshot')).catch(() => {});
 
       const { data, error } = await supabase.rpc('get_global_leaderboard_v2', { p_limit: LEADERBOARD_TOP_LIMIT });
       if (error) throw error;
