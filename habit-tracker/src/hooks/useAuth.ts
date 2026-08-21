@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SQLiteDatabase } from 'expo-sqlite';
 import { type GoogleUser, readGoogleUser, writeGoogleUser, deleteGoogleUser, parseGoogleUser, getStoredGoogleUser } from '../lib/googleUserStorage';
 import { NO_SAVED_GOOGLE_CREDENTIAL_CODE } from '../api/syncErrors';
+import { challengeReminderPrefix } from '../lib/challengeNotificationPlan';
+import { invalidateChallengeReminderSync } from '../utils/notifications';
 
 export type { GoogleUser };
 export { parseGoogleUser, getStoredGoogleUser };
@@ -149,13 +151,16 @@ export async function cancelUserChallengeReminders(
   db: Pick<SQLiteDatabase, 'getAllAsync'>,
   userId: number,
 ): Promise<void> {
-  const rows = await db.getAllAsync<{ notification_id: string | null }>(
-    'SELECT notification_id FROM challenges WHERE user_id = ? AND notification_id IS NOT NULL',
+  const rows = await db.getAllAsync<{ id: number; notification_id: string | null }>(
+    'SELECT id, notification_id FROM challenges WHERE user_id = ?',
     [userId],
   );
   if (!rows.length) return;
-  const { cancelChallengeReminder } = await import('../utils/notifications');
-  await Promise.all(rows.map(row => cancelChallengeReminder(row.notification_id)));
+  const { cancelChallengeReminders } = await import('../utils/notifications');
+  await cancelChallengeReminders([
+    ...rows.map(row => row.notification_id),
+    ...rows.map(row => challengeReminderPrefix(row.id)),
+  ]);
 }
 
 export const UserIdContext = createContext<number>(1);
@@ -247,7 +252,7 @@ export function useAuth() {
 
     // Establish Supabase Auth session so RLS policies can verify identity, and
     // -- before any screen renders for this user -- best-effort restore the
-    // highest lifetime-star total Supabase already knows for this account.
+    // current lifetime-star total Supabase derives for this account.
     // Must run before the state setters below: a fresh local install (reinstall,
     // new device, cleared app data) otherwise renders Home/Rank with a bare
     // local total and nothing ever tells those screens to re-fetch once the
@@ -324,6 +329,7 @@ export function useAuth() {
       // Delete all local SQLite rows
       const { getDb } = await import('../db/client');
       const db = await getDb();
+      invalidateChallengeReminderSync();
       await cancelUserChallengeReminders(db, uid);
       await db.withTransactionAsync(async () => {
         for (const sql of DELETE_ACCOUNT_STATEMENTS) {
@@ -354,6 +360,18 @@ export function useAuth() {
     const { pauseAccountSync, resetSyncCursors } = await import('../api/syncService');
     const releaseSync = storedUser ? await pauseAccountSync(storedUser.email) : null;
     try {
+      // Invalidate the App foreground reconciler before cancellation. The
+      // notification queue then drains any in-flight scheduler before this
+      // cleanup, so the old account cannot be re-scheduled after sign-out.
+      invalidateChallengeReminderSync();
+      // Remove account-scoped Challenge notifications before clearing the
+      // identity. App-level lifecycle effects also have an auth guard, but an
+      // in-flight foreground reconciliation must not leave the old user's
+      // Challenge names visible after sign-out.
+      try {
+        const db = await import('../db/client').then(module => module.getDb());
+        await cancelUserChallengeReminders(db, userId);
+      } catch { }
       try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { GoogleSignin } = require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
@@ -374,7 +392,7 @@ export function useAuth() {
     } finally {
       releaseSync?.();
     }
-  }, [clearLocalAuthState]);
+  }, [clearLocalAuthState, userId]);
 
   return {
     isLoading,

@@ -4,7 +4,8 @@ import { getDb } from '../db/client';
 import { dailyBonusStarsForPoints } from '../config/constants';
 import { getLocalDate, getWeekStart, getLocalDateOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
 import { AnalyticsDashboard, AnalyticsRange, AnalyticsDaily, AnalyticsLog, analyticsDemo, buildAnalyticsDashboard } from '../analytics/dashboardModel';
-import type { LifetimeTierCrossing } from '../game/lifetimeRank';
+import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
+import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { enqueuePendingActivityDeletes } from '../game/pendingActivityDeletes';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
@@ -236,6 +237,17 @@ export function useDeleteActivityLogs(userId: number) {
         const { bonusStarsRemoved, deletedActivityIds: bonusRowIds } = await revertDailySummariesForDelete(db, userId, byDate);
         await revertWeeklySummariesForDelete(db, userId, byDate);
 
+        const deletedPositiveStars = rows.reduce(
+          (total, row) => total + (row.source === 'DAILY_BONUS' ? 0 : Math.max(0, row.stars_delta)),
+          0,
+        ) + bonusStarsRemoved;
+        if (deletedPositiveStars > 0) {
+          const tiers = await db.getAllAsync<LifetimeTierRow>(
+            'SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY stars_required ASC',
+          );
+          lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, -deletedPositiveStars, tiers)).crossings;
+        }
+
         if (goodStarsDelta + bonusStarsRemoved > 0) {
           await db.runAsync(
             `UPDATE users SET treat_stars = MAX(0, treat_stars - ?) WHERE id = ?`,
@@ -248,11 +260,6 @@ export function useDeleteActivityLogs(userId: number) {
             [badPenaltyAmt, userId]
           );
         }
-
-        // Lifetime rank is a high-water mark. Deleting activity never lowers it
-        // and must not mint stars for a BAD row whose negative penalty was
-        // already ignored when the row was logged.
-        lifetimeCrossings = [];
 
         await db.runAsync(
           `DELETE FROM activity_log WHERE user_id = ? AND id IN (${placeholders})`,
@@ -272,7 +279,10 @@ export function useDeleteActivityLogs(userId: number) {
       qc.invalidateQueries({ queryKey: ['rank'] });
       void syncCurrentUserToSupabase()
         .catch(error => { if (__DEV__) console.warn('[sync] activity delete sync failed:', error); })
-        .finally(() => { qc.invalidateQueries({ queryKey: ['leaderboard'] }); });
+        .finally(() => {
+          qc.invalidateQueries({ queryKey: ['rank'] });
+          qc.invalidateQueries({ queryKey: ['leaderboard'] });
+        });
       if (data?.lifetimeCrossings?.length) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(data.lifetimeCrossings);

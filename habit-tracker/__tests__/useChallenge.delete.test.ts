@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 jest.mock('expo-notifications', () => ({
+  getAllScheduledNotificationsAsync: jest.fn().mockResolvedValue([]),
   cancelScheduledNotificationAsync: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../src/db/client', () => ({ getDb: jest.fn() }));
@@ -63,6 +64,22 @@ describe('deleteChallengeById', () => {
 
     expect(Notifications.cancelScheduledNotificationAsync).not.toHaveBeenCalled();
     expect(db.runAsync).toHaveBeenCalledWith('DELETE FROM challenges WHERE id = ? AND user_id = ?', [13, 5]);
+  });
+
+  it('cancels prefixed orphan slots even when the DB token is already null', async () => {
+    (Notifications.getAllScheduledNotificationsAsync as jest.Mock).mockResolvedValueOnce([
+      { identifier: 'habi-ch-13-normal-2026-08-21' },
+    ]);
+    const txn = createDeleteDb({
+      challenge: { status: 'active', completed_at: null, notification_id: null },
+    });
+    const db = {
+      withExclusiveTransactionAsync: jest.fn(async (callback: (inner: SQLiteDatabase) => Promise<void>) => callback(txn)),
+    } as unknown as SQLiteDatabase;
+
+    await deleteChallengesById(db, 5, [13]);
+
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('habi-ch-13-normal-2026-08-21');
   });
 
   it('rejects a stale or cross-user challenge id without deleting related rows', async () => {

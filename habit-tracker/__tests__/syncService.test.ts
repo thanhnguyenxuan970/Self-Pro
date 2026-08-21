@@ -180,12 +180,23 @@ describe('syncUserStreak', () => {
   });
 
   it('syncs only after confirming an authenticated session', async () => {
-    mockGetSession.mockResolvedValue({ data: { session: {} } });
+    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } } });
 
     await syncUserStreak('user@example.com', 7);
 
     expect(mockFrom).not.toHaveBeenCalled();
     expect(mockRpc).toHaveBeenCalledWith('sync_user_profile', { p_current_streak: 7 });
+  });
+
+  it('does not write streak data through a session belonging to another account', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { email: 'other@example.com' } } },
+      error: null,
+    });
+
+    await expect(syncUserStreak('user@example.com', 7)).rejects.toThrow('does not match');
+
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 });
 
@@ -401,6 +412,48 @@ describe('syncToSupabase', () => {
     expect(mockRpc).toHaveBeenLastCalledWith('sync_lifetime_stars');
   });
 
+  it('pulls a higher server high-water total into local SQLite during normal sync', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } }, error: null });
+    mockStorageGetItem.mockResolvedValue(null);
+    const userRow = { lifetime_stars: 43.4, current_tier_id: 4 as number | null };
+    const tiers = [
+      { id: 4, tier_order: 4, rank_name: 'Gigachad', stars_required: 40 },
+    ];
+    const runAsync = jest.fn(async (sql: string, params: unknown[]) => {
+      if (sql.includes('UPDATE users SET lifetime_stars')) {
+        userRow.lifetime_stars = params[0] as number;
+        userRow.current_tier_id = params[1] as number | null;
+      }
+      return { changes: 1 };
+    });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('SELECT id FROM users')) return { id: 1 };
+        if (sql.includes('lifetime_stars')) return { ...userRow };
+        if (sql.includes('daily_summary')) return { current_streak: 7 };
+        if (sql.includes('activity_log')) return { last_active_local_date: '2026-08-10' };
+        throw new Error(`Unexpected sync query: ${sql}`);
+      }),
+      getAllAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('FROM tiers')) return tiers;
+        return [];
+      }),
+      runAsync,
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'sync_lifetime_stars' ? { data: 44, error: null } : { data: null, error: null });
+
+    await syncToSupabase('google-sub', 'user@example.com');
+
+    expect(userRow.lifetime_stars).toBe(44);
+    expect(runAsync).toHaveBeenCalledWith(
+      'UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?',
+      [44, 4, 1],
+    );
+  });
+
   it('deletes already-uploaded twins of locally-deleted rows before uploading, then clears the queue', async () => {
     mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } }, error: null });
     mockStorageGetItem.mockImplementation(async (key: string) =>
@@ -414,6 +467,7 @@ describe('syncToSupabase', () => {
       }),
       getAllAsync: jest.fn(() => []),
       runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
     };
     mockGetDb.mockResolvedValue(db);
     const dateTimeFormat = jest.spyOn(Intl, 'DateTimeFormat').mockImplementation(() => (

@@ -707,7 +707,98 @@ async function v27(db: SQLiteDatabase): Promise<void> {
   await removeLegacyOneActiveChallengeIndex(db);
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27];
+const LEGACY_CHALLENGE_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+
+function localDateForMigration(now: Date): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function legacyChallengeDateForMigration(now: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: LEGACY_CHALLENGE_TIME_ZONE,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value ?? '';
+  return `${value('year')}-${value('month')}-${value('day')}`;
+}
+
+function migrationDayNumber(value: string): number {
+  const [year, month, day] = value.split('-').map(Number);
+  return Date.UTC(year, month - 1, day) / 86_400_000;
+}
+
+function parseSqliteUtcDate(value: string): Date | null {
+  const normalized = value.trim().replace(' ', 'T');
+  const iso = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized) ? normalized : `${normalized}Z`;
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/** v27 -> v28: align active Challenge ledgers with device-local dates.
+ * activity_log already stores device-local dates, while older Challenge rows
+ * were created with the hardcoded Vietnam date. Use each Challenge's creation
+ * instant to calculate the historical legacy/device delta, and only shift rows
+ * whose stored start date still matches that legacy date. This avoids applying
+ * today's timezone boundary to a Challenge created on a different calendar
+ * day, and leaves already-correct or terminal history immutable. */
+async function v28(db: SQLiteDatabase): Promise<void> {
+  const activeChallenges = await db.getAllAsync<{
+    id: number;
+    start_date: string;
+    created_at: string;
+  }>(
+    'SELECT id, start_date, created_at FROM challenges WHERE status = ?',
+    ['active'],
+  );
+
+  const shiftActiveLedgers = async () => {
+    for (const challenge of activeChallenges) {
+      const createdAt = parseSqliteUtcDate(challenge.created_at);
+      if (!createdAt) continue;
+
+      const legacyDate = legacyChallengeDateForMigration(createdAt);
+      if (challenge.start_date !== legacyDate) continue;
+
+      const localDate = localDateForMigration(createdAt);
+      const shiftDays = migrationDayNumber(localDate) - migrationDayNumber(legacyDate);
+      if (shiftDays === 0) continue;
+
+      const modifier = `${shiftDays > 0 ? '+' : ''}${shiftDays} days`;
+      await db.runAsync(
+        `UPDATE challenges SET start_date = date(start_date, ?)
+         WHERE id = ? AND status = 'active'`,
+        [modifier, challenge.id],
+      );
+      await db.runAsync(
+        `UPDATE challenge_log SET local_date = date(local_date, ?)
+         WHERE challenge_id = ?`,
+        [modifier, challenge.id],
+      );
+      await db.runAsync(
+        `UPDATE challenge_days SET local_date = date(local_date, ?)
+         WHERE challenge_id = ?`,
+        [modifier, challenge.id],
+      );
+    }
+    // Keep the migration marker in the same transaction as the date shift.
+    // If the process dies after the updates commit but before runMigrations
+    // advances user_version, a later launch must not apply the shift twice.
+    await db.execAsync('PRAGMA user_version = 28');
+  };
+
+  if (typeof db.withTransactionAsync === 'function') {
+    await db.withTransactionAsync(shiftActiveLedgers);
+  } else {
+    // Test doubles and very old expo-sqlite adapters may not expose the
+    // transaction helper; the production path above remains atomic.
+    await shiftActiveLedgers();
+  }
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

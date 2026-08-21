@@ -134,3 +134,36 @@ test('repairs the legacy challenge index when a prior migration already advanced
     'CREATE INDEX IF NOT EXISTS idx_challenges_user_status ON challenges(user_id, status)',
   );
 });
+
+test('does not shift an active Challenge whose stored date is not the legacy creation date', async () => {
+  const db = {
+    getFirstAsync: jest.fn(async (sql: string) => {
+      if (sql === 'PRAGMA user_version') return { user_version: 27 };
+      if (sql.includes('COUNT(*) AS count')) return { count: 0 };
+      return null;
+    }),
+    getAllAsync: jest.fn(async (sql: string) => {
+      if (sql.startsWith('PRAGMA table_info(users)')) {
+        return [{ name: 'id' }, { name: 'lifetime_stars' }, { name: 'current_tier_id' }];
+      }
+      if (sql.includes('SELECT id, start_date, created_at FROM challenges')) {
+        return [{ id: 9, start_date: '2026-08-18', created_at: '2026-08-19 12:00:00' }];
+      }
+      return [];
+    }),
+    runAsync: jest.fn().mockResolvedValue({}),
+    execAsync: jest.fn().mockResolvedValue(undefined),
+    withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+  };
+
+  await runMigrations(db as never);
+
+  expect(db.getAllAsync).toHaveBeenCalledWith(
+    expect.stringContaining('SELECT id, start_date, created_at FROM challenges'),
+    ['active'],
+  );
+  expect(db.runAsync).not.toHaveBeenCalledWith(
+    expect.stringContaining('UPDATE challenges SET start_date'),
+    expect.anything(),
+  );
+});

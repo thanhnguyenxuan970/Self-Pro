@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { getStoredGoogleUser } from '../hooks/useAuth';
 import { syncCurrentUserToSupabase, syncUserStreak } from '../api/syncService';
-import { cancelTerminalChallengeReminders, logActiveChallengeDay, reconcileUnloggedLinkedChallenges, restoreReactivatedChallengeReminders, type ReactivatedLinkedChallenge } from './useChallenge';
+import { cancelTerminalChallengeReminders, logActiveChallengeDay, reconcileUnloggedLinkedChallenges, restoreReactivatedChallengeReminders, syncActiveChallengeReminders, type ReactivatedLinkedChallenge } from './useChallenge';
 import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
 import { dailyBonusStarsForPoints, SOURCE_TASK } from '../config/constants';
@@ -367,6 +367,7 @@ export function useWeeklySummary(userId: number) {
 
 export function useLogTask(userId: number) {
   const qc = useQueryClient();
+  const [lang] = useLanguage();
   return useMutation({
     mutationFn: async (params: {
       taskTypeId: number;
@@ -494,6 +495,9 @@ export function useLogTask(userId: number) {
         lifetimeCrossings = [...lifetimeCrossings, ...challengeResult.lifetimeCrossings];
       });
       await cancelTerminalChallengeReminders(db, userId);
+      try {
+        await syncActiveChallengeReminders(userId, lang);
+      } catch {}
 
       return { ...streakResult, milestone, lifetimeCrossings, isFirstEverLog };
     },
@@ -520,7 +524,10 @@ export function useLogTask(userId: number) {
           syncUserStreak(user.email, data.newStreak),
           syncCurrentUserToSupabase(),
         ]))
-        .then(() => qc.invalidateQueries({ queryKey: ['leaderboard'] }))
+        .then(() => {
+          qc.invalidateQueries({ queryKey: ['rank'] });
+          qc.invalidateQueries({ queryKey: ['leaderboard'] });
+        })
         .catch(error => { if (__DEV__) console.warn('[sync] activity log sync failed:', error); });
     },
   });
@@ -609,7 +616,10 @@ export function useUnlogTask(userId: number) {
         reactivatedChallenges = reconciliation.reactivatedChallenges;
         deletedActivityIds.push(...reconciliation.deletedActivityIds);
       });
-      await restoreReactivatedChallengeReminders(db, reactivatedChallenges, lang);
+      await restoreReactivatedChallengeReminders(db, reactivatedChallenges);
+      try {
+        await syncActiveChallengeReminders(userId, lang);
+      } catch {}
       await enqueuePendingActivityDeletes(userId, deletedActivityIds);
 
       return { lifetimeCrossings };
@@ -623,7 +633,10 @@ export function useUnlogTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['challenge'] });
       void syncCurrentUserToSupabase()
         .catch(error => { if (__DEV__) console.warn('[sync] activity delete sync failed:', error); })
-        .finally(() => { qc.invalidateQueries({ queryKey: ['leaderboard'] }); });
+        .finally(() => {
+          qc.invalidateQueries({ queryKey: ['rank'] });
+          qc.invalidateQueries({ queryKey: ['leaderboard'] });
+        });
       if (data.lifetimeCrossings.length > 0) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(data.lifetimeCrossings);

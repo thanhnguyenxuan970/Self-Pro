@@ -2,6 +2,7 @@ import { challengeDate, challengeStreak, completeChallenge, currentDay, currentD
 import { CHALLENGE_DURATIONS, CHALLENGE_NAME_MAX_LENGTH, challengeCompletionStars, isValidCustomChallengeValue } from '../src/config/challenges.config';
 import { canRequestChallengeDelete, challengeDeletePrompt, challengeDetailMenuActions, deleteChallengeAndExit } from '../src/utils/challengeDetail';
 import { challengeHubViewState } from '../src/utils/challengeHub';
+import { getLocalDateFor } from '../src/utils/formatters';
 
 const challenge: Challenge = {
   id: 4, name: 'Read', taskType: null, targetDays: 7, startDate: '2026-06-17',
@@ -75,11 +76,17 @@ describe('challenge detail menu', () => {
   });
 });
 
-describe('ICT challenge clock', () => {
-  it('rolls to the next day at midnight in Ho Chi Minh City', () => {
-    expect(challengeDate(new Date('2026-06-17T16:59:59Z'))).toBe('2026-06-17');
-    expect(challengeDate(new Date('2026-06-17T17:00:00Z'))).toBe('2026-06-18');
-    expect(currentDay(challenge, new Date('2026-06-18T05:00:00Z'))).toBe(1);
+describe('device-local challenge clock', () => {
+  it('uses the same device-local date as activity_log', () => {
+    const instant = new Date('2026-06-17T16:59:59Z');
+    expect(challengeDate(instant)).toBe(getLocalDateFor(instant));
+  });
+
+  it('uses the device-local date consistently for current-day arithmetic', () => {
+    const instant = new Date('2026-06-18T05:00:00Z');
+    expect(currentDay(challenge, instant)).toBe(
+      currentDayIndex(challenge.startDate, getLocalDateFor(instant)),
+    );
   });
 });
 
