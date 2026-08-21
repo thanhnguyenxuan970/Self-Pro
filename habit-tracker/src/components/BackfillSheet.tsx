@@ -558,8 +558,8 @@ function makeStyles(colors: AppColors, bottomInset: number) {
       gap: 8,
     },
     entryActionBtn: {
-      width: 44,
-      height: 44,
+      width: 48,
+      height: 48,
       alignItems: 'center',
       justifyContent: 'center',
     },

@@ -93,6 +93,7 @@ Use the `emulator` skill before any adb tap or swipe so coordinates are computed
 |-------|-------|-----|
 | `No implementation class specified for plugin 'com.facebook.react.rootproject'` | Corrupted `@react-native/gradle-plugin` JAR or Gradle transform cache left the plugin descriptor full of NUL bytes | Rebuild `node_modules/@react-native/gradle-plugin` with `gradlew :react-native-gradle-plugin:jar --rerun-tasks`, stop Gradle, then clear the affected transform cache and rerun the build |
 | `MalformedJsonException` during `:expo-modules-core:configureCMakeRelWithDebInfo[arm64-v8a]` or duplicate-class failure in `:expo:bundleLibRuntimeToDirRelease` | Corrupted generated native/build output under `node_modules/expo-modules-core/android/.cxx` or `node_modules/expo/android/build` after interrupted Windows release builds | Delete the affected generated module build directories, keep `org.gradle.parallel=false`, and rerun `bundleRelease` |
+| Expo notification request replay fails TypeScript input checks | `getAllScheduledNotificationsAsync()` returns output content/trigger types broader than `scheduleNotificationAsync()` input types | Rebuild the fallback request from the supported input fields and narrow date triggers before rescheduling |
 
 ## Shared References
 

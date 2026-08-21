@@ -10,7 +10,7 @@ export function PhotoSlot({ uri, label, locked, actionLabel, onPress }: {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.slot}>
-      {uri ? <Image source={{ uri }} style={styles.image} resizeMode="cover" /> : onPress && !locked ? (
+      {uri ? <Image source={{ uri }} style={styles.image} resizeMode="cover" resizeMethod="resize" /> : onPress && !locked ? (
         <TouchableOpacity style={styles.empty} onPress={onPress} accessibilityRole="button" accessibilityLabel={actionLabel}>
           <Text style={styles.action}>📷 {actionLabel}</Text>
         </TouchableOpacity>

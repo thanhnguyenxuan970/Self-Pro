@@ -22,8 +22,8 @@ import { useTheme, useLanguage } from './src/hooks/useSettings';
 import { FontFamily } from './src/config/theme';
 import { createToastConfig } from './src/config/toastConfig';
 import { TutorialProvider } from './src/hooks/useTutorial';
-import { rolloverChallenge } from './src/queries/useChallenge';
-import { scheduleAllHabitReminders } from './src/utils/notifications';
+import { rolloverChallenge, syncActiveChallengeReminders } from './src/queries/useChallenge';
+import { activateChallengeReminderSync, scheduleAllHabitReminders } from './src/utils/notifications';
 
 // Crash reporting: hard no-op until EXPO_PUBLIC_SENTRY_DSN is supplied (no
 // Sentry account/project exists yet -- see TODOS.md). Guarded in try/catch
@@ -61,11 +61,10 @@ if (SENTRY_DSN) {
   }
 }
 
-const ICT_OFFSET_MS = 7 * 60 * 60 * 1000;
-function msUntilIctMidnight(now = Date.now()): number {
-  const ict = new Date(now + ICT_OFFSET_MS);
-  const next = Date.UTC(ict.getUTCFullYear(), ict.getUTCMonth(), ict.getUTCDate() + 1) - ICT_OFFSET_MS;
-  return next - now;
+function msUntilLocalMidnight(now = Date.now()): number {
+  const next = new Date(now);
+  next.setHours(24, 0, 0, 0);
+  return Math.max(0, next.getTime() - now);
 }
 
 function AppInner() {
@@ -112,9 +111,14 @@ function AppInner() {
         const { id } = await resolveUserRow(db, googleUser.sub ?? googleUser.email, googleUser.email);
         resolvedUserId = id;
         setResolvedUserId(resolvedUserId);
-        syncToSupabase(googleUser.sub, googleUser.email).catch((error) => {
-          console.warn('[sync] activity log sync failed:', error);
-        });
+        syncToSupabase(googleUser.sub, googleUser.email)
+          .then(() => {
+            queryClient.invalidateQueries({ queryKey: ['rank'] });
+            queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+          })
+          .catch((error) => {
+            console.warn('[sync] activity log sync failed:', error);
+          });
       }
 
       setDbReady(true);
@@ -129,25 +133,47 @@ function AppInner() {
   }, [authLoading, retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!dbReady) return;
-    const run = () => rolloverChallenge(userId)
-      .then(() => queryClient.invalidateQueries({ queryKey: ['challenge'] }))
-      .catch(() => {});
+    if (!dbReady || !isOnboarded || !googleUser?.email) return;
+    activateChallengeReminderSync();
+    let disposed = false;
+    let inFlight: Promise<void> | null = null;
+    const run = (): Promise<void> => {
+      if (disposed) return Promise.resolve();
+      if (inFlight) return inFlight;
+      inFlight = rolloverChallenge(userId)
+      // Android clears AlarmManager-backed Expo notifications on force-stop,
+      // but Expo may retain the request records. Re-arm the deterministic
+      // Challenge slots whenever the app cold-starts or returns foreground.
+      .then(async () => {
+        if (disposed) return;
+        await syncActiveChallengeReminders(userId, lang, {
+          forceReschedule: true,
+          isActive: () => !disposed,
+        });
+      })
+      .then(() => {
+        if (!disposed) queryClient.invalidateQueries({ queryKey: ['challenge'] });
+      })
+      .catch(() => {})
+      .finally(() => { inFlight = null; });
+      return inFlight;
+    };
     run();
     let dailyTimer: ReturnType<typeof setInterval> | undefined;
     const midnightTimer = setTimeout(() => {
       run();
       dailyTimer = setInterval(run, 24 * 60 * 60 * 1000);
-    }, msUntilIctMidnight());
+    }, msUntilLocalMidnight());
     const appStateSubscription = AppState.addEventListener('change', state => {
       if (state === 'active') run();
     });
     return () => {
+      disposed = true;
       clearTimeout(midnightTimer);
       if (dailyTimer) clearInterval(dailyTimer);
       appStateSubscription.remove();
     };
-  }, [dbReady, userId]);
+  }, [dbReady, isOnboarded, userId, lang, googleUser?.email]);
 
   // Android clears AlarmManager-backed local notifications on events the app
   // never hears about (force-stop, OS "unused apps" auto-restriction, an
@@ -156,23 +182,39 @@ function AppInner() {
   // time still showing in Settings. Re-arm from the DB on cold start and
   // every foreground so the OS schedule can't silently drift from it.
   useEffect(() => {
-    if (!dbReady) return;
-    const run = () => getDb()
-      .then(db => db.getFirstAsync<{ notification_time: string | null; notification_time_2: string | null; notification_time_3: string | null }>(
-        'SELECT notification_time, notification_time_2, notification_time_3 FROM users WHERE id = ?',
-        [userId],
-      ))
-      .then(row => scheduleAllHabitReminders(
-        [row?.notification_time ?? null, row?.notification_time_2 ?? null, row?.notification_time_3 ?? null],
-        lang,
-      ))
-      .catch(error => console.warn('[notifications] reminder rehydration failed:', error));
+    if (!dbReady || !isOnboarded || !googleUser?.email) return;
+    let disposed = false;
+    let inFlight: Promise<void> | null = null;
+    const run = () => {
+      if (disposed || inFlight) return;
+      inFlight = getDb()
+        .then(db => {
+          if (disposed) return null;
+          return db.getFirstAsync<{ notification_time: string | null; notification_time_2: string | null; notification_time_3: string | null }>(
+            'SELECT notification_time, notification_time_2, notification_time_3 FROM users WHERE id = ?',
+            [userId],
+          );
+        })
+        .then(async row => {
+          if (disposed || !row) return;
+          await scheduleAllHabitReminders(
+            [row.notification_time ?? null, row.notification_time_2 ?? null, row.notification_time_3 ?? null],
+            lang,
+            { requestPermission: false, isActive: () => !disposed },
+          );
+        })
+        .catch(error => console.warn('[notifications] reminder rehydration failed:', error))
+        .finally(() => { inFlight = null; });
+    };
     run();
     const appStateSubscription = AppState.addEventListener('change', state => {
       if (state === 'active') run();
     });
-    return () => appStateSubscription.remove();
-  }, [dbReady, userId, lang]);
+    return () => {
+      disposed = true;
+      appStateSubscription.remove();
+    };
+  }, [dbReady, isOnboarded, userId, lang, googleUser?.email]);
 
   if (dbError) {
     return (

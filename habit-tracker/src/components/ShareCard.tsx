@@ -64,7 +64,7 @@ export const ShareCard = React.forwardRef<View, ShareCardProps>(function ShareCa
         <View style={styles.photoRow}>
           <View style={styles.photoSlot}>
             {beforeUri ? (
-              <Image source={{ uri: beforeUri }} style={styles.photo} resizeMode="cover" />
+              <Image source={{ uri: beforeUri }} style={styles.photo} resizeMode="cover" resizeMethod="resize" />
             ) : (
               <View style={[styles.photo, styles.photoEmpty]} />
             )}
@@ -73,7 +73,7 @@ export const ShareCard = React.forwardRef<View, ShareCardProps>(function ShareCa
           <Text style={styles.photoArrow}>→</Text>
           <View style={styles.photoSlot}>
             {afterUri ? (
-              <Image source={{ uri: afterUri }} style={styles.photo} resizeMode="cover" />
+              <Image source={{ uri: afterUri }} style={styles.photo} resizeMode="cover" resizeMethod="resize" />
             ) : (
               <View style={[styles.photo, styles.photoEmpty]} />
             )}

@@ -62,7 +62,7 @@ export function NewsScreen() {
           </View>
         </View>
 
-        {item.image ? <Image source={{ uri: item.image }} style={styles.cardImage} resizeMode="cover" /> : null}
+        {item.image ? <Image source={{ uri: item.image }} style={styles.cardImage} resizeMode="cover" resizeMethod="resize" /> : null}
 
         <View style={styles.cardHeaderRow}>
           <View style={styles.cardCopy}>

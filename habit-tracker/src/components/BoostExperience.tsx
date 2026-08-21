@@ -134,7 +134,7 @@ function makeStyles(C: ReturnType<typeof useTheme>['colors']) {
     sheetHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
     sheetCopy: { flex: 1, minWidth: 0 },
     sheetTitle: { color: C.inkDark, fontSize: 18, lineHeight: 25, fontFamily: FontFamily.extraBold, marginTop: 4 },
-    closeButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' },
+    closeButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' },
     closeGlyph: { color: C.muted, fontSize: 27, lineHeight: 29 },
     summaryTotal: { color: C.inkDark, fontSize: 46, lineHeight: 54, letterSpacing: -1.5, fontFamily: FontFamily.extraBold, textAlign: 'center', marginTop: 17 },
     summaryLogs: { color: C.muted, fontSize: 12, fontFamily: FontFamily.semiBold, textAlign: 'center', marginTop: 2 },
