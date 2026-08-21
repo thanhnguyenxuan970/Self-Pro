@@ -16,7 +16,13 @@ import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { enqueuePendingActivityDeletes } from '../game/pendingActivityDeletes';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { getWeekStart } from '../utils/formatters';
-import { scheduleChallengeReminder, cancelChallengeReminder } from '../utils/notifications';
+import type { AppLanguage } from '../config/i18n';
+import {
+  cancelChallengeReminders,
+  syncChallengeReminders as syncChallengeReminderQueue,
+  type ChallengeReminderSyncResult,
+} from '../utils/notifications';
+import { challengeReminderPrefix, type ChallengeReminderState } from '../lib/challengeNotificationPlan';
 import { syncCurrentUserToSupabase } from '../api/syncService';
 import { useLanguage } from '../hooks/useSettings';
 
@@ -102,12 +108,15 @@ export async function cancelTerminalChallengeReminders(
   db: Pick<SQLiteDatabase, 'getAllAsync'>,
   userId: number,
 ): Promise<void> {
-  const rows = await db.getAllAsync<{ notification_id: string | null }>(
-    `SELECT notification_id FROM challenges
-     WHERE user_id = ? AND status != 'active' AND notification_id IS NOT NULL`,
+  const rows = await db.getAllAsync<{ id: number; notification_id: string | null }>(
+    `SELECT id, notification_id FROM challenges
+     WHERE user_id = ? AND status != 'active'`,
     [userId],
   );
-  await Promise.all(rows.map(row => cancelChallengeReminder(row.notification_id)));
+  await cancelChallengeReminders([
+    ...rows.map(row => row.notification_id),
+    ...rows.map(row => challengeReminderPrefix(row.id)),
+  ]);
 }
 
 /**
@@ -154,26 +163,24 @@ let reactivationReminderSequence = 0;
 export async function restoreReactivatedChallengeReminders(
   db: Pick<SQLiteDatabase, 'runAsync'>,
   challenges: ReactivatedLinkedChallenge[],
-  lang: Parameters<typeof scheduleChallengeReminder>[2],
 ): Promise<void> {
+  // The committed transaction deliberately leaves a temporary token so a
+  // concurrent completion cannot be mistaken for an already-synced row. Do
+  // not schedule a legacy DAILY alarm here: the caller runs the central,
+  // state-aware DATE reconciliation immediately after this cleanup.
+  const previousIds = challenges
+    .map(challenge => challenge.previousNotificationId)
+    .filter((id): id is string => id != null);
+  try {
+    await cancelChallengeReminders(previousIds);
+  } catch {}
+
   for (const challenge of challenges) {
-    if (challenge.previousNotificationId != null) await cancelChallengeReminder(challenge.previousNotificationId);
-    if (!challenge.notificationsEnabled) continue;
-    let notificationId: string | null = null;
-    try {
-      notificationId = await scheduleChallengeReminder(challenge.name, challenge.mode, lang);
-      const update = await db.runAsync(
-        "UPDATE challenges SET notification_id = ? WHERE id = ? AND status = 'active' AND notification_id = ?",
-        [notificationId, challenge.id, challenge.reminderToken],
-      );
-      if (notificationId != null && update.changes === 0) await cancelChallengeReminder(notificationId);
-    } catch {
-      if (notificationId != null) await cancelChallengeReminder(notificationId);
-      await db.runAsync(
-        "UPDATE challenges SET notification_id = NULL WHERE id = ? AND status = 'active' AND notification_id = ?",
-        [challenge.id, challenge.reminderToken],
-      );
-    }
+    if (!challenge.notificationsEnabled || challenge.reminderToken == null) continue;
+    await db.runAsync(
+      "UPDATE challenges SET notification_id = NULL WHERE id = ? AND status = 'active' AND notification_id = ?",
+      [challenge.id, challenge.reminderToken],
+    );
   }
 }
 
@@ -638,7 +645,10 @@ export async function deleteChallengesById(
     }
   });
 
-  await Promise.all(reminderIds.map(cancelChallengeReminder));
+  await cancelChallengeReminders([
+    ...reminderIds,
+    ...challengeIds.map(challengeReminderPrefix),
+  ]);
   return { deletedActivityIds };
 }
 
@@ -649,6 +659,75 @@ async function getActiveChallengeRows(db: SQLiteDatabase, userId: number): Promi
      ORDER BY created_at DESC, id DESC`,
     [userId],
   );
+}
+
+/** Reconcile the single Challenge-owned notification queue from committed
+ * local state. The DB token is a prefix for the new deterministic slots; old
+ * exact IDs remain accepted by the scheduler for one migration cycle. */
+export async function syncActiveChallengeReminders(
+  userId: number,
+  lang: AppLanguage,
+  options: { now?: Date; requestPermission?: boolean; forceReschedule?: boolean; isActive?: () => boolean } = {},
+): Promise<ChallengeReminderSyncResult> {
+  const db = await getDb();
+  if (options.isActive && !options.isActive()) {
+    return {
+      granted: false,
+      permissionError: false,
+      scheduleError: false,
+      scheduled: 0,
+      cancelled: 0,
+      failed: 0,
+      failedChallengeIds: [],
+      candidateCount: 0,
+      omittedCount: 0,
+      challengeTokens: new Map(),
+    };
+  }
+  const now = options.now ?? new Date();
+  const today = challengeDate(now);
+  const rows = await getActiveChallengeRows(db, userId);
+  const challenges = await Promise.all(rows.map(row => loadChallengeWithLog(db, row, today, userId)));
+  const states: ChallengeReminderState[] = challenges.map(challenge => ({
+    challengeId: challenge.id,
+    challengeName: challenge.name,
+    mode: challenge.mode,
+    status: challenge.status,
+    notificationsEnabled: challenge.notificationsEnabled,
+    loggedToday: challenge.loggedToday,
+    freezesLeft: challenge.freezesLeft,
+    weekPaceState: challenge.weekPaceState,
+    weekEnd: challenge.weekEnd,
+    today,
+  }));
+  const storedNotificationIds = new Map(rows.map(row => [row.id, row.notification_id]));
+  const result = await syncChallengeReminderQueue(states, lang, {
+    now,
+    requestPermission: options.requestPermission,
+    forceReschedule: options.forceReschedule,
+    isActive: options.isActive,
+    storedNotificationIds,
+  });
+
+  if (options.isActive && !options.isActive()) return result;
+
+  const raceCancelled: string[] = [];
+  for (const challenge of challenges) {
+    const nextToken = result.challengeTokens.get(challenge.id) ?? null;
+    if (nextToken === challenge.notificationId) continue;
+    const update = await db.runAsync(
+      `UPDATE challenges SET notification_id = ?
+       WHERE id = ? AND user_id = ? AND status = 'active'`,
+      [nextToken, challenge.id, userId],
+    );
+    if (nextToken != null && update.changes === 0) raceCancelled.push(challengeReminderPrefix(challenge.id));
+  }
+  if (raceCancelled.length) await cancelChallengeReminders(raceCancelled);
+
+  if (result.omittedCount > 0) {
+    console.warn(`[notifications] Challenge notification plan omitted ${result.omittedCount} slot(s)`);
+  }
+  return result;
 }
 
 export function useActiveChallenges(userId: number) {
@@ -709,9 +788,13 @@ export function useChallengeById(userId: number, challengeId: number | null) {
  *  (consume freeze or fail) since there is no midnight timer in this app. */
 export function useChallengeRollover(userId: number) {
   const qc = useQueryClient();
+  const [lang] = useLanguage();
   return useMutation({
     mutationFn: async (): Promise<void> => {
       await rolloverChallenge(userId);
+      try {
+        await syncActiveChallengeReminders(userId, lang);
+      } catch {}
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
@@ -721,7 +804,10 @@ export function useChallengeRollover(userId: number) {
       qc.invalidateQueries({ queryKey: ['progress'] });
       void syncCurrentUserToSupabase()
         .catch(error => { if (__DEV__) console.warn('[sync] rollover sync failed:', error); })
-        .finally(() => { qc.invalidateQueries({ queryKey: ['leaderboard'] }); });
+        .finally(() => {
+          qc.invalidateQueries({ queryKey: ['rank'] });
+          qc.invalidateQueries({ queryKey: ['leaderboard'] });
+        });
     },
   });
 }
@@ -882,6 +968,7 @@ async function rolloverWeeklyChallenge(
 
 export function useLogChallengeDay(userId: number) {
   const qc = useQueryClient();
+  const [lang] = useLanguage();
   return useMutation({
     mutationFn: async (challengeId: number): Promise<{ lifetimeCrossings: LifetimeTierCrossing[] }> => {
       const db = await getDb();
@@ -894,6 +981,9 @@ export function useLogChallengeDay(userId: number) {
         lifetimeCrossings = result.lifetimeCrossings;
       });
       await cancelTerminalChallengeReminders(db, userId);
+      try {
+        await syncActiveChallengeReminders(userId, lang);
+      } catch {}
       return { lifetimeCrossings };
     },
     onSuccess: (data) => {
@@ -905,7 +995,10 @@ export function useLogChallengeDay(userId: number) {
       qc.invalidateQueries({ queryKey: ['achievements'] });
       void syncCurrentUserToSupabase()
         .catch(error => { if (__DEV__) console.warn('[sync] activity log sync failed:', error); })
-        .finally(() => { qc.invalidateQueries({ queryKey: ['leaderboard'] }); });
+        .finally(() => {
+          qc.invalidateQueries({ queryKey: ['rank'] });
+          qc.invalidateQueries({ queryKey: ['leaderboard'] });
+        });
       if (data.lifetimeCrossings.length > 0) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(data.lifetimeCrossings);
@@ -953,12 +1046,11 @@ export function useCreateChallenge(userId: number) {
       let notificationDenied = false;
       if (params.notificationsEnabled) {
         try {
-          const notificationId = await scheduleChallengeReminder(params.name, params.mode, lang);
-          if (notificationId) {
-            await db.runAsync(`UPDATE challenges SET notification_id = ? WHERE id = ?`, [notificationId, challengeId]);
-          } else {
-            notificationDenied = true;
-          }
+          const result = await syncActiveChallengeReminders(userId, lang, { requestPermission: true });
+          notificationDenied = !result.granted
+            || result.permissionError
+            || result.scheduleError
+            || result.failedChallengeIds.includes(challengeId);
         } catch (e) {
           notificationDenied = true;
           Sentry.captureException(e);
@@ -978,15 +1070,16 @@ export function useRetryChallengeReminder(userId: number) {
   return useMutation({
     mutationFn: async (challengeId: number): Promise<boolean> => {
       const db = await getDb();
-      const row = await db.getFirstAsync<{ name: string; mode: ChallengeMode }>(
-        `SELECT name, mode FROM challenges WHERE id = ? AND user_id = ? AND status = 'active'`,
+      const row = await db.getFirstAsync<{ id: number }>(
+        `SELECT id FROM challenges WHERE id = ? AND user_id = ? AND status = 'active'`,
         [challengeId, userId],
       );
       if (!row) return false;
-      const notificationId = await scheduleChallengeReminder(row.name, row.mode, lang);
-      if (!notificationId) return false;
-      await db.runAsync(`UPDATE challenges SET notification_id = ? WHERE id = ?`, [notificationId, challengeId]);
-      return true;
+      const result = await syncActiveChallengeReminders(userId, lang, { requestPermission: true });
+      return result.granted
+        && !result.permissionError
+        && !result.scheduleError
+        && !result.failedChallengeIds.includes(challengeId);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['challenge'] }),
   });
@@ -1041,8 +1134,6 @@ export function useRestartChallenge(userId: number) {
       const db = await getDb();
       let newId = 0;
       let notificationsEnabled = false;
-      let challengeName = '';
-      let challengeMode: ChallengeMode = 'streak';
       await db.withExclusiveTransactionAsync(async txn => {
         const previous = await txn.getFirstAsync<ChallengeRow>(
           `SELECT ${CHALLENGE_COLUMNS}
@@ -1071,18 +1162,15 @@ export function useRestartChallenge(userId: number) {
         );
         newId = Number(result.lastInsertRowId);
         notificationsEnabled = !!previous.notifications_enabled;
-        challengeName = previous.name;
-        challengeMode = previous.mode;
       });
       let notificationDenied = false;
       if (notificationsEnabled) {
         try {
-          const notificationId = await scheduleChallengeReminder(challengeName, challengeMode, lang);
-          if (notificationId) {
-            await db.runAsync(`UPDATE challenges SET notification_id = ? WHERE id = ?`, [notificationId, newId]);
-          } else {
-            notificationDenied = true;
-          }
+          const result = await syncActiveChallengeReminders(userId, lang, { requestPermission: true });
+          notificationDenied = !result.granted
+            || result.permissionError
+            || result.scheduleError
+            || result.failedChallengeIds.includes(newId);
         } catch (e) {
           notificationDenied = true;
           Sentry.captureException(e);

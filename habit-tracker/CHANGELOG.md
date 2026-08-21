@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Challenge reminders now re-arm deterministic Expo notification IDs after Android force-stop, and denied notification permission clears the persisted reminder token for retry.
 - Unified Analytics Week, Month, and Year bar rendering while preserving dense-range horizontal scrolling and accessibility context.
 - Fixed completed/selected task rows escaping the rounded Today card; removed the full-row shrink animation and respect reduced-motion settings.
 - Lifetime rank totals now render as whole stars, and normal account sync pulls higher Supabase high-water totals into local SQLite so Rank and the authenticated leaderboard stay aligned.
