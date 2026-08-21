@@ -3,7 +3,8 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { dailyBonusStarsForPoints } from '../config/constants';
 import { MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../utils/activityPicker';
-import type { LifetimeTierCrossing } from '../game/lifetimeRank';
+import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
+import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { enqueuePendingActivityDeletes } from '../game/pendingActivityDeletes';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
@@ -150,11 +151,12 @@ async function revertDailySummaries(
   byDate: Map<string, DateAccum>,
   byWeek: Map<string, WeekAccum>,
   kind: string,
-): Promise<{ totalTreatDelta: number; deletedActivityIds: number[] }> {
+): Promise<{ totalTreatDelta: number; bonusStarsRemoved: number; deletedActivityIds: number[] }> {
   let totalTreatDelta = 0;
+  let bonusStarsRemoved = 0;
   const deletedActivityIds: number[] = [];
   const dates = [...byDate.keys()];
-  if (dates.length === 0) return { totalTreatDelta, deletedActivityIds };
+  if (dates.length === 0) return { totalTreatDelta, bonusStarsRemoved, deletedActivityIds };
   // Batched into one query instead of one round-trip per date.
   const datePlaceholders = dates.map(() => '?').join(',');
   const dailyRows = await db.getAllAsync<{ local_date: string; total_points: number; bonus_star_awarded: number }>(
@@ -170,6 +172,7 @@ async function revertDailySummaries(
     const remainingPoints = daily.total_points - taskPoints;
     const remainingBonusStars = dailyBonusStarsForPoints(remainingPoints);
     const bonusStars = Math.max(0, daily.bonus_star_awarded - remainingBonusStars);
+    bonusStarsRemoved += bonusStars;
 
     if (bonusStars > 0) {
       const staleRows = await db.getAllAsync<{ id: number }>(
@@ -210,7 +213,7 @@ async function revertDailySummaries(
       );
     }
   }
-  return { totalTreatDelta, deletedActivityIds };
+  return { totalTreatDelta, bonusStarsRemoved, deletedActivityIds };
 }
 
 async function revertWeeklySummaries(
@@ -309,7 +312,7 @@ export function useArchiveTask(userId: number) {
             const byDate = groupLogsByDate(allLogs);
             const byWeek = groupLogsByWeek(allLogs);
 
-            const { totalTreatDelta, deletedActivityIds: bonusRowIds } = await revertDailySummaries(db, userId, byDate, byWeek, kind);
+            const { totalTreatDelta, bonusStarsRemoved, deletedActivityIds: bonusRowIds } = await revertDailySummaries(db, userId, byDate, byWeek, kind);
 
             await db.runAsync(
               `DELETE FROM activity_log WHERE user_id = ? AND task_type_id = ? AND source = 'TASK'`,
@@ -321,9 +324,13 @@ export function useArchiveTask(userId: number) {
             await revertTreatStars(db, userId, kind, allLogs, totalTreatDelta);
             await recomputeStreaks(db, userId);
 
-            // Archiving removes weekly/history rows, but lifetime rank is a
-            // high-water mark and never mints stars as a side effect of
-            // removing either GOOD or BAD activity.
+            const deletedPositiveStars = allLogs.reduce((total, log) => total + Math.max(0, log.stars_delta), 0) + bonusStarsRemoved;
+            if (deletedPositiveStars > 0) {
+              const tiers = await db.getAllAsync<LifetimeTierRow>(
+                'SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY stars_required ASC',
+              );
+              lifetimeCrossings = (await applyLifetimeStarsDelta(db, userId, -deletedPositiveStars, tiers)).crossings;
+            }
           }
 
           await db.runAsync(
@@ -344,7 +351,10 @@ export function useArchiveTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['rank'] });
       void syncCurrentUserToSupabase()
         .catch(error => { if (__DEV__) console.warn('[sync] archived task sync failed:', error); })
-        .finally(() => { qc.invalidateQueries({ queryKey: ['leaderboard'] }); });
+        .finally(() => {
+          qc.invalidateQueries({ queryKey: ['rank'] });
+          qc.invalidateQueries({ queryKey: ['leaderboard'] });
+        });
       if (data?.lifetimeCrossings?.length) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(data.lifetimeCrossings);

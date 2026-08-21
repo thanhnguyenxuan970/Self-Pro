@@ -1,6 +1,10 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-const mockCancelChallengeReminder = jest.fn();
-jest.mock('../src/utils/notifications', () => ({ cancelChallengeReminder: mockCancelChallengeReminder }));
+const mockCancelChallengeReminders = jest.fn();
+const mockInvalidateChallengeReminderSync = jest.fn();
+jest.mock('../src/utils/notifications', () => ({
+  cancelChallengeReminders: mockCancelChallengeReminders,
+  invalidateChallengeReminderSync: mockInvalidateChallengeReminderSync,
+}));
 import {
   cancelUserChallengeReminders,
   resolveUserRow,
@@ -81,24 +85,25 @@ const TABLES_WITH_USER_ID_COLUMN = [
 ];
 
 describe('destructive account-delete SQL covers every per-user table', () => {
-  beforeEach(() => mockCancelChallengeReminder.mockClear());
+  beforeEach(() => mockCancelChallengeReminders.mockClear());
 
   it('cancels every persisted challenge reminder before challenge rows are purged', async () => {
     const db = {
       getAllAsync: jest.fn().mockResolvedValue([
-        { notification_id: 'notification-1' },
-        { notification_id: 'notification-2' },
+        { id: 41, notification_id: 'notification-1' },
+        { id: 42, notification_id: 'notification-2' },
       ]),
     } as unknown as SQLiteDatabase;
 
     await cancelUserChallengeReminders(db, 7);
 
     expect(db.getAllAsync).toHaveBeenCalledWith(
-      'SELECT notification_id FROM challenges WHERE user_id = ? AND notification_id IS NOT NULL',
+      'SELECT id, notification_id FROM challenges WHERE user_id = ?',
       [7],
     );
-    expect(mockCancelChallengeReminder).toHaveBeenCalledWith('notification-1');
-    expect(mockCancelChallengeReminder).toHaveBeenCalledWith('notification-2');
+    expect(mockCancelChallengeReminders).toHaveBeenCalledWith([
+      'notification-1', 'notification-2', 'habi-ch-41-', 'habi-ch-42-',
+    ]);
   });
 
   it('deleteAccount purges every table that has a user_id column', () => {

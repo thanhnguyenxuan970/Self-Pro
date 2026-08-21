@@ -38,7 +38,7 @@ test('cancels the reminder after a streak challenge fails during rollover', asyn
     getFirstAsync: jest.fn(async (sql: string) => sql.includes('FROM challenges') ? row : null),
     getAllAsync: jest.fn(async (sql: string) => (
       sql.includes("status != 'active'")
-        ? [{ notification_id: 'challenge-reminder-7' }]
+        ? [{ id: 7, notification_id: 'challenge-reminder-7' }]
         : sql.includes("status = 'active'") ? [row] : []
     )),
     runAsync: jest.fn(async () => ({ changes: 1 })),
@@ -78,7 +78,7 @@ test('rolls over every active challenge in one transaction', async () => {
     withExclusiveTransactionAsync: async (callback: (txn: SQLiteDatabase) => Promise<void>) => callback(db as unknown as SQLiteDatabase),
     getFirstAsync: jest.fn(async () => null),
     getAllAsync: jest.fn(async (sql: string) => (
-      sql.includes("status != 'active'") ? rows.map(row => ({ notification_id: row.notification_id }))
+      sql.includes("status != 'active'") ? rows.map(row => ({ id: row.id, notification_id: row.notification_id }))
         : sql.includes("status = 'active'") ? rows : []
     )),
     runAsync: jest.fn(async () => ({ changes: 1 })),

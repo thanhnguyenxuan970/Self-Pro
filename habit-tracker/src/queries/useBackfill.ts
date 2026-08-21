@@ -248,7 +248,10 @@ export function useBackfillDay(userId: number) {
       qc.invalidateQueries({ queryKey: ['rank'] });
       void syncCurrentUserToSupabase()
         .catch(error => { if (__DEV__) console.warn('[sync] activity log sync failed:', error); })
-        .finally(() => { qc.invalidateQueries({ queryKey: ['leaderboard'] }); });
+        .finally(() => {
+          qc.invalidateQueries({ queryKey: ['rank'] });
+          qc.invalidateQueries({ queryKey: ['leaderboard'] });
+        });
       if (data.lifetimeCrossings.length > 0) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(data.lifetimeCrossings);

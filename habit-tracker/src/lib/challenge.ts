@@ -1,3 +1,5 @@
+import { getLocalDateFor } from '../utils/formatters';
+
 export type DayEntryState = 'done' | 'reset' | 'freeze';
 export type ChallengeStatus = 'active' | 'done' | 'failed';
 export type ChallengeMode = 'streak' | 'weekly';
@@ -16,15 +18,8 @@ export type Challenge = {
   afterPhoto?: string | null;
 };
 
-const CHALLENGE_TIME_ZONE = 'Asia/Ho_Chi_Minh';
-
 export function challengeDate(now: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: CHALLENGE_TIME_ZONE,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(now);
-  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value ?? '';
-  return `${value('year')}-${value('month')}-${value('day')}`;
+  return getLocalDateFor(now);
 }
 
 function dayNumber(value: string): number {

@@ -14,6 +14,7 @@ type Mutation = { mutationFn: (taskIdOrIds: number | number[]) => Promise<{ life
 function createDb(loggedRows: { id: number; local_date: string; week_start: string; points_earned: number; stars_delta: number; kind: string }[]) {
   const getFirstAsync = jest.fn(async (sql: string) => {
     if (sql.includes('FROM challenges')) return null; // no linked active challenge
+    if (sql.includes('SELECT lifetime_stars')) return { lifetime_stars: 5, current_tier_id: 4 };
     return null;
   });
   const getAllAsync = jest.fn(async (sql: string) => {
@@ -43,6 +44,10 @@ describe('useArchiveTask', () => {
     expect(db.runAsync).toHaveBeenCalledWith(
       `DELETE FROM activity_log WHERE user_id = ? AND task_type_id = ? AND source = 'TASK'`,
       [5, 9],
+    );
+    expect(db.runAsync).toHaveBeenCalledWith(
+      'UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?',
+      [3, 4, 5],
     );
     expect(enqueuePendingActivityDeletes).toHaveBeenCalledWith(5, [201, 202]);
   });

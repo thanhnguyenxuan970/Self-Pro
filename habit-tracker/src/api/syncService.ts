@@ -305,12 +305,58 @@ async function syncLifetimeStars(assertActive: AssertSyncActive): Promise<number
   return Number.isFinite(stars) ? Math.max(0, stars) : null;
 }
 
-async function readLocalLifetimeStars(db: SQLiteDatabase, userId: number): Promise<number> {
+async function readLocalLifetimeStars(
+  db: Pick<SQLiteDatabase, 'getFirstAsync'>,
+  userId: number,
+): Promise<number> {
   const user = await db.getFirstAsync<{ lifetime_stars: number }>(
     'SELECT lifetime_stars FROM users WHERE id = ?',
     [userId],
   );
   return Math.max(0, Number(user?.lifetime_stars) || 0);
+}
+
+/**
+ * Pull a higher server total into local SQLite without creating a fake
+ * activity row or replaying rank-up celebrations. The read and write are kept
+ * in one transaction so a local star write cannot be silently overshot.
+ */
+async function pullLifetimeStarsIntoLocal(
+  db: SQLiteDatabase,
+  userId: number,
+  remoteStars: number,
+  assertActive: AssertSyncActive,
+): Promise<void> {
+  if (!Number.isFinite(remoteStars) || remoteStars <= 0) return;
+
+  assertActive();
+  const tiers = await db.getAllAsync<LifetimeTierRow>(
+    'SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY tier_order',
+  );
+  const restoreIfAhead = async (
+    transactionDb: Pick<SQLiteDatabase, 'getFirstAsync' | 'runAsync'>,
+  ): Promise<void> => {
+    // Crossings are intentionally discarded: this restores previously earned
+    // progress and must not replay a celebration for an old tier.
+    const localStars = await readLocalLifetimeStars(transactionDb, userId);
+    if (remoteStars <= localStars) return;
+    await applyLifetimeStarsDelta(transactionDb, userId, remoteStars - localStars, tiers);
+  };
+
+  // The regular async transaction can be interleaved with unrelated async
+  // queries on expo-sqlite. Use a dedicated exclusive connection for this
+  // read-modify-write so a concurrent activity log cannot be overshot. The
+  // fallback keeps older/web test adapters usable; production Android uses the
+  // exclusive path.
+  if (typeof db.withExclusiveTransactionAsync === 'function') {
+    await db.withExclusiveTransactionAsync(async transactionDb => {
+      await restoreIfAhead(transactionDb);
+    });
+  } else {
+    await db.withTransactionAsync(async () => {
+      await restoreIfAhead(db);
+    });
+  }
 }
 
 /** Establish the short-lived Supabase session required by RLS before syncing.
@@ -411,7 +457,7 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
     // Publish the local social projection only after activity upload so remote
     // progress and freshness converge within this serialized account sync.
     await syncUserProfile(db, userId, assertActive);
-    const remoteStars = await syncLifetimeStars(assertActive);
+    let remoteStars = await syncLifetimeStars(assertActive);
     const localStars = await readLocalLifetimeStars(db, userId);
     if (remoteStars !== null && remoteStars < localStars) {
       // A stale or advanced local cursor must never leave the backend frozen.
@@ -419,21 +465,25 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
       // let the protected RPC recalculate rank; no client total is written to
       // `public.users`, and no other account's rows are touched.
       await syncActivity(db, userId, userEmail, assertActive, true);
-      await syncLifetimeStars(assertActive);
+      remoteStars = await syncLifetimeStars(assertActive);
+    }
+    // A returning device can be behind even after its local rows are fully
+    // uploaded; pull the higher server-derived value down so Rank and the
+    // authenticated leaderboard agree.
+    if (remoteStars !== null && remoteStars > localStars) {
+      await pullLifetimeStarsIntoLocal(db, userId, remoteStars, assertActive);
     }
   });
 }
 
 /**
- * Pull this account's highest known lifetime-star total down from Supabase
- * into local SQLite, advancing `current_tier_id` to match. Normal sync only
- * ever pushes local -> server (see `syncLifetimeStars` above), so a fresh
- * local install -- reinstall, new device, cleared app data -- has no way on
- * its own to recover rank progress the server already remembers for this
- * account; `public.users.lifetime_stars` is a permanent high-water mark that
- * survives exactly that scenario. Only ever raises the local total, mirroring
- * `sync_lifetime_stars()`'s own GREATEST semantics in the opposite direction
- * -- never overwrites a local total that is already ahead of the server.
+ * Pull this account's current activity-derived lifetime-star total down from
+ * Supabase into local SQLite, advancing `current_tier_id` to match. Normal
+ * sync uploads local rows first, so a fresh local install -- reinstall, new
+ * device, cleared app data -- can recover the server's activity mirror even
+ * though the activity rows themselves are not downloaded here. Only ever
+ * raises the local total during restore; normal activity sync handles local
+ * decreases from the user's own transaction.
  * Best-effort: swallows and reports every failure rather than blocking sign-in.
  */
 export async function restoreLifetimeStarsFromSupabase(userId: number, userEmail: string): Promise<void> {
@@ -450,27 +500,7 @@ export async function restoreLifetimeStarsFromSupabase(userId: number, userEmail
 
       assertActive();
       const db = await getDb();
-      const tiers = await db.getAllAsync<LifetimeTierRow>(
-        'SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY tier_order',
-      );
-      await db.withTransactionAsync(async () => {
-        // Read the local total inside the same transaction that decides
-        // whether to write it. Reading it outside, then writing based on that
-        // stale reading once inside the transaction, left a window where a
-        // concurrent local write landing in between would get silently
-        // overshot -- the write would add (remoteStars - staleLocalStars) on
-        // top of the row's now-newer value instead of on top of what it read.
-        // Crossings are discarded on purpose -- this silently restores prior
-        // progress and must never replay the level-up celebration for a tier
-        // the account actually earned before this local install existed.
-        const local = await db.getFirstAsync<{ lifetime_stars: number }>(
-          'SELECT lifetime_stars FROM users WHERE id = ?',
-          [userId],
-        );
-        const localStars = local?.lifetime_stars ?? 0;
-        if (remoteStars <= localStars) return;
-        await applyLifetimeStarsDelta(db, userId, remoteStars - localStars, tiers);
-      });
+      await pullLifetimeStarsIntoLocal(db, userId, remoteStars, assertActive);
     });
   } catch (error) {
     Sentry.captureException(error);
@@ -519,6 +549,9 @@ export async function syncUserStreak(userEmail: string, currentStreak: number): 
     const { data: { session } } = await supabase!.auth.getSession();
     assertActive();
     if (!session) return;
+    if (session.user?.email?.trim().toLowerCase() !== userEmail.trim().toLowerCase()) {
+      throw new Error('Supabase session does not match the signed-in user');
+    }
     const { error } = await supabase!.rpc('sync_user_profile', { p_current_streak: currentStreak });
     if (error) throw error;
   });

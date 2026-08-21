@@ -2,31 +2,29 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 jest.mock('../src/db/client', () => ({ getDb: jest.fn() }));
 jest.mock('../src/utils/notifications', () => ({
-  cancelChallengeReminder: jest.fn(),
-  scheduleChallengeReminder: jest.fn(async () => 'replacement-reminder'),
+  cancelChallengeReminders: jest.fn(),
 }));
 jest.mock('../src/game/lifetimeRankWrites', () => ({
   applyLifetimeStarsDelta: jest.fn(async () => ({ crossings: [] })),
 }));
 
 import { reconcileUnloggedLinkedChallenges, restoreReactivatedChallengeReminders } from '../src/queries/useChallenge';
-import { cancelChallengeReminder, scheduleChallengeReminder } from '../src/utils/notifications';
+import { cancelChallengeReminders } from '../src/utils/notifications';
 
 describe('reconcileUnloggedLinkedChallenges', () => {
-  it('schedules a new reminder only for the Challenge reactivated by a Daily uncheck', async () => {
+  it('clears stale ownership and leaves DATE scheduling to the central sync', async () => {
     const runAsync = jest.fn(async () => ({ changes: 1 }));
     const db = { runAsync } as unknown as SQLiteDatabase;
 
     await restoreReactivatedChallengeReminders(db, [
       { id: 17, name: 'Read', mode: 'streak', notificationsEnabled: true, reminderToken: 'reactivation:17:1', previousNotificationId: 'terminal-reminder' },
       { id: 18, name: 'Silent', mode: 'streak', notificationsEnabled: false, reminderToken: null, previousNotificationId: null },
-    ], 'en');
+    ]);
 
-    expect(scheduleChallengeReminder).toHaveBeenCalledWith('Read', 'streak', 'en');
-    expect(cancelChallengeReminder).toHaveBeenCalledWith('terminal-reminder');
+    expect(cancelChallengeReminders).toHaveBeenCalledWith(['terminal-reminder']);
     expect(runAsync).toHaveBeenCalledWith(
-      "UPDATE challenges SET notification_id = ? WHERE id = ? AND status = 'active' AND notification_id = ?",
-      ['replacement-reminder', 17, 'reactivation:17:1'],
+      "UPDATE challenges SET notification_id = NULL WHERE id = ? AND status = 'active' AND notification_id = ?",
+      [17, 'reactivation:17:1'],
     );
     expect(runAsync).not.toHaveBeenCalledWith(
       "UPDATE challenges SET notification_id = ? WHERE id = ? AND status = 'active' AND notification_id = ?",
@@ -34,15 +32,19 @@ describe('reconcileUnloggedLinkedChallenges', () => {
     );
   });
 
-  it('cancels the replacement reminder when the Challenge was re-completed before it could be saved', async () => {
+  it('keeps the guarded cleanup safe when the Challenge was re-completed before it could be saved', async () => {
     const runAsync = jest.fn(async () => ({ changes: 0 }));
     const db = { runAsync } as unknown as SQLiteDatabase;
 
     await restoreReactivatedChallengeReminders(db, [
       { id: 17, name: 'Read', mode: 'streak', notificationsEnabled: true, reminderToken: 'reactivation:17:1', previousNotificationId: null },
-    ], 'en');
+    ]);
 
-    expect(cancelChallengeReminder).toHaveBeenCalledWith('replacement-reminder');
+    expect(cancelChallengeReminders).not.toHaveBeenCalledWith(['replacement-reminder']);
+    expect(runAsync).toHaveBeenCalledWith(
+      "UPDATE challenges SET notification_id = NULL WHERE id = ? AND status = 'active' AND notification_id = ?",
+      [17, 'reactivation:17:1'],
+    );
   });
 
   it('does not reopen a completed weekly Challenge from a Daily uncheck', async () => {

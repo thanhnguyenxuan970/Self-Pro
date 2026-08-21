@@ -5,8 +5,10 @@
 - Challenge reminders now re-arm deterministic Expo notification IDs after Android force-stop, and denied notification permission clears the persisted reminder token for retry.
 - Unified Analytics Week, Month, and Year bar rendering while preserving dense-range horizontal scrolling and accessibility context.
 - Fixed completed/selected task rows escaping the rounded Today card; removed the full-row shrink animation and respect reduced-motion settings.
-- Lifetime rank totals now render as whole stars, and normal account sync pulls higher Supabase high-water totals into local SQLite so Rank and the authenticated leaderboard stay aligned.
-- Validation status: source, automated, and live Android verification pass; release-artifact verification remains the final ship gate.
+- Lifetime rank totals now render as whole stars, and normal account sync reconciles the current Supabase-derived total into local SQLite so Rank and the authenticated leaderboard stay aligned.
+- Unchecking, Progress deletion, and task archiving now reverse positive lifetime stars locally while preserving the achieved high-water tier; auth-scoped Challenge notification work is serialized across sign-out.
+- Rank fallback states no longer present a local-only user as a fabricated champion, and the Global/Friends controls meet the 44px touch-target contract.
+- Validation status: TypeScript, 70 Jest suites/621 tests, 3× stress runs of 12 suites/128 tests, fresh preserved-data Android verification, and no current-process JS/fatal errors pass. Supabase migrations 045–047 are source-shipped; the live project migration list remains at 044 and needs an explicit database deploy.
 
 ## 2.0.2 - 2026-08-18
 

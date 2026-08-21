@@ -16,6 +16,7 @@ jest.mock('../src/queries/useChallenge', () => ({
   logActiveChallengeDay: jest.fn(),
   reconcileUnloggedLinkedChallenges: jest.fn(),
   restoreReactivatedChallengeReminders: jest.fn(),
+  syncActiveChallengeReminders: jest.fn(),
 }));
 jest.mock('../src/hooks/useSettings', () => ({ useLanguage: jest.fn(() => ['en']) }));
 jest.mock('../src/game/logTask', () => ({ computeLogTaskRows: jest.fn() }));
