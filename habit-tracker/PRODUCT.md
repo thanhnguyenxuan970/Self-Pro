@@ -4,6 +4,10 @@
 
 product
 
+## Platform
+
+android
+
 ## Users
 
 Vietnamese Gen Z (late teens – mid 20s). Use the app daily, usually morning or end-of-day. Primary context: phone-first, dark mode likely, short sessions (< 2 min per log). Bilingual: Vietnamese primary, English secondary. Motivated by visible progress and social comparison (leaderboard).

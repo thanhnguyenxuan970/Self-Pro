@@ -771,7 +771,7 @@ function makeStyles(C: AppColors) {
     scoringGuideText: { color: C.muted, fontSize: 11, lineHeight: 13, fontFamily: FontFamily.extraBold },
     selActions: { flexDirection: 'row', gap: 8, marginRight: Spacing.lg, marginTop: 20 },
     selBtn: {
-      minHeight: 44, justifyContent: 'center',
+      minHeight: 48, justifyContent: 'center',
       paddingHorizontal: 10, paddingVertical: 10,
       backgroundColor: C.surface2, borderRadius: Radii.sm,
       borderWidth: 1, borderColor: C.line2,
@@ -795,11 +795,11 @@ function makeStyles(C: AppColors) {
     },
     suggestionRowFirst: { marginTop: Spacing.sm },
     suggestionChip: {
-      flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14,
+      flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14,
     },
     suggestionIcon: { marginRight: 10, fontSize: 13 },
     suggestionChipText: { flex: 1, color: C.primaryText, fontSize: 13, fontFamily: FontFamily.semiBold },
-    suggestionDismiss: { width: 48, height: 44, alignItems: 'center', justifyContent: 'center' },
+    suggestionDismiss: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
     suggestionDismissText: { color: C.muted, fontSize: 14, fontFamily: FontFamily.bold },
 
     empty: { padding: 36, paddingHorizontal: 12, alignItems: 'center' },

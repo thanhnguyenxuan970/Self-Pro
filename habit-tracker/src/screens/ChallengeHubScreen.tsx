@@ -349,7 +349,7 @@ function makeStyles(C: AppColors) {
     retryButton: { minHeight: 48, justifyContent: 'center' },
     retryButtonText: { ...Typography.caption, fontFamily: FontFamily.semiBold, color: C.primaryText },
     retryDisabled: { opacity: 0.55 },
-    historyDeleteButton: { position: 'absolute', top: 4, right: 4, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    historyDeleteButton: { position: 'absolute', top: 4, right: 4, width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
     historyDeleteIcon: { fontSize: 24, lineHeight: 24, color: C.muted, fontFamily: FontFamily.regular },
     checkbox: { width: 22, height: 22, borderRadius: Radii.sm, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm },
     checkboxSelected: { backgroundColor: C.primary, borderColor: C.primary },
