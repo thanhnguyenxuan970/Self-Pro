@@ -638,6 +638,7 @@ export function TodayScreen() {
           )}
         </View>
         <View ref={taskTutorialRef} style={styles.taskCard}>
+          <View style={styles.taskCardClip}>
           {displayTasks.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyEmoji}>🎯</Text>
@@ -677,6 +678,7 @@ export function TodayScreen() {
               );
             })
           )}
+          </View>
         </View>
       </ScrollView>
 
@@ -782,7 +784,9 @@ function makeStyles(C: AppColors) {
       marginHorizontal: Spacing.lg,
       backgroundColor: C.surface, borderRadius: Radii.lg,
       borderWidth: 1, borderColor: C.line, ...Shadows.light,
-      paddingHorizontal: 15,
+    },
+    taskCardClip: {
+      borderRadius: Radii.lg - 1, overflow: 'hidden', paddingHorizontal: 15,
     },
     suggestionRow: {
       flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: 6,

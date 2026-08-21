@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Line, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle } from 'react-native-svg';
 import { analyticsBarAccessibilityLabel, AnalyticsDashboard, AnalyticsRange, getAnalyticsChartLayout, getMonthChartAnchor } from '../../analytics/dashboardModel';
 import { AppColors, FontFamily, Radii } from '../../config/theme';
 
@@ -167,7 +167,9 @@ function AnalyticsChartCard({ data, range, language, C, s, isDark, reduceMotion,
     // over (range/monthChartAnchor) are already tracked below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartLayout.contentWidth, chartLayout.isScrollable, chartViewportWidth, monthChartAnchor.scrollOffset, range]);
-  const barWidth = range === 'M' ? 5 : range === 'Y' ? 10 : 7;
+  // Keep the visual bar consistent across ranges; only the column width and
+  // scrolling change for dense Month/Year data.
+  const barWidth = 8;
   const chartHeight = 188;
   const chartTop = 14;
   const chartLabelHeight = 22;
@@ -180,26 +182,14 @@ function AnalyticsChartCard({ data, range, language, C, s, isDark, reduceMotion,
       : t.goalNote(data.daysAtGoal, data.possibleDays, chartLabel(peak?.label ?? ''), peak?.current ?? 0);
   const chartGrid = [0, 50, 100].map((percent) => <View key={percent} pointerEvents="none" style={{ borderTopColor: C.line, borderTopWidth: 1, borderStyle: 'dotted', bottom: chartY(chartMax * percent / 100), left: 0, position: 'absolute', right: 0 }} />);
   const chartColumns = data.bars.map((bar, index) => <View
-    style={[s.chartColumn, chartLayout.isScrollable && { flexGrow: 0, flexShrink: 0, width: chartLayout.columnWidth }]}
+    style={[s.chartColumn, chartLayout.isScrollable && { flex: 0, width: chartLayout.columnWidth }]}
     key={index}
     accessible
     accessibilityRole="image"
     accessibilityLabel={analyticsBarAccessibilityLabel(language, chartLabel(bar.label), bar.current, bar.previous, chartGoal, showPrevious)}
+    accessibilityHint={chartLayout.isScrollable ? (language === 'vi' ? 'Vuốt sang trái hoặc phải để xem thêm dữ liệu' : 'Swipe left or right to view more data') : undefined}
   ><View style={s.barPair}>{showPrevious && <AnimatedBar value={bar.previous} max={chartMax} color={C.surface3} style={s.barPrevious} reduceMotion={reduceMotion} animationKey={animationKey} delay={index * 12} />}<AnimatedBar value={bar.current} max={chartMax} color={chartGoal > 0 && bar.current < chartGoal ? C.starGoldMuted : C.starGoldText} style={[s.barCurrent, !showPrevious && s.barCurrentSolo, { width: barWidth }]} reduceMotion={reduceMotion} animationKey={animationKey} delay={index * 12 + (showPrevious ? 30 : 0)} /></View><Text pointerEvents="none" style={s.barLabel} numberOfLines={1}>{chartLabel(bar.label)}</Text></View>);
-  const chartContent = () => <View style={[s.chartContent, { paddingTop: chartTop }, s.chartContentFixed]}>{chartGrid}{chartGoal > 0 && <><View style={[s.goalLine, { bottom: chartY(chartGoal), left: 0 }]} /><Text style={[s.goalText, { backgroundColor: isDark ? C.surface2 : C.surface, bottom: chartY(chartGoal), left: -2, paddingHorizontal: 3, right: undefined }]}>{language === 'vi' ? `MỤC TIÊU ${chartNumber(chartGoal)}` : `GOAL ${chartNumber(chartGoal)}`}</Text></>}<View style={s.chartTrack}>{chartColumns}</View></View>;
-  const svgBaseline = chartHeight - chartLabelHeight;
-  const svgPlotHeight = svgBaseline - chartTop;
-  const svgY = (value: number) => svgBaseline - value / chartMax * svgPlotHeight;
-  const goalText = language === 'vi' ? `MỤC TIÊU ${chartNumber(chartGoal)}` : `GOAL ${chartNumber(chartGoal)}`;
-  const scrollableChart = <Svg width={chartLayout.contentWidth} height={chartHeight} accessible accessibilityLabel={language === 'vi' ? 'Biểu đồ điểm có thể cuộn ngang' : 'Horizontally scrollable points chart'}>
-    {[0, 50, 100].map(percent => <Line key={percent} x1={0} x2={chartLayout.contentWidth} y1={svgY(chartMax * percent / 100)} y2={svgY(chartMax * percent / 100)} stroke={C.line} strokeDasharray="2 2" strokeWidth={1} />)}
-    {chartGoal > 0 && <><Line x1={0} x2={chartLayout.contentWidth} y1={svgY(chartGoal)} y2={svgY(chartGoal)} stroke={C.starGoldText} strokeDasharray="6 5" strokeWidth={1.5} /><Rect x={0} y={svgY(chartGoal) - 14} width={92} height={16} fill={isDark ? C.surface2 : C.surface} /><SvgText x={3} y={svgY(chartGoal) - 3} fill={C.starGoldText} fontFamily={FontFamily.bold} fontSize={9}>{goalText}</SvgText></>}
-    {data.bars.map((bar, index) => {
-      const height = bar.current > 0 ? Math.max(6, bar.current / chartMax * svgPlotHeight) : 0;
-      const x = index * chartLayout.columnWidth + (chartLayout.columnWidth - barWidth) / 2;
-      return <React.Fragment key={index}><Rect x={x} y={svgBaseline - height} width={barWidth} height={height} rx={3} fill={chartGoal > 0 && bar.current < chartGoal ? C.starGoldMuted : C.starGoldText} /><SvgText x={index * chartLayout.columnWidth + chartLayout.columnWidth / 2} y={chartHeight - 4} fill={C.muted} fontFamily={FontFamily.regular} fontSize={12} textAnchor="middle">{chartLabel(bar.label)}</SvgText></React.Fragment>;
-    })}
-  </Svg>;
+  const chartContent = <View style={[s.chartContent, { height: chartHeight, paddingTop: chartTop }, chartLayout.isScrollable ? { width: chartLayout.contentWidth } : s.chartContentFixed]}>{chartGrid}{chartGoal > 0 && <><View style={[s.goalLine, { bottom: chartY(chartGoal), left: 0 }]} /><Text style={[s.goalText, { backgroundColor: isDark ? C.surface2 : C.surface, bottom: chartY(chartGoal), left: -2, paddingHorizontal: 3, right: undefined }]}>{language === 'vi' ? `MỤC TIÊU ${chartNumber(chartGoal)}` : `GOAL ${chartNumber(chartGoal)}`}</Text></>}<View style={s.chartTrack}>{chartColumns}</View></View>;
   return <View style={s.card}>
     <View style={s.chartHeader}><Text style={s.cardTitle}>{range === 'Y' ? (language === 'vi' ? 'Điểm theo tháng' : 'Points per month') : t.chart}</Text><Text style={s.legend}><Text style={s.dotCurrent}>●</Text> {range === 'W' ? t.thisWeek : range === 'M' ? (language === 'vi' ? 'Tổng theo ngày' : 'Daily total') : (language === 'vi' ? 'Tổng theo tháng' : 'Monthly total')}{showPrevious && <><Text style={s.dotPrevious}> ●</Text> {t.last}</>} <Text style={s.dotBelow}>●</Text> {language === 'vi' ? 'Dưới mục tiêu' : 'Below goal'}</Text></View>
     <View style={[s.chart, { height: chartHeight }]}>
@@ -207,8 +197,8 @@ function AnalyticsChartCard({ data, range, language, C, s, isDark, reduceMotion,
       <Text pointerEvents="none" style={{ color: C.muted, fontFamily: FontFamily.regular, fontSize: 9, left: 0, position: 'absolute', textAlign: 'right', bottom: chartY(chartMax / 2) - 7, width: 30 }}>{chartNumber(chartMax / 2)}</Text>
       <Text pointerEvents="none" style={{ color: C.muted, fontFamily: FontFamily.regular, fontSize: 9, left: 0, position: 'absolute', textAlign: 'right', bottom: chartY(0) - 2, width: 30 }}>0</Text>
       <View style={s.chartViewport} onLayout={({ nativeEvent }) => setChartViewportWidth(nativeEvent.layout.width)}>{chartLayout.isScrollable
-        ? <ScrollView ref={chartScrollRef} horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={[s.chartScrollContent, range === 'M' && { paddingRight: monthChartAnchor.trailingInset }]} onContentSizeChange={scrollToChartDefault}>{scrollableChart}</ScrollView>
-        : chartContent()}</View>
+        ? <ScrollView ref={chartScrollRef} horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={[s.chartScrollContent, range === 'M' && { paddingRight: monthChartAnchor.trailingInset }]} onContentSizeChange={scrollToChartDefault}>{chartContent}</ScrollView>
+        : chartContent}</View>
     </View>
     <View style={s.rule} /><Text style={s.note}>{chartNote}</Text>
   </View>;
