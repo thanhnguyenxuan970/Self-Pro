@@ -24,6 +24,10 @@ type SectionProps = {
   t: Strings;
 };
 
+function hasChallengePhotos(challenge: ActiveChallenge): boolean {
+  return Boolean(challenge.beforePhoto || challenge.afterPhoto);
+}
+
 /** Extracted from ChallengeDetailScreen to keep the render function's complexity in check.
  *  Every prop combination below mirrors the JSX branch it replaced 1:1. */
 
@@ -146,11 +150,10 @@ export function ChallengeRewardCard({ variant, stars, styles, t }: {
   );
 }
 
-// --- Completed outcome: copy + reward + photos ------------------------------
+// --- Completed outcome: copy + reward + existing photos ---------------------
 
-export function ChallengeCompletedSection({ challenge, reward, onPickPhoto, styles, t }: SectionProps & {
+export function ChallengeCompletedSection({ challenge, reward, styles, t }: SectionProps & {
   reward: ChallengeReward;
-  onPickPhoto: (slot: 'before' | 'after') => void;
 }) {
   return (
     <>
@@ -159,13 +162,15 @@ export function ChallengeCompletedSection({ challenge, reward, onPickPhoto, styl
         <Text style={styles.outcomeBody}>{t.challengeCompletedBody(challenge.daysDone)}</Text>
       </View>
       <ChallengeRewardCard variant="claimed" stars={reward.stars} styles={styles} t={t} />
-      <Text style={styles.sectionLabel}>{t.challengeJourneyTitle}</Text>
-      <ChallengeDetailPhotos variant="completed" challenge={challenge} onPickPhoto={onPickPhoto} styles={styles} t={t} />
+      {hasChallengePhotos(challenge) && <>
+        <Text style={styles.sectionLabel}>{t.challengeJourneyTitle}</Text>
+        <ChallengeDetailPhotos challenge={challenge} styles={styles} t={t} />
+      </>}
     </>
   );
 }
 
-// --- Failed outcome: copy + encouragement + locked reward + photos ---------
+// --- Failed outcome: copy + encouragement + locked reward + existing photos -
 
 export function ChallengeFailedSection({ challenge, reward, styles, t }: SectionProps & {
   reward: ChallengeReward;
@@ -180,8 +185,10 @@ export function ChallengeFailedSection({ challenge, reward, styles, t }: Section
         <Text style={styles.encouragementText}>{t.challengeFailedEncouragement}</Text>
       </View>
       <ChallengeRewardCard variant="locked" stars={reward.stars} styles={styles} t={t} />
-      <Text style={styles.sectionLabel}>{t.challengeJourneyTitle}</Text>
-      <ChallengeDetailPhotos variant="failed" challenge={challenge} styles={styles} t={t} />
+      {hasChallengePhotos(challenge) && <>
+        <Text style={styles.sectionLabel}>{t.challengeJourneyTitle}</Text>
+        <ChallengeDetailPhotos challenge={challenge} styles={styles} t={t} />
+      </>}
     </>
   );
 }
@@ -222,6 +229,8 @@ export function ChallengeWeeklyActiveSection({ challenge, today, styles, t }: Se
           <Text style={styles.overachieverText}>{t.challengeOverachieverHint}</Text>
         </View>
       )}
+
+      {hasChallengePhotos(challenge) && <ChallengeDetailPhotos challenge={challenge} styles={styles} t={t} />}
     </>
   );
 }
@@ -229,12 +238,11 @@ export function ChallengeWeeklyActiveSection({ challenge, today, styles, t }: Se
 // --- Active + streak mode: stats, rule note, day grid, linked hint, photos -
 
 export function ChallengeStreakActiveSection({
-  challenge, atRisk, today, linkedTaskName, onPickPhoto, styles, t,
+  challenge, atRisk, today, linkedTaskName, styles, t,
 }: SectionProps & {
   atRisk: boolean;
   today: string;
   linkedTaskName: string | null;
-  onPickPhoto: (slot: 'before' | 'after') => void;
 }) {
   return (
     <>
@@ -271,39 +279,23 @@ export function ChallengeStreakActiveSection({
         </Text>
       )}
 
-      <View style={styles.photoSection}>
-        <PhotoSlot uri={challenge.beforePhoto} label={t.challengeBeforePhotoLabel} actionLabel={t.challengeAddPhoto} onPress={() => onPickPhoto('before')} />
-        <PhotoSlot uri={challenge.afterPhoto} label={t.challengeAfterPhotoLabel} locked actionLabel={t.challengeAfterPhotoLocked} />
-      </View>
+      {hasChallengePhotos(challenge) && <ChallengeDetailPhotos challenge={challenge} styles={styles} t={t} />}
     </>
   );
 }
 
-// --- Journey photo pair: variant differs by outcome -------------------------
+// --- Existing journey photo pair (read-only) --------------------------------
 
-export function ChallengeDetailPhotos({ variant, challenge, onPickPhoto, styles, t }: {
-  variant: 'completed' | 'failed';
+export function ChallengeDetailPhotos({ challenge, styles, t }: {
   challenge: ActiveChallenge;
-  onPickPhoto?: (slot: 'before' | 'after') => void;
   styles: ChallengeDetailStyles;
   t: Strings;
 }) {
-  const completed = variant === 'completed';
+  const hasBothPhotos = Boolean(challenge.beforePhoto && challenge.afterPhoto);
   return (
-    <View style={styles.photoSection}>
-      <PhotoSlot
-        uri={challenge.beforePhoto}
-        label={t.challengeBeforePhotoLabel}
-        actionLabel={t.challengeAddPhoto}
-        onPress={completed ? () => onPickPhoto?.('before') : undefined}
-      />
-      <PhotoSlot
-        uri={challenge.afterPhoto}
-        label={t.challengeAfterPhotoLabel}
-        actionLabel={completed ? t.challengeAddPhoto : t.challengeAfterPhotoLocked}
-        locked={!completed}
-        onPress={completed ? () => onPickPhoto?.('after') : undefined}
-      />
+    <View style={[styles.photoSection, !hasBothPhotos && styles.photoSectionSingle]}>
+      {challenge.beforePhoto && <PhotoSlot uri={challenge.beforePhoto} label={t.challengeBeforePhotoLabel} />}
+      {challenge.afterPhoto && <PhotoSlot uri={challenge.afterPhoto} label={t.challengeAfterPhotoLabel} />}
     </View>
   );
 }

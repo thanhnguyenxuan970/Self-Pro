@@ -6,7 +6,7 @@ import { useHeaderHeight } from '@react-navigation/elements';
 import { AppColors, FontFamily, Radii, Shadows, Spacing, Typography } from '../config/theme';
 import { useScreenCommons } from '../hooks/useScreenCommons';
 import { useReduceMotion } from '../hooks/useReduceMotion';
-import { useChallengeById, useDeleteChallenge, useLogChallengeDay, useRestartChallenge, useRetryChallengeReminder, useSetChallengeAfterPhoto, useSetChallengeBeforePhoto, useUpdateChallengeName } from '../queries/useChallenge';
+import { useChallengeById, useDeleteChallenge, useLogChallengeDay, useRestartChallenge, useRetryChallengeReminder, useUpdateChallengeName } from '../queries/useChallenge';
 import { useTodayTasks } from '../queries/useToday';
 import { useChallengeDetailActions } from '../hooks/useChallengeDetailActions';
 import { challengeDate, isAtRisk, isComplete } from '../lib/challenge';
@@ -35,8 +35,6 @@ export function ChallengeDetailScreen() {
   const { data: challenge, isLoading } = useChallengeById(userId, challengeId);
   const { data: tasks = [] } = useTodayTasks(userId);
   const logDay = useLogChallengeDay(userId);
-  const setAfterPhoto = useSetChallengeAfterPhoto(userId);
-  const setBeforePhoto = useSetChallengeBeforePhoto(userId);
   const restartChallenge = useRestartChallenge(userId);
   const retryReminder = useRetryChallengeReminder(userId);
   const updateChallengeName = useUpdateChallengeName(userId);
@@ -52,7 +50,6 @@ export function ChallengeDetailScreen() {
   const actions = useChallengeDetailActions({
     challenge, challengeId, navigation, t,
     restartChallenge, retryReminder, logDay, updateChallengeName, deleteChallenge,
-    setBeforePhoto, setAfterPhoto,
     nameDraft, setNameDraft, setMenuVisible, setEditingName,
   });
 
@@ -117,7 +114,7 @@ export function ChallengeDetailScreen() {
         />
 
         {completed && (
-          <ChallengeCompletedSection challenge={challenge} reward={reward} onPickPhoto={actions.pickChallengePhoto} styles={styles} t={t} />
+          <ChallengeCompletedSection challenge={challenge} reward={reward} styles={styles} t={t} />
         )}
 
         {isWeekly && active && challenge.weeklyTarget != null && (
@@ -130,7 +127,6 @@ export function ChallengeDetailScreen() {
             atRisk={atRisk}
             today={today}
             linkedTaskName={linkedTaskName}
-            onPickPhoto={actions.pickChallengePhoto}
             styles={styles}
             t={t}
           />
@@ -261,6 +257,7 @@ function makeStyles(C: AppColors) {
     logBtnText: { ...Typography.bodyStrong, color: C.onAccent, fontSize: 16 },
     linkedHint: { ...Typography.secondary, color: C.ink2, marginBottom: Spacing.sm, lineHeight: 19 },
     photoSection: { flexDirection: 'row', gap: Spacing.md, alignSelf: 'stretch' },
+    photoSectionSingle: { alignSelf: 'center', width: '50%' },
     doneTitle: { ...Typography.title, color: C.inkDark, textAlign: 'center' },
     outcomeCopy: { alignSelf: 'stretch', alignItems: 'center', gap: Spacing.xs },
     outcomeBody: { ...Typography.secondary, color: C.ink2, textAlign: 'center', paddingHorizontal: Spacing.md },

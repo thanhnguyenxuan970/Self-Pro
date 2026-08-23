@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontFamily } from '../config/theme';
 import { useTranslations } from '../hooks/useSettings';
@@ -25,16 +25,13 @@ interface ShareCardProps {
   topHabitName: string;
   weeklyStars: number;
   tierName: string;
-  beforeUri?: string;
-  afterUri?: string;
 }
 
 export const ShareCard = React.forwardRef<View, ShareCardProps>(function ShareCard(
-  { streakCount, daysDone, percentile, topHabitName, weeklyStars, tierName, beforeUri, afterUri },
+  { streakCount, daysDone, percentile, topHabitName, weeklyStars, tierName },
   ref,
 ) {
   const t = useTranslations();
-  const hasPhotos = !!(beforeUri || afterUri);
   const journeyPct = Math.min(1, daysDone / 90);
 
   return (
@@ -49,56 +46,35 @@ export const ShareCard = React.forwardRef<View, ShareCardProps>(function ShareCa
         </View>
       </View>
 
-      {/* Hero: streak */}
-      <View style={styles.heroSection}>
-        <Text style={styles.heroEmoji}>🔥</Text>
-        <Text style={styles.heroNumber}>{streakCount}</Text>
-        <Text style={styles.heroLabel}>{t.shareStreakUnit}</Text>
-        {weeklyStars > 0 && (
-          <Text style={styles.starsRow}>{t.shareWeeklyStars(Math.round(weeklyStars))}</Text>
-        )}
-      </View>
-
-      {/* Before / After photos */}
-      {hasPhotos && (
-        <View style={styles.photoRow}>
-          <View style={styles.photoSlot}>
-            {beforeUri ? (
-              <Image source={{ uri: beforeUri }} style={styles.photo} resizeMode="cover" resizeMethod="resize" />
-            ) : (
-              <View style={[styles.photo, styles.photoEmpty]} />
-            )}
-            <Text style={styles.photoLabel}>{t.shareBefore}</Text>
-          </View>
-          <Text style={styles.photoArrow}>→</Text>
-          <View style={styles.photoSlot}>
-            {afterUri ? (
-              <Image source={{ uri: afterUri }} style={styles.photo} resizeMode="cover" resizeMethod="resize" />
-            ) : (
-              <View style={[styles.photo, styles.photoEmpty]} />
-            )}
-            <Text style={styles.photoLabel}>{t.shareAfter}</Text>
-          </View>
+      <View style={styles.body}>
+        {/* Hero: streak */}
+        <View style={styles.heroSection}>
+          <Text style={styles.heroEmoji}>🔥</Text>
+          <Text style={styles.heroNumber}>{streakCount}</Text>
+          <Text style={styles.heroLabel}>{t.shareStreakUnit}</Text>
+          {weeklyStars > 0 && (
+            <Text style={styles.starsRow}>{t.shareWeeklyStars(Math.round(weeklyStars))}</Text>
+          )}
         </View>
-      )}
 
-      {/* Progress + top habit */}
-      <View style={styles.progressSection}>
-        {topHabitName !== '' && (
-          <>
-            <Text style={styles.habitSectionLabel}>{t.shareTopHabitLabel}</Text>
-            <Text style={styles.habitName} numberOfLines={1}>{topHabitName}</Text>
-          </>
-        )}
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${Math.round(journeyPct * 100)}%` as `${number}%` }]} />
+        {/* Progress + top habit */}
+        <View style={styles.progressSection}>
+          {topHabitName !== '' && (
+            <>
+              <Text style={styles.habitSectionLabel}>{t.shareTopHabitLabel}</Text>
+              <Text style={styles.habitName} numberOfLines={1}>{topHabitName}</Text>
+            </>
+          )}
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.round(journeyPct * 100)}%` as `${number}%` }]} />
+          </View>
+          <Text style={styles.progressText}>{t.shareDaysLabel(daysDone)}</Text>
         </View>
-        <Text style={styles.progressText}>{t.shareDaysLabel(daysDone)}</Text>
-      </View>
 
-      {/* Percentile */}
-      <View style={styles.percentileChip}>
-        <Text style={styles.percentileText} numberOfLines={1}>🏆 {t.sharePercentileLabel(percentile)}</Text>
+        {/* Percentile */}
+        <View style={styles.percentileChip}>
+          <Text style={styles.percentileText} numberOfLines={1}>🏆 {t.sharePercentileLabel(percentile)}</Text>
+        </View>
       </View>
 
       {/* Watermark */}
@@ -173,39 +149,13 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.semiBold,
     marginTop: 8,
   },
-  photoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-  },
-  photoSlot: {
-    alignItems: 'center',
-    gap: 6,
-  },
-  photo: {
-    width: 132,
-    height: 132,
-    borderRadius: 14,
-  },
-  photoEmpty: {
-    backgroundColor: 'rgba(241,247,243,0.08)',
-    borderWidth: 1,
-    borderColor: FAINT,
-  },
-  photoLabel: {
-    fontSize: 11,
-    color: MUTED,
-    fontFamily: FontFamily.medium,
-  },
-  photoArrow: {
-    fontSize: 22,
-    color: ACCENT,
-    fontFamily: FontFamily.bold,
-    marginTop: -20,
-  },
   progressSection: {
     gap: 8,
+  },
+  body: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 40,
   },
   habitSectionLabel: {
     fontSize: 11,

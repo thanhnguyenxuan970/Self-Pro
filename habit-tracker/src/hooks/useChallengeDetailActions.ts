@@ -1,6 +1,5 @@
 import { Alert, Share } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { pickSquareImage } from '../utils/pickImage';
 import { requestAddActivity } from './useAddActivityIntent';
 import { canRequestChallengeDelete, challengeDeletePrompt, deleteChallengeAndExit } from '../utils/challengeDetail';
 import type { Strings } from '../config/i18n';
@@ -11,8 +10,6 @@ import type {
   useLogChallengeDay,
   useUpdateChallengeName,
   useDeleteChallenge,
-  useSetChallengeBeforePhoto,
-  useSetChallengeAfterPhoto,
 } from '../queries/useChallenge';
 
 type Params = {
@@ -25,8 +22,6 @@ type Params = {
   logDay: ReturnType<typeof useLogChallengeDay>;
   updateChallengeName: ReturnType<typeof useUpdateChallengeName>;
   deleteChallenge: ReturnType<typeof useDeleteChallenge>;
-  setBeforePhoto: ReturnType<typeof useSetChallengeBeforePhoto>;
-  setAfterPhoto: ReturnType<typeof useSetChallengeAfterPhoto>;
   nameDraft: string;
   setNameDraft: (value: string) => void;
   setMenuVisible: React.Dispatch<React.SetStateAction<boolean>>;
@@ -38,7 +33,6 @@ export function useChallengeDetailActions(params: Params) {
   const {
     challenge, challengeId, navigation, t,
     restartChallenge, retryReminder, logDay, updateChallengeName, deleteChallenge,
-    setBeforePhoto, setAfterPhoto,
     nameDraft, setNameDraft, setMenuVisible, setEditingName,
   } = params;
 
@@ -88,14 +82,6 @@ export function useChallengeDetailActions(params: Params) {
     } catch {
       // Sharing is optional; a cancelled or unavailable system sheet is a no-op.
     }
-  }
-
-  async function pickChallengePhoto(slot: 'before' | 'after') {
-    if (!challenge) return;
-    const uri = await pickSquareImage();
-    if (!uri) return;
-    if (slot === 'before') setBeforePhoto.mutate({ challengeId: challenge.id, uri });
-    else setAfterPhoto.mutate({ challengeId: challenge.id, uri });
   }
 
   function handleMenu() {
@@ -148,6 +134,6 @@ export function useChallengeDetailActions(params: Params) {
 
   return {
     handleRestart, handleRetryReminder, handleLogToday, handleLogNow, handleShare,
-    pickChallengePhoto, handleMenu, openNameEditor, saveName, confirmDelete,
+    handleMenu, openNameEditor, saveName, confirmDelete,
   };
 }

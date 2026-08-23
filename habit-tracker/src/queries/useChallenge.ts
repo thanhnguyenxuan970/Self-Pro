@@ -1012,7 +1012,6 @@ type CreateChallengeParams = {
   name: string;
   taskTypeId: number | null;
   freezesLeft: number;
-  beforePhoto?: string | null;
   notificationsEnabled: boolean;
   /** Only meaningful when taskTypeId is set (linked challenge). */
   minDuration?: number | null;
@@ -1034,9 +1033,9 @@ export function useCreateChallenge(userId: number) {
       let challengeId: number;
       try {
         const result = await db.runAsync(
-          `INSERT INTO challenges (user_id, name, task_type_id, mode, target_days, weekly_target, total_weeks, start_date, streak_current, freezes_left, freeze_used, before_photo, notifications_enabled, min_duration, min_count)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?, ?, ?)`,
-          [userId, params.name, params.taskTypeId, params.mode, targetDays, weeklyTarget, totalWeeks, today, params.freezesLeft, params.beforePhoto ?? null, params.notificationsEnabled ? 1 : 0, minDuration, minCount],
+          `INSERT INTO challenges (user_id, name, task_type_id, mode, target_days, weekly_target, total_weeks, start_date, streak_current, freezes_left, freeze_used, notifications_enabled, min_duration, min_count)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?, ?)`,
+          [userId, params.name, params.taskTypeId, params.mode, targetDays, weeklyTarget, totalWeeks, today, params.freezesLeft, params.notificationsEnabled ? 1 : 0, minDuration, minCount],
         );
         challengeId = Number(result.lastInsertRowId);
       } catch (e: any) {
@@ -1080,30 +1079,6 @@ export function useRetryChallengeReminder(userId: number) {
         && !result.permissionError
         && !result.scheduleError
         && !result.failedChallengeIds.includes(challengeId);
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['challenge'] }),
-  });
-}
-
-export function useSetChallengeAfterPhoto(userId: number) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ challengeId, uri }: { challengeId: number; uri: string }): Promise<void> => {
-      const db = await getDb();
-      await db.runAsync(`UPDATE challenges SET after_photo = ? WHERE id = ? AND user_id = ?`, [uri, challengeId, userId]);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['challenge'] });
-    },
-  });
-}
-
-export function useSetChallengeBeforePhoto(userId: number) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ challengeId, uri }: { challengeId: number; uri: string }): Promise<void> => {
-      const db = await getDb();
-      await db.runAsync(`UPDATE challenges SET before_photo = ? WHERE id = ? AND user_id = ?`, [uri, challengeId, userId]);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['challenge'] }),
   });

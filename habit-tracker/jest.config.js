@@ -11,7 +11,6 @@ module.exports = {
   },
   moduleNameMapper: {
     '^expo-secure-store$': '<rootDir>/__mocks__/expo-secure-store.js',
-    '^expo-store-review$': '<rootDir>/__mocks__/expo-store-review.js',
     '^@sentry/react-native$': '<rootDir>/__mocks__/@sentry/react-native.js',
   },
 };

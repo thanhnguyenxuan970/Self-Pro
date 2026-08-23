@@ -3,7 +3,6 @@ import {
   Modal, View, Text, TouchableOpacity, StyleSheet,
   ActivityIndicator, ScrollView, useWindowDimensions, Alert,
 } from 'react-native';
-import { pickSquareImage } from '../utils/pickImage';
 import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
 import { ShareCard, CARD_W, CARD_H } from '../components/ShareCard';
@@ -39,17 +38,8 @@ export function ShareCardModal({
   const previewScale = (sheetW - 48) / CARD_W;
   const marginH = CARD_W * (previewScale - 1) / 2;   // negative — shrinks layout
   const marginV = CARD_H * (previewScale - 1) / 2;   // negative — shrinks layout
-  const [beforeUri, setBeforeUri] = useState<string | undefined>();
-  const [afterUri, setAfterUri] = useState<string | undefined>();
   const [capturing, setCapturing] = useState(false);
   const cardRef = useRef<View>(null);
-
-  async function pickPhoto(slot: 'before' | 'after') {
-    const uri = await pickSquareImage();
-    if (!uri) return;
-    if (slot === 'before') setBeforeUri(uri);
-    else setAfterUri(uri);
-  }
 
   async function handleShare() {
     if (!isPro) {
@@ -69,8 +59,6 @@ export function ShareCardModal({
   }
 
   function handleClose() {
-    setBeforeUri(undefined);
-    setAfterUri(undefined);
     onClose();
   }
 
@@ -105,49 +93,8 @@ export function ShareCardModal({
                 topHabitName={topHabitName}
                 weeklyStars={weeklyStars}
                 tierName={tierName}
-                beforeUri={beforeUri}
-                afterUri={afterUri}
               />
             </View>
-
-            {/* Photo pickers */}
-            <View style={styles.photoPickerRow}>
-              <TouchableOpacity
-                style={[
-                  styles.photoPickerBtn,
-                  { backgroundColor: C.surface2, borderColor: beforeUri ? C.primary : C.line },
-                ]}
-                onPress={() => pickPhoto('before')}
-                activeOpacity={0.75}
-                accessibilityRole="button"
-                accessibilityLabel={t.shareBefore}
-              >
-                <Text style={[styles.photoPickerIcon, { color: beforeUri ? C.primary : C.muted }]}>
-                  {beforeUri ? '✓' : '📷'}
-                </Text>
-                <Text style={[styles.photoPickerLabel, { color: C.ink2 }]}>{t.shareBefore}</Text>
-              </TouchableOpacity>
-
-              <Text style={[styles.photoPickerArrow, { color: C.muted }]}>→</Text>
-
-              <TouchableOpacity
-                style={[
-                  styles.photoPickerBtn,
-                  { backgroundColor: C.surface2, borderColor: afterUri ? C.primary : C.line },
-                ]}
-                onPress={() => pickPhoto('after')}
-                activeOpacity={0.75}
-                accessibilityRole="button"
-                accessibilityLabel={t.shareAfter}
-              >
-                <Text style={[styles.photoPickerIcon, { color: afterUri ? C.primary : C.muted }]}>
-                  {afterUri ? '✓' : '📷'}
-                </Text>
-                <Text style={[styles.photoPickerLabel, { color: C.ink2 }]}>{t.shareAfter}</Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={[styles.hint, { color: C.muted }]}>{t.sharePhotoHint}</Text>
           </ScrollView>
 
           {/* Share CTA */}
@@ -214,39 +161,6 @@ const styles = StyleSheet.create({
   previewContainer: {
     // margin/scale are computed per-render from useWindowDimensions and applied inline
     alignSelf: 'center',
-  },
-  photoPickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    justifyContent: 'center',
-  },
-  photoPickerBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    paddingHorizontal: Spacing.md,
-    borderRadius: Radii.lg,
-    borderWidth: 1.5,
-  },
-  photoPickerIcon: {
-    fontSize: 18,
-  },
-  photoPickerLabel: {
-    fontSize: 14,
-    fontFamily: FontFamily.semiBold,
-  },
-  photoPickerArrow: {
-    fontSize: 18,
-    fontFamily: FontFamily.bold,
-  },
-  hint: {
-    fontSize: 12,
-    fontFamily: FontFamily.regular,
-    textAlign: 'center',
-    lineHeight: 17,
   },
   shareBtn: {
     marginTop: Spacing.sm,

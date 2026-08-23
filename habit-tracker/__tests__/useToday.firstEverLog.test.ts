@@ -33,24 +33,14 @@ jest.mock('../src/game/pendingLevelUpQueue', () => ({ enqueuePendingLevelUps: je
 jest.mock('../src/game/pendingSurveyD0', () => ({ markSurveyD0Pending: jest.fn(() => Promise.resolve()) }));
 jest.mock('../src/hooks/useSurveyD0Intent', () => ({ notifyFirstEverLog: jest.fn() }));
 jest.mock('../src/lib/rankMascotBridge', () => ({ rankMascotBridge: {} }));
-jest.mock('../src/lib/storeReview', () => ({
-  maybeRequestStoreReview: jest.fn(() => Promise.resolve()),
-}));
 
 import { useLogTask } from '../src/queries/useToday';
 import { markSurveyD0Pending } from '../src/game/pendingSurveyD0';
 import { notifyFirstEverLog } from '../src/hooks/useSurveyD0Intent';
-import { maybeRequestStoreReview } from '../src/lib/storeReview';
 
 describe('useLogTask onSuccess — D0 survey trigger', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
     jest.clearAllMocks();
-  });
-
-  afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
   });
 
   it('marks the survey pending and notifies subscribers when this was the first-ever log', async () => {
@@ -60,11 +50,9 @@ describe('useLogTask onSuccess — D0 survey trigger', () => {
 
     mutation.onSuccess({ lifetimeCrossings: [], isFirstEverLog: true, newStreak: 1 });
     await Promise.resolve(); // flush the .then() chain
-    jest.runOnlyPendingTimers();
 
     expect(markSurveyD0Pending).toHaveBeenCalledTimes(1);
     expect(notifyFirstEverLog).toHaveBeenCalledTimes(1);
-    expect(maybeRequestStoreReview).toHaveBeenCalledTimes(1);
   });
 
   it('does nothing survey-related on an ordinary (non-first) log', async () => {
@@ -74,10 +62,8 @@ describe('useLogTask onSuccess — D0 survey trigger', () => {
 
     mutation.onSuccess({ lifetimeCrossings: [], isFirstEverLog: false, newStreak: 4 });
     await Promise.resolve();
-    jest.runOnlyPendingTimers();
 
     expect(markSurveyD0Pending).not.toHaveBeenCalled();
     expect(notifyFirstEverLog).not.toHaveBeenCalled();
-    expect(maybeRequestStoreReview).toHaveBeenCalledTimes(1);
   });
 });
