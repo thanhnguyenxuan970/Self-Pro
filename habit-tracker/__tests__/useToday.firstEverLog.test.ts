@@ -34,13 +34,14 @@ jest.mock('../src/game/pendingSurveyD0', () => ({ markSurveyD0Pending: jest.fn((
 jest.mock('../src/hooks/useSurveyD0Intent', () => ({ notifyFirstEverLog: jest.fn() }));
 jest.mock('../src/lib/rankMascotBridge', () => ({ rankMascotBridge: {} }));
 jest.mock('../src/lib/storeReview', () => ({
-  maybeRequestStoreReview: jest.fn(() => Promise.resolve()),
+  recordFirstUse: jest.fn(() => Promise.resolve()),
+  scheduleStoreReviewPrompt: jest.fn(),
 }));
 
 import { useLogTask } from '../src/queries/useToday';
 import { markSurveyD0Pending } from '../src/game/pendingSurveyD0';
 import { notifyFirstEverLog } from '../src/hooks/useSurveyD0Intent';
-import { maybeRequestStoreReview } from '../src/lib/storeReview';
+import { recordFirstUse, scheduleStoreReviewPrompt } from '../src/lib/storeReview';
 
 describe('useLogTask onSuccess — D0 survey trigger', () => {
   beforeEach(() => {
@@ -64,7 +65,8 @@ describe('useLogTask onSuccess — D0 survey trigger', () => {
 
     expect(markSurveyD0Pending).toHaveBeenCalledTimes(1);
     expect(notifyFirstEverLog).toHaveBeenCalledTimes(1);
-    expect(maybeRequestStoreReview).toHaveBeenCalledTimes(1);
+    expect(recordFirstUse).toHaveBeenCalledTimes(1);
+    expect(scheduleStoreReviewPrompt).toHaveBeenCalledTimes(1);
   });
 
   it('does nothing survey-related on an ordinary (non-first) log', async () => {
@@ -78,6 +80,7 @@ describe('useLogTask onSuccess — D0 survey trigger', () => {
 
     expect(markSurveyD0Pending).not.toHaveBeenCalled();
     expect(notifyFirstEverLog).not.toHaveBeenCalled();
-    expect(maybeRequestStoreReview).toHaveBeenCalledTimes(1);
+    expect(recordFirstUse).toHaveBeenCalledTimes(1);
+    expect(scheduleStoreReviewPrompt).toHaveBeenCalledTimes(1);
   });
 });

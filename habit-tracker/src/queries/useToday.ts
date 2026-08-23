@@ -23,7 +23,7 @@ import { enqueuePendingActivityDeletes } from '../game/pendingActivityDeletes';
 import { markSurveyD0Pending } from '../game/pendingSurveyD0';
 import { notifyFirstEverLog } from '../hooks/useSurveyD0Intent';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
-import { maybeRequestStoreReview } from '../lib/storeReview';
+import { recordFirstUse, scheduleStoreReviewPrompt } from '../lib/storeReview';
 import { useLanguage } from '../hooks/useSettings';
 
 type FullTierRow = LifetimeTierRow;
@@ -519,8 +519,10 @@ export function useLogTask(userId: number) {
       if (data.isFirstEverLog) {
         markSurveyD0Pending().then(notifyFirstEverLog).catch(() => {});
       }
-      // Record first eligible use and prompt only when the user returns after 24 hours.
-      setTimeout(() => { maybeRequestStoreReview().catch(() => {}); }, 4_000);
+      // Persist first use immediately; delay only the visible native prompt so
+      // streak celebrations and the add-activity sheet can finish first.
+      recordFirstUse().catch(() => {});
+      scheduleStoreReviewPrompt();
       // Fire-and-forget streak sync — non-fatal if Supabase absent or table not migrated
       getStoredGoogleUser()
         .then(user => user && Promise.all([

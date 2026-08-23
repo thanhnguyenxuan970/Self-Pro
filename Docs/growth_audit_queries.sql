@@ -1,6 +1,6 @@
 -- =====================================================================
 -- HABI — GROWTH AUDIT (chạy trong Supabase Dashboard → SQL Editor)
--- Ngày viết: 2026-08-15   ·   App: com.habitring.app   ·   v2.0.1.5
+-- Ngày viết: 2026-08-23   ·   App: com.habitring.app   ·   v2.0.3
 -- =====================================================================
 --
 -- TIỀN ĐỀ: bạn KHÔNG cần cài analytics SDK. Toàn bộ hành vi user đã nằm
@@ -18,6 +18,8 @@
 -- LƯU Ý KỸ THUẬT (đã verify trong repo, đừng sửa nếu không chắc):
 --   · activity_log.logged_at  = BIGINT epoch MILLISECOND  → /1000.0
 --   · activity_log.local_date = TEXT 'YYYY-MM-DD'         → ::date
+--   · Các timestamp tuyệt đối dùng public.users.timezone đã validate qua
+--     pg_timezone_names; profile thiếu/invalid fallback UTC.
 --   · source='LOGIN' là dòng do trigger sinh, KHÔNG phải hành vi log habit.
 --     Mọi query "active" bên dưới đều loại nó ra.
 --   · SQL Editor chạy quyền postgres nên bỏ qua RLS. Đây là dữ liệu của
@@ -33,16 +35,34 @@
 -- Q0. SANITY — có những `source` nào trong activity_log?
 -- Chạy CÁI NÀY TRƯỚC. Nếu thấy source lạ (seed/demo/test), thêm vào
 -- danh sách loại trừ ở các query sau.
+-- first_seen/last_seen là giờ local; nhóm thêm theo timezone để không trộn
+-- các múi giờ khác nhau vào cùng một mốc.
 -- ---------------------------------------------------------------------
+WITH profiles AS (
+  SELECT
+    lower(profile.user_email) AS email,
+    COALESCE(valid_timezone.name, 'UTC') AS timezone
+  FROM public.users AS profile
+  LEFT JOIN LATERAL (
+    SELECT timezone_name.name
+    FROM pg_timezone_names AS timezone_name
+    WHERE timezone_name.name = btrim(profile.timezone)
+    LIMIT 1
+  ) AS valid_timezone ON true
+)
 SELECT
-  source,
-  kind,
-  count(*)                        AS rows,
-  count(DISTINCT user_email)      AS users,
-  min(to_timestamp(logged_at/1000.0) AT TIME ZONE 'Asia/Ho_Chi_Minh') AS first_seen,
-  max(to_timestamp(logged_at/1000.0) AT TIME ZONE 'Asia/Ho_Chi_Minh') AS last_seen
-FROM public.activity_log
-GROUP BY source, kind
+  activity.source,
+  activity.kind,
+  COALESCE(profiles.timezone, 'UTC') AS timezone,
+  count(*)                           AS rows,
+  count(DISTINCT activity.user_email) AS users,
+  min(to_timestamp(activity.logged_at / 1000.0)
+      AT TIME ZONE COALESCE(profiles.timezone, 'UTC')) AS first_seen,
+  max(to_timestamp(activity.logged_at / 1000.0)
+      AT TIME ZONE COALESCE(profiles.timezone, 'UTC')) AS last_seen
+FROM public.activity_log AS activity
+LEFT JOIN profiles ON profiles.email = lower(activity.user_email)
+GROUP BY activity.source, activity.kind, COALESCE(profiles.timezone, 'UTC')
 ORDER BY rows DESC;
 
 
@@ -58,11 +78,25 @@ WITH excluded AS (
     'thanhnguyenxuan970@gmail.com'      -- ⬅️ THÊM account test của bạn vào đây
   ]) AS email
 ),
+profiles AS (
+  SELECT
+    lower(profile.user_email) AS email,
+    COALESCE(valid_timezone.name, 'UTC') AS timezone
+  FROM public.users AS profile
+  LEFT JOIN LATERAL (
+    SELECT timezone_name.name
+    FROM pg_timezone_names AS timezone_name
+    WHERE timezone_name.name = btrim(profile.timezone)
+    LIMIT 1
+  ) AS valid_timezone ON true
+),
 signup AS (
   SELECT lower(au.email) AS email,
-         (au.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS signup_date,
-         (au.last_sign_in_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS last_signin_date
+         COALESCE(profiles.timezone, 'UTC') AS timezone,
+         (au.created_at AT TIME ZONE COALESCE(profiles.timezone, 'UTC'))::date AS signup_date,
+         (au.last_sign_in_at AT TIME ZONE COALESCE(profiles.timezone, 'UTC'))::date AS last_signin_date
   FROM auth.users au
+  LEFT JOIN profiles ON profiles.email = lower(au.email)
   WHERE au.email IS NOT NULL
     AND lower(au.email) NOT IN (SELECT email FROM excluded)
 ),
@@ -79,7 +113,7 @@ acts AS (
 SELECT
   row_number() OVER (ORDER BY s.signup_date, s.email)      AS n,
   s.signup_date,
-  (CURRENT_DATE - s.signup_date)                           AS days_since_signup,
+  ((now() AT TIME ZONE s.timezone)::date - s.signup_date) AS days_since_signup,
   COALESCE(a.login_days, 0)                                AS login_days,
   COALESCE(a.log_rows, 0)                                  AS log_rows,
   COALESCE(a.active_days, 0)                               AS active_days,
@@ -87,14 +121,14 @@ SELECT
   a.last_log,
   (a.first_log - s.signup_date)                            AS days_signup_to_first_log,
   (a.last_log  - a.first_log)                              AS lifespan_days,
-  (CURRENT_DATE - a.last_log)                              AS days_since_last_log,
+  ((now() AT TIME ZONE s.timezone)::date - a.last_log)      AS days_since_last_log,
   u.current_streak,
   round(u.lifetime_stars::numeric, 0)                      AS lifetime_stars,
-  u.timezone,
+  s.timezone                                                AS timezone,
   CASE
     WHEN a.log_rows IS NULL OR a.log_rows = 0 THEN 'D0 CHẾT — chưa từng log'
     WHEN a.active_days = 1                    THEN 'log 1 ngày rồi bỏ'
-    WHEN CURRENT_DATE - a.last_log > 7        THEN 'đã rời'
+    WHEN (now() AT TIME ZONE s.timezone)::date - a.last_log > 7 THEN 'đã rời'
     ELSE 'còn sống'
   END                                                      AS verdict
 FROM signup s
@@ -110,9 +144,23 @@ ORDER BY s.signup_date, s.email;
 WITH excluded AS (
   SELECT unnest(ARRAY['thanhnguyenxuan970@gmail.com']) AS email
 ),
+profiles AS (
+  SELECT
+    lower(profile.user_email) AS email,
+    COALESCE(valid_timezone.name, 'UTC') AS timezone
+  FROM public.users AS profile
+  LEFT JOIN LATERAL (
+    SELECT timezone_name.name
+    FROM pg_timezone_names AS timezone_name
+    WHERE timezone_name.name = btrim(profile.timezone)
+    LIMIT 1
+  ) AS valid_timezone ON true
+),
 base AS (
-  SELECT lower(au.email) AS email
+  SELECT lower(au.email) AS email,
+         COALESCE(profiles.timezone, 'UTC') AS timezone
   FROM auth.users au
+  LEFT JOIN profiles ON profiles.email = lower(au.email)
   WHERE au.email IS NOT NULL
     AND lower(au.email) NOT IN (SELECT email FROM excluded)
 ),
@@ -122,7 +170,7 @@ acts AS (
          max(local_date) FILTER (WHERE source <> 'LOGIN')::date      AS last_log
   FROM public.activity_log GROUP BY 1
 ),
-j AS (SELECT b.email, COALESCE(a.active_days,0) AS d, a.last_log
+j AS (SELECT b.email, b.timezone, COALESCE(a.active_days,0) AS d, a.last_log
       FROM base b LEFT JOIN acts a ON a.email = b.email)
 SELECT step, users,
        round(100.0 * users / NULLIF(max(users) OVER (), 0), 1) AS pct_of_signups
@@ -132,7 +180,9 @@ FROM (
   UNION ALL SELECT 3, 'C. Log ≥ 2 ngày khác nhau',   count(*) FROM j WHERE d >= 2
   UNION ALL SELECT 4, 'D. Log ≥ 3 ngày khác nhau',   count(*) FROM j WHERE d >= 3
   UNION ALL SELECT 5, 'E. Log ≥ 7 ngày khác nhau',   count(*) FROM j WHERE d >= 7
-  UNION ALL SELECT 6, 'F. Còn hoạt động trong 7 ngày qua', count(*) FROM j WHERE last_log >= CURRENT_DATE - 7
+  UNION ALL SELECT 6, 'F. Còn hoạt động trong 7 ngày qua', count(*)
+    FROM j
+   WHERE last_log >= (now() AT TIME ZONE j.timezone)::date - 7
 ) t ORDER BY ord;
 -- ĐỌC KẾT QUẢ:
 --   A→B rơi mạnh  = vấn đề ONBOARDING (sign-in wall + màn hero nằm sau login)
@@ -146,9 +196,22 @@ FROM (
 -- giới tính/năm sinh đang giết user trước khi họ thấy giá trị.
 -- ---------------------------------------------------------------------
 WITH excluded AS (SELECT unnest(ARRAY['thanhnguyenxuan970@gmail.com']) AS email),
+profiles AS (
+  SELECT
+    lower(profile.user_email) AS email,
+    COALESCE(valid_timezone.name, 'UTC') AS timezone
+  FROM public.users AS profile
+  LEFT JOIN LATERAL (
+    SELECT timezone_name.name
+    FROM pg_timezone_names AS timezone_name
+    WHERE timezone_name.name = btrim(profile.timezone)
+    LIMIT 1
+  ) AS valid_timezone ON true
+),
 s AS (SELECT lower(au.email) AS email,
-             (au.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS signup_date
+             (au.created_at AT TIME ZONE COALESCE(profiles.timezone, 'UTC'))::date AS signup_date
       FROM auth.users au
+      LEFT JOIN profiles ON profiles.email = lower(au.email)
       WHERE au.email IS NOT NULL AND lower(au.email) NOT IN (SELECT email FROM excluded)),
 f AS (SELECT lower(user_email) AS email,
              min(local_date) FILTER (WHERE source <> 'LOGIN')::date AS first_log
@@ -191,9 +254,22 @@ FROM a GROUP BY 1 ORDER BY 1;
 -- tuyệt đối, đừng đọc phần trăm.
 -- ---------------------------------------------------------------------
 WITH excluded AS (SELECT unnest(ARRAY['thanhnguyenxuan970@gmail.com']) AS email),
+profiles AS (
+  SELECT
+    lower(profile.user_email) AS email,
+    COALESCE(valid_timezone.name, 'UTC') AS timezone
+  FROM public.users AS profile
+  LEFT JOIN LATERAL (
+    SELECT timezone_name.name
+    FROM pg_timezone_names AS timezone_name
+    WHERE timezone_name.name = btrim(profile.timezone)
+    LIMIT 1
+  ) AS valid_timezone ON true
+),
 s AS (SELECT lower(au.email) AS email,
-             (au.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS signup_date
+             (au.created_at AT TIME ZONE COALESCE(profiles.timezone, 'UTC'))::date AS signup_date
       FROM auth.users au
+      LEFT JOIN profiles ON profiles.email = lower(au.email)
       WHERE au.email IS NOT NULL AND lower(au.email) NOT IN (SELECT email FROM excluded)),
 act AS (SELECT lower(user_email) AS email, local_date::date AS d
         FROM public.activity_log WHERE source <> 'LOGIN' GROUP BY 1,2)
@@ -247,10 +323,24 @@ UNION ALL SELECT 'Đã gửi feedback',
 -- ---------------------------------------------------------------------
 -- Q7. FEEDBACK — đọc nguyên văn. Miễn phí, định tính, giá trị cao nhất.
 -- ---------------------------------------------------------------------
-SELECT created_at AT TIME ZONE 'Asia/Ho_Chi_Minh' AS at,
-       type, app_version, device, os_version, message
-FROM public.feedback
-ORDER BY created_at DESC
+WITH profiles AS (
+  SELECT
+    lower(profile.user_email) AS email,
+    COALESCE(valid_timezone.name, 'UTC') AS timezone
+  FROM public.users AS profile
+  LEFT JOIN LATERAL (
+    SELECT timezone_name.name
+    FROM pg_timezone_names AS timezone_name
+    WHERE timezone_name.name = btrim(profile.timezone)
+    LIMIT 1
+  ) AS valid_timezone ON true
+)
+SELECT feedback.created_at AT TIME ZONE COALESCE(profiles.timezone, 'UTC') AS at,
+       feedback.type, feedback.app_version, feedback.device,
+       feedback.os_version, feedback.message
+FROM public.feedback AS feedback
+LEFT JOIN profiles ON profiles.email = lower(feedback.user_email)
+ORDER BY feedback.created_at DESC
 LIMIT 100;
 
 
@@ -260,13 +350,27 @@ LIMIT 100;
 -- (src/utils/notifications.ts) → phần lớn user không bao giờ nhận nhắc.
 -- Con số này cho bạn giờ mặc định đúng để prefill.
 -- ---------------------------------------------------------------------
+WITH profiles AS (
+  SELECT
+    lower(profile.user_email) AS email,
+    COALESCE(valid_timezone.name, 'UTC') AS timezone
+  FROM public.users AS profile
+  LEFT JOIN LATERAL (
+    SELECT timezone_name.name
+    FROM pg_timezone_names AS timezone_name
+    WHERE timezone_name.name = btrim(profile.timezone)
+    LIMIT 1
+  ) AS valid_timezone ON true
+)
 SELECT
-  extract(hour FROM to_timestamp(logged_at/1000.0) AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS gio,
+  extract(hour FROM to_timestamp(activity.logged_at / 1000.0)
+          AT TIME ZONE COALESCE(profiles.timezone, 'UTC'))::int AS gio,
   count(*) AS logs,
-  count(DISTINCT user_email) AS users,
+  count(DISTINCT activity.user_email) AS users,
   repeat('▇', GREATEST(1, (count(*) / GREATEST(1,(SELECT count(*)/20 FROM public.activity_log WHERE source<>'LOGIN')))::int)) AS bar
-FROM public.activity_log
-WHERE source <> 'LOGIN'
+FROM public.activity_log AS activity
+LEFT JOIN profiles ON profiles.email = lower(activity.user_email)
+WHERE activity.source <> 'LOGIN'
 GROUP BY 1 ORDER BY 1;
 
 

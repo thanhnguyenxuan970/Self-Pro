@@ -9,6 +9,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 - **Native in-app review prompt**: after a user returns at least 24 hours after their first eligible activity, Habi makes one best-effort request through the platform review API per device; unavailable or failed review prompts never affect activity logging.
 
+### Changed
+- Removed user photo selection from Challenge Detail and share-card creation; existing challenge photos remain display-only.
+
+### Fixed
+- **Timezone-aware growth audit queries**: absolute timestamps and date calculations now use each user's validated profile timezone, with UTC fallback, instead of a fixed `Asia/Ho_Chi_Minh` timezone.
+
 ## [2.0.3.0] - 2026-08-18
 
 ### Changed

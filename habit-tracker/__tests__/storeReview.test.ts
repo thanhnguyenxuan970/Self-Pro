@@ -94,4 +94,16 @@ describe('store review trigger', () => {
 
     expect(requestReview).toHaveBeenCalledTimes(1);
   });
+
+  test('keeps the first timestamp when first-use checks overlap', async () => {
+    const firstUseAt = 1_700_000_000_000;
+
+    await Promise.all([
+      maybeRequestStoreReview(firstUseAt),
+      maybeRequestStoreReview(firstUseAt + 1_000),
+    ]);
+
+    expect(await AsyncStorage.getItem(FIRST_USE_AT_KEY)).toBe(String(firstUseAt));
+  });
+
 });
