@@ -42,6 +42,7 @@ import {
   readSocialProfile,
   restoreLifetimeStarsFromSupabase,
   runAccountSync,
+  signInWithGoogleToken,
   syncToSupabase,
   syncUserStreak,
 } from '../src/api/syncService';
@@ -302,6 +303,51 @@ describe('ensureSupabaseSession', () => {
     });
 
     await expect(ensureSupabaseSession('user@example.com')).resolves.toBeUndefined();
+  });
+});
+
+describe('signInWithGoogleToken', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('shares one GoTrue request between direct sign-in and concurrent rehydration', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    let resolveSilent!: (value: { type: string; data?: unknown }) => void;
+    mockSignInSilently.mockReturnValue(new Promise(resolve => { resolveSilent = resolve; }));
+    mockGetTokens.mockResolvedValue({ idToken: 'google-token-2' });
+
+    let resolveRequest!: (value: { data: { user: { email: string } }; error: null }) => void;
+    mockSignInWithIdToken.mockReturnValue(new Promise(resolve => { resolveRequest = resolve; }));
+
+    const rehydration = ensureSupabaseSession('user@example.com');
+    await Promise.resolve();
+    expect(mockSignInSilently).toHaveBeenCalledTimes(1);
+
+    const directSignIn = signInWithGoogleToken('USER@example.com', 'google-token-1');
+    resolveSilent({ type: 'success', data: {} });
+    await Promise.resolve();
+
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+    resolveRequest({ data: { user: { email: 'user@example.com' } }, error: null });
+    await expect(Promise.all([rehydration, directSignIn])).resolves.toEqual([undefined, undefined]);
+  });
+
+  it('retries a transient duplicate auth-user insert and then verifies the account email', async () => {
+    mockSignInWithIdToken
+      .mockResolvedValueOnce({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "users_email_partial_key"' } })
+      .mockResolvedValueOnce({ data: { user: { email: 'User@Example.com' } }, error: null });
+
+    await expect(signInWithGoogleToken(' user@example.com ', 'google-token')).resolves.toBeUndefined();
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(2);
+  });
+
+  it('surfaces non-race auth failures instead of publishing an unauthenticated local account', async () => {
+    const authError = new Error('Google token rejected');
+    mockSignInWithIdToken.mockResolvedValue({ data: null, error: authError });
+
+    await expect(signInWithGoogleToken('user@example.com', 'google-token')).rejects.toBe(authError);
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
   });
 });
 

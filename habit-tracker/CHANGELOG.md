@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Google/Supabase sign-in now serializes direct and background ID-token exchanges, retries one transient `users_email_partial_key` auth-user race, verifies the returned email, and fails closed instead of publishing a local account after remote auth failure.
 - Challenge reminders now re-arm deterministic Expo notification IDs after Android force-stop, and denied notification permission clears the persisted reminder token for retry.
 - Unified Analytics Week, Month, and Year bar rendering while preserving dense-range horizontal scrolling and accessibility context.
 - Fixed completed/selected task rows escaping the rounded Today card; removed the full-row shrink animation and respect reduced-motion settings.

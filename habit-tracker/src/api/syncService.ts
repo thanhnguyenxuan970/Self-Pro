@@ -366,6 +366,73 @@ async function pullLifetimeStarsIntoLocal(
 const SESSION_EXPIRY_SKEW_SECONDS = 60;
 
 let inFlightSessionRefresh: { userEmail: string; promise: Promise<void> } | null = null;
+let inFlightGoogleTokenSignIn: { userEmail: string; promise: Promise<void> } | null = null;
+
+function normalizedAccountEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function isAuthUserCreationConflict(error: unknown): boolean {
+  const details = error && typeof error === 'object'
+    ? error as { code?: unknown; message?: unknown; details?: unknown }
+    : {};
+  const text = [details.code, details.message, details.details, String(error)]
+    .filter(value => value != null)
+    .join(' ')
+    .toLowerCase();
+
+  // GoTrue may expose either the PostgreSQL constraint or its generic 500
+  // wrapper. A second token request is safe: if another request won the user
+  // insert race, GoTrue now finds that request's Google identity; if the email
+  // belongs to a different provider, the retry still fails and is surfaced.
+  return text.includes('users_email_partial_key')
+    || text.includes('database error saving new user')
+    || text.includes('23505');
+}
+
+async function signInWithGoogleTokenRequest(userEmail: string, idToken: string): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const { data, error } = await supabase!.auth.signInWithIdToken({ provider: 'google', token: idToken });
+    if (!error) {
+      if (normalizedAccountEmail(data?.user?.email ?? '') !== normalizedAccountEmail(userEmail)) {
+        throw new Error('Google token does not match the signed-in user');
+      }
+      return;
+    }
+
+    lastError = error;
+    if (attempt === 0 && isAuthUserCreationConflict(error)) continue;
+    throw error;
+  }
+
+  throw lastError;
+}
+
+/**
+ * Establish the non-persistent Supabase session for a Google identity.
+ * Direct sign-in and background rehydration share this gate so they cannot
+ * race GoTrue into two auth.users inserts for the same email.
+ */
+export function signInWithGoogleToken(userEmail: string, idToken: string): Promise<void> {
+  if (isQaSandboxActive() || !supabase) return Promise.resolve();
+
+  const accountKey = normalizedAccountEmail(userEmail);
+  const active = inFlightGoogleTokenSignIn;
+  if (active && normalizedAccountEmail(active.userEmail) === accountKey) return active.promise;
+
+  const waitForPrevious = active?.promise.catch(() => undefined) ?? Promise.resolve();
+  let trackedPromise!: Promise<void>;
+  trackedPromise = waitForPrevious
+    .then(() => signInWithGoogleTokenRequest(userEmail, idToken))
+    .finally(() => {
+      if (inFlightGoogleTokenSignIn?.promise === trackedPromise) {
+        inFlightGoogleTokenSignIn = null;
+      }
+    });
+  inFlightGoogleTokenSignIn = { userEmail, promise: trackedPromise };
+  return trackedPromise;
+}
 
 async function refreshSupabaseSession(userEmail: string): Promise<void> {
   // require at call-time: preserves the native-module loading guard used by auth.
@@ -380,15 +447,7 @@ async function refreshSupabaseSession(userEmail: string): Promise<void> {
   }
   const { idToken } = await GoogleSignin.getTokens();
   if (!idToken) throw new Error('Google did not provide an ID token for Supabase sync');
-  const { data, error } = await supabase!.auth.signInWithIdToken({ provider: 'google', token: idToken });
-  if (error) throw error;
-  // Same case-insensitive comparison as ensureSupabaseSession below — this is
-  // the other half of the same check (post-refresh instead of pre-existing
-  // session), and a strict `!==` here would silently block every sync for any
-  // account whose Google token email ever came back with different casing.
-  if (data.user?.email?.trim().toLowerCase() !== userEmail.trim().toLowerCase()) {
-    throw new Error('Google token does not match the signed-in user');
-  }
+  await signInWithGoogleToken(userEmail, idToken);
 }
 
 function refreshSupabaseSessionOnce(userEmail: string): Promise<void> {
