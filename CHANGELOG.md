@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [Unreleased]
+
+### Added
+- **Native in-app review prompt**: after a user returns at least 24 hours after their first eligible activity, Habi makes one best-effort request through the platform review API per device; unavailable or failed review prompts never affect activity logging.
+
 ## [2.0.3.0] - 2026-08-18
 
 ### Changed
