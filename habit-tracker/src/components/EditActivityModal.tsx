@@ -9,6 +9,7 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import type { Task } from './TaskRow';
 import { DurationClockInput } from './DurationClockInput';
 import { clockFromMinutes, clockMinutes } from '../utils/durationClock';
+import { AppButton } from './AppButton';
 
 type Props = {
   visible: boolean;
@@ -92,17 +93,13 @@ export function EditActivityModal({ visible, task, totalDurationMin, onSave, onC
           {isTimeBased && (
             <>
               <Text style={styles.label}>{t.editDurationLabel}</Text>
-              <DurationClockInput value={duration} onChange={setDuration} colors={colors} />
+              <DurationClockInput value={duration} onChange={setDuration} colors={colors} hoursLabel={t.unitHour} minutesLabel={t.unitMin} editValueLabel={t.durationEditValue} />
             </>
           )}
 
           <View style={styles.btnRow}>
-            <TouchableOpacity style={[styles.btn, styles.cancelBtn]} onPress={onClose} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={t.cancel}>
-              <Text style={[styles.btnText, { color: colors.muted }]}>{t.cancel}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.btn, styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t.editSave}>
-              <Text style={[styles.btnText, { color: colors.onAccent }]}>{t.editSave}</Text>
-            </TouchableOpacity>
+            <AppButton label={t.cancel} variant="ghost" onPress={onClose} style={[styles.btn, styles.cancelBtn]} />
+            <AppButton label={t.editSave} onPress={handleSave} style={[styles.btn, styles.saveBtn]} />
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -142,14 +139,8 @@ function makeStyles(C: AppColors) {
     typeBtnSelected: { borderColor: C.primary },
     typeText: { ...Typography.caption, color: C.ink2, fontFamily: FontFamily.semiBold },
     btnRow: { flexDirection: 'row', gap: 10, marginTop: Spacing.lg },
-    btn: {
-      flex: 1,
-      paddingVertical: 13,
-      borderRadius: Radii.md,
-      alignItems: 'center',
-    },
+    btn: { flex: 1 },
     cancelBtn: { backgroundColor: C.surface2 },
     saveBtn: {},
-    btnText: { fontFamily: FontFamily.semiBold, fontSize: 15 },
   });
 }

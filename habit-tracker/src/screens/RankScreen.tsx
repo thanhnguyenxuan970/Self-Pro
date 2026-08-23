@@ -45,7 +45,7 @@ function friendResultMessage(result: FriendActionResult, t: Strings): string | n
 }
 
 // fallow-ignore-next-line complexity
-export function RankScreen() {
+export function RankScreen({ qaBannerVisible = false }: { qaBannerVisible?: boolean } = {}) {
   const { userId, googleUser, colors, t, styles } = useScreenCommons(makeStyles);
   const { isDark } = useTheme();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -96,6 +96,7 @@ export function RankScreen() {
     googleUser?.name ?? null,
     t.leaderboardPlayer,
     lang,
+    data?.currentStars ?? 0,
   );
 
   const currentUserEntry: LBEntry = useMemo(() => ({
@@ -444,7 +445,7 @@ export function RankScreen() {
   const currentTier = data?.tiers.find(tier => tier.tier_order === currentTierOrder);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={qaBannerVisible ? ['bottom'] : ['top']}>
       <View style={styles.titleRow}>
         <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t.rankTitle}</Text>
         <TouchableOpacity onPress={() => setInfoVisible(true)} hitSlop={10} style={styles.infoBtn} accessibilityLabel={t.rankInfo} accessibilityRole="button">

@@ -257,7 +257,7 @@ function ProgressChartContent({ isLoading, chartData, range, formatBucket, color
   );
 }
 
-export function ProgressScreen() {
+export function ProgressScreen({ qaBannerVisible = false }: { qaBannerVisible?: boolean } = {}) {
   const userId = useAuthUser();
   const { colors, isDark } = useTheme();
   const [language] = useLanguage();
@@ -372,7 +372,7 @@ export function ProgressScreen() {
 
   if (dashboard) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={qaBannerVisible ? ['bottom'] : ['top']}>
         <ScrollView ref={dashboardScrollRef} removeClippedSubviews style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
           <View style={[styles.dashboardHeader, compactDashboardHeader && styles.dashboardHeaderCompact]}>
             <View style={[styles.dashboardTitleGroup, compactDashboardHeader && styles.dashboardTitleGroupCompact]}>
@@ -387,10 +387,10 @@ export function ProgressScreen() {
       </SafeAreaView>
     );
   }
-  if (isDashboardLoading) return <SafeAreaView style={styles.safeArea}><ActivityIndicator color={colors.primary} /></SafeAreaView>;
+  if (isDashboardLoading) return <SafeAreaView style={styles.safeArea} edges={qaBannerVisible ? ['bottom'] : ['top']}><ActivityIndicator color={colors.primary} /></SafeAreaView>;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={qaBannerVisible ? ['bottom'] : ['top']}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
         <Text style={styles.sectionLabel}>{t.analyticsMomentum}</Text>
         <View style={styles.momentumCard}>

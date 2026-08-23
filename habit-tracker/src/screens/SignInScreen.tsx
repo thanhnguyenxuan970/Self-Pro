@@ -5,10 +5,12 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { GoogleUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useThemedScreenState } from '../hooks/useThemedScreenState';
+import { isQaSandboxBuildAvailable } from '../qa/qaSandbox';
 
 type Props = {
   onSignIn: () => void;
   onSignInWithGoogle: (user: GoogleUser, idToken?: string) => Promise<boolean>;
+  onEnterQaSandbox: () => Promise<boolean>;
 };
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -67,7 +69,7 @@ function extractGoogleUser(response: { data?: { user?: { email?: string; name?: 
   };
 }
 
-export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
+export function SignInScreen({ onSignIn, onSignInWithGoogle, onEnterQaSandbox }: Props) {
   const { loading, setLoading, colors, t, reduceMotion, styles } = useThemedScreenState(makeStyles);
   const { ringDraw, checkDraw, logoPop, markOpacity, contentRise } = useSignInIntro(reduceMotion);
 
@@ -99,6 +101,17 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
       if (code !== statusCodes.SIGN_IN_CANCELLED) {
         Alert.alert(t.error, err instanceof Error ? err.message : String(err));
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQaSandbox = async () => {
+    setLoading(true);
+    try {
+      await onEnterQaSandbox();
+    } catch (err: unknown) {
+      Alert.alert(t.error, err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -147,6 +160,19 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle }: Props) {
             </TouchableOpacity>
           )}
 
+          {isQaSandboxBuildAvailable() && !loading && (
+            <TouchableOpacity
+              style={styles.qaSandboxButton}
+              onPress={handleQaSandbox}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={t.qaSandboxButton}
+              testID="qa-sandbox-button"
+            >
+              <Text style={styles.qaSandboxButtonText}>{t.qaSandboxButton}</Text>
+            </TouchableOpacity>
+          )}
+
           <Text style={styles.hint}>{t.signInHint}</Text>
         </Animated.View>
       </View>
@@ -192,6 +218,19 @@ function makeStyles(C: AppColors) {
     },
     googleIcon: { fontSize: 18, fontFamily: FontFamily.bold, color: GOOGLE_BLUE, marginRight: 10 },
     googleButtonText: { color: C.inkDark, fontFamily: FontFamily.semiBold, fontSize: 16 },
+    qaSandboxButton: {
+      width: '100%',
+      minHeight: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: Spacing.sm,
+      paddingHorizontal: Spacing.md,
+      borderRadius: Radii.md,
+      borderWidth: 1,
+      borderColor: C.primaryLine,
+      backgroundColor: C.primarySoft,
+    },
+    qaSandboxButtonText: { color: C.primaryText, fontFamily: FontFamily.semiBold, fontSize: 14, textAlign: 'center' },
     hint: {
       ...Typography.caption,
       color: C.muted,

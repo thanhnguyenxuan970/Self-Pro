@@ -11,6 +11,7 @@ jest.mock('../src/api/syncService', () => ({
 }));
 
 import { aggregateLifetimeStarsByPlayerId, buildRankedLeaderboard, capLeaderboardRows, hasRankGapBefore, initialsForName, mapRemoteLeaderboardRows, useLeaderboard } from '../src/queries/useLeaderboard';
+import { setQaSandboxNetworkBlocked } from '../src/qa/qaSandbox';
 
 const mockSupabase = jest.requireMock('../src/api/supabase') as { supabase: { rpc: jest.Mock } };
 const mockSyncService = jest.requireMock('../src/api/syncService') as { ensureSupabaseSession: jest.Mock };
@@ -125,6 +126,27 @@ test('records this visit as a rank snapshot, best-effort, without blocking or fa
   await expect(query.queryFn()).resolves.toEqual([]);
 
   expect(mockSupabase.supabase.rpc).toHaveBeenCalledWith('record_leaderboard_snapshot');
+});
+
+test('QA sandbox renders an in-memory board without restoring a session or calling Supabase', async () => {
+  setQaSandboxNetworkBlocked(true);
+  try {
+    const query = useLeaderboard('qa-sandbox@local.habi', 'QA Sandbox', 'Player', 'en', 419) as unknown as {
+      enabled: boolean;
+      isUnavailable: boolean;
+      queryFn: () => Promise<Array<{ playerId: string; rank: number; lifetimeStars: number; isCurrentUser: boolean }>>;
+    };
+    const rows = await query.queryFn();
+
+    expect(query.enabled).toBe(true);
+    expect(query.isUnavailable).toBe(false);
+    expect(rows).toHaveLength(21);
+    expect(rows.find(row => row.isCurrentUser)).toMatchObject({ playerId: 'qa-sandbox-local-v1', rank: 15, lifetimeStars: 419 });
+    expect(mockSyncService.ensureSupabaseSession).not.toHaveBeenCalled();
+    expect(mockSupabase.supabase.rpc).not.toHaveBeenCalled();
+  } finally {
+    setQaSandboxNetworkBlocked(false);
+  }
 });
 
 test('does not call the RPC when session restoration fails', async () => {

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as Sentry from '@sentry/react-native';
 import {
   useFonts,
@@ -24,6 +24,7 @@ import { createToastConfig } from './src/config/toastConfig';
 import { TutorialProvider } from './src/hooks/useTutorial';
 import { rolloverChallenge, syncActiveChallengeReminders } from './src/queries/useChallenge';
 import { activateChallengeReminderSync, scheduleAllHabitReminders } from './src/utils/notifications';
+import { createQaSandboxUser, isQaSandboxBuildAvailable, isQaSandboxIdentity, purgeQaSandbox, seedQaSandbox } from './src/qa/qaSandbox';
 
 // Crash reporting: hard no-op until EXPO_PUBLIC_SENTRY_DSN is supplied (no
 // Sentry account/project exists yet -- see TODOS.md). Guarded in try/catch
@@ -78,6 +79,8 @@ function AppInner() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const qaSeedInFlight = useRef(false);
+  const qaSeededForSub = useRef<string | null>(null);
   const { colors } = useTheme();
   const [lang] = useLanguage();
   const toastConfig = useMemo(() => createToastConfig(colors), [colors]);
@@ -106,19 +109,37 @@ function AppInner() {
     async function init() {
       const db = await getDb();
 
+      // Remove any debug-only QA rows if a release build is installed over a
+      // debug build. This is local cleanup only; no production account is
+      // touched because purgeQaSandbox targets the reserved QA sub exactly.
+      if (!isQaSandboxBuildAvailable()) await purgeQaSandbox(db);
+
       let resolvedUserId = 1;
       if (googleUser?.email) {
-        const { id } = await resolveUserRow(db, googleUser.sub ?? googleUser.email, googleUser.email);
-        resolvedUserId = id;
-        setResolvedUserId(resolvedUserId);
-        syncToSupabase(googleUser.sub, googleUser.email)
-          .then(() => {
-            queryClient.invalidateQueries({ queryKey: ['rank'] });
-            queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
-          })
-          .catch((error) => {
-            console.warn('[sync] activity log sync failed:', error);
-          });
+        const isQa = isQaSandboxIdentity(googleUser);
+        if (isQa) qaSeedInFlight.current = true;
+        try {
+          if (isQa) {
+            resolvedUserId = await seedQaSandbox(db);
+          } else {
+            const result = await resolveUserRow(db, googleUser.sub ?? googleUser.email, googleUser.email);
+            resolvedUserId = result.id;
+          }
+          if (isQa) qaSeededForSub.current = googleUser.sub;
+          setResolvedUserId(resolvedUserId);
+          if (!isQa) {
+            syncToSupabase(googleUser.sub, googleUser.email)
+              .then(() => {
+                queryClient.invalidateQueries({ queryKey: ['rank'] });
+                queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+              })
+              .catch((error) => {
+                console.warn('[sync] activity log sync failed:', error);
+              });
+          }
+        } finally {
+          if (isQa) qaSeedInFlight.current = false;
+        }
       }
 
       setDbReady(true);
@@ -132,8 +153,60 @@ function AppInner() {
   // retryCount bumped by retryInit() to re-trigger this effect after user taps Retry.
   }, [authLoading, retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auth restoration can publish the QA identity one render after the DB init
+  // effect above has already settled with the default local user. Reconcile
+  // that ordering explicitly so a cold restart always gets a fresh local
+  // fixture before any QA screen reads the database.
   useEffect(() => {
-    if (!dbReady || !isOnboarded || !googleUser?.email) return;
+    const qaSub = googleUser?.sub;
+    if (
+      authLoading ||
+      !dbReady ||
+      !isOnboarded ||
+      !qaSub ||
+      !isQaSandboxIdentity(googleUser) ||
+      qaSeededForSub.current === qaSub ||
+      qaSeedInFlight.current
+    ) return;
+
+    // signInWithGoogle() seeds before publishing the identity. This branch
+    // records that path without reseeding it just because the app re-rendered.
+    if (userId !== 1) {
+      qaSeededForSub.current = qaSub;
+      return;
+    }
+
+    let disposed = false;
+    qaSeedInFlight.current = true;
+    void (async () => {
+      try {
+        const db = await getDb();
+        const resolvedQaUserId = await seedQaSandbox(db);
+        qaSeededForSub.current = qaSub;
+        queryClient.clear();
+        if (!disposed) setResolvedUserId(resolvedQaUserId);
+      } catch (error) {
+        if (!disposed) {
+          console.error('[qa] sandbox startup reseed failed:', error);
+          setDbError(error instanceof Error ? error.message : String(error));
+        }
+      } finally {
+        qaSeedInFlight.current = false;
+      }
+    })();
+
+    return () => { disposed = true; };
+  }, [authLoading, dbReady, googleUser?.sub, isOnboarded, userId]);
+
+  const qaFixturePending = Boolean(
+    isQaSandboxIdentity(googleUser) &&
+    googleUser?.sub &&
+    userId === 1 &&
+    qaSeededForSub.current !== googleUser.sub,
+  );
+
+  useEffect(() => {
+    if (!dbReady || !isOnboarded || !googleUser?.email || qaFixturePending || isQaSandboxIdentity(googleUser)) return;
     activateChallengeReminderSync();
     let disposed = false;
     let inFlight: Promise<void> | null = null;
@@ -173,7 +246,7 @@ function AppInner() {
       if (dailyTimer) clearInterval(dailyTimer);
       appStateSubscription.remove();
     };
-  }, [dbReady, isOnboarded, userId, lang, googleUser?.email]);
+  }, [dbReady, isOnboarded, userId, lang, googleUser?.email, googleUser?.sub, qaFixturePending]);
 
   // Android clears AlarmManager-backed local notifications on events the app
   // never hears about (force-stop, OS "unused apps" auto-restriction, an
@@ -182,7 +255,7 @@ function AppInner() {
   // time still showing in Settings. Re-arm from the DB on cold start and
   // every foreground so the OS schedule can't silently drift from it.
   useEffect(() => {
-    if (!dbReady || !isOnboarded || !googleUser?.email) return;
+    if (!dbReady || !isOnboarded || !googleUser?.email || qaFixturePending || isQaSandboxIdentity(googleUser)) return;
     let disposed = false;
     let inFlight: Promise<void> | null = null;
     const run = () => {
@@ -214,7 +287,7 @@ function AppInner() {
       disposed = true;
       appStateSubscription.remove();
     };
-  }, [dbReady, isOnboarded, userId, lang, googleUser?.email]);
+  }, [dbReady, isOnboarded, userId, lang, googleUser?.email, googleUser?.sub, qaFixturePending]);
 
   if (dbError) {
     return (
@@ -232,7 +305,7 @@ function AppInner() {
     );
   }
 
-  if (!dbReady || authLoading || !fontsLoaded) {
+  if (!dbReady || authLoading || !fontsLoaded || qaFixturePending) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bgBase, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -249,6 +322,7 @@ function AppInner() {
           googleUser={googleUser}
           onCompleteOnboarding={completeOnboarding}
           onSignInWithGoogle={signInWithGoogle}
+          onEnterQaSandbox={() => signInWithGoogle(createQaSandboxUser())}
           onSignOut={signOut}
           onDeleteAccount={deleteAccount}
         />

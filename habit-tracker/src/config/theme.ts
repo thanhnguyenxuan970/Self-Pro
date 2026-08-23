@@ -119,6 +119,11 @@ export const Radii = {
   pill: 999,
 };
 
+export const Opacity = {
+  disabled: 0.55,
+  pressed: 0.8,
+};
+
 export const FontFamily = {
   regular:   'BeVietnamPro_400Regular',
   medium:    'BeVietnamPro_500Medium',

@@ -691,6 +691,7 @@ const vi = {
 
   // Duration picker
   durationCustom: '1h+',
+  durationEditValue: (label: string) => `Nhập giá trị ${label}`,
 
   // Leaderboard (global, lifetime — no weekly reset)
   leaderboardYou: 'Bạn',
@@ -937,6 +938,9 @@ const vi = {
   signInBtn: 'Đăng nhập bằng Google',
   signInTagline: 'vòng lặp thói quen mỗi ngày',
   signInHint: 'MVP · Xác thực qua Google · Dữ liệu lưu trên máy',
+  qaSandboxButton: 'Mở sandbox QA trên máy này',
+  qaSandboxSwitch: 'Chuyển sang sandbox QA cục bộ',
+  qaSandboxBanner: 'SANDBOX QA · Dữ liệu giả cục bộ · Không đồng bộ',
 
   // CalendarScreen DOW (Mon-Sun order)
   calDow: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
@@ -1633,6 +1637,7 @@ const en: typeof vi = {
 
   // Duration picker
   durationCustom: '1h+',
+  durationEditValue: (label: string) => `Type the ${label} value`,
 
   // Leaderboard (global, lifetime — no weekly reset)
   leaderboardYou: 'You',
@@ -1873,6 +1878,9 @@ const en: typeof vi = {
   signInBtn: 'Sign in with Google',
   signInTagline: 'daily completion, the loop',
   signInHint: 'MVP · Google auth · Data stored on device',
+  qaSandboxButton: 'Open local QA sandbox',
+  qaSandboxSwitch: 'Switch to local QA sandbox',
+  qaSandboxBanner: 'QA SANDBOX · Local fixture data · Sync disabled',
 
   // CalendarScreen DOW (Mon-Sun order)
   calDow: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'],

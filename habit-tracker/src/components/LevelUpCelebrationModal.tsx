@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Easing, Modal, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RankMascot, type RankMascotHandle } from './RankMascot';
 import { getRankConfigByTierOrder } from '../config/ranks.config';
@@ -7,6 +7,7 @@ import { AppColors, FontFamily, Radii, Spacing } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { shouldRunCelebrationBurst } from '../lib/rankPresentation';
+import { AppButton } from './AppButton';
 
 interface Props {
   visible: boolean;
@@ -164,9 +165,7 @@ export function LevelUpCelebrationModal({ visible, tierOrder, tierName, starsAtC
           </View>
         </Animated.View>
         <Animated.View style={[styles.ctaWrap, { paddingBottom: bottom }, riseStyle(cta)]}>
-          <TouchableOpacity style={styles.cta} onPress={onDismiss} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={t.levelUpContinueCta}>
-            <Text style={styles.ctaText}>{t.levelUpContinueCta}</Text>
-          </TouchableOpacity>
+          <AppButton label={t.levelUpContinueCta} onPress={onDismiss} style={styles.cta} />
         </Animated.View>
       </View>
     </Modal>
@@ -194,7 +193,6 @@ function makeStyles(C: AppColors) {
     starChip: { backgroundColor: `${C.starGold}24`, borderWidth: 1, borderColor: `${C.starGold}4D`, borderRadius: Radii.pill, paddingHorizontal: 16, paddingVertical: 8 },
     starChipText: { color: C.starGoldText, fontFamily: FontFamily.extraBold, fontSize: 13 },
     ctaWrap: { alignSelf: 'stretch', marginTop: 30 },
-    cta: { minHeight: 54, borderRadius: 16, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
-    ctaText: { color: C.onAccent, fontFamily: FontFamily.extraBold, fontSize: 16 },
+    cta: { minHeight: 54, borderRadius: 16 },
   });
 }

@@ -112,7 +112,7 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onBack, onClo
           />
         ) : (
           <>
-            <DurationClockInput value={clock} onChange={setClock} colors={colors} />
+            <DurationClockInput value={clock} onChange={setClock} colors={colors} hoursLabel={t.unitHour} minutesLabel={t.unitMin} editValueLabel={t.durationEditValue} />
             <TouchableOpacity style={styles.durationChip} onPress={handleCustomLog} disabled={isPending} accessibilityRole="button" accessibilityLabel={t.logBtn}>
               {isPending ? (
                 <ActivityIndicator color={colors.onAccent} />

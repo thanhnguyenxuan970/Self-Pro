@@ -7,6 +7,7 @@ import {
   getUnreadNewsCount,
   setLastSeenNewsId,
 } from '../utils/news';
+import { isQaSandboxActive } from '../qa/qaSandbox';
 
 type NewsItem = {
   id: number;
@@ -37,7 +38,7 @@ type NewsRow = {
 const NEWS_QUERY_KEY = ['news'] as const;
 
 async function fetchNews(): Promise<NewsItem[]> {
-  if (!supabase) return [];
+  if (isQaSandboxActive() || !supabase) return [];
   const { data, error } = await supabase
     .from('news')
     .select('id, version, title, title_en, body, body_en, tag, tag_en, image, published_at')
@@ -61,7 +62,7 @@ async function fetchNews(): Promise<NewsItem[]> {
 
 export function useNewsFeed(viewerKey: string | null) {
   const queryClient = useQueryClient();
-  const newsQuery = useQuery({ queryKey: NEWS_QUERY_KEY, queryFn: fetchNews });
+  const newsQuery = useQuery({ queryKey: NEWS_QUERY_KEY, queryFn: fetchNews, enabled: !isQaSandboxActive() });
   const lastSeenQuery = useQuery({
     queryKey: ['news', 'lastSeen', viewerKey],
     queryFn: () => getLastSeenNewsId(viewerKey!),

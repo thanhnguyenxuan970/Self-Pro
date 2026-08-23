@@ -7,6 +7,7 @@ import {
   canSubmitFeedback,
   validateFeedbackMessage,
 } from '../utils/feedbackLogic';
+import { isQaSandboxActive } from '../qa/qaSandbox';
 
 const LAST_SUBMIT_KEY = 'habit_feedback_last_submit';
 const SUBMIT_TIMEOUT_MS = 15_000;
@@ -46,7 +47,7 @@ export async function submitFeedback(params: {
   answers?: SurveyD0Answers;
 }): Promise<FeedbackResult> {
   if (!validateFeedbackMessage(params.message, params.type)) return 'INVALID';
-  if (!supabase) return 'UNAVAILABLE';
+  if (isQaSandboxActive() || !supabase) return 'UNAVAILABLE';
 
   // SURVEY_D0 is exempt from the cooldown outright (canSubmitFeedback
   // returns true unconditionally for it) — skip both the read here and the

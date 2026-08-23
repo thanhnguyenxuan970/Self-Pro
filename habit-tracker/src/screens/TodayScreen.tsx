@@ -95,6 +95,9 @@ type DurationModalLabels = {
   error: string;
   validDuration: string;
   maxDuration: string;
+  unitHour: string;
+  unitMin: string;
+  durationEditValue: (label: string) => string;
 };
 
 type DurationModalProps = {
@@ -154,7 +157,7 @@ function DurationModal({ task, logPending, onLog, onClose, colors, styles, label
               />
             ) : (
               <>
-                <DurationClockInput value={clock} onChange={setClock} colors={colors} />
+                <DurationClockInput value={clock} onChange={setClock} colors={colors} hoursLabel={labels.unitHour} minutesLabel={labels.unitMin} editValueLabel={labels.durationEditValue} />
                 <TouchableOpacity style={styles.btn} onPress={handleCustomLog} disabled={logPending} accessibilityRole="button" accessibilityLabel={labels.logBtn}>
                   <Text style={styles.btnText}>{labels.logBtn}</Text>
                 </TouchableOpacity>
@@ -192,7 +195,7 @@ function FabArrow({ color, reduceMotion }: { color: string; reduceMotion: boolea
 }
 
 // fallow-ignore-next-line complexity
-export function TodayScreen() {
+export function TodayScreen({ qaBannerVisible = false }: { qaBannerVisible?: boolean } = {}) {
   const navigation = useNavigation();
   const { userId, googleUser, colors, t, styles } = useScreenCommons(makeStyles);
   const { bottom: bottomInset } = useSafeAreaInsets();
@@ -505,7 +508,7 @@ export function TodayScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={qaBannerVisible ? ['bottom'] : ['top']}>
       <EditActivityModal
         visible={editTask !== null}
         task={editTask}
@@ -699,6 +702,9 @@ export function TodayScreen() {
           error: t.error,
           validDuration: t.validDuration,
           maxDuration: t.maxDuration,
+          unitHour: t.unitHour,
+          unitMin: t.unitMin,
+          durationEditValue: t.durationEditValue,
         }}
       />
       <StreakMilestoneCelebrationModal

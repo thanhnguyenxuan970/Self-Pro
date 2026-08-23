@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { AppState, BackHandler, View, Pressable, StyleSheet, StatusBar, Platform, useWindowDimensions } from 'react-native';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { AppState, BackHandler, View, Text, Pressable, StyleSheet, StatusBar, Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
@@ -30,6 +30,7 @@ import { BadgeUnlockCelebrationHost } from '../components/BadgeUnlockCelebration
 import { useFriendPendingCount } from '../queries/useFriends';
 import { APP_STACK_PRESENTATION } from './stackOptions';
 import { handleAppHardwareBack } from './backHandler';
+import { isQaSandboxIdentity } from '../qa/qaSandbox';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -111,6 +112,11 @@ function MainTabs({ onFABPress, googleUser }: { onFABPress: () => void; googleUs
   const rankTutorialRef = useMemo(() => targetRef('rank'), [targetRef]);
   const tabBarHeight = BOTTOM_TAB_BAR_HEIGHT + insets.bottom;
   const responsiveWidth = containerWidth ?? width;
+  const qaBannerVisible = isQaSandboxIdentity(googleUser);
+  const renderTodayScreen = useCallback(() => <TodayScreen qaBannerVisible={qaBannerVisible} />, [qaBannerVisible]);
+  const renderCalendarScreen = useCallback(() => <CalendarScreen qaBannerVisible={qaBannerVisible} />, [qaBannerVisible]);
+  const renderProgressScreen = useCallback(() => <ProgressScreen qaBannerVisible={qaBannerVisible} />, [qaBannerVisible]);
+  const renderRankScreen = useCallback(() => <RankScreen qaBannerVisible={qaBannerVisible} />, [qaBannerVisible]);
 
   // Enabled at authenticated app entry (not gated on Rank being mounted) so
   // the tab badge is already correct the first time Rank opens. RN has no
@@ -123,10 +129,12 @@ function MainTabs({ onFABPress, googleUser }: { onFABPress: () => void; googleUs
   refetchPendingCountRef.current = pendingCountQuery.refetch;
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextState => {
-      if (nextState === 'active') void refetchPendingCountRef.current();
+      if (nextState === 'active' && !isQaSandboxIdentity(googleUser)) {
+        void refetchPendingCountRef.current();
+      }
     });
     return () => subscription.remove();
-  }, []);
+  }, [googleUser.sub]);
   const pendingCount = pendingCountQuery.data ?? 0;
 
   return (
@@ -156,17 +164,17 @@ function MainTabs({ onFABPress, googleUser }: { onFABPress: () => void; googleUs
       >
         <Tab.Screen
           name="Home"
-          component={TodayScreen}
+          children={renderTodayScreen}
           options={{ title: t.tabHome, tabBarIcon: ({ color }) => <IconHome color={color} /> }}
         />
         <Tab.Screen
           name="Calendar"
-          component={CalendarScreen}
+          children={renderCalendarScreen}
           options={{ title: t.tabCalendar, tabBarIcon: ({ color }) => <IconCalendar color={color} /> }}
         />
         <Tab.Screen
           name="Log"
-          component={TodayScreen}
+          children={renderTodayScreen}
           options={{
             tabBarButton: () => <FABButton onPress={onFABPress} colors={colors} />,
             title: '',
@@ -175,7 +183,7 @@ function MainTabs({ onFABPress, googleUser }: { onFABPress: () => void; googleUs
         />
         <Tab.Screen
           name="Analytics"
-          component={ProgressScreen}
+          children={renderProgressScreen}
           options={{
             title: t.tabAnalytics,
             tabBarIcon: ({ color }) => <View ref={analyticsTutorialRef} collapsable={false}><IconChart color={color} /></View>,
@@ -183,7 +191,7 @@ function MainTabs({ onFABPress, googleUser }: { onFABPress: () => void; googleUs
         />
         <Tab.Screen
           name="Rank"
-          component={RankScreen}
+          children={renderRankScreen}
           options={{
             title: t.tabRank,
             tabBarIcon: ({ color }) => <View ref={rankTutorialRef} collapsable={false}><IconTrophy color={color} /></View>,
@@ -199,10 +207,12 @@ function MainTabs({ onFABPress, googleUser }: { onFABPress: () => void; googleUs
 
 function AppStack({
   googleUser,
+  onEnterQaSandbox,
   onSignOut,
   onDeleteAccount,
 }: {
   googleUser: GoogleUser;
+  onEnterQaSandbox: () => Promise<boolean>;
   onSignOut: () => Promise<void>;
   onDeleteAccount: (userId: number) => Promise<void>;
 }) {
@@ -212,6 +222,7 @@ function AppStack({
   const { colors } = useTheme();
   const t = useTranslations();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => handleAppHardwareBack(navigation));
@@ -233,7 +244,12 @@ function AppStack({
   };
 
   return (
-    <>
+    <View style={appStackStyles.container}>
+      {isQaSandboxIdentity(googleUser) && (
+        <View style={[appStackStyles.qaBanner, { backgroundColor: colors.primarySoft, paddingTop: insets.top + 7 }]} accessibilityRole="text" accessibilityLabel={t.qaSandboxBanner}>
+          <Text style={[appStackStyles.qaBannerText, { color: colors.inkDark }]}>{t.qaSandboxBanner}</Text>
+        </View>
+      )}
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MainTabs">
           {() => <MainTabs onFABPress={() => setFabVisible(true)} googleUser={googleUser} />}
@@ -242,7 +258,7 @@ function AppStack({
           name="Profile"
           options={{ ...modalHeaderOptions, title: t.screenProfile }}
         >
-          {() => <ProfileScreen googleUser={googleUser} onSignOut={onSignOut} />}
+          {() => <ProfileScreen googleUser={googleUser} onEnterQaSandbox={onEnterQaSandbox} onSignOut={onSignOut} />}
         </Stack.Screen>
         <Stack.Screen
           name="Settings"
@@ -288,15 +304,22 @@ function AppStack({
         onClose={() => { setFabVisible(false); setPresetName(null); setPresetTaskId(null); }}
       />
       <BadgeUnlockCelebrationHost />
-    </>
+    </View>
   );
 }
+
+const appStackStyles = StyleSheet.create({
+  container: { flex: 1 },
+  qaBanner: { minHeight: 32, paddingHorizontal: 16, paddingVertical: 7, alignItems: 'center', justifyContent: 'center' },
+  qaBannerText: { fontFamily: FontFamily.semiBold, fontSize: 11, lineHeight: 16, textAlign: 'center' },
+});
 
 export function RootNavigator({
   isOnboarded,
   googleUser,
   onCompleteOnboarding,
   onSignInWithGoogle,
+  onEnterQaSandbox,
   onSignOut,
   onDeleteAccount,
 }: {
@@ -304,6 +327,7 @@ export function RootNavigator({
   googleUser: GoogleUser | null;
   onCompleteOnboarding: () => Promise<void>;
   onSignInWithGoogle: (user: GoogleUser, idToken?: string) => Promise<boolean>;
+  onEnterQaSandbox: () => Promise<boolean>;
   onSignOut: () => Promise<void>;
   onDeleteAccount: (userId: number) => Promise<void>;
 }) {
@@ -316,7 +340,7 @@ export function RootNavigator({
         translucent
       />
       {googleUser !== null && isOnboarded ? (
-        <AppStack googleUser={googleUser} onSignOut={onSignOut} onDeleteAccount={onDeleteAccount} />
+        <AppStack googleUser={googleUser} onEnterQaSandbox={onEnterQaSandbox} onSignOut={onSignOut} onDeleteAccount={onDeleteAccount} />
       ) : (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="SignIn">
@@ -324,6 +348,7 @@ export function RootNavigator({
               <SignInScreen
                 onSignIn={() => navigation.navigate('Onboarding' as never)}
                 onSignInWithGoogle={onSignInWithGoogle}
+                onEnterQaSandbox={onEnterQaSandbox}
               />
             )}
           </Stack.Screen>

@@ -96,6 +96,7 @@ Use the `emulator` skill before any adb tap or swipe so coordinates are computed
 | Expo notification request replay fails TypeScript input checks | `getAllScheduledNotificationsAsync()` returns output content/trigger types broader than `scheduleNotificationAsync()` input types | Rebuild the fallback request from the supported input fields and narrow date triggers before rescheduling |
 | `42710: constraint "leaderboard_snapshots_user_email_fkey" already exists` | Migration 046 re-added a fixed-name FK without handling an FK already created by migration 045 | Match and drop the fixed-name or legacy email FK before recreating it with both cascade actions |
 | `28P01: password authentication failed for user "cli_login_postgres"` | A Supabase CLI/direct database login used a rejected credential | Re-authenticate or refresh the CLI/database credential; this is not repaired in app SQL or client code |
+| `ReactHost ... Tried to access onWindowFocusChange while context is not ready` | Android cold start delivers a window-focus callback before the bridgeless JS context is initialized | Wait for the bundle to initialize; treat it as non-fatal only when no `FATAL EXCEPTION`, `ReactNativeJS` error, redbox, or bundle-load failure follows |
 
 ## Shared References
 

@@ -9,6 +9,7 @@ import { NoSavedGoogleCredentialError } from './syncErrors';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierRow } from '../game/lifetimeRank';
 import { readPendingActivityDeletes, clearPendingActivityDeletes } from '../game/pendingActivityDeletes';
+import { isQaSandboxActive } from '../qa/qaSandbox';
 
 const KEY_LAST_ACTIVITY = 'habit_sync_last_activity_id';
 const KEY_LAST_FUND = 'habit_sync_last_fund_id';
@@ -410,7 +411,7 @@ function refreshSupabaseSessionOnce(userEmail: string): Promise<void> {
 }
 
 export async function ensureSupabaseSession(userEmail: string): Promise<void> {
-  if (!supabase) return;
+  if (isQaSandboxActive() || !supabase) return;
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) throw sessionError;
   // getSession() only reports whether a session object is cached in memory —
@@ -441,7 +442,7 @@ export async function ensureSupabaseSession(userEmail: string): Promise<void> {
  * log — batches 100 rows at a time.
  */
 export async function syncToSupabase(userSub: string, userEmail: string): Promise<void> {
-  if (!supabase) return;
+  if (isQaSandboxActive() || !supabase) return;
   await runAccountSync(userEmail, async (assertActive) => {
     assertActive();
     await ensureSupabaseSession(userEmail);
@@ -487,7 +488,7 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
  * Best-effort: swallows and reports every failure rather than blocking sign-in.
  */
 export async function restoreLifetimeStarsFromSupabase(userId: number, userEmail: string): Promise<void> {
-  if (!supabase) return;
+  if (isQaSandboxActive() || !supabase) return;
   try {
     await runAccountSync(userEmail, async (assertActive) => {
       assertActive();
@@ -509,6 +510,7 @@ export async function restoreLifetimeStarsFromSupabase(userId: number, userEmail
 
 /** Sync all pending rows for the currently stored Google account. */
 export async function syncCurrentUserToSupabase(): Promise<void> {
+  if (isQaSandboxActive()) return;
   const user = await getStoredGoogleUser();
   if (!user) return;
   try {
@@ -543,7 +545,7 @@ export async function resetSyncCursors(): Promise<void> {
  * Silent no-op when Supabase not configured.
  */
 export async function syncUserStreak(userEmail: string, currentStreak: number): Promise<void> {
-  if (!supabase) return;
+  if (isQaSandboxActive() || !supabase) return;
   await runAccountSync(userEmail, async (assertActive) => {
     assertActive();
     const { data: { session } } = await supabase!.auth.getSession();
@@ -559,7 +561,7 @@ export async function syncUserStreak(userEmail: string, currentStreak: number): 
 
 /** Reset the remote progress mirror before clearing local lifetime rank data. */
 export async function resetUserProgressInSupabase(userEmail: string): Promise<void> {
-  if (!supabase) return;
+  if (isQaSandboxActive() || !supabase) return;
   await ensureSupabaseSession(userEmail);
   const { error } = await supabase.rpc('reset_my_progress');
   if (error) throw error;
@@ -571,7 +573,7 @@ export async function resetUserProgressInSupabase(userEmail: string): Promise<vo
  * Supabase Auth session is still active (required when RLS is enabled).
  */
 export async function deleteUserFromSupabase(userEmail: string): Promise<void> {
-  if (!supabase) return;
+  if (isQaSandboxActive() || !supabase) return;
   await ensureSupabaseSession(userEmail);
   const { error } = await supabase.rpc('delete_my_account_data');
   if (error) throw error;

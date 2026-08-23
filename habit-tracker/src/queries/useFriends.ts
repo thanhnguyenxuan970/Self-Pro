@@ -16,6 +16,7 @@ import {
 } from '../api/friendsApi';
 import { mapFriendDashboardRows } from '../lib/friends';
 import { supabase } from '../api/supabase';
+import { isQaSandboxActive } from '../qa/qaSandbox';
 
 // Keyed by the stable Google `sub`, never email alone, so switching accounts
 // on the same device can never serve one account's cached social data to
@@ -42,7 +43,7 @@ export const friendKeys = {
 export function useFriendPendingCount(currentUserEmail: string | null, accountSub: string | null) {
   return useQuery({
     queryKey: friendKeys.pendingCount(accountSub ?? 'anon'),
-    enabled: !!supabase && !!currentUserEmail && !!accountSub,
+    enabled: !isQaSandboxActive() && !!supabase && !!currentUserEmail && !!accountSub,
     staleTime: 60_000,
     retry: false,
     queryFn: () => getFriendPendingCount(currentUserEmail!),
@@ -57,7 +58,7 @@ export function useFriendPendingCount(currentUserEmail: string | null, accountSu
 export function useFriendDashboard(currentUserEmail: string | null, accountSub: string | null, fallbackPlayerLabel: string, enabled: boolean) {
   const query = useQuery({
     queryKey: friendKeys.dashboard(accountSub ?? 'anon', fallbackPlayerLabel),
-    enabled: enabled && !!supabase && !!currentUserEmail && !!accountSub,
+    enabled: enabled && !isQaSandboxActive() && !!supabase && !!currentUserEmail && !!accountSub,
     staleTime: 30_000,
     retry: false,
     queryFn: async () => mapFriendDashboardRows(await getFriendDashboard(currentUserEmail!), fallbackPlayerLabel),
@@ -68,7 +69,7 @@ export function useFriendDashboard(currentUserEmail: string | null, accountSub: 
 export function useFriendCode(currentUserEmail: string | null, accountSub: string | null, enabled: boolean) {
   const query = useQuery({
     queryKey: friendKeys.code(accountSub ?? 'anon'),
-    enabled: enabled && !!supabase && !!currentUserEmail && !!accountSub,
+    enabled: enabled && !isQaSandboxActive() && !!supabase && !!currentUserEmail && !!accountSub,
     staleTime: Infinity,
     retry: false,
     queryFn: () => getOrCreateFriendCode(currentUserEmail!),
@@ -79,7 +80,7 @@ export function useFriendCode(currentUserEmail: string | null, accountSub: strin
 export function useBlockedAccounts(currentUserEmail: string | null, accountSub: string | null, enabled: boolean) {
   const query = useQuery<RemoteBlockedAccountRow[]>({
     queryKey: friendKeys.blockedAccounts(accountSub ?? 'anon'),
-    enabled: enabled && !!supabase && !!currentUserEmail && !!accountSub,
+    enabled: enabled && !isQaSandboxActive() && !!supabase && !!currentUserEmail && !!accountSub,
     staleTime: 30_000,
     retry: false,
     queryFn: () => getBlockedAccounts(currentUserEmail!),

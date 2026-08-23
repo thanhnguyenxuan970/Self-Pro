@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../api/supabase';
+import { buildQaSandboxLeaderboard, isQaSandboxActive } from '../qa/qaSandbox';
 import { generatePlayerName } from '../config/playerNames';
 import type { AppLanguage } from '../config/i18n';
 
@@ -223,15 +224,28 @@ export function useLeaderboard(
   currentUserName: string | null,
   playerLabel: string,
   lang: AppLanguage = 'vi',
+  currentStars = 0,
 ) {
+  const qaSandboxActive = isQaSandboxActive();
   const query = useQuery({
     // `lang` is part of the key because generated names are language-specific;
     // switching language must re-derive them rather than serve stale copy.
-    queryKey: ['leaderboard', currentUserEmail, currentUserName, playerLabel, lang],
-    enabled: !!supabase && !!currentUserEmail,
+    queryKey: ['leaderboard', currentUserEmail, currentUserName, playerLabel, lang, qaSandboxActive ? Math.round(currentStars) : null],
+    enabled: !!currentUserEmail && (qaSandboxActive || !!supabase),
     staleTime: 60_000,
     retry: false,
     queryFn: async (): Promise<LeaderboardEntry[]> => {
+      if (qaSandboxActive) {
+        // The sandbox board is intentionally local and in-memory. This keeps
+        // the real Supabase leaderboard path unreachable while still letting
+        // QA exercise the full Rank UI with a crowded, moving board.
+        return mapRemoteLeaderboardRows(
+          buildQaSandboxLeaderboard(currentStars),
+          currentUserName,
+          playerLabel,
+          lang,
+        );
+      }
       if (!supabase || !currentUserEmail) return [];
 
       // Supabase sessions are intentionally not persisted. Re-establish the
@@ -253,5 +267,5 @@ export function useLeaderboard(
   // A production build without the public Supabase variables disables the
   // query entirely. Keep that state explicit so the UI cannot mistake a
   // missing backend configuration for a genuinely empty global board.
-  return { ...query, isUnavailable: !supabase };
+  return { ...query, isUnavailable: !qaSandboxActive && !supabase };
 }

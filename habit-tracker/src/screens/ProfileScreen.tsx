@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useDailySummary } from '../queries/useToday';
@@ -12,13 +12,15 @@ import { Badge } from '../components/Badge';
 import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
+import { isQaSandboxBuildAvailable, isQaSandboxIdentity } from '../qa/qaSandbox';
 
 type Props = {
-  googleUser: { email: string; name: string; picture: string };
+  googleUser: { sub: string; email: string; name: string; picture: string };
+  onEnterQaSandbox: () => Promise<boolean>;
   onSignOut: () => Promise<void>;
 };
 
-export function ProfileScreen({ googleUser, onSignOut }: Props) {
+export function ProfileScreen({ googleUser, onEnterQaSandbox, onSignOut }: Props) {
   const userId = useAuthUser();
   const navigation = useNavigation();
   const { colors } = useTheme();
@@ -52,12 +54,19 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
   const rankProgress = nextTier
     ? t.rankProgress(Math.round(rank?.currentStars ?? 0), nextTier.stars_required, nextTier.rank_name)
     : t.rankMaxed;
+  const handleQaSandbox = async () => {
+    try {
+      await onEnterQaSandbox();
+    } catch (error: unknown) {
+      Alert.alert(t.error, error instanceof Error ? error.message : String(error));
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={ph.head}>
-          {googleUser.picture ? <Image source={{ uri: googleUser.picture }} style={ph.avatar} importantForAccessibility="no" accessibilityElementsHidden /> : (
+          {googleUser.picture && !isQaSandboxIdentity(googleUser) ? <Image source={{ uri: googleUser.picture }} style={ph.avatar} importantForAccessibility="no" accessibilityElementsHidden /> : (
             <View style={[ph.avatar, ph.avatarFallback]}><Text style={ph.avatarInitial}>{(googleUser.name.charAt(0) || '?').toUpperCase()}</Text></View>
           )}
           <Text style={ph.name} numberOfLines={1}>{googleUser.name}</Text>
@@ -77,6 +86,18 @@ export function ProfileScreen({ googleUser, onSignOut }: Props) {
           <Text style={ph.trophyChevron}>{'>'}</Text>
         </TouchableOpacity>
 
+        {isQaSandboxBuildAvailable() && !isQaSandboxIdentity(googleUser) && (
+          <TouchableOpacity
+            style={styles.qaSwitchBtn}
+            onPress={() => { void handleQaSandbox(); }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t.qaSandboxSwitch}
+            testID="qa-sandbox-switch-button"
+          >
+            <Text style={styles.qaSwitchBtnText}>{t.qaSandboxSwitch}</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={styles.logoutBtn} onPress={onSignOut} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t.signOut}><Text style={styles.logoutBtnText}>{t.signOut}</Text></TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -89,6 +110,8 @@ function makeStyles(C: AppColors) {
     scroll: { paddingBottom: 40 },
     logoutBtn: { marginHorizontal: Spacing.lg, marginTop: 32, marginBottom: 12, paddingVertical: 15, borderRadius: Radii.md, borderWidth: 1.5, borderColor: C.line2, alignItems: 'center' },
     logoutBtnText: { color: C.ink2, fontSize: 15, fontFamily: FontFamily.bold },
+    qaSwitchBtn: { marginHorizontal: Spacing.lg, marginTop: 24, minHeight: 44, paddingHorizontal: Spacing.md, borderRadius: Radii.md, borderWidth: 1, borderColor: C.primaryLine, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
+    qaSwitchBtnText: { color: C.primaryText, fontSize: 14, fontFamily: FontFamily.semiBold, textAlign: 'center' },
   });
 }
 

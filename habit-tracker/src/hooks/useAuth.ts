@@ -1,10 +1,18 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SQLiteDatabase } from 'expo-sqlite';
 import { type GoogleUser, readGoogleUser, writeGoogleUser, deleteGoogleUser, parseGoogleUser, getStoredGoogleUser } from '../lib/googleUserStorage';
 import { NO_SAVED_GOOGLE_CREDENTIAL_CODE } from '../api/syncErrors';
 import { challengeReminderPrefix } from '../lib/challengeNotificationPlan';
 import { invalidateChallengeReminderSync } from '../utils/notifications';
+import { queryClient } from '../queries/queryClient';
+import {
+  isQaSandboxIdentity,
+  isQaSandboxBuildAvailable,
+  purgeQaSandbox,
+  seedQaSandbox,
+  setQaSandboxNetworkBlocked,
+} from '../qa/qaSandbox';
 
 export type { GoogleUser };
 export { parseGoogleUser, getStoredGoogleUser };
@@ -34,6 +42,14 @@ export async function restoreStoredGoogleSession(
   const isOnboarded = parseOnboarded(onboardedValue);
   const googleUser = parseGoogleUser(userJson);
   if (!isOnboarded || !googleUser) return { isOnboarded, googleUser };
+
+  if (isQaSandboxIdentity(googleUser)) {
+    if (!isQaSandboxBuildAvailable()) return { isOnboarded: false, googleUser: null };
+    setQaSandboxNetworkBlocked(true);
+    return { isOnboarded, googleUser };
+  }
+
+  setQaSandboxNetworkBlocked(false);
 
   try {
     await ensureSession(googleUser.email);
@@ -178,6 +194,7 @@ export function useAuth() {
   const [isOnboarded, setIsOnboarded] = useState(false);
   const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
   const [userId, setUserId] = useState(1);
+  const signInInFlight = useRef<Promise<boolean> | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -186,10 +203,19 @@ export function useAuth() {
       readGoogleUser(),
     ])
       .then(async ([onboarded, userJson]) => {
-        const storedUser = parseGoogleUser(userJson);
+        let storedUser = parseGoogleUser(userJson);
+        if (storedUser && isQaSandboxIdentity(storedUser) && !isQaSandboxBuildAvailable()) {
+          // A QA identity must never survive into a production build, even if
+          // a developer installed a release build over the debug app.
+          await deleteGoogleUser();
+          await AsyncStorage.removeItem(ONBOARDED_KEY);
+          storedUser = null;
+        }
+        if (storedUser && isQaSandboxIdentity(storedUser)) setQaSandboxNetworkBlocked(true);
+        else setQaSandboxNetworkBlocked(false);
         let restored = { isOnboarded: parseOnboarded(onboarded), googleUser: storedUser };
 
-        if (restored.isOnboarded && storedUser) {
+        if (restored.isOnboarded && storedUser && !isQaSandboxIdentity(storedUser)) {
           // require(), not `await import(...)`: a dynamic import of this module
           // hung indefinitely on startup in testing (never resolved, no error) --
           // matches this project's documented rule (see habit-tracker/AGENTS.md,
@@ -236,7 +262,28 @@ export function useAuth() {
     setIsOnboarded(true);
   }, []);
 
-  const signInWithGoogle = useCallback(async (user: GoogleUser, idToken?: string): Promise<boolean> => {
+  const signInWithGoogle = useCallback((user: GoogleUser, idToken?: string): Promise<boolean> => {
+    if (signInInFlight.current) return signInInFlight.current;
+
+    const operation = (async (): Promise<boolean> => {
+    const previousUser = await getStoredGoogleUser();
+    let releasePreviousSync: (() => void) | null = null;
+    if (isQaSandboxIdentity(user) && previousUser && !isQaSandboxIdentity(previousUser)) {
+      const { pauseAccountSync } = await import('../api/syncService');
+      releasePreviousSync = await pauseAccountSync(previousUser.email);
+      try {
+        const { getDb } = await import('../db/client');
+        const db = await getDb();
+        invalidateChallengeReminderSync();
+        await cancelUserChallengeReminders(db, userId);
+      } catch (error) {
+        releasePreviousSync();
+        releasePreviousSync = null;
+        throw error;
+      }
+    }
+
+    try {
     // Resolve the local account before publishing the new identity to React or
     // secure storage. A failed lookup must not leave the app authenticated as
     // the new Google user while still pointing at the previous local user row.
@@ -244,8 +291,17 @@ export function useAuth() {
     try {
       const { getDb } = await import('../db/client');
       const db = await getDb();
-      result = await resolveUserRow(db, user.sub, user.email);
+      if (isQaSandboxIdentity(user)) {
+        if (!isQaSandboxBuildAvailable()) throw new Error('QA sandbox is unavailable in release builds');
+        setQaSandboxNetworkBlocked(true);
+        result = { id: await seedQaSandbox(db), isNew: false };
+        setQaSandboxNetworkBlocked(true);
+      } else {
+        setQaSandboxNetworkBlocked(false);
+        result = await resolveUserRow(db, user.sub, user.email);
+      }
     } catch (e) {
+      if (isQaSandboxIdentity(user)) setQaSandboxNetworkBlocked(false);
       if (__DEV__) console.warn('[auth] resolveUserRow failed; sign-in aborted:', e);
       throw e;
     }
@@ -257,7 +313,7 @@ export function useAuth() {
     // new device, cleared app data) otherwise renders Home/Rank with a bare
     // local total and nothing ever tells those screens to re-fetch once the
     // restore lands, so the user would see stale progress rather than none.
-    if (idToken) {
+    if (idToken && !isQaSandboxIdentity(user)) {
       try {
         const { supabase } = await import('../api/supabase');
         if (supabase) {
@@ -270,13 +326,25 @@ export function useAuth() {
 
     await writeGoogleUser(JSON.stringify(user));
     await AsyncStorage.setItem('habit_tracker_display_name', user.name);
-    await (result.isNew ? AsyncStorage.removeItem(ONBOARDED_KEY) : AsyncStorage.setItem(ONBOARDED_KEY, 'true'));
+    await (result.isNew && !isQaSandboxIdentity(user) ? AsyncStorage.removeItem(ONBOARDED_KEY) : AsyncStorage.setItem(ONBOARDED_KEY, 'true'));
+    queryClient.clear();
     setUserId(result.id);
     setGoogleUser(user);
     setIsOnboarded(!result.isNew);
 
     return result.isNew;
-  }, []);
+    } finally {
+      releasePreviousSync?.();
+    }
+    })();
+
+    signInInFlight.current = operation;
+    operation.then(
+      () => { if (signInInFlight.current === operation) signInInFlight.current = null; },
+      () => { if (signInInFlight.current === operation) signInInFlight.current = null; },
+    );
+    return operation;
+  }, [userId]);
 
   const resetProgress = useCallback(async (uid: number) => {
     const storedUser = await getStoredGoogleUser();
@@ -313,10 +381,23 @@ export function useAuth() {
       setIsOnboarded(false);
       setGoogleUser(null);
       setUserId(1);
+      setQaSandboxNetworkBlocked(false);
+      queryClient.clear();
     }
   }, []);
 
   const deleteAccount = useCallback(async (uid: number) => {
+    const currentUser = await getStoredGoogleUser();
+    if (currentUser && isQaSandboxIdentity(currentUser)) {
+      const { getDb } = await import('../db/client');
+      const db = await getDb();
+      invalidateChallengeReminderSync();
+      await cancelUserChallengeReminders(db, uid);
+      await purgeQaSandbox(db);
+      await clearLocalAuthState();
+      return;
+    }
+
     // Purge remote Supabase data FIRST while the auth session is still active
     const { deleteUserFromSupabase, pauseAccountSync, resetSyncCursors } = await import('../api/syncService');
     const googleUserJson = await readGoogleUser();
@@ -357,6 +438,17 @@ export function useAuth() {
 
   const signOut = useCallback(async () => {
     const storedUser = await getStoredGoogleUser();
+    if (storedUser && isQaSandboxIdentity(storedUser)) {
+      try {
+        const db = await import('../db/client').then(module => module.getDb());
+        invalidateChallengeReminderSync();
+        await cancelUserChallengeReminders(db, userId);
+        await purgeQaSandbox(db);
+      } finally {
+        await clearLocalAuthState();
+      }
+      return;
+    }
     const { pauseAccountSync, resetSyncCursors } = await import('../api/syncService');
     const releaseSync = storedUser ? await pauseAccountSync(storedUser.email) : null;
     try {

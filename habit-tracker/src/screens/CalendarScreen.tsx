@@ -93,7 +93,7 @@ function resolveDayCellProps(
   };
 }
 
-export function CalendarScreen() {
+export function CalendarScreen({ qaBannerVisible = false }: { qaBannerVisible?: boolean } = {}) {
   const userId = useAuthUser();
   const { colors } = useTheme();
   const t = useTranslations();
@@ -154,7 +154,7 @@ export function CalendarScreen() {
   const locale = lang === 'vi' ? 'vi-VN' : 'en-US';
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={qaBannerVisible ? ['bottom'] : ['top']}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Month Nav */}
       <View style={styles.monthNav}>

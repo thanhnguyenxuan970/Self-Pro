@@ -5,9 +5,16 @@ import { clampClockValue, type DurationClock, wheelValueAtOffset } from '../util
 
 const ROW_HEIGHT = 40;
 
-type Props = { value: DurationClock; onChange: (value: DurationClock) => void; colors: AppColors };
+type Props = {
+  value: DurationClock;
+  onChange: (value: DurationClock) => void;
+  colors: AppColors;
+  hoursLabel?: string;
+  minutesLabel?: string;
+  editValueLabel?: (label: string) => string;
+};
 
-function Wheel({ label, value, max, onChange, colors, styles }: { label: string; value: number; max: number; onChange: (value: number) => void; colors: AppColors; styles: ReturnType<typeof makeStyles> }) {
+function Wheel({ label, value, max, onChange, colors, styles, editValueLabel }: { label: string; value: number; max: number; onChange: (value: number) => void; colors: AppColors; styles: ReturnType<typeof makeStyles>; editValueLabel?: (label: string) => string }) {
   const ref = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const momentum = useRef(false);
@@ -89,7 +96,7 @@ function Wheel({ label, value, max, onChange, colors, styles }: { label: string;
           style={styles.editBtn}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
-          accessibilityLabel={`Type ${label} value`}
+          accessibilityLabel={editValueLabel?.(label) ?? `Type ${label} value`}
         >
           <Text style={styles.editBtnText}>✎</Text>
         </TouchableOpacity>
@@ -98,13 +105,13 @@ function Wheel({ label, value, max, onChange, colors, styles }: { label: string;
   );
 }
 
-export function DurationClockInput({ value, onChange, colors }: Props) {
+export function DurationClockInput({ value, onChange, colors, hoursLabel = 'HH', minutesLabel = 'MM', editValueLabel }: Props) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.clock}>
-      <Wheel label="HH" value={value.hours} max={24} onChange={hours => onChange({ hours, minutes: hours === 24 ? 0 : value.minutes })} colors={colors} styles={styles} />
+      <Wheel label={hoursLabel} value={value.hours} max={24} onChange={hours => onChange({ hours, minutes: hours === 24 ? 0 : value.minutes })} colors={colors} styles={styles} editValueLabel={editValueLabel} />
       <Text style={styles.separator}>:</Text>
-      <Wheel label="MM" value={value.minutes} max={59} onChange={minutes => onChange({ hours: value.hours, minutes: value.hours === 24 ? 0 : minutes })} colors={colors} styles={styles} />
+      <Wheel label={minutesLabel} value={value.minutes} max={59} onChange={minutes => onChange({ hours: value.hours, minutes: value.hours === 24 ? 0 : minutes })} colors={colors} styles={styles} editValueLabel={editValueLabel} />
     </View>
   );
 }

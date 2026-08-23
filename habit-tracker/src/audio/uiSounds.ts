@@ -25,15 +25,21 @@ function playOne(cue: Cue): void {
 
 // Streak milestone (3/7/30-day hit) — Light Impact + sound together.
 export function cueStreakMilestone(): void {
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  if (isAudioEnabled()) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  }
   playOne('streakMilestone');
 }
 
 export function cueBadgeUnlock(tier: Tier): void {
   const isRare = tier !== 'iron' && tier !== 'bronze';
   const isHeavy = tier === 'gold' || tier === 'platinum' || tier === 'diamond';
-  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-  if (isHeavy) setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}), 120);
+  if (isAudioEnabled()) {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    if (isHeavy) setTimeout(() => {
+      if (isAudioEnabled()) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+    }, 120);
+  }
   playOne(isRare ? 'streakMilestone' : 'modalOpen');
 }
 
