@@ -2,7 +2,7 @@
   "expo": {
     "name": "Habi",
     "slug": "habit-tracker",
-    "version": "2.0.2",
+    "version": "2.0.3",
     "scheme": "habittracker",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -17,6 +17,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
+      "versionCode": 66,
       "predictiveBackGestureEnabled": true,
       "allowBackup": false,
       "blockedPermissions": [

@@ -1,3 +1,19 @@
+const nodeRequire = require as unknown as {
+  (moduleName: string): unknown;
+  resolve(moduleName: string): string;
+};
+const { execFileSync } = nodeRequire('child_process') as {
+  execFileSync: (file: string, args: string[], options: {
+    cwd: string;
+    env: Record<string, string | undefined>;
+    stdio: 'pipe';
+  }) => void;
+};
+const jestPackagePath = nodeRequire.resolve('jest/package.json');
+const challengeTestPath = nodeRequire.resolve('./challenge.test.ts');
+const appRoot = jestPackagePath.replace(/[\\/]node_modules[\\/]jest[\\/]package\.json$/, '');
+const jestCliPath = `${appRoot}/node_modules/jest/bin/jest.js`;
+
 import { challengeDate, challengeStreak, completeChallenge, currentDay, currentDayIndex, computeProgress, computeRollover, dateRange, dayCellStates, GRID_CELL_COUNT, isAtRisk, isComplete, logToday, progress, restart, type Challenge, type DayEntry } from '../src/lib/challenge';
 import { CHALLENGE_DURATIONS, CHALLENGE_NAME_MAX_LENGTH, challengeCompletionStars, isValidCustomChallengeValue } from '../src/config/challenges.config';
 import { canRequestChallengeDelete, challengeDeletePrompt, challengeDetailMenuActions, deleteChallengeAndExit } from '../src/utils/challengeDetail';
@@ -80,6 +96,39 @@ describe('device-local challenge clock', () => {
   it('uses the same device-local date as activity_log', () => {
     const instant = new Date('2026-06-17T16:59:59Z');
     expect(challengeDate(instant)).toBe(getLocalDateFor(instant));
+  });
+
+  it('keeps the user date at a non-ICT evening boundary', () => {
+    if (process.env.HABI_TIMEZONE_TEST_CHILD !== '1') {
+      // Jest has already initialized the host timezone, so start a child
+      // process under Europe/London to exercise real device-local getters.
+      execFileSync(process.execPath, [
+        jestCliPath,
+        '--runInBand',
+        '--runTestsByPath',
+        challengeTestPath,
+        '--testNamePattern',
+        'keeps the user date at a non-ICT evening boundary',
+      ], {
+        cwd: appRoot,
+        env: { ...process.env, TZ: 'Europe/London', HABI_TIMEZONE_TEST_CHILD: '1' },
+        stdio: 'pipe',
+      });
+      return;
+    }
+
+    const summerInstant = new Date('2026-08-23T17:30:00Z');
+    const winterInstant = new Date('2026-12-20T23:30:00Z');
+
+    // London is still on 2026-08-23 while ICT has already crossed into
+    // 2026-08-24, so a hardcoded ICT implementation must fail this test.
+    expect(challengeDate(summerInstant)).toBe('2026-08-23');
+    expect(currentDay(challenge, summerInstant)).toBe(
+      currentDayIndex(challenge.startDate, '2026-08-23'),
+    );
+
+    // Repeat the boundary in winter to cover London's DST offset change.
+    expect(challengeDate(winterInstant)).toBe('2026-12-20');
   });
 
   it('uses the device-local date consistently for current-day arithmetic', () => {

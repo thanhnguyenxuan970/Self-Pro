@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Challenge "today" now follows the device-local calendar consistently with activity logs, including non-ICT evening boundaries; Android/Expo release metadata is aligned to 2.0.3 (versionCode 66).
 - Supabase auth-audit diagnostics now match the live schema (`payload` is `json`, with `action` and `provider` read from that payload); no app or migration change was required.
 - Google/Supabase sign-in now serializes direct and background ID-token exchanges, retries one transient `users_email_partial_key` auth-user race, verifies the returned email, and fails closed instead of publishing a local account after remote auth failure.
 - Challenge reminders now re-arm deterministic Expo notification IDs after Android force-stop, and denied notification permission clears the persisted reminder token for retry.
@@ -10,7 +11,7 @@
 - Lifetime rank totals now render as whole stars, and normal account sync reconciles the current Supabase-derived total into local SQLite so Rank and the authenticated leaderboard stay aligned.
 - Unchecking, Progress deletion, and task archiving now reverse positive lifetime stars locally while preserving the achieved high-water tier; auth-scoped Challenge notification work is serialized across sign-out.
 - Rank fallback states no longer present a local-only user as a fabricated champion, and the Global/Friends controls meet the 44px touch-target contract.
-- Validation status: TypeScript, 70 Jest suites/621 tests, 3× stress runs of 12 suites/128 tests, fresh preserved-data Android verification, and no current-process JS/fatal errors pass. Supabase migrations 045–047 are source-shipped; the live project migration list remains at 044 and needs an explicit database deploy.
+- Validation status: TypeScript, 72 Jest suites/634 tests, 3× stress runs of 12 suites/128 tests, fresh preserved-data Android verification, and no current-process JS/fatal errors pass. Supabase migrations 045–047 are source-shipped; the live project migration list remains at 044 and needs an explicit database deploy.
 
 ## 2.0.2 - 2026-08-18
 
