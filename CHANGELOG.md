@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Removed user photo selection from Challenge Detail and share-card creation; existing challenge photos remain display-only.
 
 ### Fixed
+- **Android launcher icon**: synchronized the committed native launcher resources with Habi's green checkmark adaptive icon so installed Android builds no longer show the legacy blue A.
 - **Google sign-in race hardening**: malformed identities and missing ID tokens now fail closed before local account mutation; same-account exchanges remain serialized with bounded duplicate-key/5xx retry, cancellation-fenced retries and queued exchanges, finite-expiry/email/Google-subject checks, one process-wide session lease for protected RPCs, canonical remote ownership keys with legacy local-email lookup preserved, cancellation-safe native restore, token-owned cleanup, atomic local user/category seeding, and localized failure copy.
 - **Timezone-aware growth audit queries**: absolute timestamps and date calculations now use each user's validated profile timezone, with UTC fallback, instead of a fixed `Asia/Ho_Chi_Minh` timezone.
 - **QA artifact privacy**: raw Android logcat files are no longer tracked; root `.audit/` log output is ignored to prevent device identifiers and internal runtime details from entering future pushes while keeping sanitized screenshot/XML evidence available.
