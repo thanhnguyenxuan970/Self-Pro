@@ -5,13 +5,14 @@
 - Challenge "today" now follows the device-local calendar consistently with activity logs, including non-ICT evening boundaries; Android/Expo release metadata is aligned to 2.0.3 (versionCode 66).
 - Supabase auth-audit diagnostics now match the live schema (`payload` is `json`, with `action` and `provider` read from that payload); no app or migration change was required.
 - Google/Supabase sign-in now skips redundant exchanges for a fresh same-account session, serializes direct and background ID-token exchanges, retries one transient auth-user race or HTTP 5xx exchange failure, verifies the returned email, and fails closed instead of publishing a local account after remote auth failure.
+- Google accounts now use an authenticated, account-scoped Supabase snapshot to restore local tasks, activity, heatmap rollups, Challenges, rewards, and rank state before any post-reinstall upload; older activity mirrors remain a heatmap fallback, snapshot writes use revision compare-and-swap, cross-account SQLite collisions fail closed, and interrupted reset/delete flows cannot resurrect old data.
 - Challenge reminders now re-arm deterministic Expo notification IDs after Android force-stop, and denied notification permission clears the persisted reminder token for retry.
 - Unified Analytics Week, Month, and Year bar rendering while preserving dense-range horizontal scrolling and accessibility context.
 - Fixed completed/selected task rows escaping the rounded Today card; removed the full-row shrink animation and respect reduced-motion settings.
 - Lifetime rank totals now render as whole stars, and normal account sync reconciles the current Supabase-derived total into local SQLite so Rank and the authenticated leaderboard stay aligned.
 - Unchecking, Progress deletion, and task archiving now reverse positive lifetime stars locally while preserving the achieved high-water tier; auth-scoped Challenge notification work is serialized across sign-out.
 - Rank fallback states no longer present a local-only user as a fabricated champion, and the Global/Friends controls meet the 44px touch-target contract.
-- Validation status: TypeScript, 74 Jest suites/645 tests, focused auth coverage (28/28), and a fresh Android release AAB pass. Emulator installation/runtime and authenticated Supabase verification remain blocked in this environment. Supabase migrations 045–047 are source-shipped; the live project migration list remains at 044 and needs an explicit database deploy.
+- Validation status: TypeScript, 75 Jest suites/683 tests, release AAB, and three data-preserving Android install/cold-start cycles pass. Supabase migrations 049–065 are deployed to the active Self-Pro project; live SQL lint has no errors (only pre-existing warnings), and the exact reported account currently has zero Auth/profile/activity/backup rows. Emulator evidence is QA-sandbox-only, so authenticated production-user runtime remains unverified.
 
 ## 2.0.2 - 2026-08-18
 

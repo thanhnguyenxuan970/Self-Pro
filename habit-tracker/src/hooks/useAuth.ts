@@ -18,6 +18,32 @@ export type { GoogleUser };
 export { parseGoogleUser, getStoredGoogleUser };
 
 const ONBOARDED_KEY = 'habit_tracker_onboarded';
+const PENDING_RESET_KEY = 'habit_tracker_pending_progress_reset';
+const PENDING_DELETE_KEY = 'habit_tracker_pending_account_delete';
+
+function accountStorageKey(user: Pick<GoogleUser, 'sub' | 'email'>): string {
+  return encodeURIComponent(user.email.trim().toLowerCase());
+}
+
+function legacyAccountStorageKey(user: Pick<GoogleUser, 'sub' | 'email'>): string {
+  return encodeURIComponent((user.sub || user.email).trim());
+}
+
+function pendingResetKey(user: Pick<GoogleUser, 'sub' | 'email'>): string {
+  return `${PENDING_RESET_KEY}:${accountStorageKey(user)}`;
+}
+
+function pendingDeleteKey(user: Pick<GoogleUser, 'sub' | 'email'>): string {
+  return `${PENDING_DELETE_KEY}:${accountStorageKey(user)}`;
+}
+
+function legacyPendingResetKey(user: Pick<GoogleUser, 'sub' | 'email'>): string {
+  return `${PENDING_RESET_KEY}:${legacyAccountStorageKey(user)}`;
+}
+
+function legacyPendingDeleteKey(user: Pick<GoogleUser, 'sub' | 'email'>): string {
+  return `${PENDING_DELETE_KEY}:${legacyAccountStorageKey(user)}`;
+}
 
 // GoogleSignin.signInSilently() is a native-bridge call with no cancellation
 // support and no built-in timeout; if it never calls back (flaky Play
@@ -101,7 +127,7 @@ export async function resolveUserRow(
 
     // Migration: legacy install stored email in google_sub — upgrade in-place
     const legacy = await db.getFirstAsync<{ id: number }>(
-      'SELECT id FROM users WHERE google_sub = ?',
+      'SELECT id FROM users WHERE LOWER(TRIM(google_sub)) = LOWER(TRIM(?)) ORDER BY id LIMIT 1',
       [googleEmail]
     );
     if (legacy) {
@@ -192,6 +218,78 @@ export const DELETE_ACCOUNT_STATEMENTS = [
   'DELETE FROM milestone_stars WHERE user_id = ?',
   'DELETE FROM boost_events WHERE user_id = ?',
 ];
+
+async function clearLocalProgressRows(db: SQLiteDatabase, uid: number): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    for (const sql of RESET_PROGRESS_STATEMENTS) {
+      await db.runAsync(sql, [uid]);
+    }
+    await db.runAsync(
+      `UPDATE users SET treat_stars = 0, treat_stars_lifetime = 0, carry_debt = 0,
+         lifetime_stars = 0, current_tier_id = NULL WHERE id = ?`,
+      [uid],
+    );
+  });
+}
+
+async function purgeLocalAccountRows(db: SQLiteDatabase, uid: number): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    for (const sql of DELETE_ACCOUNT_STATEMENTS) {
+      await db.runAsync(sql, [uid]);
+    }
+    await db.runAsync('DELETE FROM users WHERE id = ?', [uid]);
+  });
+}
+
+type PendingProgressReset = { userId: number; email: string; sub: string; operationId: string };
+type PendingAccountDelete = PendingProgressReset;
+
+function createDestructiveOperationId(): string {
+  const bytes = Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.map(byte => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function isDestructiveOperationId(value: unknown): value is string {
+  return typeof value === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function parsePendingProgressReset(value: string | null): PendingProgressReset | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as Partial<PendingProgressReset>;
+    const userId = parsed.userId;
+    if (typeof userId !== 'number' || !Number.isSafeInteger(userId) || userId < 1
+        || typeof parsed.email !== 'string' || typeof parsed.sub !== 'string'
+        || !isDestructiveOperationId(parsed.operationId)) return null;
+    return { userId, email: parsed.email, sub: parsed.sub, operationId: parsed.operationId };
+  } catch {
+    return null;
+  }
+}
+
+function parsePendingAccountDelete(value: string | null): PendingAccountDelete | null {
+  return parsePendingProgressReset(value);
+}
+
+function pendingMarkerIdentityMatches(
+  raw: string | null,
+  user: Pick<GoogleUser, 'sub' | 'email'>,
+): boolean {
+  if (!raw) return false;
+  try {
+    const parsed = JSON.parse(raw) as { email?: unknown; sub?: unknown };
+    return typeof parsed.email === 'string'
+      && typeof parsed.sub === 'string'
+      && parsed.email.trim().toLowerCase() === user.email.trim().toLowerCase()
+      && parsed.sub.trim() === user.sub.trim();
+  } catch {
+    return false;
+  }
+}
 
 export async function cancelUserChallengeReminders(
   db: Pick<SQLiteDatabase, 'getAllAsync'>,
@@ -371,6 +469,16 @@ export function useAuth() {
       await Promise.race([remoteAuthPromise, remoteAuthDeadline]);
     }
 
+    // Complete durable reset/delete markers before resolving or creating the
+    // local row. Interactive Google sign-in has the same crash surface as
+    // cold-start restore and must not bypass that safety gate.
+    if (!isQaSandboxIdentity(user)) {
+      const pendingDelete = await completePendingDelete(user);
+      if (pendingDelete === 'blocked') throw new Error('Account deletion recovery is blocked');
+      if (pendingDelete === 'deleted') throw new Error('Account deletion completed; sign in again');
+      if (!await completePendingReset(user)) throw new Error('Progress reset recovery is blocked');
+    }
+
     // Resolve the local account before publishing the new identity to React or
     // secure storage. A failed lookup must not leave the app authenticated as
     // the new Google user while still pointing at the previous local user row.
@@ -400,16 +508,27 @@ export function useAuth() {
       ? await Promise.race([resolveLocalAccount(), remoteAuthDeadline])
       : await resolveLocalAccount();
 
-    // Restore the server-derived lifetime total before publishing the identity.
-    // A fresh local install otherwise renders Home/Rank with a bare local total
-    // and nothing tells those screens to re-fetch once the restore lands.
+    // The short interactive deadline is for provider exchange and local
+    // account resolution. Cloud snapshot hydration has its own bounded
+    // restore timeout; keeping the exchange deadline alive here made valid
+    // large accounts fail sign-in at exactly 15 seconds.
+    if (remoteAuthTimeout) clearTimeout(remoteAuthTimeout);
+    remoteAuthTimeout = null;
+    remoteAuthDeadline = null;
+
+    // Hydrate a fresh SQLite file before publishing the identity. A reinstall
+    // must not treat seeded default rows as the signed-in account's complete
+    // state and upload them over the cloud copy.
     if (!isQaSandboxIdentity(user)) {
-      if (!remoteSyncService || !remoteAuthDeadline) throw new Error('Google sign-in session unavailable');
+      if (!remoteSyncService) throw new Error('Google sign-in session unavailable');
       const syncService = remoteSyncService as typeof import('../api/syncService');
-      await Promise.race([
-        syncService.restoreLifetimeStarsFromSupabase(result.id, user.email, () => remoteAuthActive, user.sub),
-        remoteAuthDeadline,
-      ]);
+      const restoreResult = await syncService.restoreUserDataIfNeeded(result.id, user.email, user.sub, () => remoteAuthActive);
+      if (restoreResult === 'unavailable') {
+        throw new Error('Cloud data restore is unavailable; sign-in remains blocked for safety');
+      }
+      // Restore the server-derived lifetime total after the full snapshot so a
+      // current server balance still wins over a stale backup snapshot.
+      await syncService.restoreLifetimeStarsFromSupabase(result.id, user.email, () => remoteAuthActive, user.sub);
     }
 
     await writeGoogleUser(JSON.stringify(user));
@@ -440,28 +559,99 @@ export function useAuth() {
 
   const resetProgress = useCallback(async (uid: number) => {
     const storedUser = await getStoredGoogleUser();
-    const { pauseAccountSync, resetSyncCursors, resetUserProgressInSupabase } = await import('../api/syncService');
+    const { markBackupRestoreBlocked, clearBackupRestoreBlocked, pauseAccountSync, resetSyncCursors, resetUserProgressInSupabase } = await import('../api/syncService');
     const releaseSync = storedUser ? await pauseAccountSync(storedUser.email) : null;
+    const markerKey = storedUser ? pendingResetKey(storedUser) : `${PENDING_RESET_KEY}:local:${uid}`;
+    const operationId = createDestructiveOperationId();
     try {
-      if (storedUser) await resetUserProgressInSupabase(storedUser.email, storedUser.sub);
+      await AsyncStorage.setItem(markerKey, JSON.stringify({
+        userId: uid,
+        email: storedUser?.email ?? '',
+        sub: storedUser?.sub ?? '',
+        operationId,
+      } satisfies PendingProgressReset));
+      if (storedUser) await markBackupRestoreBlocked(storedUser.email);
+      if (storedUser) await resetUserProgressInSupabase(storedUser.email, storedUser.sub, operationId, true);
       const { getDb } = await import('../db/client');
       const db = await getDb();
       await cancelUserChallengeReminders(db, uid);
-      await db.withTransactionAsync(async () => {
-        for (const sql of RESET_PROGRESS_STATEMENTS) {
-          await db.runAsync(sql, [uid]);
-        }
-        await db.runAsync(
-          `UPDATE users SET treat_stars = 0, treat_stars_lifetime = 0, carry_debt = 0,
-             lifetime_stars = 0, current_tier_id = NULL WHERE id = ?`,
-          [uid],
-        );
-      });
-      try {
-        await resetSyncCursors();
-      } catch { }
+      await clearLocalProgressRows(db, uid);
+      await resetSyncCursors();
+      if (storedUser) await clearBackupRestoreBlocked(storedUser.email);
+      await AsyncStorage.removeItem(markerKey);
+    } catch (error) {
+      if (storedUser) await markBackupRestoreBlocked(storedUser.email);
+      throw error;
     } finally {
       releaseSync?.();
+    }
+  }, []);
+
+  /**
+   * Finish a reset that may have been interrupted between its remote and
+   * local halves. Returning false is deliberately fail-closed: App.tsx must
+  * not restore or upload while the reset marker remains unresolved.
+  */
+  const completePendingReset = useCallback(async (identity?: GoogleUser): Promise<boolean> => {
+    const storedUser = identity ?? await getStoredGoogleUser();
+    if (!storedUser) return true;
+    const scopedKey = pendingResetKey(storedUser);
+    let markerKey = scopedKey;
+    let rawMarker = await AsyncStorage.getItem(scopedKey);
+    // Read the pre-email-key scoped marker once so a release upgrade cannot
+    // strand a destructive operation under the old Google-sub namespace.
+    if (rawMarker === null) {
+      const legacyScopedKey = legacyPendingResetKey(storedUser);
+      if (legacyScopedKey !== scopedKey) {
+        rawMarker = await AsyncStorage.getItem(legacyScopedKey);
+        if (rawMarker !== null) markerKey = legacyScopedKey;
+      }
+    }
+    // Migrate an interrupted reset written by the previous global-marker
+    // implementation, but never let another account's marker block startup.
+    if (rawMarker === null) {
+      const legacyMarker = await AsyncStorage.getItem(PENDING_RESET_KEY);
+      const legacyPending = parsePendingProgressReset(legacyMarker);
+      if (legacyPending
+          && legacyPending.sub === storedUser.sub
+          && legacyPending.email.trim().toLowerCase() === storedUser.email.trim().toLowerCase()) {
+        rawMarker = legacyMarker;
+        markerKey = PENDING_RESET_KEY;
+      } else if (legacyMarker !== null && pendingMarkerIdentityMatches(legacyMarker, storedUser)) {
+        await import('../api/syncService').then(({ markBackupRestoreBlocked }) => markBackupRestoreBlocked(storedUser.email));
+        return false;
+      }
+    }
+    if (rawMarker === null) return true;
+    const pending = parsePendingProgressReset(rawMarker);
+    if (!pending) {
+      await import('../api/syncService').then(({ markBackupRestoreBlocked }) => markBackupRestoreBlocked(storedUser.email));
+      return false;
+    }
+    if (pending.sub !== storedUser.sub
+        || pending.email.trim().toLowerCase() !== storedUser.email.trim().toLowerCase()) {
+      await import('../api/syncService').then(({ markBackupRestoreBlocked }) => markBackupRestoreBlocked(storedUser.email));
+      return false;
+    }
+
+    const { markBackupRestoreBlocked, clearBackupRestoreBlocked, pauseAccountSync, resetSyncCursors, resetUserProgressInSupabase } = await import('../api/syncService');
+    const releaseSync = await pauseAccountSync(storedUser.email);
+    try {
+      await resetUserProgressInSupabase(storedUser.email, storedUser.sub, pending.operationId, false);
+      const { getDb } = await import('../db/client');
+      const db = await getDb();
+      await cancelUserChallengeReminders(db, pending.userId);
+      await clearLocalProgressRows(db, pending.userId);
+      await resetSyncCursors();
+      await clearBackupRestoreBlocked(storedUser.email);
+      await AsyncStorage.removeItem(markerKey);
+      return true;
+    } catch (error) {
+      await markBackupRestoreBlocked(storedUser.email);
+      if (__DEV__) console.warn('[auth] pending progress reset still blocked:', error);
+      return false;
+    } finally {
+      releaseSync();
     }
   }, []);
 
@@ -478,6 +668,86 @@ export function useAuth() {
     }
   }, []);
 
+  /**
+   * Finish account deletion after a process crash between the remote delete
+   * and local SQLite purge. Until this completes, the account stays blocked
+   * from snapshot upload so a fresh Google session cannot resurrect old rows.
+   */
+  const completePendingDelete = useCallback(async (identity?: GoogleUser): Promise<'none' | 'deleted' | 'blocked'> => {
+    const storedUser = identity ?? await getStoredGoogleUser();
+    if (!storedUser || isQaSandboxIdentity(storedUser)) return 'none';
+    const scopedKey = pendingDeleteKey(storedUser);
+    let markerKey = scopedKey;
+    let rawMarker = await AsyncStorage.getItem(scopedKey);
+    if (rawMarker === null) {
+      const legacyScopedKey = legacyPendingDeleteKey(storedUser);
+      if (legacyScopedKey !== scopedKey) {
+        rawMarker = await AsyncStorage.getItem(legacyScopedKey);
+        if (rawMarker !== null) markerKey = legacyScopedKey;
+      }
+    }
+    if (rawMarker === null) {
+      const legacyGlobalRaw = await AsyncStorage.getItem(PENDING_DELETE_KEY);
+      const legacyGlobalMarker = parsePendingAccountDelete(legacyGlobalRaw);
+      if (legacyGlobalMarker
+          && legacyGlobalMarker.sub === storedUser.sub
+          && legacyGlobalMarker.email.trim().toLowerCase() === storedUser.email.trim().toLowerCase()) {
+        rawMarker = legacyGlobalRaw;
+        markerKey = PENDING_DELETE_KEY;
+      } else if (legacyGlobalRaw !== null && pendingMarkerIdentityMatches(legacyGlobalRaw, storedUser)) {
+        const { markBackupRestoreBlocked } = await import('../api/syncService');
+        await markBackupRestoreBlocked(storedUser.email);
+        return 'blocked';
+      }
+    }
+    const marker = parsePendingAccountDelete(rawMarker);
+    if (!marker) {
+      if (rawMarker === null) return 'none';
+      const { markBackupRestoreBlocked } = await import('../api/syncService');
+      await markBackupRestoreBlocked(storedUser.email);
+      return 'blocked';
+    }
+    if (marker.sub !== storedUser.sub
+        || marker.email.trim().toLowerCase() !== storedUser.email.trim().toLowerCase()) {
+      const { markBackupRestoreBlocked } = await import('../api/syncService');
+      await markBackupRestoreBlocked(storedUser.email);
+      return 'blocked';
+    }
+
+    const {
+      deleteUserFromSupabase,
+      markBackupRestoreBlocked,
+      clearBackupRestoreBlocked,
+      pauseAccountSync,
+      resetSyncCursors,
+      signOutSupabaseSession,
+    } = await import('../api/syncService');
+    const releaseSync = await pauseAccountSync(storedUser.email);
+    try {
+      await deleteUserFromSupabase(storedUser.email, storedUser.sub, marker.operationId, false);
+      const { getDb } = await import('../db/client');
+      const db = await getDb();
+      invalidateChallengeReminderSync();
+      await cancelUserChallengeReminders(db, marker.userId);
+      await purgeLocalAccountRows(db, marker.userId);
+      await resetSyncCursors();
+      await clearBackupRestoreBlocked(storedUser.email);
+      try { await signOutSupabaseSession(); } catch { }
+      await clearLocalAuthState();
+      // Keep the marker until auth/local cleanup has completed. If the
+      // process dies before this removal, the next startup can finish the
+      // already-idempotent remote/local delete instead of reprovisioning.
+      await AsyncStorage.removeItem(markerKey);
+      return 'deleted';
+    } catch (error) {
+      await markBackupRestoreBlocked(storedUser.email);
+      if (__DEV__) console.warn('[auth] pending account deletion still blocked:', error);
+      return 'blocked';
+    } finally {
+      releaseSync();
+    }
+  }, [clearLocalAuthState]);
+
   const deleteAccount = useCallback(async (uid: number) => {
     const currentUser = await getStoredGoogleUser();
     if (currentUser && isQaSandboxIdentity(currentUser)) {
@@ -491,25 +761,34 @@ export function useAuth() {
     }
 
     // Purge remote Supabase data FIRST while the auth session is still active
-    const { deleteUserFromSupabase, pauseAccountSync, resetSyncCursors, signOutSupabaseSession } = await import('../api/syncService');
+    const { deleteUserFromSupabase, markBackupRestoreBlocked, clearBackupRestoreBlocked, pauseAccountSync, resetSyncCursors, signOutSupabaseSession } = await import('../api/syncService');
     const googleUserJson = await readGoogleUser();
     const gu = parseGoogleUser(googleUserJson);
     if (!gu) throw new Error('Cannot delete account without a signed-in Google identity');
     const releaseSync = await pauseAccountSync(gu.email);
+    const markerKey = pendingDeleteKey(gu);
     try {
-      await deleteUserFromSupabase(gu.email, gu.sub);
+      // Persist the local half before the remote call. If Android kills the
+      // process after Supabase deletion, startup can finish the purge instead
+      // of treating stale SQLite as authoritative for a fresh JWT.
+      await AsyncStorage.setItem(markerKey, JSON.stringify({
+        userId: uid,
+        email: gu.email,
+        sub: gu.sub,
+        operationId: createDestructiveOperationId(),
+      } satisfies PendingAccountDelete));
+      await markBackupRestoreBlocked(gu.email);
+      const pendingMarker = parsePendingAccountDelete(await AsyncStorage.getItem(markerKey));
+      if (!pendingMarker) throw new Error('Invalid pending account deletion marker');
+      await deleteUserFromSupabase(gu.email, gu.sub, pendingMarker.operationId, true);
       await resetSyncCursors();
       // Delete all local SQLite rows
       const { getDb } = await import('../db/client');
       const db = await getDb();
       invalidateChallengeReminderSync();
       await cancelUserChallengeReminders(db, uid);
-      await db.withTransactionAsync(async () => {
-        for (const sql of DELETE_ACCOUNT_STATEMENTS) {
-          await db.runAsync(sql, [uid]);
-        }
-        await db.runAsync('DELETE FROM users WHERE id = ?', [uid]);
-      });
+      await purgeLocalAccountRows(db, uid);
+      await clearBackupRestoreBlocked(gu.email);
       // Sign out from Supabase Auth
       try {
         await signOutSupabaseSession();
@@ -522,6 +801,16 @@ export function useAuth() {
         await GoogleSignin.signOut();
       } catch { }
       await clearLocalAuthState();
+      // Remove the durable marker only after remote delete, local purge, and
+      // auth cleanup have all completed. A crash before this point remains
+      // recoverable by completePendingDelete on the next sign-in/startup.
+      await AsyncStorage.removeItem(markerKey);
+      await AsyncStorage.removeItem(pendingResetKey(gu));
+      await AsyncStorage.removeItem(legacyPendingDeleteKey(gu));
+      await AsyncStorage.removeItem(legacyPendingResetKey(gu));
+    } catch (error) {
+      await markBackupRestoreBlocked(gu.email);
+      throw error;
     } finally {
       releaseSync();
     }
@@ -587,5 +876,7 @@ export function useAuth() {
     signOut,
     deleteAccount,
     resetProgress,
+    completePendingReset,
+    completePendingDelete,
   };
 }

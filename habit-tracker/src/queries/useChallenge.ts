@@ -26,6 +26,12 @@ import { challengeReminderPrefix, type ChallengeReminderState } from '../lib/cha
 import { syncCurrentUserToSupabase } from '../api/syncService';
 import { useLanguage } from '../hooks/useSettings';
 
+function enqueueChallengeConfigSync(context: string): void {
+  void syncCurrentUserToSupabase().catch(error => {
+    if (__DEV__) console.warn(`[sync] ${context} config sync failed:`, error);
+  });
+}
+
 export interface ActiveChallenge {
   id: number;
   name: string;
@@ -798,6 +804,7 @@ export function useChallengeRollover(userId: number) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
+      enqueueChallengeConfigSync('created Challenge');
       qc.invalidateQueries({ queryKey: ['rank'] });
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
@@ -1059,6 +1066,7 @@ export function useCreateChallenge(userId: number) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
+      enqueueChallengeConfigSync('created Challenge');
     },
   });
 }
@@ -1080,7 +1088,9 @@ export function useRetryChallengeReminder(userId: number) {
         && !result.scheduleError
         && !result.failedChallengeIds.includes(challengeId);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['challenge'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['challenge'] });
+    },
   });
 }
 
@@ -1097,7 +1107,10 @@ export function useUpdateChallengeName(userId: number) {
       const db = await getDb();
       await updateChallengeNameById(db, userId, challengeId, name);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['challenge'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['challenge'] });
+      enqueueChallengeConfigSync('renamed Challenge');
+    },
   });
 }
 
@@ -1153,7 +1166,10 @@ export function useRestartChallenge(userId: number) {
       }
       return { id: newId, notificationDenied };
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['challenge'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['challenge'] });
+      enqueueChallengeConfigSync('restarted Challenge');
+    },
   });
 }
 
@@ -1175,6 +1191,7 @@ export function useDeleteChallenge(userId: number) {
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['treats'] });
       qc.invalidateQueries({ queryKey: ['achievements'] });
+      enqueueChallengeConfigSync('deleted Challenge');
     },
   });
 }

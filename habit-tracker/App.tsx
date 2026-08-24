@@ -16,7 +16,7 @@ import { queryClient } from './src/queries/queryClient';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { getDb } from './src/db/client';
 import { useAuth, resolveUserRow, UserIdContext, GoogleUserContext } from './src/hooks/useAuth';
-import { syncToSupabase } from './src/api/syncService';
+import { restoreUserDataIfNeeded, syncToSupabase } from './src/api/syncService';
 import { SettingsProvider } from './src/contexts/SettingsContext';
 import { useTheme, useLanguage } from './src/hooks/useSettings';
 import { FontFamily } from './src/config/theme';
@@ -78,6 +78,7 @@ function AppInner() {
   });
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
+  const [accountRecoveryError, setAccountRecoveryError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const qaSeedInFlight = useRef(false);
   const qaSeededForSub = useRef<string | null>(null);
@@ -86,6 +87,7 @@ function AppInner() {
   const toastConfig = useMemo(() => createToastConfig(colors), [colors]);
   const retryInit = useCallback(() => {
     setDbError(null);
+    setAccountRecoveryError(false);
     setDbReady(false);
     setRetryCount(c => c + 1);
   }, []);
@@ -99,6 +101,8 @@ function AppInner() {
     signInWithGoogle,
     signOut,
     deleteAccount,
+    completePendingReset,
+    completePendingDelete,
   } = useAuth();
 
   // Wait for auth to finish loading (AsyncStorage is async) so googleUser is
@@ -119,23 +123,50 @@ function AppInner() {
         const isQa = isQaSandboxIdentity(googleUser);
         if (isQa) qaSeedInFlight.current = true;
         try {
-          if (isQa) {
-            resolvedUserId = await seedQaSandbox(db);
+          // Check the deletion marker before resolving/creating a local row.
+          // If a process died after purging SQLite, resolving first would
+          // provision a new row and make the old marker look like a mismatch.
+          const deleteResult = !isQa ? await completePendingDelete(googleUser) : 'none';
+          if (deleteResult === 'deleted') {
+            setResolvedUserId(1);
+          } else if (deleteResult === 'blocked') {
+            setResolvedUserId(1);
+            setAccountRecoveryError(true);
+            console.warn('[sync] pending account deletion is unresolved; skipping local account resolution and cloud restore/upload');
           } else {
-            const result = await resolveUserRow(db, googleUser.sub ?? googleUser.email, googleUser.email);
-            resolvedUserId = result.id;
-          }
-          if (isQa) qaSeededForSub.current = googleUser.sub;
-          setResolvedUserId(resolvedUserId);
-          if (!isQa) {
-            syncToSupabase(googleUser.sub, googleUser.email)
-              .then(() => {
-                queryClient.invalidateQueries({ queryKey: ['rank'] });
-                queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
-              })
-              .catch((error) => {
-                console.warn('[sync] activity log sync failed:', error);
-              });
+            const resetReady = isQa ? true : await completePendingReset(googleUser);
+            if (!resetReady) {
+              setAccountRecoveryError(true);
+              console.warn('[sync] pending progress reset is unresolved; skipping cloud restore/upload');
+            } else {
+              if (isQa) {
+                resolvedUserId = await seedQaSandbox(db);
+                qaSeededForSub.current = googleUser.sub;
+                setResolvedUserId(resolvedUserId);
+              } else {
+                const result = await resolveUserRow(db, googleUser.sub ?? googleUser.email, googleUser.email);
+                resolvedUserId = result.id;
+                setResolvedUserId(resolvedUserId);
+                // Restore first. If the authenticated backup endpoint is
+                // unavailable, do not let an empty/reseeded SQLite file become
+                // an upload that can mask the user's cloud copy, and do not
+                // publish an apparently empty account to the user either.
+                const restoreResult = await restoreUserDataIfNeeded(resolvedUserId, googleUser.email, googleUser.sub);
+                if (restoreResult === 'unavailable') {
+                  setAccountRecoveryError(true);
+                  console.warn('[sync] cloud restore is unavailable; keeping account recovery blocked');
+                } else {
+                  syncToSupabase(googleUser.sub, googleUser.email)
+                    .then(() => {
+                      queryClient.invalidateQueries({ queryKey: ['rank'] });
+                      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+                    })
+                    .catch((error) => {
+                      console.warn('[sync] activity log sync failed:', error);
+                  });
+                }
+              }
+            }
           }
         } finally {
           if (isQa) qaSeedInFlight.current = false;
@@ -288,6 +319,24 @@ function AppInner() {
       appStateSubscription.remove();
     };
   }, [dbReady, isOnboarded, userId, lang, googleUser?.email, googleUser?.sub, qaFixturePending]);
+
+  if (accountRecoveryError) {
+    return (
+      <View style={[appStyles.center, { backgroundColor: colors.bgBase }]}>
+        <Text style={[appStyles.errorMsg, { color: colors.ink2 }]}>
+          {'Account recovery is paused to protect your data.\nPlease retry when the connection is stable.'}
+        </Text>
+        <TouchableOpacity
+          style={[appStyles.retryBtn, { backgroundColor: colors.primary }]}
+          onPress={retryInit}
+          accessibilityRole="button"
+          accessibilityLabel="Retry account recovery"
+        >
+          <Text style={[appStyles.retryTxt, { color: colors.onAccent }]}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (dbError) {
     return (

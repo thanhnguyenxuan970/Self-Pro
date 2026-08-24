@@ -49,6 +49,11 @@ describe('resolveUserRow', () => {
     const db = createMockDb({ bySubResult: null, byEmailResult: { id: 3 } });
     const result = await resolveUserRow(db, 'sub-new', 'legacy@b.com');
     expect(result).toEqual({ id: 3, isNew: false });
+    expect(db.getFirstAsync).toHaveBeenNthCalledWith(
+      2,
+      'SELECT id FROM users WHERE LOWER(TRIM(google_sub)) = LOWER(TRIM(?)) ORDER BY id LIMIT 1',
+      ['legacy@b.com'],
+    );
     expect(db.runAsync).toHaveBeenCalledWith('UPDATE users SET google_sub = ? WHERE id = ?', ['sub-new', 3]);
   });
 

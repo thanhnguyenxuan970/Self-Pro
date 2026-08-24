@@ -10,9 +10,19 @@ import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierRow } from '../game/lifetimeRank';
 import { readPendingActivityDeletes, clearPendingActivityDeletes } from '../game/pendingActivityDeletes';
 import { isQaSandboxActive } from '../qa/qaSandbox';
+import {
+  buildUserDataBackup,
+  CLOUD_BACKUP_SCHEMA_VERSION,
+  isCloudBackupPayload,
+  restoreLegacyActivityMirror,
+  restoreUserDataBackup,
+  type LegacyActivityMirrorRow,
+} from '../lib/userDataBackup';
 
 const KEY_LAST_ACTIVITY = 'habit_sync_last_activity_id';
 const KEY_LAST_FUND = 'habit_sync_last_fund_id';
+const KEY_BACKUP_REVISION = 'habit_sync_backup_revision';
+const KEY_BACKUP_RESTORE_BLOCKED = 'habit_sync_backup_restore_blocked';
 const BATCH = 100;
 
 type AssertSyncActive = () => void;
@@ -228,7 +238,6 @@ async function syncActivity(
  */
 async function syncPendingActivityDeletes(
   userId: number,
-  userEmail: string,
   assertActive: AssertSyncActive,
 ): Promise<void> {
   const pendingIds = await readPendingActivityDeletes(userId);
@@ -237,7 +246,6 @@ async function syncPendingActivityDeletes(
   const { error } = await supabase!
     .from('activity_log')
     .delete()
-    .eq('user_email', userEmail)
     .in('local_id', pendingIds);
   if (error) throw error;
   assertActive();
@@ -437,6 +445,66 @@ async function withSessionOperation<T>(
 
 function normalizedAccountEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+function backupRevisionKey(accountKey: string): string {
+  return `${KEY_BACKUP_REVISION}:${backupAccountKey(accountKey)}`;
+}
+
+function backupBlockedKey(accountKey: string): string {
+  return `${KEY_BACKUP_RESTORE_BLOCKED}:${backupAccountKey(accountKey)}`;
+}
+
+function backupAccountKey(accountKey: string): string {
+  const normalized = normalizedAccountEmail(accountKey);
+  return normalized || 'unknown-account';
+}
+
+async function readBackupRevision(accountKey: string): Promise<number> {
+  const raw = await AsyncStorage.getItem(backupRevisionKey(accountKey));
+  const revision = Number(raw);
+  return Number.isSafeInteger(revision) && revision >= 0 ? revision : 0;
+}
+
+async function writeBackupRevision(accountKey: string, revision: unknown): Promise<void> {
+  const numericRevision = Number(revision);
+  if (!Number.isSafeInteger(numericRevision) || numericRevision < 0) {
+    throw new Error('Supabase returned an invalid cloud backup revision');
+  }
+  await AsyncStorage.setItem(backupRevisionKey(accountKey), String(numericRevision));
+}
+
+export async function markBackupRestoreBlocked(accountKey: string): Promise<void> {
+  await AsyncStorage.setItem(backupBlockedKey(accountKey), '1');
+}
+
+export async function clearBackupRestoreBlocked(accountKey: string): Promise<void> {
+  await AsyncStorage.removeItem(backupBlockedKey(accountKey));
+}
+
+async function isBackupRestoreBlocked(accountKey: string): Promise<boolean> {
+  return (await AsyncStorage.getItem(backupBlockedKey(accountKey))) === '1';
+}
+
+type CloudBackupEnvelope = { payload: unknown; revision: number };
+
+function parseCloudBackupEnvelope(value: unknown): CloudBackupEnvelope | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const candidate = value as { payload?: unknown; revision?: unknown };
+  if (typeof candidate.revision !== 'number' && typeof candidate.revision !== 'string') return null;
+  if (typeof candidate.revision === 'string' && !candidate.revision.trim()) return null;
+  const revision = Number(candidate.revision);
+  if (!Object.prototype.hasOwnProperty.call(candidate, 'payload')
+      || !Number.isSafeInteger(revision) || revision < 0) return null;
+  return { payload: candidate.payload ?? null, revision };
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    return `{${Object.keys(value as Record<string, unknown>).sort().map(key => `${JSON.stringify(key)}:${stableJson((value as Record<string, unknown>)[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
 }
 
 function normalizedExpectedGoogleSub(userEmail: string, expectedGoogleSub?: ExpectedGoogleSubject): string | undefined {
@@ -912,6 +980,302 @@ export async function withSupabaseSession<T>(
   }, release => { releaseSessionOperation = release; });
 }
 
+type UserDataRestoreResult = 'restored' | 'empty' | 'not_needed' | 'unavailable';
+
+async function countLocalRows(
+  db: Pick<SQLiteDatabase, 'getFirstAsync'>,
+  sql: string,
+  userId: number,
+): Promise<number> {
+  const row = await db.getFirstAsync<{ count: number }>(sql, [userId]);
+  return Math.max(0, Number(row?.count) || 0);
+}
+
+/**
+ * A new SQLite file contains seeded categories/tasks, so checking only for a
+ * user row is not enough to decide whether it is safe to hydrate from cloud.
+ * Keep this predicate conservative: a non-empty local account is never
+ * overwritten by a restore attempt.
+ */
+async function isLocalAccountFresh(
+  db: Pick<SQLiteDatabase, 'getFirstAsync'>,
+  userId: number,
+): Promise<boolean> {
+  const [
+    activity,
+    challenges,
+    daily,
+    weekly,
+    customTasks,
+    customCategories,
+    rewardUnlocks,
+    funds,
+    streakFreezes,
+    treats,
+    treatHistory,
+    challengeLog,
+    challengeDays,
+    achievements,
+    milestoneStars,
+    boostEvents,
+    user,
+  ] = await Promise.all([
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM activity_log WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM challenges WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM daily_summary WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM weekly_summary WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM task_types WHERE user_id = ? AND COALESCE(is_template, 0) = 0', userId),
+    countLocalRows(db, `SELECT COUNT(*) AS count FROM categories
+                        WHERE user_id = ? AND name NOT IN ('Health', 'Mind', 'Work', 'Social', 'Other')`, userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM reward_unlocks WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM fund_transactions WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM streak_freezes WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM treats WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM treat_history WHERE user_id = ?', userId),
+    countLocalRows(db, `SELECT COUNT(*) AS count FROM challenge_log
+                        WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)`, userId),
+    countLocalRows(db, `SELECT COUNT(*) AS count FROM challenge_days
+                        WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)`, userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM achievements WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM milestone_stars WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM boost_events WHERE user_id = ?', userId),
+    db.getFirstAsync<{
+      username: string | null;
+      timezone: string | null;
+      carry_debt: number | null;
+      currency: string | null;
+      last_seen_week_start: string | null;
+      lifetime_stars: number | null;
+      current_tier_id: number | null;
+      treat_stars: number | null;
+      treat_stars_lifetime: number | null;
+      value_per_star: number | null;
+      penalty_hits_treats: number | null;
+      notification_time: string | null;
+      notification_time_2: string | null;
+      notification_time_3: string | null;
+    }>(
+      `SELECT username, timezone, carry_debt, currency, last_seen_week_start,
+              lifetime_stars, current_tier_id,
+              treat_stars, treat_stars_lifetime, value_per_star, penalty_hits_treats,
+              notification_time, notification_time_2, notification_time_3
+         FROM users WHERE id = ?`,
+      [userId],
+    ),
+  ]);
+
+  return activity === 0
+    && challenges === 0
+    && daily === 0
+    && weekly === 0
+    && customTasks === 0
+    && customCategories === 0
+    && rewardUnlocks === 0
+    && funds === 0
+    && streakFreezes === 0
+    && treats === 0
+    && treatHistory === 0
+    && challengeLog === 0
+    && challengeDays === 0
+    && achievements === 0
+    && milestoneStars === 0
+    && boostEvents === 0
+    && (!user || user.username === 'me')
+    && (!user || user.timezone === 'Asia/Ho_Chi_Minh')
+    && (!user || Number(user.carry_debt) === 0)
+    && (!user || user.currency === 'VND')
+    && (!user || user.last_seen_week_start == null)
+    && (!user || Math.max(0, Number(user.lifetime_stars) || 0) === 0)
+    && (!user || user.current_tier_id == null)
+    && (!user || Math.max(0, Number(user.treat_stars) || 0) === 0)
+    && (!user || Math.max(0, Number(user.treat_stars_lifetime) || 0) === 0)
+    && (!user || Number(user.value_per_star) === 1000)
+    && (!user || Number(user.penalty_hits_treats) === 1)
+    && !user?.notification_time
+    && !user?.notification_time_2
+    && !user?.notification_time_3;
+}
+
+/**
+ * Hydrate a fresh local account before any upload can treat the empty SQLite
+ * file as authoritative. The Supabase RPC is keyed by auth.uid(), not email,
+ * so a reinstalled app can only read the backup belonging to the verified
+ * Google identity in its current session.
+ */
+export async function restoreUserDataIfNeeded(
+  userId: number,
+  userEmail: string,
+  expectedGoogleSub?: ExpectedGoogleSubject,
+  isActive: SessionActivityGuard = alwaysActive,
+): Promise<UserDataRestoreResult> {
+  if (isQaSandboxActive() || !supabase) return 'unavailable';
+
+  // Revision and restore-block markers use the same canonical email key for
+  // restore, reset, delete, and normal upload. The Google subject still
+  // authenticates the Supabase RPC, but must not create a second local CAS
+  // namespace for the same account.
+  const accountKey = normalizedAccountEmail(userEmail);
+  if (await isBackupRestoreBlocked(accountKey)) return 'unavailable';
+  let result: UserDataRestoreResult = 'unavailable';
+  let restoreTimedOut = false;
+  try {
+    const restoreOperation = runAccountSync(userEmail, async (assertActive) => {
+      const assertRestoreActive = () => {
+        assertActive();
+        assertSessionActive(() => !restoreTimedOut && isActive());
+      };
+      const sessionActive: SessionActivityGuard = () => {
+        assertRestoreActive();
+        return true;
+      };
+
+      await withSupabaseSession(userEmail, expectedGoogleSub, async () => {
+        assertRestoreActive();
+        const { data, error } = await supabase!.rpc('restore_my_data_backup_v2');
+        if (error) throw error;
+        assertRestoreActive();
+
+        const envelope = parseCloudBackupEnvelope(data);
+        if (!envelope) throw new Error('Invalid cloud backup envelope');
+
+        const db = await getDb();
+
+        if (envelope.payload === null) {
+          // An older app version never stored Challenges/tasks remotely. Recover
+          // the legacy activity mirror before allowing the empty local database
+          // to become the new cloud snapshot.
+          assertRestoreActive();
+          const { data: legacyRows, error: legacyError } = await supabase!.from('activity_log')
+            .select('local_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note')
+            .order('local_id', { ascending: true });
+          if (legacyError) throw legacyError;
+          const restoredRows = await restoreLegacyActivityMirror(
+            db,
+            userId,
+            (legacyRows ?? []) as LegacyActivityMirrorRow[],
+            assertRestoreActive,
+            transactionDb => isLocalAccountFresh(transactionDb, userId),
+          );
+          if (restoredRows === 'not_needed') {
+            result = 'not_needed';
+            return;
+          }
+          result = restoredRows > 0 ? 'restored' : 'empty';
+        } else if (isCloudBackupPayload(envelope.payload)) {
+          const restored = await restoreUserDataBackup(
+            db,
+            userId,
+            envelope.payload,
+            expectedGoogleSub,
+            assertRestoreActive,
+            transactionDb => isLocalAccountFresh(transactionDb, userId),
+          );
+          if (!restored) {
+            result = 'not_needed';
+            return;
+          }
+          result = 'restored';
+        } else {
+          // A non-null, unsupported snapshot is not the same as an empty
+          // account. Falling back to the legacy mirror would allow startup to
+          // upload a seeded/partial database over the real cloud copy.
+          throw new Error('Unsupported cloud backup payload');
+        }
+
+        // The revision becomes local authority only after the complete,
+        // validated restore (or a confirmed empty legacy mirror) succeeds.
+        assertRestoreActive();
+        await writeBackupRevision(accountKey, envelope.revision);
+        assertRestoreActive();
+      }, sessionActive);
+    });
+    await withTimeout(restoreOperation, SESSION_RESTORE_TIMEOUT_MS, 'Cloud backup restore timed out');
+    await clearBackupRestoreBlocked(accountKey);
+  } catch (error) {
+    if (isSessionRestoreCancellation(error) || error instanceof AccountSyncInvalidatedError) {
+      result = 'unavailable';
+    } else {
+      Sentry.captureException(error);
+      await markBackupRestoreBlocked(accountKey);
+    }
+    result = 'unavailable';
+  } finally {
+    // The SQLite write phase checks this guard after every awaited operation.
+    // If the network call outlives the timeout, it can finish harmlessly but it
+    // cannot enter the destructive restore transaction afterward.
+    restoreTimedOut = true;
+  }
+  return result;
+}
+
+async function syncUserDataBackup(
+  db: SQLiteDatabase,
+  userId: number,
+  accountKey: string,
+  assertActive: AssertSyncActive,
+): Promise<void> {
+  assertActive();
+  const payload = await buildUserDataBackup(db, userId, assertActive);
+  assertActive();
+  const expectedRevision = await readBackupRevision(accountKey);
+  assertActive();
+  const { data, error } = await supabase!.rpc('save_my_data_backup_v2', {
+    p_schema_version: CLOUD_BACKUP_SCHEMA_VERSION,
+    p_payload: payload,
+    p_expected_revision: expectedRevision,
+  });
+  if (error) {
+    // A CAS conflict is recoverable when the remote snapshot is identical or
+    // this device is still genuinely fresh. Otherwise keep the account blocked
+    // rather than silently choosing either device's divergent history.
+    try {
+      assertActive();
+      const { data: remoteData, error: remoteError } = await supabase!.rpc('restore_my_data_backup_v2');
+      if (!remoteError) {
+        const remoteEnvelope = parseCloudBackupEnvelope(remoteData);
+        if (remoteEnvelope && remoteEnvelope.payload !== null
+            && isCloudBackupPayload(remoteEnvelope.payload)) {
+          if (stableJson(payload) === stableJson(remoteEnvelope.payload)) {
+            assertActive();
+            await writeBackupRevision(accountKey, remoteEnvelope.revision);
+            assertActive();
+            return;
+          }
+          const restored = await restoreUserDataBackup(
+            db,
+            userId,
+            remoteEnvelope.payload,
+            undefined,
+            assertActive,
+            transactionDb => isLocalAccountFresh(transactionDb, userId),
+          );
+          if (restored) {
+            assertActive();
+            await writeBackupRevision(accountKey, remoteEnvelope.revision);
+            assertActive();
+            return;
+          }
+        }
+      }
+    } catch (recoveryError) {
+      // Preserve the original CAS/transient error after a failed recovery
+      // probe; the durable block below remains the safety boundary.
+      if (recoveryError instanceof AccountSyncInvalidatedError) throw recoveryError;
+    }
+    await markBackupRestoreBlocked(accountKey);
+    throw error;
+  }
+  try {
+    assertActive();
+    await writeBackupRevision(accountKey, data);
+    assertActive();
+  } catch (error) {
+    await markBackupRestoreBlocked(accountKey);
+    throw error;
+  }
+  assertActive();
+}
+
 /** Sign out through the same process-wide session lease as protected RPCs. */
 export async function signOutSupabaseSession(): Promise<void> {
   if (!supabase) return;
@@ -928,6 +1292,7 @@ export async function signOutSupabaseSession(): Promise<void> {
 export async function syncToSupabase(userSub: string, userEmail: string): Promise<void> {
   if (isQaSandboxActive() || !supabase) return;
   const canonicalEmail = normalizedAccountEmail(userEmail);
+  if (await isBackupRestoreBlocked(canonicalEmail)) return;
   await runAccountSync(canonicalEmail, async (assertActive) => {
     const sessionActive: SessionActivityGuard = () => {
       assertActive();
@@ -941,7 +1306,11 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
       // key below remains canonical.
       const userId = await resolveUserId(db, userSub, userEmail);
       if (userId == null) return;
-      await syncPendingActivityDeletes(userId, canonicalEmail, assertActive);
+      // Snapshot CAS is deliberately first. If another device reset, deleted,
+      // or advanced this account, no legacy activity/fund/profile write may
+      // run before the stale device is rejected.
+      await syncUserDataBackup(db, userId, canonicalEmail, assertActive);
+      await syncPendingActivityDeletes(userId, assertActive);
       await Promise.all([
         syncActivity(db, userId, canonicalEmail, assertActive),
         syncFund(db, userId, canonicalEmail, assertActive),
@@ -986,11 +1355,12 @@ export async function restoreLifetimeStarsFromSupabase(
   expectedGoogleSub?: ExpectedGoogleSubject,
 ): Promise<void> {
   if (isQaSandboxActive() || !supabase) return;
+  let restoreTimedOut = false;
   try {
-    await runAccountSync(userEmail, async (assertActive) => {
+    const restoreOperation = runAccountSync(userEmail, async (assertActive) => {
       const assertRestoreActive = () => {
         assertActive();
-        assertSessionActive(isActive);
+        assertSessionActive(() => !restoreTimedOut && isActive());
       };
       const sessionActive: SessionActivityGuard = () => {
         assertRestoreActive();
@@ -1008,8 +1378,11 @@ export async function restoreLifetimeStarsFromSupabase(
         await pullLifetimeStarsIntoLocal(db, userId, remoteStars, assertRestoreActive);
       }, sessionActive);
     });
+    await withTimeout(restoreOperation, SESSION_RESTORE_TIMEOUT_MS, 'Lifetime restore timed out');
   } catch (error) {
     if (!isSessionRestoreCancellation(error)) Sentry.captureException(error);
+  } finally {
+    restoreTimedOut = true;
   }
 }
 
@@ -1074,12 +1447,38 @@ export async function syncUserStreak(
 }
 
 /** Reset the remote progress mirror before clearing local lifetime rank data. */
-export async function resetUserProgressInSupabase(userEmail: string, expectedGoogleSub?: ExpectedGoogleSubject): Promise<void> {
-  if (isQaSandboxActive() || !supabase) return;
-  await withSupabaseSession(userEmail, expectedGoogleSub, async () => {
-    const { error } = await supabase!.rpc('reset_my_progress');
+export async function resetUserProgressInSupabase(
+  userEmail: string,
+  expectedGoogleSub: ExpectedGoogleSubject | undefined,
+  operationId: string,
+  supersede = false,
+): Promise<boolean> {
+  if (isQaSandboxActive() || !supabase) return true;
+  if (!operationId) throw new Error('Destructive reset operation id required');
+  let timedOut = false;
+  const operation = withSupabaseSession(userEmail, expectedGoogleSub, async () => {
+    if (timedOut) throw new Error('Supabase reset cancelled');
+    const { error } = await supabase!.rpc('reset_my_progress_v3', {
+      p_operation_id: operationId,
+      p_supersede: supersede,
+    });
     if (error) throw error;
-  });
+    if (timedOut) throw new Error('Supabase reset cancelled');
+    const { data, error: restoreError } = await supabase!.rpc('restore_my_data_backup_v2');
+    if (restoreError) throw restoreError;
+    if (timedOut) throw new Error('Supabase reset cancelled');
+    const envelope = parseCloudBackupEnvelope(data);
+    if (!envelope) throw new Error('Invalid cloud backup envelope after reset');
+    const accountKey = normalizedAccountEmail(userEmail);
+    if (timedOut) throw new Error('Supabase reset cancelled');
+    await writeBackupRevision(accountKey, envelope.revision);
+  }, () => !timedOut);
+  try {
+    await withTimeout(operation, SESSION_RESTORE_TIMEOUT_MS, 'Supabase reset timed out');
+  } finally {
+    timedOut = true;
+  }
+  return true;
 }
 
 /**
@@ -1087,10 +1486,24 @@ export async function resetUserProgressInSupabase(userEmail: string, expectedGoo
  * Call during account deletion BEFORE clearing local state so the
  * Supabase Auth session is still active (required when RLS is enabled).
  */
-export async function deleteUserFromSupabase(userEmail: string, expectedGoogleSub?: ExpectedGoogleSubject): Promise<void> {
+export async function deleteUserFromSupabase(
+  userEmail: string,
+  expectedGoogleSub: ExpectedGoogleSubject | undefined,
+  operationId: string,
+  supersede = false,
+): Promise<void> {
   if (isQaSandboxActive() || !supabase) return;
+  if (!operationId) throw new Error('Destructive account deletion operation id required');
   await withSupabaseSession(userEmail, expectedGoogleSub, async () => {
-    const { error } = await supabase!.rpc('delete_my_account_data');
+    const { error } = await supabase!.rpc('delete_my_account_data_v3', {
+      p_operation_id: operationId,
+      p_supersede: supersede,
+    });
     if (error) throw error;
   });
+  const accountKey = normalizedAccountEmail(userEmail);
+  // Keep the restore-block marker until the caller has purged local SQLite.
+  // If Android dies between this remote delete and the local purge, startup
+  // must remain unable to upload the stale local snapshot.
+  await AsyncStorage.removeItem(backupRevisionKey(accountKey));
 }

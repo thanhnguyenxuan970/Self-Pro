@@ -3,9 +3,20 @@ const mockSignInWithIdToken = jest.fn();
 const mockUpsert = jest.fn();
 const mockDeleteIn = jest.fn().mockResolvedValue({ error: null });
 const mockDeleteEq = jest.fn(() => ({ in: mockDeleteIn }));
-const mockDelete = jest.fn(() => ({ eq: mockDeleteEq }));
-const mockRpc = jest.fn().mockResolvedValue({ data: null, error: null });
-const mockFrom = jest.fn(() => ({ upsert: mockUpsert, delete: mockDelete }));
+const mockDelete = jest.fn(() => ({ in: mockDeleteIn }));
+const mockLegacyActivityOrder = jest.fn().mockResolvedValue({ data: [], error: null });
+const mockLegacyActivityEq = jest.fn(() => ({ order: mockLegacyActivityOrder }));
+const mockLegacyActivitySelect = jest.fn(() => ({ order: mockLegacyActivityOrder }));
+const mockRpc = jest.fn(async (name: string): Promise<{ data: unknown; error: null }> => {
+  if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
+  if (name === 'restore_my_data_backup_v2') return { data: { payload: null, revision: 0 }, error: null };
+  return { data: null, error: null };
+});
+const mockFrom = jest.fn(() => ({
+  upsert: mockUpsert,
+  delete: mockDelete,
+  select: mockLegacyActivitySelect,
+}));
 const mockConfigure = jest.fn();
 const mockGetTokens = jest.fn();
 const mockSignInSilently = jest.fn();
@@ -55,13 +66,344 @@ import {
   ensureSupabaseSession,
   pauseAccountSync,
   readSocialProfile,
+  restoreUserDataIfNeeded,
   restoreLifetimeStarsFromSupabase,
   runAccountSync,
   signInWithGoogleToken,
   cancelSupabaseSessionRestore,
   syncToSupabase,
   syncUserStreak,
+  resetUserProgressInSupabase,
+  deleteUserFromSupabase,
 } from '../src/api/syncService';
+import { isCloudBackupPayload } from '../src/lib/userDataBackup';
+
+describe('restoreUserDataIfNeeded', () => {
+  const emptyBackupPayload = (overrides: Record<string, unknown> = {}) => ({
+    schema_version: 1,
+    user: null,
+    categories: [],
+    task_types: [],
+    activity_log: [],
+    daily_summary: [],
+    weekly_summary: [],
+    reward_unlocks: [],
+    fund_transactions: [],
+    streak_freezes: [],
+    treats: [],
+    treat_history: [],
+    challenges: [],
+    challenge_log: [],
+    challenge_days: [],
+    achievements: [],
+    milestone_stars: [],
+    boost_events: [],
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
+  });
+
+  it('restores a reinstall from the same Google account without losing habits, heatmap, challenges, or rank state', async () => {
+    const payload = {
+      schema_version: 1,
+      user: {
+        username: 'me',
+        timezone: 'Asia/Bangkok',
+        carry_debt: 0,
+        currency: 'VND',
+        lifetime_stars: 42,
+        current_tier_id: 4,
+      },
+      categories: [{ id: 11, name: 'Health', icon: '🏃', sort_order: 1, archived: 0 }],
+      task_types: [{
+        id: 21, name: 'Running', kind: 'GOOD', is_time_based: 1,
+        base_points: 10, star_penalty: 50, category_id: 11, icon: '🏃',
+        archived: 0, sort_order: 1, is_pinned: 1, is_template: 1,
+      }],
+      activity_log: [{
+        id: 31, task_type_id: 21, kind: 'GOOD', duration_min: 30,
+        points_earned: 10, stars_delta: 2, source: 'TASK', logged_at: 1,
+        local_date: '2026-08-20', week_start: '2026-08-17', note: null,
+        is_backfill: 0, is_clock_suspect: 0,
+      }],
+      daily_summary: [{ id: 41, local_date: '2026-08-20', total_points: 10, bonus_star_awarded: 0, streak_count: 1 }],
+      weekly_summary: [{
+        id: 51, week_start: '2026-08-17', total_points: 10, weekly_stars: 2,
+        peak_stars: 2, current_tier_id: 4, start_debt: 0, finalized: 0,
+      }],
+      reward_unlocks: [],
+      fund_transactions: [],
+      streak_freezes: [],
+      treats: [],
+      treat_history: [],
+      challenges: [{
+        id: 61, name: 'Run every day', task_type_id: 21, mode: 'streak',
+        target_days: 7, weekly_target: null, total_weeks: null,
+        start_date: '2026-08-20', status: 'active', freezes_left: 1,
+        freeze_used: 0, streak_current: 1, completed_at: null,
+        notifications_enabled: 1, notification_id: null,
+        min_duration: 20, min_count: 1, created_at: '2026-08-20 00:00:00',
+      }],
+      challenge_log: [],
+      challenge_days: [{ id: 71, challenge_id: 61, local_date: '2026-08-20', logged_at: 1 }],
+      achievements: [],
+      milestone_stars: [],
+      boost_events: [],
+    };
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'restore_my_data_backup_v2'
+        ? { data: { payload, revision: 7 }, error: null }
+        : { data: null, error: null });
+    const writes: Array<[string, unknown[] | undefined]> = [];
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('COUNT(*)') && sql.includes('activity_log')) return { count: 0 };
+        if (sql.includes('COUNT(*)') && sql.includes('challenges')) return { count: 0 };
+        return null;
+      }),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(async (sql: string, params?: unknown[]) => {
+        writes.push([sql, params]);
+        return { changes: 1, lastInsertRowId: 1 };
+      }),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub');
+
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', '7');
+    expect(writes.some(([sql]) => sql.includes('INSERT OR REPLACE INTO categories'))).toBe(true);
+    expect(writes.some(([sql]) => sql.includes('INSERT OR REPLACE INTO task_types'))).toBe(true);
+    expect(writes.some(([sql]) => sql.includes('INSERT OR REPLACE INTO activity_log'))).toBe(true);
+    expect(writes.some(([sql]) => sql.includes('INSERT OR REPLACE INTO challenges'))).toBe(true);
+    expect(writes.some(([sql]) => sql.includes('INSERT OR REPLACE INTO challenge_days'))).toBe(true);
+    expect(writes.some(([sql]) => sql.includes('UPDATE users SET'))).toBe(true);
+  });
+
+  it('rebuilds heatmap summaries from the legacy remote activity mirror when no snapshot exists', async () => {
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'restore_my_data_backup_v2'
+        ? { data: { payload: null, revision: 0 }, error: null }
+        : { data: null, error: null });
+    mockLegacyActivityOrder.mockResolvedValue({
+      data: [
+        {
+          local_id: 11, kind: 'GOOD', duration_min: 20, points_earned: 10, stars_delta: 2,
+          source: 'TASK', logged_at: 1, local_date: '2026-08-20', week_start: '2026-08-17',
+        },
+        {
+          local_id: 12, kind: 'GOOD', duration_min: null, points_earned: 0, stars_delta: 1,
+          source: 'DAILY_BONUS', logged_at: 2, local_date: '2026-08-21', week_start: '2026-08-17',
+        },
+      ],
+      error: null,
+    });
+    const writes: string[] = [];
+    const db = {
+      getFirstAsync: jest.fn().mockResolvedValue(null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(async (sql: string) => {
+        writes.push(sql);
+        return { changes: 1, lastInsertRowId: 1 };
+      }),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
+
+    expect(mockLegacyActivityEq).not.toHaveBeenCalled();
+    expect(writes.filter(sql => sql.includes('INSERT OR REPLACE INTO activity_log'))).toHaveLength(2);
+    expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO daily_summary'));
+    expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO weekly_summary'));
+  });
+
+  it('fails closed when the server returns a non-null unsupported snapshot', async () => {
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'restore_my_data_backup_v2'
+        ? { data: { payload: { schema_version: 999 }, revision: 3 }, error: null }
+        : { data: null, error: null });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(db.runAsync).not.toHaveBeenCalled();
+    expect(mockLegacyActivityEq).not.toHaveBeenCalled();
+    expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', '3');
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
+  });
+
+  it('fails closed when a legacy activity id belongs to another local account', async () => {
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'restore_my_data_backup_v2'
+        ? { data: { payload: null, revision: 4 }, error: null }
+        : { data: null, error: null });
+    mockLegacyActivityOrder.mockResolvedValue({
+      data: [{
+        local_id: 11, kind: 'GOOD', duration_min: 20, points_earned: 10, stars_delta: 2,
+        source: 'TASK', logged_at: 1, local_date: '2026-08-20', week_start: '2026-08-17',
+      }],
+      error: null,
+    });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn(async (sql: string) => sql.includes('FROM activity_log') ? [{ id: 11 }] : []),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(db.runAsync).not.toHaveBeenCalled();
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
+  });
+
+  it('fails closed when a legacy activity contains a malformed numeric field', async () => {
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'restore_my_data_backup_v2'
+        ? { data: { payload: null, revision: 5 }, error: null }
+        : { data: null, error: null });
+    mockLegacyActivityOrder.mockResolvedValue({
+      data: [{
+        local_id: 11, kind: 'GOOD', duration_min: 20, points_earned: 'not-a-number', stars_delta: 2,
+        source: 'TASK', logged_at: 1, local_date: '2026-08-20', week_start: '2026-08-17',
+      }],
+      error: null,
+    });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(db.runAsync).not.toHaveBeenCalled();
+  });
+
+  it('rejects coercible legacy numeric values and calendar-invalid dates', async () => {
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'restore_my_data_backup_v2'
+        ? { data: { payload: null, revision: 6 }, error: null }
+        : { data: null, error: null });
+    mockLegacyActivityOrder.mockResolvedValue({
+      data: [{
+        local_id: 11, kind: 'GOOD', duration_min: ' ', points_earned: 10, stars_delta: 2,
+        source: 'TASK', logged_at: 1, local_date: '2024-02-30', week_start: '2024-02-26',
+      }],
+      error: null,
+    });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(db.runAsync).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed full snapshots before deleting local rows', async () => {
+    const payload = emptyBackupPayload({
+      categories: [{ id: 11, name: 'Health', icon: null, sort_order: '1', archived: 0 }],
+    });
+    expect(isCloudBackupPayload(payload)).toBe(false);
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'restore_my_data_backup_v2'
+        ? { data: { payload, revision: 7 }, error: null }
+        : { data: null, error: null });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(db.runAsync).not.toHaveBeenCalled();
+
+    const validNullUnlockReference = emptyBackupPayload({
+      fund_transactions: [{ id: 12, type: 'reward', amount: 1, source_unlock_id: null, occurred_at: 1 }],
+    });
+    const invalidUnlockReference = emptyBackupPayload({
+      fund_transactions: [{ id: 13, type: 'reward', amount: 1, source_unlock_id: 999, occurred_at: 1 }],
+    });
+    const duplicateDailySummary = emptyBackupPayload({
+      daily_summary: [
+        { id: 14, local_date: '2026-08-20', total_points: 1, bonus_star_awarded: 0, streak_count: 1 },
+        { id: 15, local_date: '2026-08-20', total_points: 2, bonus_star_awarded: 0, streak_count: 1 },
+      ],
+    });
+    expect(isCloudBackupPayload(validNullUnlockReference)).toBe(true);
+    expect(isCloudBackupPayload(invalidUnlockReference)).toBe(false);
+    expect(isCloudBackupPayload(duplicateDailySummary)).toBe(false);
+  });
+
+  it('fails closed before writes when SQLite exposes no transaction primitive', async () => {
+    const payload = emptyBackupPayload();
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'restore_my_data_backup_v2'
+        ? { data: { payload, revision: 8 }, error: null }
+        : { data: null, error: null });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(db.runAsync).not.toHaveBeenCalled();
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
+  });
+
+  it('does not replace another local account when snapshot ids collide', async () => {
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'restore_my_data_backup_v2'
+        ? {
+            data: {
+              payload: emptyBackupPayload({
+                categories: [{ id: 11, name: 'Health', icon: '🏃', sort_order: 1, archived: 0 }],
+              }),
+              revision: 2,
+            },
+            error: null,
+          }
+        : { data: null, error: null });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn(async (sql: string) => sql.includes('FROM categories') ? [{ id: 11 }] : []),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(db.withExclusiveTransactionAsync).toHaveBeenCalled();
+    expect(db.runAsync).not.toHaveBeenCalled();
+  });
+});
 
 type ActivityLogRow = {
   userId: number;
@@ -241,6 +583,38 @@ describe('syncUserStreak', () => {
     await expect(syncUserStreak('user@example.com', 7, 'google-sub')).rejects.toThrow('does not match');
 
     expect(mockRpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('destructive operation fencing', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
+  });
+
+  it('replays reset with its operation id and explicit supersede intent', async () => {
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') return { data: { payload: null, revision: 12 }, error: null };
+      return { data: null, error: null };
+    });
+
+    await resetUserProgressInSupabase('user@example.com', 'google-sub', '11111111-1111-4111-8111-111111111111', true);
+
+    expect(mockRpc).toHaveBeenCalledWith('reset_my_progress_v3', {
+      p_operation_id: '11111111-1111-4111-8111-111111111111',
+      p_supersede: true,
+    });
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', '12');
+  });
+
+  it('replays account deletion with the original operation id without superseding it', async () => {
+    await deleteUserFromSupabase('user@example.com', 'google-sub', '22222222-2222-4222-8222-222222222222');
+
+    expect(mockRpc).toHaveBeenCalledWith('delete_my_account_data_v3', {
+      p_operation_id: '22222222-2222-4222-8222-222222222222',
+      p_supersede: false,
+    });
+    expect(mockStorageRemoveItem).toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com');
   });
 });
 
@@ -699,6 +1073,15 @@ describe('syncToSupabase', () => {
     jest.clearAllMocks();
   });
 
+  it('does not upload a local mutation while cloud restore is blocked', async () => {
+    mockStorageGetItem.mockImplementation(async (key: string) =>
+      key === 'habit_sync_backup_restore_blocked:user@example.com' ? '1' : null);
+
+    await expect(syncToSupabase('google-sub', 'user@example.com')).resolves.toBeUndefined();
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
   it('publishes streak freshness through the versioned profile RPC after activity sync', async () => {
     mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
     mockStorageGetItem.mockResolvedValue(null);
@@ -722,6 +1105,7 @@ describe('syncToSupabase', () => {
     });
     mockRpc.mockImplementation(async (name: string) => {
       if (name === 'sync_user_profile_v2') writes.push('profile');
+      if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
       return { data: null, error: null };
     });
     const dateTimeFormat = jest.spyOn(Intl, 'DateTimeFormat').mockImplementation(() => (
@@ -739,6 +1123,8 @@ describe('syncToSupabase', () => {
       p_last_active_local_date: '2026-08-10',
       p_timezone: 'Asia/Bangkok',
     });
+    expect(mockRpc).toHaveBeenCalledWith('save_my_data_backup_v2', expect.objectContaining({ p_expected_revision: 0 }));
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', '1');
     expect(writes).toEqual(['activity-upload', 'profile']);
   });
 
@@ -803,6 +1189,7 @@ describe('syncToSupabase', () => {
     const db = {
       getFirstAsync: jest.fn(async (sql: string) => {
         if (sql.includes('SELECT id FROM users')) return { id: 1 };
+        if (sql.includes('FROM users')) return { lifetime_stars: 279 };
         if (sql.includes('SELECT lifetime_stars FROM users')) return { lifetime_stars: 279 };
         if (sql.includes('daily_summary')) return { current_streak: 7 };
         if (sql.includes('activity_log')) return { last_active_local_date: '2026-08-11' };
@@ -832,8 +1219,9 @@ describe('syncToSupabase', () => {
     await syncToSupabase('google-sub', 'user@example.com');
 
     expect(uploadedActivityIds).toEqual([[1, 2], [1, 2]]);
-    expect(mockRpc).toHaveBeenCalledTimes(3);
-    expect(mockRpc).toHaveBeenLastCalledWith('sync_lifetime_stars');
+    expect(mockRpc).toHaveBeenCalledTimes(4);
+    expect(mockRpc).toHaveBeenCalledWith('save_my_data_backup_v2', expect.any(Object));
+    expect(mockRpc.mock.calls[0][0]).toBe('save_my_data_backup_v2');
   });
 
   it('pulls a higher server high-water total into local SQLite during normal sync', async () => {
@@ -904,7 +1292,6 @@ describe('syncToSupabase', () => {
       dateTimeFormat.mockRestore();
     }
 
-    expect(mockDeleteEq).toHaveBeenCalledWith('user_email', 'user@example.com');
     expect(mockDeleteIn).toHaveBeenCalledWith('local_id', [55, 56]);
     expect(mockStorageRemoveItem).toHaveBeenCalledWith('pending_activity_deletes:1');
   });

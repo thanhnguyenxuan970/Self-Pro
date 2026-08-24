@@ -935,7 +935,7 @@ const vi = {
   // SignInScreen
   signInBtn: 'Đăng nhập bằng Google',
   signInTagline: 'vòng lặp thói quen mỗi ngày',
-  signInHint: 'MVP · Xác thực qua Google · Dữ liệu lưu trên máy',
+  signInHint: 'Xác thực qua Google · Đồng bộ an toàn · Khôi phục sau khi cài lại',
   qaSandboxButton: 'Mở sandbox QA trên máy này',
   qaSandboxSwitch: 'Chuyển sang sandbox QA cục bộ',
   qaSandboxBanner: 'SANDBOX QA · Dữ liệu giả cục bộ · Không đồng bộ',
@@ -1873,7 +1873,7 @@ const en: typeof vi = {
   // SignInScreen
   signInBtn: 'Sign in with Google',
   signInTagline: 'daily completion, the loop',
-  signInHint: 'MVP · Google auth · Data stored on device',
+  signInHint: 'Google auth · Secure sync · Restore after reinstall',
   qaSandboxButton: 'Open local QA sandbox',
   qaSandboxSwitch: 'Switch to local QA sandbox',
   qaSandboxBanner: 'QA SANDBOX · Local fixture data · Sync disabled',
