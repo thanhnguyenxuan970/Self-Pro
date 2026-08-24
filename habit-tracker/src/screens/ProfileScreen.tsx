@@ -13,6 +13,7 @@ import { Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme'
 import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { isQaSandboxBuildAvailable, isQaSandboxIdentity } from '../qa/qaSandbox';
+import { GOOGLE_PICTURE_PLACEHOLDER } from '../lib/googleUserStorage';
 
 type Props = {
   googleUser: { sub: string; email: string; name: string; picture: string };
@@ -66,7 +67,7 @@ export function ProfileScreen({ googleUser, onEnterQaSandbox, onSignOut }: Props
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={ph.head}>
-          {googleUser.picture && !isQaSandboxIdentity(googleUser) ? <Image source={{ uri: googleUser.picture }} style={ph.avatar} importantForAccessibility="no" accessibilityElementsHidden /> : (
+          {googleUser.picture && googleUser.picture !== GOOGLE_PICTURE_PLACEHOLDER && !isQaSandboxIdentity(googleUser) ? <Image source={{ uri: googleUser.picture }} style={ph.avatar} importantForAccessibility="no" accessibilityElementsHidden /> : (
             <View style={[ph.avatar, ph.avatarFallback]}><Text style={ph.avatarInitial}>{(googleUser.name.charAt(0) || '?').toUpperCase()}</Text></View>
           )}
           <Text style={ph.name} numberOfLines={1}>{googleUser.name}</Text>

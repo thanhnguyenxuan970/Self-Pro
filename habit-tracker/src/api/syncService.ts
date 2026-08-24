@@ -339,9 +339,14 @@ async function pullLifetimeStarsIntoLocal(
   ): Promise<void> => {
     // Crossings are intentionally discarded: this restores previously earned
     // progress and must not replay a celebration for an old tier.
+    assertActive();
     const localStars = await readLocalLifetimeStars(transactionDb, userId);
+    assertActive();
     if (remoteStars <= localStars) return;
     await applyLifetimeStarsDelta(transactionDb, userId, remoteStars - localStars, tiers);
+    // Throwing here rolls back the surrounding transaction if cancellation
+    // arrived while the read-modify-write was in progress.
+    assertActive();
   };
 
   // The regular async transaction can be interleaved with unrelated async
@@ -365,20 +370,120 @@ async function pullLifetimeStarsIntoLocal(
  * persisted on-device. */
 const SESSION_EXPIRY_SKEW_SECONDS = 60;
 
-let inFlightSessionRefresh: { userEmail: string; promise: Promise<void> } | null = null;
-let inFlightGoogleTokenSignIn: { userEmail: string; promise: Promise<void> } | null = null;
+type SessionActivityGuard = () => boolean;
+const alwaysActive: SessionActivityGuard = () => true;
+type ExpectedGoogleSubject = string | undefined;
+
+type SupabaseIdentityUser = {
+  email?: string | null;
+  identities?: Array<{ provider?: string; identity_data?: Record<string, unknown> }>;
+  user_metadata?: Record<string, unknown>;
+};
+
+type SupabaseSession = {
+  access_token?: string | null;
+  expires_at?: number | null;
+  user?: SupabaseIdentityUser;
+};
+
+let inFlightSessionRefresh: {
+  userEmail: string;
+  expectedGoogleSub: ExpectedGoogleSubject;
+  promise: Promise<void>;
+  isActive: SessionActivityGuard;
+  releaseSessionOperation?: () => void;
+} | null = null;
+let inFlightGoogleTokenSignIn: {
+  userEmail: string;
+  idToken: string;
+  expectedGoogleSub: ExpectedGoogleSubject;
+  promise: Promise<void>;
+  isActive: SessionActivityGuard;
+  releaseSessionOperation?: () => void;
+} | null = null;
+
+// Supabase keeps one process-wide auth session. Serialize session-changing
+// operations with protected RPCs so a sign-in/sign-out cannot swap the token
+// between the ownership check and the request that follows it.
+let sessionOperationTail: Promise<void> = Promise.resolve();
+
+async function withSessionOperation<T>(
+  operation: () => Promise<T>,
+  onReleaseAvailable?: (release: () => void) => void,
+): Promise<T> {
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    releaseTail();
+  };
+  let releaseTail!: () => void;
+  const previous = sessionOperationTail;
+  sessionOperationTail = new Promise<void>(resolve => { releaseTail = resolve; });
+  onReleaseAvailable?.(release);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+  }
+}
 
 function normalizedAccountEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+function normalizedExpectedGoogleSub(userEmail: string, expectedGoogleSub?: ExpectedGoogleSubject): string | undefined {
+  const subject = expectedGoogleSub?.trim();
+  if (!subject || normalizedAccountEmail(subject) === normalizedAccountEmail(userEmail)) {
+    // Legacy stored identities used the email as a placeholder subject. It is
+    // useful for local row lookup, but it is not a Google OIDC `sub` and must
+    // not be compared with Supabase's verified provider subject.
+    return undefined;
+  }
+  return subject;
+}
+
+function googleSubjectFromSupabaseUser(user: SupabaseIdentityUser | null | undefined): string | null {
+  const googleIdentity = user?.identities?.find(identity => identity.provider === 'google');
+  const subject = googleIdentity?.identity_data?.sub ?? user?.user_metadata?.sub;
+  return typeof subject === 'string' && subject.trim() ? subject.trim() : null;
+}
+
 function hasFreshSessionForAccount(
-  session: { expires_at?: number | null; user?: { email?: string | null } } | null,
+  session: SupabaseSession | null,
   userEmail: string,
+  expectedGoogleSub?: ExpectedGoogleSubject,
 ): boolean {
+  const normalizedSubject = normalizedExpectedGoogleSub(userEmail, expectedGoogleSub);
   return session != null
-    && (session.expires_at == null || session.expires_at > Math.floor(Date.now() / 1000) + SESSION_EXPIRY_SKEW_SECONDS)
-    && normalizedAccountEmail(session.user?.email ?? '') === normalizedAccountEmail(userEmail);
+    && typeof session.access_token === 'string'
+    && session.access_token.trim().length > 0
+    && typeof session.expires_at === 'number'
+    && Number.isFinite(session.expires_at)
+    && session.expires_at > Math.floor(Date.now() / 1000) + SESSION_EXPIRY_SKEW_SECONDS
+    && normalizedAccountEmail(session.user?.email ?? '') === normalizedAccountEmail(userEmail)
+    && (!normalizedSubject || googleSubjectFromSupabaseUser(session.user) === normalizedSubject);
+}
+
+function assertSessionActive(isActive: SessionActivityGuard): void {
+  if (!isActive()) throw new Error('Supabase session restore cancelled');
+}
+
+function isSessionRestoreCancellation(error: unknown): boolean {
+  return error instanceof Error && error.message === 'Supabase session restore cancelled';
+}
+
+const SESSION_RESTORE_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
 }
 
 function isRetryableAuthExchangeError(error: unknown): boolean {
@@ -401,15 +506,37 @@ function isRetryableAuthExchangeError(error: unknown): boolean {
     || text.includes('23505');
 }
 
-async function signInWithGoogleTokenRequest(userEmail: string, idToken: string): Promise<void> {
+type TokenExchangeResult = {
+  returnedEmail: string;
+  returnedGoogleSub: string | null;
+  accessToken: string | null;
+  refreshToken: string | null;
+};
+
+async function signInWithGoogleTokenRequest(idToken: string): Promise<TokenExchangeResult> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const { data, error } = await supabase!.auth.signInWithIdToken({ provider: 'google', token: idToken });
     if (!error) {
-      if (normalizedAccountEmail(data?.user?.email ?? '') !== normalizedAccountEmail(userEmail)) {
-        throw new Error('Google token does not match the signed-in user');
+      const accessToken = data?.session?.access_token;
+      const expiresAt = data?.session?.expires_at;
+      if (
+        typeof accessToken !== 'string'
+        || !accessToken.trim()
+        || typeof expiresAt !== 'number'
+        || !Number.isFinite(expiresAt)
+        || expiresAt <= Math.floor(Date.now() / 1000) + SESSION_EXPIRY_SKEW_SECONDS
+      ) {
+        throw new Error('Supabase sign-in did not return a usable session');
       }
-      return;
+      return {
+        returnedEmail: data?.user?.email ?? '',
+        returnedGoogleSub: googleSubjectFromSupabaseUser(data?.user),
+        accessToken,
+        refreshToken: typeof data?.session?.refresh_token === 'string' && data.session.refresh_token.trim()
+          ? data.session.refresh_token
+          : null,
+      };
     }
 
     lastError = error;
@@ -420,81 +547,264 @@ async function signInWithGoogleTokenRequest(userEmail: string, idToken: string):
   throw lastError;
 }
 
+let lastAcceptedGoogleSession: { accessToken: string; refreshToken: string; email: string } | null = null;
+
+async function clearSupabaseSessionForAccount(ownedAccessToken: string | null): Promise<void> {
+  if (!ownedAccessToken) return;
+  try {
+    const { data: { session } } = await supabase!.auth.getSession();
+    if (session?.access_token === ownedAccessToken) {
+      const newerSession = lastAcceptedGoogleSession;
+      if (newerSession && newerSession.accessToken !== ownedAccessToken) {
+        const setSession = (supabase!.auth as unknown as {
+          setSession?: (value: { access_token: string; refresh_token: string }) => Promise<unknown>;
+        }).setSession;
+        if (setSession) {
+          await setSession({ access_token: newerSession.accessToken, refresh_token: newerSession.refreshToken });
+          return;
+        }
+      }
+      await supabase!.auth.signOut();
+    }
+  } catch {
+    // Cancellation cleanup is best-effort; the caller must still fail closed.
+  }
+}
+
 /**
  * Establish the non-persistent Supabase session for a Google identity.
  * Direct sign-in and background rehydration share this gate so they cannot
  * race GoTrue into two auth.users inserts for the same email.
  */
-export function signInWithGoogleToken(userEmail: string, idToken: string): Promise<void> {
+function signInWithGoogleTokenInternal(
+  userEmail: string,
+  idToken: string,
+  isActive: SessionActivityGuard = alwaysActive,
+  expectedGoogleSub?: ExpectedGoogleSubject,
+  lockSession = false,
+  skipSessionRefreshWait = false,
+): Promise<void> {
+  if (typeof idToken !== 'string' || !idToken.trim()) {
+    return Promise.reject(new Error('Google ID token is required'));
+  }
   if (isQaSandboxActive() || !supabase) return Promise.resolve();
 
+  const activeRefresh = inFlightSessionRefresh;
+  if (!skipSessionRefreshWait && activeRefresh && activeRefresh.isActive()) {
+    return activeRefresh.promise.then(
+      () => signInWithGoogleTokenInternal(userEmail, idToken, isActive, expectedGoogleSub, lockSession),
+      () => signInWithGoogleTokenInternal(userEmail, idToken, isActive, expectedGoogleSub, lockSession),
+    );
+  }
+
   const accountKey = normalizedAccountEmail(userEmail);
-  const active = inFlightGoogleTokenSignIn;
-  if (active && normalizedAccountEmail(active.userEmail) === accountKey) return active.promise;
+  const normalizedSubject = normalizedExpectedGoogleSub(userEmail, expectedGoogleSub);
+  let active = inFlightGoogleTokenSignIn;
+  if (active && normalizedAccountEmail(active.userEmail) === accountKey) {
+    if (!active.isActive()) {
+      active.releaseSessionOperation?.();
+      inFlightGoogleTokenSignIn = null;
+      active = null;
+    }
+  }
+  if (active && normalizedAccountEmail(active.userEmail) === accountKey) {
+    const sameExpectedSubject = (active.expectedGoogleSub?.trim() || null) === (normalizedSubject || null);
+    if (active.idToken === idToken && sameExpectedSubject) {
+      return active.promise.catch(error => {
+        if (isSessionRestoreCancellation(error)) {
+          return signInWithGoogleTokenInternal(userEmail, idToken, isActive, normalizedSubject, lockSession, skipSessionRefreshWait);
+        }
+        throw error;
+      });
+    }
+    return active.promise.then(
+      () => signInWithGoogleTokenInternal(userEmail, idToken, isActive, normalizedSubject, lockSession, skipSessionRefreshWait),
+      () => signInWithGoogleTokenInternal(userEmail, idToken, isActive, normalizedSubject, lockSession, skipSessionRefreshWait),
+    );
+  }
 
   const waitForPrevious = active?.promise.catch(() => undefined) ?? Promise.resolve();
-  let trackedPromise!: Promise<void>;
-  trackedPromise = waitForPrevious
+  const operation = waitForPrevious
     .then(async () => {
+      assertSessionActive(isActive);
       const { data: { session }, error: sessionError } = await supabase!.auth.getSession();
       if (sessionError) throw sessionError;
-      if (hasFreshSessionForAccount(session, userEmail)) return;
-      await signInWithGoogleTokenRequest(userEmail, idToken);
-    })
+      assertSessionActive(isActive);
+      if (hasFreshSessionForAccount(session, userEmail, expectedGoogleSub)) return;
+      let exchangeCompleted = false;
+      let exchangeAccessToken: string | null = null;
+      let exchangeRefreshToken: string | null = null;
+      let cleanupRequired = false;
+      try {
+        const exchange = await signInWithGoogleTokenRequest(idToken);
+        exchangeCompleted = true;
+        exchangeAccessToken = exchange.accessToken;
+        exchangeRefreshToken = exchange.refreshToken;
+        if (normalizedAccountEmail(exchange.returnedEmail) !== normalizedAccountEmail(userEmail)) {
+          cleanupRequired = true;
+          throw new Error('Google token does not match the signed-in user');
+        }
+        if (normalizedSubject && exchange.returnedGoogleSub !== normalizedSubject) {
+          cleanupRequired = true;
+          throw new Error('Google token does not match the signed-in Google account');
+        }
+        assertSessionActive(isActive);
+        if (exchangeAccessToken && exchangeRefreshToken) {
+          lastAcceptedGoogleSession = {
+            accessToken: exchangeAccessToken,
+            refreshToken: exchangeRefreshToken,
+            email: normalizedAccountEmail(userEmail),
+          };
+        }
+      } catch (error) {
+        if (exchangeCompleted && (cleanupRequired || !isActive())) {
+          await clearSupabaseSessionForAccount(exchangeAccessToken);
+        }
+        throw error;
+      }
+    });
+  let trackedPromise!: Promise<void>;
+  let releaseSessionOperation: (() => void) | undefined;
+  const sessionOperation = lockSession
+    ? withSessionOperation(() => operation, release => { releaseSessionOperation = release; })
+    : operation;
+  trackedPromise = sessionOperation
     .finally(() => {
       if (inFlightGoogleTokenSignIn?.promise === trackedPromise) {
         inFlightGoogleTokenSignIn = null;
       }
     });
-  inFlightGoogleTokenSignIn = { userEmail, promise: trackedPromise };
+  inFlightGoogleTokenSignIn = {
+    userEmail,
+    idToken,
+    expectedGoogleSub: normalizedSubject,
+    promise: trackedPromise,
+    isActive,
+    releaseSessionOperation,
+  };
   return trackedPromise;
 }
 
-async function refreshSupabaseSession(userEmail: string): Promise<void> {
+export function signInWithGoogleToken(
+  userEmail: string,
+  idToken: string,
+  isActive: SessionActivityGuard = alwaysActive,
+  expectedGoogleSub?: ExpectedGoogleSubject,
+): Promise<void> {
+  return signInWithGoogleTokenInternal(userEmail, idToken, isActive, expectedGoogleSub, true);
+}
+
+async function refreshSupabaseSession(
+  userEmail: string,
+  isActive: SessionActivityGuard,
+  expectedGoogleSub?: ExpectedGoogleSubject,
+): Promise<void> {
+  assertSessionActive(isActive);
   // require at call-time: preserves the native-module loading guard used by auth.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { GoogleSignin, isNoSavedCredentialFoundResponse } = require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
   GoogleSignin.configure({ webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID });
   // getTokens() only reads the cached ID token. signInSilently() refreshes the
   // native account before the token is sent to Supabase.
-  const silent = await GoogleSignin.signInSilently();
+  const silent = await withTimeout(
+    GoogleSignin.signInSilently(),
+    SESSION_RESTORE_TIMEOUT_MS,
+    'Supabase session restore timed out',
+  );
+  assertSessionActive(isActive);
   if (isNoSavedCredentialFoundResponse(silent)) {
     throw new NoSavedGoogleCredentialError();
   }
-  const { idToken } = await GoogleSignin.getTokens();
+  const { idToken } = await withTimeout(
+    GoogleSignin.getTokens(),
+    SESSION_RESTORE_TIMEOUT_MS,
+    'Supabase session restore timed out',
+  );
   if (!idToken) throw new Error('Google did not provide an ID token for Supabase sync');
-  await signInWithGoogleToken(userEmail, idToken);
+  assertSessionActive(isActive);
+  await signInWithGoogleTokenInternal(userEmail, idToken, isActive, expectedGoogleSub, false, true);
 }
 
-function refreshSupabaseSessionOnce(userEmail: string): Promise<void> {
-  const activeRefresh = inFlightSessionRefresh;
+function refreshSupabaseSessionOnce(
+  userEmail: string,
+  isActive: SessionActivityGuard,
+  expectedGoogleSub?: ExpectedGoogleSubject,
+  sessionOperationRelease?: () => (() => void) | undefined,
+): Promise<void> {
+  const normalizedSubject = normalizedExpectedGoogleSub(userEmail, expectedGoogleSub);
+  let activeRefresh = inFlightSessionRefresh;
   if (activeRefresh) {
-    if (activeRefresh.userEmail === userEmail) return activeRefresh.promise;
-    return activeRefresh.promise
+    if (
+      normalizedAccountEmail(activeRefresh.userEmail) === normalizedAccountEmail(userEmail)
+      && (activeRefresh.expectedGoogleSub?.trim() || null) === (normalizedSubject || null)
+    ) {
+      if (!activeRefresh.isActive()) {
+        inFlightSessionRefresh = null;
+        activeRefresh = null;
+      } else {
+        return activeRefresh.promise.catch(error => {
+          if (isSessionRestoreCancellation(error)) {
+            return refreshSupabaseSessionOnce(userEmail, isActive, normalizedSubject, sessionOperationRelease);
+          }
+          throw error;
+        });
+      }
+    }
+    if (activeRefresh) return activeRefresh.promise
       .catch(() => undefined)
-      .then(() => refreshSupabaseSessionOnce(userEmail));
+      .then(() => refreshSupabaseSessionOnce(userEmail, isActive, normalizedSubject, sessionOperationRelease));
   }
 
   let trackedPromise: Promise<void>;
-  trackedPromise = refreshSupabaseSession(userEmail).finally(() => {
+  trackedPromise = refreshSupabaseSession(userEmail, isActive, normalizedSubject).finally(() => {
     if (inFlightSessionRefresh?.promise === trackedPromise) {
       inFlightSessionRefresh = null;
     }
   });
-  inFlightSessionRefresh = { userEmail, promise: trackedPromise };
+  inFlightSessionRefresh = {
+    userEmail,
+    expectedGoogleSub: normalizedSubject,
+    promise: trackedPromise,
+    isActive,
+    releaseSessionOperation: sessionOperationRelease?.(),
+  };
   return trackedPromise;
 }
 
-export async function ensureSupabaseSession(userEmail: string): Promise<void> {
+/** Evict canceled native-auth gates so a later attempt cannot inherit stale work. */
+export function cancelSupabaseSessionRestore(): void {
+  if (inFlightSessionRefresh && !inFlightSessionRefresh.isActive()) {
+    inFlightSessionRefresh.releaseSessionOperation?.();
+    inFlightSessionRefresh = null;
+  }
+  if (inFlightGoogleTokenSignIn && !inFlightGoogleTokenSignIn.isActive()) {
+    inFlightGoogleTokenSignIn.releaseSessionOperation?.();
+    inFlightGoogleTokenSignIn = null;
+  }
+}
+
+async function ensureSupabaseSessionUnlocked(
+  userEmail: string,
+  isActive: SessionActivityGuard = alwaysActive,
+  expectedGoogleSub?: ExpectedGoogleSubject,
+  sessionOperationRelease?: () => (() => void) | undefined,
+): Promise<void> {
   if (isQaSandboxActive() || !supabase) return;
+  const normalizedSubject = normalizedExpectedGoogleSub(userEmail, expectedGoogleSub);
+  assertSessionActive(isActive);
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) throw sessionError;
+  assertSessionActive(isActive);
   // getSession() only reports whether a session object is cached in memory —
   // with autoRefreshToken: false it never refreshes, so a session held across
   // an hour-long app session is stale JWT that Supabase will 401 on. Check
   // expires_at explicitly instead of trusting presence alone.
   const sessionIsFresh = session != null
-    && (session.expires_at == null || session.expires_at > Math.floor(Date.now() / 1000) + SESSION_EXPIRY_SKEW_SECONDS);
+    && typeof session.access_token === 'string'
+    && session.access_token.trim().length > 0
+    && typeof session.expires_at === 'number'
+    && Number.isFinite(session.expires_at)
+    && session.expires_at > Math.floor(Date.now() / 1000) + SESSION_EXPIRY_SKEW_SECONDS;
   if (sessionIsFresh) {
     // Compare case-insensitively: Gmail/Google treat email case as
     // insignificant, but GoTrue's stored session email and the locally
@@ -505,10 +815,83 @@ export async function ensureSupabaseSession(userEmail: string): Promise<void> {
     if (session!.user.email?.trim().toLowerCase() !== userEmail.trim().toLowerCase()) {
       throw new Error('Supabase session does not match the signed-in user');
     }
+    if (normalizedSubject && googleSubjectFromSupabaseUser(session.user) !== normalizedSubject) {
+      // A cached session with no matching Google identity must not be reused
+      // for a different local OIDC subject; force a fresh token exchange.
+      await refreshSupabaseSessionOnce(userEmail, isActive, normalizedSubject, sessionOperationRelease);
+      return;
+    }
     return;
   }
 
-  await refreshSupabaseSessionOnce(userEmail);
+  await refreshSupabaseSessionOnce(userEmail, isActive, normalizedSubject, sessionOperationRelease);
+}
+
+async function getOwnedSupabaseSession(
+  userEmail: string,
+  expectedGoogleSub?: ExpectedGoogleSubject,
+  isActive: SessionActivityGuard = alwaysActive,
+): Promise<SupabaseSession> {
+  assertSessionActive(isActive);
+  const { data: { session }, error: sessionError } = await supabase!.auth.getSession();
+  if (sessionError) throw sessionError;
+  assertSessionActive(isActive);
+  if (!session || !hasFreshSessionForAccount(session, userEmail, expectedGoogleSub)) {
+    throw new Error('Supabase session is unavailable or does not match the signed-in Google account');
+  }
+  return session;
+}
+
+export async function ensureSupabaseSession(
+  userEmail: string,
+  isActive: SessionActivityGuard = alwaysActive,
+  expectedGoogleSub?: ExpectedGoogleSubject,
+): Promise<void> {
+  if (isQaSandboxActive() || !supabase) return;
+  let releaseSessionOperation: (() => void) | undefined;
+  await withSessionOperation(
+    () => ensureSupabaseSessionUnlocked(
+      userEmail,
+      isActive,
+      expectedGoogleSub,
+      () => releaseSessionOperation,
+    ),
+    release => { releaseSessionOperation = release; },
+  );
+}
+
+/** Run one protected Supabase operation while holding the owned session lease. */
+export async function withSupabaseSession<T>(
+  userEmail: string,
+  expectedGoogleSub: ExpectedGoogleSubject,
+  operation: () => Promise<T>,
+  isActive: SessionActivityGuard = alwaysActive,
+): Promise<T> {
+  if (isQaSandboxActive() || !supabase) return operation();
+  let releaseSessionOperation: (() => void) | undefined;
+  return withSessionOperation(async () => {
+    await ensureSupabaseSessionUnlocked(
+      userEmail,
+      isActive,
+      expectedGoogleSub,
+      () => releaseSessionOperation,
+    );
+    const ownedSession = await getOwnedSupabaseSession(userEmail, expectedGoogleSub, isActive);
+    const result = await operation();
+    const currentSession = await getOwnedSupabaseSession(userEmail, expectedGoogleSub, isActive);
+    if (currentSession.access_token !== ownedSession.access_token) {
+      throw new Error('Supabase session changed during the protected operation');
+    }
+    return result;
+  }, release => { releaseSessionOperation = release; });
+}
+
+/** Sign out through the same process-wide session lease as protected RPCs. */
+export async function signOutSupabaseSession(): Promise<void> {
+  if (!supabase) return;
+  await withSessionOperation(async () => {
+    await supabase!.auth.signOut();
+  });
 }
 
 /**
@@ -519,36 +902,40 @@ export async function ensureSupabaseSession(userEmail: string): Promise<void> {
 export async function syncToSupabase(userSub: string, userEmail: string): Promise<void> {
   if (isQaSandboxActive() || !supabase) return;
   await runAccountSync(userEmail, async (assertActive) => {
-    assertActive();
-    await ensureSupabaseSession(userEmail);
-    assertActive();
-    const db = await getDb();
-    const userId = await resolveUserId(db, userSub, userEmail);
-    if (userId == null) return;
-    await syncPendingActivityDeletes(userId, userEmail, assertActive);
-    await Promise.all([
-      syncActivity(db, userId, userEmail, assertActive),
-      syncFund(db, userId, userEmail, assertActive),
-    ]);
-    // Publish the local social projection only after activity upload so remote
-    // progress and freshness converge within this serialized account sync.
-    await syncUserProfile(db, userId, assertActive);
-    let remoteStars = await syncLifetimeStars(assertActive);
-    const localStars = await readLocalLifetimeStars(db, userId);
-    if (remoteStars !== null && remoteStars < localStars) {
-      // A stale or advanced local cursor must never leave the backend frozen.
-      // Re-upload only this caller's append-only local source of truth, then
-      // let the protected RPC recalculate rank; no client total is written to
-      // `public.users`, and no other account's rows are touched.
-      await syncActivity(db, userId, userEmail, assertActive, true);
-      remoteStars = await syncLifetimeStars(assertActive);
-    }
-    // A returning device can be behind even after its local rows are fully
-    // uploaded; pull the higher server-derived value down so Rank and the
-    // authenticated leaderboard agree.
-    if (remoteStars !== null && remoteStars > localStars) {
-      await pullLifetimeStarsIntoLocal(db, userId, remoteStars, assertActive);
-    }
+    const sessionActive: SessionActivityGuard = () => {
+      assertActive();
+      return true;
+    };
+    await withSupabaseSession(userEmail, userSub, async () => {
+      assertActive();
+      const db = await getDb();
+      const userId = await resolveUserId(db, userSub, userEmail);
+      if (userId == null) return;
+      await syncPendingActivityDeletes(userId, userEmail, assertActive);
+      await Promise.all([
+        syncActivity(db, userId, userEmail, assertActive),
+        syncFund(db, userId, userEmail, assertActive),
+      ]);
+      // Publish the local social projection only after activity upload so remote
+      // progress and freshness converge within this serialized account sync.
+      await syncUserProfile(db, userId, assertActive);
+      let remoteStars = await syncLifetimeStars(assertActive);
+      const localStars = await readLocalLifetimeStars(db, userId);
+      if (remoteStars !== null && remoteStars < localStars) {
+        // A stale or advanced local cursor must never leave the backend frozen.
+        // Re-upload only this caller's append-only local source of truth, then
+        // let the protected RPC recalculate rank; no client total is written to
+        // `public.users`, and no other account's rows are touched.
+        await syncActivity(db, userId, userEmail, assertActive, true);
+        remoteStars = await syncLifetimeStars(assertActive);
+      }
+      // A returning device can be behind even after its local rows are fully
+      // uploaded; pull the higher server-derived value down so Rank and the
+      // authenticated leaderboard agree.
+      if (remoteStars !== null && remoteStars > localStars) {
+        await pullLifetimeStarsIntoLocal(db, userId, remoteStars, assertActive);
+      }
+    }, sessionActive);
   });
 }
 
@@ -562,24 +949,37 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
  * decreases from the user's own transaction.
  * Best-effort: swallows and reports every failure rather than blocking sign-in.
  */
-export async function restoreLifetimeStarsFromSupabase(userId: number, userEmail: string): Promise<void> {
+export async function restoreLifetimeStarsFromSupabase(
+  userId: number,
+  userEmail: string,
+  isActive: SessionActivityGuard = alwaysActive,
+  expectedGoogleSub?: ExpectedGoogleSubject,
+): Promise<void> {
   if (isQaSandboxActive() || !supabase) return;
   try {
     await runAccountSync(userEmail, async (assertActive) => {
-      assertActive();
-      await ensureSupabaseSession(userEmail);
-      assertActive();
-      const { data, error } = await supabase!.rpc('sync_lifetime_stars');
-      if (error) throw error;
-      const remoteStars = Number(data);
-      if (!Number.isFinite(remoteStars) || remoteStars <= 0) return;
+      const assertRestoreActive = () => {
+        assertActive();
+        assertSessionActive(isActive);
+      };
+      const sessionActive: SessionActivityGuard = () => {
+        assertRestoreActive();
+        return true;
+      };
+      await withSupabaseSession(userEmail, expectedGoogleSub, async () => {
+        assertRestoreActive();
+        const { data, error } = await supabase!.rpc('sync_lifetime_stars');
+        if (error) throw error;
+        const remoteStars = Number(data);
+        if (!Number.isFinite(remoteStars) || remoteStars <= 0) return;
 
-      assertActive();
-      const db = await getDb();
-      await pullLifetimeStarsIntoLocal(db, userId, remoteStars, assertActive);
+        assertRestoreActive();
+        const db = await getDb();
+        await pullLifetimeStarsIntoLocal(db, userId, remoteStars, assertRestoreActive);
+      }, sessionActive);
     });
   } catch (error) {
-    Sentry.captureException(error);
+    if (!isSessionRestoreCancellation(error)) Sentry.captureException(error);
   }
 }
 
@@ -619,27 +1019,37 @@ export async function resetSyncCursors(): Promise<void> {
  * Upsert because nothing else inserts the users row — a plain update matched 0 rows.
  * Silent no-op when Supabase not configured.
  */
-export async function syncUserStreak(userEmail: string, currentStreak: number): Promise<void> {
+export async function syncUserStreak(
+  userEmail: string,
+  currentStreak: number,
+  expectedGoogleSub?: ExpectedGoogleSubject,
+): Promise<void> {
   if (isQaSandboxActive() || !supabase) return;
   await runAccountSync(userEmail, async (assertActive) => {
     assertActive();
-    const { data: { session } } = await supabase!.auth.getSession();
-    assertActive();
-    if (!session) return;
-    if (session.user?.email?.trim().toLowerCase() !== userEmail.trim().toLowerCase()) {
-      throw new Error('Supabase session does not match the signed-in user');
-    }
-    const { error } = await supabase!.rpc('sync_user_profile', { p_current_streak: currentStreak });
-    if (error) throw error;
+    await withSupabaseSession(
+      userEmail,
+      expectedGoogleSub,
+      async () => {
+        assertActive();
+        const { error } = await supabase!.rpc('sync_user_profile', { p_current_streak: currentStreak });
+        if (error) throw error;
+      },
+      () => {
+        assertActive();
+        return true;
+      },
+    );
   });
 }
 
 /** Reset the remote progress mirror before clearing local lifetime rank data. */
-export async function resetUserProgressInSupabase(userEmail: string): Promise<void> {
+export async function resetUserProgressInSupabase(userEmail: string, expectedGoogleSub?: ExpectedGoogleSubject): Promise<void> {
   if (isQaSandboxActive() || !supabase) return;
-  await ensureSupabaseSession(userEmail);
-  const { error } = await supabase.rpc('reset_my_progress');
-  if (error) throw error;
+  await withSupabaseSession(userEmail, expectedGoogleSub, async () => {
+    const { error } = await supabase!.rpc('reset_my_progress');
+    if (error) throw error;
+  });
 }
 
 /**
@@ -647,9 +1057,10 @@ export async function resetUserProgressInSupabase(userEmail: string): Promise<vo
  * Call during account deletion BEFORE clearing local state so the
  * Supabase Auth session is still active (required when RLS is enabled).
  */
-export async function deleteUserFromSupabase(userEmail: string): Promise<void> {
+export async function deleteUserFromSupabase(userEmail: string, expectedGoogleSub?: ExpectedGoogleSubject): Promise<void> {
   if (isQaSandboxActive() || !supabase) return;
-  await ensureSupabaseSession(userEmail);
-  const { error } = await supabase.rpc('delete_my_account_data');
-  if (error) throw error;
+  await withSupabaseSession(userEmail, expectedGoogleSub, async () => {
+    const { error } = await supabase!.rpc('delete_my_account_data');
+    if (error) throw error;
+  });
 }

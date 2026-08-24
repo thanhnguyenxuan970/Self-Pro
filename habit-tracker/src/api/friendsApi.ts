@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { ensureSupabaseSession } from './syncService';
+import { withSupabaseSession } from './syncService';
 import type { FriendActionResult, FriendMutationStatus, RemoteFriendDashboardRow } from '../lib/friends';
 
 export type { FriendActionResult, FriendMutationStatus };
@@ -34,50 +34,48 @@ function isMissingRpcError(error: unknown): boolean {
   return code === 'PGRST202' || code === 'PGRST301';
 }
 
-async function ensureSession(currentUserEmail: string): Promise<void> {
+async function withFriendSession<T>(
+  currentUserEmail: string,
+  accountSub: string | undefined,
+  operation: () => Promise<T>,
+): Promise<T> {
   if (!supabase) throw new FriendsUnavailableError();
-  await ensureSupabaseSession(currentUserEmail);
+  return withSupabaseSession(currentUserEmail, accountSub, operation);
 }
 
-export async function getOrCreateFriendCode(currentUserEmail: string): Promise<string> {
-  await ensureSession(currentUserEmail);
-  const { data, error } = await supabase!.rpc('get_or_create_my_friend_code');
+export async function getOrCreateFriendCode(currentUserEmail: string, accountSub?: string): Promise<string> {
+  const { data, error } = await withFriendSession(currentUserEmail, accountSub, async () => supabase!.rpc('get_or_create_my_friend_code'));
   if (error) throw isMissingRpcError(error) ? new FriendsUnavailableError(error) : error;
   return data as string;
 }
 
-export async function rotateFriendCode(currentUserEmail: string): Promise<string> {
-  await ensureSession(currentUserEmail);
-  const { data, error } = await supabase!.rpc('rotate_my_friend_code');
+export async function rotateFriendCode(currentUserEmail: string, accountSub?: string): Promise<string> {
+  const { data, error } = await withFriendSession(currentUserEmail, accountSub, async () => supabase!.rpc('rotate_my_friend_code'));
   if (error) throw isMissingRpcError(error) ? new FriendsUnavailableError(error) : error;
   return data as string;
 }
 
-export async function getFriendPendingCount(currentUserEmail: string): Promise<number> {
-  await ensureSession(currentUserEmail);
-  const { data, error } = await supabase!.rpc('get_friend_pending_count');
+export async function getFriendPendingCount(currentUserEmail: string, accountSub?: string): Promise<number> {
+  const { data, error } = await withFriendSession(currentUserEmail, accountSub, async () => supabase!.rpc('get_friend_pending_count'));
   if (error) throw isMissingRpcError(error) ? new FriendsUnavailableError(error) : error;
   return Math.max(0, Number(data) || 0);
 }
 
-export async function getFriendDashboard(currentUserEmail: string): Promise<RemoteFriendDashboardRow[]> {
-  await ensureSession(currentUserEmail);
-  const { data, error } = await supabase!.rpc('get_my_friend_dashboard');
+export async function getFriendDashboard(currentUserEmail: string, accountSub?: string): Promise<RemoteFriendDashboardRow[]> {
+  const { data, error } = await withFriendSession(currentUserEmail, accountSub, async () => supabase!.rpc('get_my_friend_dashboard'));
   if (error) throw isMissingRpcError(error) ? new FriendsUnavailableError(error) : error;
   return (data ?? []) as RemoteFriendDashboardRow[];
 }
 
-export async function getBlockedAccounts(currentUserEmail: string): Promise<RemoteBlockedAccountRow[]> {
-  await ensureSession(currentUserEmail);
-  const { data, error } = await supabase!.rpc('get_my_blocked_accounts');
+export async function getBlockedAccounts(currentUserEmail: string, accountSub?: string): Promise<RemoteBlockedAccountRow[]> {
+  const { data, error } = await withFriendSession(currentUserEmail, accountSub, async () => supabase!.rpc('get_my_blocked_accounts'));
   if (error) throw isMissingRpcError(error) ? new FriendsUnavailableError(error) : error;
   return (data ?? []) as RemoteBlockedAccountRow[];
 }
 
-export async function requestFriendByCode(currentUserEmail: string, code: string): Promise<FriendActionResult> {
+export async function requestFriendByCode(currentUserEmail: string, code: string, accountSub?: string): Promise<FriendActionResult> {
   try {
-    await ensureSession(currentUserEmail);
-    const { data, error } = await supabase!.rpc('request_friend_by_code', { p_code: code });
+    const { data, error } = await withFriendSession(currentUserEmail, accountSub, async () => supabase!.rpc('request_friend_by_code', { p_code: code }));
     if (error) throw error;
     const row = (data as { status: FriendMutationStatus; retry_after_seconds: number | null }[] | null)?.[0];
     if (!row) return { status: 'UNAVAILABLE', retryAfterSeconds: null };
@@ -93,10 +91,10 @@ async function callStatusRpc(
   fnName: 'respond_to_friend_request' | 'cancel_friend_request' | 'remove_friend' | 'block_friend' | 'unblock_friend',
   params: Record<string, string>,
   currentUserEmail: string,
+  accountSub?: string,
 ): Promise<FriendMutationStatus> {
   try {
-    await ensureSession(currentUserEmail);
-    const { data, error } = await supabase!.rpc(fnName, params);
+    const { data, error } = await withFriendSession(currentUserEmail, accountSub, async () => supabase!.rpc(fnName, params));
     if (error) throw error;
     const row = (data as { status: FriendMutationStatus }[] | null)?.[0];
     return row?.status ?? 'UNAVAILABLE';
@@ -107,22 +105,22 @@ async function callStatusRpc(
   }
 }
 
-export function respondToFriendRequest(currentUserEmail: string, requestId: string, action: 'accept' | 'reject'): Promise<FriendMutationStatus> {
-  return callStatusRpc('respond_to_friend_request', { p_request_id: requestId, p_action: action }, currentUserEmail);
+export function respondToFriendRequest(currentUserEmail: string, requestId: string, action: 'accept' | 'reject', accountSub?: string): Promise<FriendMutationStatus> {
+  return callStatusRpc('respond_to_friend_request', { p_request_id: requestId, p_action: action }, currentUserEmail, accountSub);
 }
 
-export function cancelFriendRequest(currentUserEmail: string, requestId: string): Promise<FriendMutationStatus> {
-  return callStatusRpc('cancel_friend_request', { p_request_id: requestId }, currentUserEmail);
+export function cancelFriendRequest(currentUserEmail: string, requestId: string, accountSub?: string): Promise<FriendMutationStatus> {
+  return callStatusRpc('cancel_friend_request', { p_request_id: requestId }, currentUserEmail, accountSub);
 }
 
-export function removeFriend(currentUserEmail: string, relationshipId: string): Promise<FriendMutationStatus> {
-  return callStatusRpc('remove_friend', { p_relationship_id: relationshipId }, currentUserEmail);
+export function removeFriend(currentUserEmail: string, relationshipId: string, accountSub?: string): Promise<FriendMutationStatus> {
+  return callStatusRpc('remove_friend', { p_relationship_id: relationshipId }, currentUserEmail, accountSub);
 }
 
-export function blockFriend(currentUserEmail: string, relationshipId: string): Promise<FriendMutationStatus> {
-  return callStatusRpc('block_friend', { p_relationship_id: relationshipId }, currentUserEmail);
+export function blockFriend(currentUserEmail: string, relationshipId: string, accountSub?: string): Promise<FriendMutationStatus> {
+  return callStatusRpc('block_friend', { p_relationship_id: relationshipId }, currentUserEmail, accountSub);
 }
 
-export function unblockFriend(currentUserEmail: string, relationshipId: string): Promise<FriendMutationStatus> {
-  return callStatusRpc('unblock_friend', { p_relationship_id: relationshipId }, currentUserEmail);
+export function unblockFriend(currentUserEmail: string, relationshipId: string, accountSub?: string): Promise<FriendMutationStatus> {
+  return callStatusRpc('unblock_friend', { p_relationship_id: relationshipId }, currentUserEmail, accountSub);
 }

@@ -593,9 +593,12 @@ const vi = {
   activityDuplicate: 'Hoạt động này đã tồn tại. Hãy dùng mục có sẵn thay vì tạo bản sao.',
 
   // SignInScreen errors
-  signInMissingInfo: 'Tài khoản Google thiếu thông tin (email hoặc tên).',
+  signInMissingInfo: 'Tài khoản Google thiếu thông tin xác thực cần thiết.',
   signInNoPlayServices: 'Google Play Services không khả dụng.',
   signInLibError: 'Không thể tải thư viện đăng nhập Google.',
+  signInFailed: 'Không thể hoàn tất đăng nhập Google. Hãy thử lại.',
+  signInLoading: 'Đang đăng nhập Google',
+  qaSandboxFailed: 'Không thể mở chế độ QA. Hãy thử lại.',
 
   // FundScreen freeze success
   freezeSuccess: '🧊 Chuỗi đã được bảo vệ!',
@@ -1534,9 +1537,12 @@ const en: typeof vi = {
   activityDuplicate: 'This activity already exists. Use the existing activity instead of creating a duplicate.',
 
   // SignInScreen errors
-  signInMissingInfo: 'Google account missing info (email/name).',
+  signInMissingInfo: 'Google account is missing required sign-in information.',
   signInNoPlayServices: 'Google Play Services not available.',
   signInLibError: 'Could not load Google sign-in library.',
+  signInFailed: "Couldn't complete Google sign-in. Please try again.",
+  signInLoading: 'Signing in with Google',
+  qaSandboxFailed: "Couldn't open QA mode. Please try again.",
 
   // FundScreen freeze success
   freezeSuccess: '🧊 Streak protected!',

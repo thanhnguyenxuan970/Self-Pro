@@ -526,7 +526,7 @@ export function useLogTask(userId: number) {
       // Fire-and-forget streak sync — non-fatal if Supabase absent or table not migrated
       getStoredGoogleUser()
         .then(user => user && Promise.all([
-          syncUserStreak(user.email, data.newStreak),
+          syncUserStreak(user.email, data.newStreak, user.sub),
           syncCurrentUserToSupabase(),
         ]))
         .then(() => {

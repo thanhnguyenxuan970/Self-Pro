@@ -6,10 +6,11 @@ import { GoogleUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useThemedScreenState } from '../hooks/useThemedScreenState';
 import { isQaSandboxBuildAvailable } from '../qa/qaSandbox';
+import { extractGoogleUser, isGoogleSignInCancelledResponse } from '../lib/googleAuth';
 
 type Props = {
   onSignIn: () => void;
-  onSignInWithGoogle: (user: GoogleUser, idToken?: string) => Promise<boolean>;
+  onSignInWithGoogle: (user: GoogleUser, idToken: string) => Promise<boolean>;
   onEnterQaSandbox: () => Promise<boolean>;
 };
 
@@ -59,16 +60,6 @@ function useSignInIntro(reduceMotion: boolean) {
   return { ringDraw, checkDraw, logoPop, markOpacity, contentRise };
 }
 
-// fallow-ignore-next-line complexity
-function extractGoogleUser(response: { data?: { user?: { email?: string; name?: string; id?: string; photo?: string | null }; idToken?: string | null } | null }) {
-  const user = response.data?.user;
-  if (!user?.email || !user?.name) return null;
-  return {
-    googleUser: { sub: user.id ?? '', email: user.email, name: user.name, picture: user.photo ?? '' },
-    idToken: response.data?.idToken ?? undefined,
-  };
-}
-
 export function SignInScreen({ onSignIn, onSignInWithGoogle, onEnterQaSandbox }: Props) {
   const { loading, setLoading, colors, t, reduceMotion, styles } = useThemedScreenState(makeStyles);
   const { ringDraw, checkDraw, logoPop, markOpacity, contentRise } = useSignInIntro(reduceMotion);
@@ -85,21 +76,30 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle, onEnterQaSandbox }:
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
-    // require() at call-time — avoids TurboModule registration race at bundle load
-    const { GoogleSignin, statusCodes } = require('@react-native-google-signin/google-signin');
+    let signInCancelledCode: string | undefined;
+    let playServicesUnavailableCode: string | undefined;
+    let googleModuleLoaded = false;
     try {
+      // require() at call-time — avoids TurboModule registration race at bundle load
+      const { GoogleSignin, statusCodes } = require('@react-native-google-signin/google-signin');
+      signInCancelledCode = statusCodes.SIGN_IN_CANCELLED;
+      playServicesUnavailableCode = statusCodes.PLAY_SERVICES_NOT_AVAILABLE;
+      googleModuleLoaded = true;
       GoogleSignin.configure({ webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID });
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       try { await GoogleSignin.signOut(); } catch { }
       const response = await GoogleSignin.signIn();
+      if (isGoogleSignInCancelledResponse(response)) return;
       const extracted = extractGoogleUser(response);
       if (!extracted) { Alert.alert(t.error, t.signInMissingInfo); return; }
       const isNew = await onSignInWithGoogle(extracted.googleUser, extracted.idToken);
       if (isNew) onSignIn();
     } catch (err: unknown) {
       const code = (err as { code?: string }).code;
-      if (code !== statusCodes.SIGN_IN_CANCELLED) {
-        Alert.alert(t.error, err instanceof Error ? err.message : String(err));
+      if (!googleModuleLoaded) {
+        Alert.alert(t.error, t.signInLibError);
+      } else if (code !== signInCancelledCode) {
+        Alert.alert(t.error, code === playServicesUnavailableCode ? t.signInNoPlayServices : t.signInFailed);
       }
     } finally {
       setLoading(false);
@@ -111,7 +111,7 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle, onEnterQaSandbox }:
     try {
       await onEnterQaSandbox();
     } catch (err: unknown) {
-      Alert.alert(t.error, err instanceof Error ? err.message : String(err));
+      Alert.alert(t.error, t.qaSandboxFailed);
     } finally {
       setLoading(false);
     }
@@ -145,7 +145,13 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle, onEnterQaSandbox }:
           <Text style={styles.title}>Hab<Text style={{ color: BRAND }}>i</Text></Text>
 
           {loading ? (
-            <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: Spacing.xl }} />
+            <ActivityIndicator
+              size="large"
+              color={colors.primary}
+              style={{ marginTop: Spacing.xl }}
+              accessibilityRole="progressbar"
+              accessibilityLabel={t.signInLoading}
+            />
           ) : (
             <TouchableOpacity
               style={styles.googleButton}

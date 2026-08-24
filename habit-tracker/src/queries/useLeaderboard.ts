@@ -3,6 +3,7 @@ import { supabase } from '../api/supabase';
 import { buildQaSandboxLeaderboard, isQaSandboxActive } from '../qa/qaSandbox';
 import { generatePlayerName } from '../config/playerNames';
 import type { AppLanguage } from '../config/i18n';
+import { withSupabaseSession } from '../api/syncService';
 
 export type LeaderboardEntry = {
   playerId: string;
@@ -225,6 +226,7 @@ export function useLeaderboard(
   playerLabel: string,
   lang: AppLanguage = 'vi',
   currentStars = 0,
+  currentUserGoogleSub: string | null = null,
 ) {
   const qaSandboxActive = isQaSandboxActive();
   const query = useQuery({
@@ -248,19 +250,16 @@ export function useLeaderboard(
       }
       if (!supabase || !currentUserEmail) return [];
 
-      // Supabase sessions are intentionally not persisted. Re-establish the
-      // short-lived authenticated session before the protected leaderboard RPC
-      // so returning users do not get a misleading network error.
-      const { ensureSupabaseSession } = await import('../api/syncService');
-      await ensureSupabaseSession(currentUserEmail);
+      return withSupabaseSession(currentUserEmail, currentUserGoogleSub ?? undefined, async () => {
+        // Best-effort: record this instant's rank so a visit ~7 days from now
+        // can show movement. Await it inside the session lease so the write
+        // cannot outlive the account that owns the token.
+        await Promise.resolve(supabase!.rpc('record_leaderboard_snapshot')).catch(() => {});
 
-      // Best-effort: record this instant's rank so a visit ~7 days from now
-      // can show movement. Never let this delay or fail the leaderboard load.
-      void Promise.resolve(supabase.rpc('record_leaderboard_snapshot')).catch(() => {});
-
-      const { data, error } = await supabase.rpc('get_global_leaderboard_v2', { p_limit: LEADERBOARD_TOP_LIMIT });
-      if (error) throw error;
-      return mapRemoteLeaderboardRows((data ?? []) as RemoteLeaderboardRow[], currentUserName, playerLabel, lang);
+        const { data, error } = await supabase!.rpc('get_global_leaderboard_v2', { p_limit: LEADERBOARD_TOP_LIMIT });
+        if (error) throw error;
+        return mapRemoteLeaderboardRows((data ?? []) as RemoteLeaderboardRow[], currentUserName, playerLabel, lang);
+      });
     },
   });
 

@@ -25,6 +25,7 @@ const ONBOARDED_KEY = 'habit_tracker_onboarded';
 // the loading spinner forever. Same pattern/timeout as feedbackService.ts's
 // SUBMIT_TIMEOUT_MS for the same class of "network call may hang" risk.
 const STARTUP_SESSION_RESTORE_TIMEOUT_MS = 15_000;
+const INTERACTIVE_GOOGLE_AUTH_TIMEOUT_MS = 15_000;
 
 export function parseOnboarded(val: string | null): boolean {
   return val === 'true';
@@ -37,8 +38,12 @@ export function getAuthStateAfterRestoreFailure(): { isOnboarded: false; googleU
 export async function restoreStoredGoogleSession(
   onboardedValue: string | null,
   userJson: string | null,
-  ensureSession: (email: string) => Promise<void>,
+  ensureSession: (email: string, googleSub?: string) => Promise<void>,
+  isActive: () => boolean = () => true,
 ): Promise<{ isOnboarded: boolean; googleUser: GoogleUser | null }> {
+  const assertActive = () => {
+    if (!isActive()) throw new Error('Startup session restore cancelled');
+  };
   const isOnboarded = parseOnboarded(onboardedValue);
   const googleUser = parseGoogleUser(userJson);
   if (!isOnboarded || !googleUser) return { isOnboarded, googleUser };
@@ -50,11 +55,14 @@ export async function restoreStoredGoogleSession(
   }
 
   setQaSandboxNetworkBlocked(false);
+  assertActive();
 
   try {
-    await ensureSession(googleUser.email);
+    await ensureSession(googleUser.email, googleUser.sub);
+    assertActive();
     return { isOnboarded, googleUser };
   } catch (error) {
+    assertActive();
     const code = error && typeof error === 'object' && 'code' in error
       ? (error as { code?: unknown }).code
       : undefined;
@@ -75,51 +83,73 @@ export async function resolveUserRow(
   db: SQLiteDatabase,
   googleSub: string,
   googleEmail: string,
+  isActive: () => boolean = () => true,
 ): Promise<{ id: number; isNew: boolean }> {
-  // Primary lookup: stable OIDC sub
-  const existing = await db.getFirstAsync<{ id: number }>(
-    'SELECT id FROM users WHERE google_sub = ?',
-    [googleSub]
-  );
-  if (existing) return { id: existing.id, isNew: false };
+  let resolved: { id: number; isNew: boolean } | null = null;
+  await db.withTransactionAsync(async () => {
+    if (!isActive()) throw new Error('Google sign-in cancelled');
 
-  // Migration: legacy install stored email in google_sub — upgrade in-place
-  const legacy = await db.getFirstAsync<{ id: number }>(
-    'SELECT id FROM users WHERE google_sub = ?',
-    [googleEmail]
-  );
-  if (legacy) {
-    await db.runAsync('UPDATE users SET google_sub = ? WHERE id = ?', [googleSub, legacy.id]);
-    return { id: legacy.id, isNew: false };
-  }
-
-  const claimed = await db.runAsync(
-    'UPDATE users SET google_sub = ? WHERE id = 1 AND google_sub IS NULL',
-    [googleSub]
-  );
-  if (claimed.changes > 0) return { id: 1, isNew: false };
-
-  // New account on this device — insert a fresh user row and seed their categories
-  const result = await db.runAsync(
-    `INSERT INTO users (username, timezone, carry_debt, currency, google_sub)
-     VALUES ('me', 'Asia/Ho_Chi_Minh', 0, 'VND', ?)`,
-    [googleSub]
-  );
-  const newUserId = result.lastInsertRowId;
-  const catSeed = [
-    ['Health', '🏃', 1],
-    ['Mind',   '🧠', 2],
-    ['Work',   '💼', 3],
-    ['Social', '👥', 4],
-    ['Other',  '⭐', 5],
-  ] as const;
-  for (const [name, icon, order] of catSeed) {
-    await db.runAsync(
-      'INSERT INTO categories (user_id, name, icon, sort_order) VALUES (?, ?, ?, ?)',
-      [newUserId, name, icon, order]
+    // Primary lookup: stable OIDC sub
+    const existing = await db.getFirstAsync<{ id: number }>(
+      'SELECT id FROM users WHERE google_sub = ?',
+      [googleSub]
     );
-  }
-  return { id: newUserId, isNew: true };
+    if (existing) {
+      resolved = { id: existing.id, isNew: false };
+      return;
+    }
+
+    // Migration: legacy install stored email in google_sub — upgrade in-place
+    const legacy = await db.getFirstAsync<{ id: number }>(
+      'SELECT id FROM users WHERE google_sub = ?',
+      [googleEmail]
+    );
+    if (legacy) {
+      if (!isActive()) throw new Error('Google sign-in cancelled');
+      await db.runAsync('UPDATE users SET google_sub = ? WHERE id = ?', [googleSub, legacy.id]);
+      resolved = { id: legacy.id, isNew: false };
+      return;
+    }
+
+    if (!isActive()) throw new Error('Google sign-in cancelled');
+    const claimed = await db.runAsync(
+      'UPDATE users SET google_sub = ? WHERE id = 1 AND google_sub IS NULL',
+      [googleSub]
+    );
+    if (claimed.changes > 0) {
+      resolved = { id: 1, isNew: false };
+      return;
+    }
+
+    // New account on this device — insert a fresh user row and seed their
+    // categories in the same SQLite transaction. A failed seed therefore
+    // rolls back the user row instead of leaving a retryable-looking partial
+    // account behind.
+    if (!isActive()) throw new Error('Google sign-in cancelled');
+    const result = await db.runAsync(
+      `INSERT INTO users (username, timezone, carry_debt, currency, google_sub)
+       VALUES ('me', 'Asia/Ho_Chi_Minh', 0, 'VND', ?)`,
+      [googleSub]
+    );
+    const newUserId = result.lastInsertRowId;
+    const catSeed = [
+      ['Health', '🏃', 1],
+      ['Mind',   '🧠', 2],
+      ['Work',   '💼', 3],
+      ['Social', '👥', 4],
+      ['Other',  '⭐', 5],
+    ] as const;
+    for (const [name, icon, order] of catSeed) {
+      if (!isActive()) throw new Error('Google sign-in cancelled');
+      await db.runAsync(
+        'INSERT INTO categories (user_id, name, icon, sort_order) VALUES (?, ?, ?, ?)',
+        [newUserId, name, icon, order]
+      );
+    }
+    resolved = { id: newUserId, isNew: true };
+  });
+  if (!resolved) throw new Error('Unable to resolve local Google account');
+  return resolved;
 }
 
 /**
@@ -198,6 +228,9 @@ export function useAuth() {
 
   useEffect(() => {
     let mounted = true;
+    let restoreActive = true;
+    let restoreTimeout: ReturnType<typeof setTimeout> | null = null;
+    let cancelSessionRestore: (() => void) | null = null;
     Promise.all([
       AsyncStorage.getItem(ONBOARDED_KEY),
       readGoogleUser(),
@@ -215,7 +248,7 @@ export function useAuth() {
         else setQaSandboxNetworkBlocked(false);
         let restored = { isOnboarded: parseOnboarded(onboarded), googleUser: storedUser };
 
-        if (restored.isOnboarded && storedUser && !isQaSandboxIdentity(storedUser)) {
+        if (restored.isOnboarded && storedUser && !isQaSandboxIdentity(storedUser) && restoreActive) {
           // require(), not `await import(...)`: a dynamic import of this module
           // hung indefinitely on startup in testing (never resolved, no error) --
           // matches this project's documented rule (see habit-tracker/AGENTS.md,
@@ -224,16 +257,29 @@ export function useAuth() {
           // additional defense-in-depth for GoogleSignin.signInSilently() itself,
           // which is a native-bridge call with no timeout of its own.
           // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { ensureSupabaseSession } = require('../api/syncService') as typeof import('../api/syncService');
-          restored = await Promise.race([
-            restoreStoredGoogleSession(onboarded, userJson, ensureSupabaseSession),
-            new Promise<never>((_, reject) => {
-              setTimeout(
-                () => reject(new Error('Startup session restore timed out')),
-                STARTUP_SESSION_RESTORE_TIMEOUT_MS,
-              );
-            }),
-          ]);
+          const { ensureSupabaseSession, cancelSupabaseSessionRestore } = require('../api/syncService') as typeof import('../api/syncService');
+          cancelSessionRestore = cancelSupabaseSessionRestore;
+          try {
+            restored = await Promise.race([
+              restoreStoredGoogleSession(
+                onboarded,
+                userJson,
+                (email, googleSub) => ensureSupabaseSession(email, () => restoreActive, googleSub),
+                () => restoreActive,
+              ),
+              new Promise<never>((_, reject) => {
+                restoreTimeout = setTimeout(() => {
+                  restoreActive = false;
+                  cancelSessionRestore?.();
+                  reject(new Error('Startup session restore timed out'));
+                }, STARTUP_SESSION_RESTORE_TIMEOUT_MS);
+              }),
+            ]);
+          } finally {
+            restoreActive = false;
+            cancelSessionRestore?.();
+            if (restoreTimeout) clearTimeout(restoreTimeout);
+          }
         }
 
         if (!restored.googleUser && storedUser) {
@@ -254,7 +300,12 @@ export function useAuth() {
         setGoogleUser(signedOut.googleUser);
       })
       .finally(() => { if (mounted) setIsLoading(false); });
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+      restoreActive = false;
+      cancelSessionRestore?.();
+      if (restoreTimeout) clearTimeout(restoreTimeout);
+    };
   }, []);
 
   const completeOnboarding = useCallback(async () => {
@@ -266,6 +317,11 @@ export function useAuth() {
     if (signInInFlight.current) return signInInFlight.current;
 
     const operation = (async (): Promise<boolean> => {
+    const remoteIdToken = typeof idToken === 'string' && idToken.trim() ? idToken.trim() : null;
+    if (!isQaSandboxIdentity(user)) {
+      if (typeof user.sub !== 'string' || !user.sub.trim()) throw new Error('Google account is missing a stable subject');
+      if (!remoteIdToken) throw new Error('Google ID token is required');
+    }
     const previousUser = await getStoredGoogleUser();
     let releasePreviousSync: (() => void) | null = null;
     if (isQaSandboxIdentity(user) && previousUser && !isQaSandboxIdentity(previousUser)) {
@@ -283,42 +339,77 @@ export function useAuth() {
       }
     }
 
+    let remoteAuthActive = true;
+    let remoteAuthTimeout: ReturnType<typeof setTimeout> | null = null;
+    let cancelSessionRestore: (() => void) | null = null;
+    let remoteSyncService: typeof import('../api/syncService') | null = null;
+    let remoteAuthDeadline: Promise<never> | null = null;
     try {
+    // Verify the provider token and its stable subject before touching SQLite.
+    // This prevents a rejected or mismatched token from claiming the anonymous
+    // row or creating an orphan local account.
+    if (!isQaSandboxIdentity(user)) {
+      if (!remoteIdToken) throw new Error('Google ID token is required');
+      const remoteAuthPromise = (async () => {
+        const syncService = await import('../api/syncService');
+        remoteSyncService = syncService;
+        cancelSessionRestore = syncService.cancelSupabaseSessionRestore;
+        if (!remoteAuthActive) {
+          cancelSessionRestore();
+          throw new Error('Google sign-in cancelled');
+        }
+        await syncService.signInWithGoogleToken(user.email, remoteIdToken, () => remoteAuthActive, user.sub);
+        if (!remoteAuthActive) throw new Error('Google sign-in cancelled');
+      })();
+      remoteAuthDeadline = new Promise<never>((_, reject) => {
+        remoteAuthTimeout = setTimeout(() => {
+          remoteAuthActive = false;
+          if (typeof cancelSessionRestore === 'function') cancelSessionRestore();
+          reject(new Error('Google sign-in timed out'));
+        }, INTERACTIVE_GOOGLE_AUTH_TIMEOUT_MS);
+      });
+      await Promise.race([remoteAuthPromise, remoteAuthDeadline]);
+    }
+
     // Resolve the local account before publishing the new identity to React or
     // secure storage. A failed lookup must not leave the app authenticated as
     // the new Google user while still pointing at the previous local user row.
-    let result: { id: number; isNew: boolean };
-    try {
-      const { getDb } = await import('../db/client');
-      const db = await getDb();
-      if (isQaSandboxIdentity(user)) {
-        if (!isQaSandboxBuildAvailable()) throw new Error('QA sandbox is unavailable in release builds');
-        setQaSandboxNetworkBlocked(true);
-        result = { id: await seedQaSandbox(db), isNew: false };
-        setQaSandboxNetworkBlocked(true);
-      } else {
+    const resolveLocalAccount = async (): Promise<{ id: number; isNew: boolean }> => {
+      try {
+        const { getDb } = await import('../db/client');
+        const db = await getDb();
+        if (isQaSandboxIdentity(user)) {
+          if (!isQaSandboxBuildAvailable()) throw new Error('QA sandbox is unavailable in release builds');
+          setQaSandboxNetworkBlocked(true);
+          const result = { id: await seedQaSandbox(db), isNew: false };
+          setQaSandboxNetworkBlocked(true);
+          return result;
+        }
         setQaSandboxNetworkBlocked(false);
-        result = await resolveUserRow(db, user.sub, user.email);
+        return resolveUserRow(db, user.sub, user.email, () => remoteAuthActive);
+      } catch (e) {
+        if (isQaSandboxIdentity(user)) setQaSandboxNetworkBlocked(false);
+        if (__DEV__) console.warn('[auth] resolveUserRow failed; sign-in aborted:', e);
+        throw e;
       }
-    } catch (e) {
-      if (isQaSandboxIdentity(user)) setQaSandboxNetworkBlocked(false);
-      if (__DEV__) console.warn('[auth] resolveUserRow failed; sign-in aborted:', e);
-      throw e;
-    }
+    };
+    // The interactive deadline covers local DB opening/seeding as well as the
+    // native/provider exchange. The loser may finish in the background, but
+    // resolveUserRow is fenced by remoteAuthActive and rolls back on timeout.
+    const result = remoteAuthDeadline
+      ? await Promise.race([resolveLocalAccount(), remoteAuthDeadline])
+      : await resolveLocalAccount();
 
-    // Establish the Supabase Auth session so RLS policies can verify identity,
-    // and -- before any screen renders for this user -- best-effort restore the
-    // current lifetime-star total Supabase derives for this account. Auth is
-    // fail-closed when Supabase is configured: publishing a local identity
-    // after a failed remote sign-in would leave later sync calls unauthenticated.
-    // Must run before the state setters below: a fresh local install (reinstall,
-    // new device, cleared app data) otherwise renders Home/Rank with a bare
-    // local total and nothing ever tells those screens to re-fetch once the
-    // restore lands, so the user would see stale progress rather than none.
-    if (idToken && !isQaSandboxIdentity(user)) {
-      const { signInWithGoogleToken, restoreLifetimeStarsFromSupabase } = await import('../api/syncService');
-      await signInWithGoogleToken(user.email, idToken);
-      await restoreLifetimeStarsFromSupabase(result.id, user.email);
+    // Restore the server-derived lifetime total before publishing the identity.
+    // A fresh local install otherwise renders Home/Rank with a bare local total
+    // and nothing tells those screens to re-fetch once the restore lands.
+    if (!isQaSandboxIdentity(user)) {
+      if (!remoteSyncService || !remoteAuthDeadline) throw new Error('Google sign-in session unavailable');
+      const syncService = remoteSyncService as typeof import('../api/syncService');
+      await Promise.race([
+        syncService.restoreLifetimeStarsFromSupabase(result.id, user.email, () => remoteAuthActive, user.sub),
+        remoteAuthDeadline,
+      ]);
     }
 
     await writeGoogleUser(JSON.stringify(user));
@@ -331,8 +422,12 @@ export function useAuth() {
 
     return result.isNew;
     } finally {
+      remoteAuthActive = false;
+      const cancel = cancelSessionRestore as (() => void) | null;
+      if (cancel) cancel();
+      if (remoteAuthTimeout) clearTimeout(remoteAuthTimeout);
       releasePreviousSync?.();
-    }
+  }
     })();
 
     signInInFlight.current = operation;
@@ -348,7 +443,7 @@ export function useAuth() {
     const { pauseAccountSync, resetSyncCursors, resetUserProgressInSupabase } = await import('../api/syncService');
     const releaseSync = storedUser ? await pauseAccountSync(storedUser.email) : null;
     try {
-      if (storedUser) await resetUserProgressInSupabase(storedUser.email);
+      if (storedUser) await resetUserProgressInSupabase(storedUser.email, storedUser.sub);
       const { getDb } = await import('../db/client');
       const db = await getDb();
       await cancelUserChallengeReminders(db, uid);
@@ -396,13 +491,13 @@ export function useAuth() {
     }
 
     // Purge remote Supabase data FIRST while the auth session is still active
-    const { deleteUserFromSupabase, pauseAccountSync, resetSyncCursors } = await import('../api/syncService');
+    const { deleteUserFromSupabase, pauseAccountSync, resetSyncCursors, signOutSupabaseSession } = await import('../api/syncService');
     const googleUserJson = await readGoogleUser();
     const gu = parseGoogleUser(googleUserJson);
     if (!gu) throw new Error('Cannot delete account without a signed-in Google identity');
     const releaseSync = await pauseAccountSync(gu.email);
     try {
-      await deleteUserFromSupabase(gu.email);
+      await deleteUserFromSupabase(gu.email, gu.sub);
       await resetSyncCursors();
       // Delete all local SQLite rows
       const { getDb } = await import('../db/client');
@@ -417,8 +512,7 @@ export function useAuth() {
       });
       // Sign out from Supabase Auth
       try {
-        const { supabase } = await import('../api/supabase');
-        if (supabase) await supabase.auth.signOut();
+        await signOutSupabaseSession();
       } catch { }
       // Revoke Google session
       try {
@@ -446,7 +540,7 @@ export function useAuth() {
       }
       return;
     }
-    const { pauseAccountSync, resetSyncCursors } = await import('../api/syncService');
+    const { pauseAccountSync, resetSyncCursors, signOutSupabaseSession } = await import('../api/syncService');
     const releaseSync = storedUser ? await pauseAccountSync(storedUser.email) : null;
     try {
       // Invalidate the App foreground reconciler before cancellation. The
@@ -470,8 +564,7 @@ export function useAuth() {
       // ignore — native sign-out failure doesn't affect local state
     }
     try {
-      const { supabase } = await import('../api/supabase');
-      if (supabase) await supabase.auth.signOut();
+      await signOutSupabaseSession();
     } catch { }
     try {
       const { resetSyncCursors } = await import('../api/syncService');

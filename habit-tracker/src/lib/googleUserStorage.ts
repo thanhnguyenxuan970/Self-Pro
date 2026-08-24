@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const GOOGLE_USER_KEY = 'habit_tracker_google_user';
+export const GOOGLE_PICTURE_PLACEHOLDER = 'habi://google-avatar-placeholder';
 
 // Guard: check native module registered BEFORE requiring the JS package.
 // Metro's guardedLoadModule intercepts throws from module factories before they
@@ -65,13 +66,21 @@ export function parseGoogleUser(val: string | null): GoogleUser | null {
   if (!val) return null;
   try {
     const parsed = JSON.parse(val);
-    if (typeof parsed?.email === 'string' && parsed.email.length > 0 &&
-        typeof parsed?.name === 'string' && parsed.name.length > 0 &&
-        typeof parsed?.picture === 'string' && parsed.picture.length > 0) {
-      // sub may be absent in legacy stored values; fall back to email so old sessions still work
-      return { sub: parsed.sub ?? parsed.email, ...parsed } as GoogleUser;
-    }
-    return null;
+    if (typeof parsed?.email !== 'string' || !parsed.email.trim()
+        || typeof parsed?.name !== 'string' || !parsed.name.trim()
+        || typeof parsed?.picture !== 'string' || !parsed.picture.length) return null;
+
+    // sub may be absent in legacy stored values; fall back to email so old
+    // sessions still work, but never accept an empty/non-string subject.
+    const sub = typeof parsed.sub === 'string' && parsed.sub.trim()
+      ? parsed.sub.trim()
+      : parsed.email.trim();
+    return {
+      sub,
+      email: parsed.email.trim(),
+      name: parsed.name.trim(),
+      picture: parsed.picture,
+    };
   } catch {
     return null;
   }

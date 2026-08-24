@@ -9,14 +9,29 @@ const mockFrom = jest.fn(() => ({ upsert: mockUpsert, delete: mockDelete }));
 const mockConfigure = jest.fn();
 const mockGetTokens = jest.fn();
 const mockSignInSilently = jest.fn();
+const mockSignOut = jest.fn().mockResolvedValue({ error: null });
 const mockGetDb = jest.fn();
 const mockStorageGetItem = jest.fn();
 const mockStorageSetItem = jest.fn();
 const mockStorageRemoveItem = jest.fn();
 
+const freshSession = (email: string, googleSub = 'google-sub') => ({
+  user: { email, identities: [{ provider: 'google', identity_data: { sub: googleSub } }] },
+  access_token: `cached-${email}`,
+  expires_at: Math.floor(Date.now() / 1000) + 300,
+});
+
+const successfulTokenResponse = (email = 'user@example.com', googleSub = 'google-sub') => ({
+  data: {
+    user: freshSession(email, googleSub).user,
+    session: freshSession(email, googleSub),
+  },
+  error: null,
+});
+
 jest.mock('../src/api/supabase', () => ({
   supabase: {
-    auth: { getSession: mockGetSession, signInWithIdToken: mockSignInWithIdToken },
+    auth: { getSession: mockGetSession, signInWithIdToken: mockSignInWithIdToken, signOut: mockSignOut },
     from: mockFrom,
     rpc: mockRpc,
   },
@@ -43,6 +58,7 @@ import {
   restoreLifetimeStarsFromSupabase,
   runAccountSync,
   signInWithGoogleToken,
+  cancelSupabaseSessionRestore,
   syncToSupabase,
   syncUserStreak,
 } from '../src/api/syncService';
@@ -174,16 +190,17 @@ describe('syncUserStreak', () => {
 
   it('does not upsert when Supabase has no authenticated session', async () => {
     mockGetSession.mockResolvedValue({ data: { session: null } });
+    mockSignInSilently.mockResolvedValue({ type: 'noSavedCredentialFound' });
 
-    await syncUserStreak('user@example.com', 7);
+    await expect(syncUserStreak('user@example.com', 7, 'google-sub')).rejects.toThrow('No saved Google credential');
 
     expect(mockFrom).not.toHaveBeenCalled();
   });
 
   it('syncs only after confirming an authenticated session', async () => {
-    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } } });
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') } });
 
-    await syncUserStreak('user@example.com', 7);
+    await syncUserStreak('user@example.com', 7, 'google-sub');
 
     expect(mockFrom).not.toHaveBeenCalled();
     expect(mockRpc).toHaveBeenCalledWith('sync_user_profile', { p_current_streak: 7 });
@@ -191,11 +208,11 @@ describe('syncUserStreak', () => {
 
   it('does not write streak data through a session belonging to another account', async () => {
     mockGetSession.mockResolvedValue({
-      data: { session: { user: { email: 'other@example.com' } } },
+      data: { session: freshSession('other@example.com') },
       error: null,
     });
 
-    await expect(syncUserStreak('user@example.com', 7)).rejects.toThrow('does not match');
+    await expect(syncUserStreak('user@example.com', 7, 'google-sub')).rejects.toThrow('does not match');
 
     expect(mockRpc).not.toHaveBeenCalled();
   });
@@ -210,10 +227,7 @@ describe('ensureSupabaseSession', () => {
     mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
     mockSignInSilently.mockResolvedValue({ type: 'success', data: {} });
     mockGetTokens.mockResolvedValue({ idToken: 'fresh-google-id-token' });
-    mockSignInWithIdToken.mockResolvedValue({
-      data: { user: { email: 'user@example.com' } },
-      error: null,
-    });
+    mockSignInWithIdToken.mockResolvedValue(successfulTokenResponse());
 
     await ensureSupabaseSession('user@example.com');
 
@@ -223,15 +237,20 @@ describe('ensureSupabaseSession', () => {
   });
 
   it('shares one in-flight Google silent sign-in across concurrent session requests', async () => {
-    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    let sessionReady = false;
+    mockGetSession.mockImplementation(async () => {
+      return sessionReady
+        ? { data: { session: freshSession('user@example.com') }, error: null }
+        : { data: { session: null }, error: null };
+    });
     let resolveSilent!: (value: { type: string; data?: unknown }) => void;
     mockSignInSilently.mockReturnValue(new Promise<{ type: string; data?: unknown }>((resolve) => {
       resolveSilent = resolve;
     }));
     mockGetTokens.mockResolvedValue({ idToken: 'fresh-google-id-token' });
-    mockSignInWithIdToken.mockResolvedValue({
-      data: { user: { email: 'user@example.com' } },
-      error: null,
+    mockSignInWithIdToken.mockImplementation(async () => {
+      sessionReady = true;
+      return successfulTokenResponse();
     });
 
     const firstRequest = ensureSupabaseSession('user@example.com');
@@ -246,6 +265,49 @@ describe('ensureSupabaseSession', () => {
     expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
   });
 
+  it('cancels a startup refresh before a late native response can exchange its token', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    let resolveSilent!: (value: { type: string; data?: unknown }) => void;
+    mockSignInSilently.mockReturnValue(new Promise<{ type: string; data?: unknown }>((resolve) => {
+      resolveSilent = resolve;
+    }));
+    mockGetTokens.mockResolvedValue({ idToken: 'late-google-token' });
+    let active = true;
+
+    const request = ensureSupabaseSession('user@example.com', () => active);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    active = false;
+    resolveSilent({ type: 'success', data: {} });
+
+    await expect(request).rejects.toThrow('cancelled');
+    expect(mockGetTokens).not.toHaveBeenCalled();
+    expect(mockSignInWithIdToken).not.toHaveBeenCalled();
+  });
+
+  it('evicts a canceled hung refresh so a later account can establish its own session', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    let resolveStaleSilent!: (value: { type: string; data?: unknown }) => void;
+    mockSignInSilently
+      .mockImplementationOnce(() => new Promise<{ type: string; data?: unknown }>((resolve) => {
+        resolveStaleSilent = resolve;
+      }))
+      .mockResolvedValueOnce({ type: 'success', data: {} });
+    mockGetTokens.mockResolvedValue({ idToken: 'fresh-google-token' });
+    mockSignInWithIdToken.mockResolvedValue(successfulTokenResponse('new@example.com'));
+    let active = true;
+
+    const stale = ensureSupabaseSession('old@example.com', () => active);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    active = false;
+    cancelSupabaseSessionRestore();
+
+    await expect(ensureSupabaseSession('new@example.com')).resolves.toBeUndefined();
+    expect(mockSignInSilently).toHaveBeenCalledTimes(2);
+
+    resolveStaleSilent({ type: 'success', data: {} });
+    await expect(stale).rejects.toThrow('cancelled');
+  });
+
   it('rejects when there is no saved Google credential to refresh', async () => {
     mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
     mockSignInSilently.mockResolvedValue({ type: 'noSavedCredentialFound' });
@@ -255,7 +317,7 @@ describe('ensureSupabaseSession', () => {
   });
 
   it('rejects a session for a different account before uploading rows', async () => {
-    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'other@example.com' } } }, error: null });
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('other@example.com') }, error: null });
 
     await expect(ensureSupabaseSession('user@example.com')).rejects.toThrow('does not match');
     expect(mockGetTokens).not.toHaveBeenCalled();
@@ -263,7 +325,7 @@ describe('ensureSupabaseSession', () => {
 
   it('accepts a session email that only differs in case or surrounding whitespace', async () => {
     mockGetSession.mockResolvedValue({
-      data: { session: { user: { email: 'User@Example.com  ' } } },
+      data: { session: freshSession('User@Example.com  ') },
       error: null,
     });
 
@@ -279,10 +341,7 @@ describe('ensureSupabaseSession', () => {
     });
     mockSignInSilently.mockResolvedValue({ type: 'success', data: {} });
     mockGetTokens.mockResolvedValue({ idToken: 'fresh-google-id-token' });
-    mockSignInWithIdToken.mockResolvedValue({
-      data: { user: { email: 'user@example.com' } },
-      error: null,
-    });
+    mockSignInWithIdToken.mockResolvedValue(successfulTokenResponse());
 
     await ensureSupabaseSession('user@example.com');
 
@@ -297,10 +356,7 @@ describe('ensureSupabaseSession', () => {
     });
     mockSignInSilently.mockResolvedValue({ type: 'success', data: {} });
     mockGetTokens.mockResolvedValue({ idToken: 'fresh-google-id-token' });
-    mockSignInWithIdToken.mockResolvedValue({
-      data: { user: { email: 'User@Example.com' } },
-      error: null,
-    });
+    mockSignInWithIdToken.mockResolvedValue(successfulTokenResponse('User@Example.com'));
 
     await expect(ensureSupabaseSession('user@example.com')).resolves.toBeUndefined();
   });
@@ -319,14 +375,14 @@ describe('signInWithGoogleToken', () => {
       data: {
         session: {
           user: { email: 'User@Example.com' },
+          access_token: 'cached-user-token',
           expires_at: Math.floor(Date.now() / 1000) + 300,
         },
       },
       error: null,
     });
     mockSignInWithIdToken.mockResolvedValue({
-      data: { user: { email: 'user@example.com' } },
-      error: null,
+      ...successfulTokenResponse(),
     });
 
     await signInWithGoogleToken('user@example.com', 'google-token');
@@ -334,32 +390,82 @@ describe('signInWithGoogleToken', () => {
     expect(mockSignInWithIdToken).not.toHaveBeenCalled();
   });
 
+  it('does not trust a matching session that has no expiry', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { email: 'user@example.com' } } },
+      error: null,
+    });
+    mockSignInWithIdToken.mockResolvedValue(successfulTokenResponse());
+
+    await expect(signInWithGoogleToken('user@example.com', 'google-token')).resolves.toBeUndefined();
+
+    expect(mockSignInWithIdToken).toHaveBeenCalledWith({ provider: 'google', token: 'google-token' });
+  });
+
+  it('fails closed when GoTrue returns a user without a usable session', async () => {
+    mockSignInWithIdToken.mockResolvedValue({
+      data: { user: { email: 'user@example.com' }, session: null },
+      error: null,
+    });
+
+    await expect(signInWithGoogleToken('user@example.com', 'google-token'))
+      .rejects.toThrow('usable session');
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it('treats the exact expiry-skew boundary as stale', async () => {
+    const now = 1_800_000_000_000;
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      mockGetSession.mockResolvedValue({
+        data: { session: { user: { email: 'user@example.com' }, expires_at: now / 1000 + 60 } },
+        error: null,
+      });
+      mockSignInWithIdToken.mockResolvedValue(successfulTokenResponse());
+
+      await expect(signInWithGoogleToken('user@example.com', 'google-token')).resolves.toBeUndefined();
+      expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   it('shares one GoTrue request between direct sign-in and concurrent rehydration', async () => {
-    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    let sessionReady = false;
+    mockGetSession.mockImplementation(async () => {
+      return sessionReady
+        ? { data: { session: freshSession('user@example.com') }, error: null }
+        : { data: { session: null }, error: null };
+    });
     let resolveSilent!: (value: { type: string; data?: unknown }) => void;
     mockSignInSilently.mockReturnValue(new Promise(resolve => { resolveSilent = resolve; }));
     mockGetTokens.mockResolvedValue({ idToken: 'google-token-2' });
 
-    let resolveRequest!: (value: { data: { user: { email: string } }; error: null }) => void;
-    mockSignInWithIdToken.mockReturnValue(new Promise(resolve => { resolveRequest = resolve; }));
+    let resolveRequest!: (value: ReturnType<typeof successfulTokenResponse>) => void;
+    mockSignInWithIdToken.mockReturnValue(new Promise(resolve => {
+      resolveRequest = value => {
+        sessionReady = true;
+        resolve(value);
+      };
+    }));
 
     const rehydration = ensureSupabaseSession('user@example.com');
-    await Promise.resolve();
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
     expect(mockSignInSilently).toHaveBeenCalledTimes(1);
 
     const directSignIn = signInWithGoogleToken('USER@example.com', 'google-token-1');
     resolveSilent({ type: 'success', data: {} });
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
 
     expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
-    resolveRequest({ data: { user: { email: 'user@example.com' } }, error: null });
+    resolveRequest(successfulTokenResponse());
     await expect(Promise.all([rehydration, directSignIn])).resolves.toEqual([undefined, undefined]);
   });
 
   it('retries a transient duplicate auth-user insert and then verifies the account email', async () => {
     mockSignInWithIdToken
       .mockResolvedValueOnce({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "users_email_partial_key"' } })
-      .mockResolvedValueOnce({ data: { user: { email: 'User@Example.com' } }, error: null });
+      .mockResolvedValueOnce(successfulTokenResponse('User@Example.com'));
 
     await expect(signInWithGoogleToken(' user@example.com ', 'google-token')).resolves.toBeUndefined();
     expect(mockSignInWithIdToken).toHaveBeenCalledTimes(2);
@@ -368,10 +474,145 @@ describe('signInWithGoogleToken', () => {
   it('retries one transient HTTP 500 from the auth exchange before succeeding', async () => {
     mockSignInWithIdToken
       .mockResolvedValueOnce({ data: null, error: { status: 500, code: 'unexpected_failure', message: 'Internal Server Error' } })
-      .mockResolvedValueOnce({ data: { user: { email: 'user@example.com' } }, error: null });
+      .mockResolvedValueOnce(successfulTokenResponse());
 
     await expect(signInWithGoogleToken('user@example.com', 'google-token')).resolves.toBeUndefined();
     expect(mockSignInWithIdToken).toHaveBeenCalledTimes(2);
+  });
+
+  it('lets a concurrent caller retry with a different token after the first exchange fails', async () => {
+    mockSignInWithIdToken
+      .mockResolvedValueOnce({ data: null, error: { status: 400, code: 'invalid_grant', message: 'Google token rejected' } })
+      .mockResolvedValueOnce(successfulTokenResponse());
+
+    const first = signInWithGoogleToken('user@example.com', 'stale-token');
+    const second = signInWithGoogleToken('user@example.com', 'fresh-token');
+
+    await expect(first).rejects.toMatchObject({ code: 'invalid_grant' });
+    await expect(second).resolves.toBeUndefined();
+    expect(mockSignInWithIdToken).toHaveBeenNthCalledWith(1, { provider: 'google', token: 'stale-token' });
+    expect(mockSignInWithIdToken).toHaveBeenNthCalledWith(2, { provider: 'google', token: 'fresh-token' });
+  });
+
+  it('does not reuse one concurrent exchange for a different Google subject', async () => {
+    mockSignInWithIdToken
+      .mockResolvedValueOnce(successfulTokenResponse('user@example.com', 'subject-one'))
+      .mockResolvedValueOnce(successfulTokenResponse('user@example.com', 'subject-two'));
+
+    await Promise.all([
+      signInWithGoogleToken('user@example.com', 'token-one', undefined, 'subject-one'),
+      signInWithGoogleToken('user@example.com', 'token-two', undefined, 'subject-two'),
+    ]);
+
+    expect(mockSignInWithIdToken).toHaveBeenNthCalledWith(1, { provider: 'google', token: 'token-one' });
+    expect(mockSignInWithIdToken).toHaveBeenNthCalledWith(2, { provider: 'google', token: 'token-two' });
+  });
+
+  it('rejects an empty Google ID token before calling Supabase', async () => {
+    await expect(signInWithGoogleToken('user@example.com', '  ')).rejects.toThrow('Google ID token is required');
+    expect(mockSignInWithIdToken).not.toHaveBeenCalled();
+  });
+
+  it('does not sign out a newer session when a canceled exchange finishes late', async () => {
+    let sessionRead = 0;
+    mockGetSession.mockImplementation(async () => {
+      sessionRead += 1;
+      return sessionRead === 3
+        ? { data: { session: { user: { email: 'user@example.com' }, access_token: 'fresh-access-token' } }, error: null }
+        : { data: { session: null }, error: null };
+    });
+    let resolveStaleRequest!: (value: { data: { user: { email: string }; session: { access_token: string; expires_at: number } }; error: null }) => void;
+    mockSignInWithIdToken
+      .mockImplementationOnce(() => new Promise(resolve => { resolveStaleRequest = resolve; }))
+      .mockResolvedValueOnce(successfulTokenResponse());
+    let active = true;
+
+    const stale = signInWithGoogleToken('user@example.com', 'same-token', () => active);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    active = false;
+    cancelSupabaseSessionRestore();
+    await expect(signInWithGoogleToken('user@example.com', 'same-token')).resolves.toBeUndefined();
+
+    resolveStaleRequest({
+      data: {
+        user: { email: 'user@example.com' },
+        session: { access_token: 'stale-access-token', expires_at: Math.floor(Date.now() / 1000) + 300 },
+      },
+      error: null,
+    });
+    await expect(stale).rejects.toThrow('cancelled');
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it('retries a same-token caller that joined before startup cancellation', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    let resolveStaleRequest!: (value: { data: { user: { email: string }; session: { access_token: string; expires_at: number } }; error: null }) => void;
+    mockSignInWithIdToken
+      .mockImplementationOnce(() => new Promise(resolve => { resolveStaleRequest = resolve; }))
+      .mockResolvedValueOnce(successfulTokenResponse());
+    let active = true;
+
+    const stale = signInWithGoogleToken('user@example.com', 'same-token', () => active);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    const live = signInWithGoogleToken('user@example.com', 'same-token');
+    active = false;
+    resolveStaleRequest({
+      data: {
+        user: { email: 'user@example.com' },
+        session: { access_token: 'stale-access-token', expires_at: Math.floor(Date.now() / 1000) + 300 },
+      },
+      error: null,
+    });
+
+    await expect(stale).rejects.toThrow('cancelled');
+    await expect(live).resolves.toBeUndefined();
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears a successful exchange when Supabase returns a different account', async () => {
+    mockGetSession
+      .mockResolvedValueOnce({ data: { session: null }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          session: {
+            user: { email: 'other@example.com' },
+            access_token: 'other-access-token',
+            expires_at: Math.floor(Date.now() / 1000) + 300,
+          },
+        },
+        error: null,
+      });
+    mockSignInWithIdToken.mockResolvedValue({
+      data: {
+        user: { email: 'other@example.com' },
+        session: {
+          access_token: 'other-access-token',
+          expires_at: Math.floor(Date.now() / 1000) + 300,
+        },
+      },
+      error: null,
+    });
+
+    await expect(signInWithGoogleToken('user@example.com', 'google-token'))
+      .rejects.toThrow('does not match');
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a token whose verified Google subject differs from the local profile', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    mockSignInWithIdToken.mockResolvedValue({
+      data: {
+        user: {
+          email: 'user@example.com',
+          identities: [{ provider: 'google', identity_data: { sub: 'verified-other-sub' } }],
+        },
+        session: { access_token: 'verified-other-token', expires_at: Math.floor(Date.now() / 1000) + 300 },
+      },
+      error: null,
+    });
+
+    await expect(signInWithGoogleToken('user@example.com', 'google-token', undefined, 'expected-sub'))
+      .rejects.toThrow('Google account');
   });
 
   it('surfaces non-race auth failures instead of publishing an unauthenticated local account', async () => {
@@ -389,7 +630,7 @@ describe('syncToSupabase', () => {
   });
 
   it('publishes streak freshness through the versioned profile RPC after activity sync', async () => {
-    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } }, error: null });
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
     mockStorageGetItem.mockResolvedValue(null);
     const writes: string[] = [];
     const db = {
@@ -432,7 +673,7 @@ describe('syncToSupabase', () => {
   });
 
   it('surfaces an activity_log upload failure instead of swallowing it', async () => {
-    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } }, error: null });
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
     mockStorageGetItem.mockResolvedValue(null);
     mockGetDb.mockResolvedValue({
       getFirstAsync: jest.fn().mockResolvedValue({ id: 1 }),
@@ -447,7 +688,7 @@ describe('syncToSupabase', () => {
   });
 
   it('re-uploads the signed-in user activity when the server rank total lags the local lifetime total', async () => {
-    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } }, error: null });
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
     mockStorageGetItem.mockResolvedValue(null);
     const activityRows = [
       { id: 1, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 275, source: 'TASK', logged_at: 1, local_date: '2026-08-10', week_start: '2026-08-10', note: null },
@@ -491,7 +732,7 @@ describe('syncToSupabase', () => {
   });
 
   it('pulls a higher server high-water total into local SQLite during normal sync', async () => {
-    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } }, error: null });
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
     mockStorageGetItem.mockResolvedValue(null);
     const userRow = { lifetime_stars: 43.4, current_tier_id: 4 as number | null };
     const tiers = [
@@ -533,7 +774,7 @@ describe('syncToSupabase', () => {
   });
 
   it('deletes already-uploaded twins of locally-deleted rows before uploading, then clears the queue', async () => {
-    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } }, error: null });
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
     mockStorageGetItem.mockImplementation(async (key: string) =>
       (key === 'pending_activity_deletes:1' ? JSON.stringify([55, 56]) : null));
     const db = {
@@ -564,7 +805,7 @@ describe('syncToSupabase', () => {
   });
 
   it('keeps the pending-delete queue when the remote delete fails, so the next sync retries it', async () => {
-    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } }, error: null });
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
     mockStorageGetItem.mockImplementation(async (key: string) =>
       (key === 'pending_activity_deletes:1' ? JSON.stringify([55]) : null));
     mockGetDb.mockResolvedValue({
@@ -590,7 +831,7 @@ describe('restoreLifetimeStarsFromSupabase', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetSession.mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } }, error: null });
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
   });
 
   it('pulls a higher server total down into local SQLite and advances the tier to match', async () => {

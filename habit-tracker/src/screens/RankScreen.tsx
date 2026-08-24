@@ -97,6 +97,7 @@ export function RankScreen({ qaBannerVisible = false }: { qaBannerVisible?: bool
     t.leaderboardPlayer,
     lang,
     data?.currentStars ?? 0,
+    googleUser?.sub ?? null,
   );
 
   const currentUserEntry: LBEntry = useMemo(() => ({

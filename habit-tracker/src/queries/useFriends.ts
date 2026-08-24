@@ -46,7 +46,7 @@ export function useFriendPendingCount(currentUserEmail: string | null, accountSu
     enabled: !isQaSandboxActive() && !!supabase && !!currentUserEmail && !!accountSub,
     staleTime: 60_000,
     retry: false,
-    queryFn: () => getFriendPendingCount(currentUserEmail!),
+    queryFn: () => getFriendPendingCount(currentUserEmail!, accountSub!),
   });
 }
 
@@ -61,7 +61,7 @@ export function useFriendDashboard(currentUserEmail: string | null, accountSub: 
     enabled: enabled && !isQaSandboxActive() && !!supabase && !!currentUserEmail && !!accountSub,
     staleTime: 30_000,
     retry: false,
-    queryFn: async () => mapFriendDashboardRows(await getFriendDashboard(currentUserEmail!), fallbackPlayerLabel),
+    queryFn: async () => mapFriendDashboardRows(await getFriendDashboard(currentUserEmail!, accountSub!), fallbackPlayerLabel),
   });
   return { ...query, isUnavailable: query.error instanceof FriendsUnavailableError };
 }
@@ -72,7 +72,7 @@ export function useFriendCode(currentUserEmail: string | null, accountSub: strin
     enabled: enabled && !isQaSandboxActive() && !!supabase && !!currentUserEmail && !!accountSub,
     staleTime: Infinity,
     retry: false,
-    queryFn: () => getOrCreateFriendCode(currentUserEmail!),
+    queryFn: () => getOrCreateFriendCode(currentUserEmail!, accountSub!),
   });
   return { ...query, isUnavailable: query.error instanceof FriendsUnavailableError };
 }
@@ -83,7 +83,7 @@ export function useBlockedAccounts(currentUserEmail: string | null, accountSub: 
     enabled: enabled && !isQaSandboxActive() && !!supabase && !!currentUserEmail && !!accountSub,
     staleTime: 30_000,
     retry: false,
-    queryFn: () => getBlockedAccounts(currentUserEmail!),
+    queryFn: () => getBlockedAccounts(currentUserEmail!, accountSub!),
   });
   return { ...query, isUnavailable: query.error instanceof FriendsUnavailableError };
 }
@@ -100,7 +100,7 @@ function invalidateDashboardAndPendingCount(qc: ReturnType<typeof useQueryClient
 export function useRequestFriendByCode(currentUserEmail: string | null, accountSub: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (code: string) => requestFriendByCode(currentUserEmail!, code),
+    mutationFn: (code: string) => requestFriendByCode(currentUserEmail!, code, accountSub),
     onSuccess: result => {
       if (result.status === 'PENDING' || result.status === 'ACCEPTED') {
         invalidateDashboardAndPendingCount(qc, accountSub);
@@ -112,7 +112,7 @@ export function useRequestFriendByCode(currentUserEmail: string | null, accountS
 export function useRespondToFriendRequest(currentUserEmail: string | null, accountSub: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { requestId: string; action: 'accept' | 'reject' }) => respondToFriendRequest(currentUserEmail!, input.requestId, input.action),
+    mutationFn: (input: { requestId: string; action: 'accept' | 'reject' }) => respondToFriendRequest(currentUserEmail!, input.requestId, input.action, accountSub),
     onSuccess: status => {
       if (status === 'OK') invalidateDashboardAndPendingCount(qc, accountSub);
     },
@@ -122,7 +122,7 @@ export function useRespondToFriendRequest(currentUserEmail: string | null, accou
 export function useCancelFriendRequest(currentUserEmail: string | null, accountSub: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (requestId: string) => cancelFriendRequest(currentUserEmail!, requestId),
+    mutationFn: (requestId: string) => cancelFriendRequest(currentUserEmail!, requestId, accountSub),
     onSuccess: status => {
       if (status === 'OK') invalidateDashboardAndPendingCount(qc, accountSub);
     },
@@ -132,7 +132,7 @@ export function useCancelFriendRequest(currentUserEmail: string | null, accountS
 export function useRemoveFriend(currentUserEmail: string | null, accountSub: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (relationshipId: string) => removeFriend(currentUserEmail!, relationshipId),
+    mutationFn: (relationshipId: string) => removeFriend(currentUserEmail!, relationshipId, accountSub),
     onSuccess: status => {
       if (status === 'OK') invalidateDashboardAndPendingCount(qc, accountSub);
     },
@@ -142,7 +142,7 @@ export function useRemoveFriend(currentUserEmail: string | null, accountSub: str
 export function useBlockFriend(currentUserEmail: string | null, accountSub: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (relationshipId: string) => blockFriend(currentUserEmail!, relationshipId),
+    mutationFn: (relationshipId: string) => blockFriend(currentUserEmail!, relationshipId, accountSub),
     onSuccess: status => {
       if (status === 'OK') {
         invalidateDashboardAndPendingCount(qc, accountSub);
@@ -158,7 +158,7 @@ export function useBlockFriend(currentUserEmail: string | null, accountSub: stri
 export function useUnblockFriend(currentUserEmail: string | null, accountSub: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (relationshipId: string) => unblockFriend(currentUserEmail!, relationshipId),
+    mutationFn: (relationshipId: string) => unblockFriend(currentUserEmail!, relationshipId, accountSub),
     onSuccess: status => {
       if (status === 'OK') qc.invalidateQueries({ queryKey: friendKeys.blockedAccounts(accountSub) });
     },
@@ -168,7 +168,7 @@ export function useUnblockFriend(currentUserEmail: string | null, accountSub: st
 export function useRotateFriendCode(currentUserEmail: string | null, accountSub: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => rotateFriendCode(currentUserEmail!),
+    mutationFn: () => rotateFriendCode(currentUserEmail!, accountSub),
     onSuccess: () => qc.invalidateQueries({ queryKey: friendKeys.code(accountSub) }),
   });
 }

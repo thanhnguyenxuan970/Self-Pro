@@ -7,18 +7,19 @@ jest.mock('../src/api/supabase', () => ({
 }));
 
 jest.mock('../src/api/syncService', () => ({
-  ensureSupabaseSession: jest.fn(),
+  withSupabaseSession: jest.fn(async (_email: string, _sub: string | undefined, operation: () => Promise<unknown>) => operation()),
 }));
 
 import { aggregateLifetimeStarsByPlayerId, buildRankedLeaderboard, capLeaderboardRows, hasRankGapBefore, initialsForName, mapRemoteLeaderboardRows, useLeaderboard } from '../src/queries/useLeaderboard';
 import { setQaSandboxNetworkBlocked } from '../src/qa/qaSandbox';
 
 const mockSupabase = jest.requireMock('../src/api/supabase') as { supabase: { rpc: jest.Mock } };
-const mockSyncService = jest.requireMock('../src/api/syncService') as { ensureSupabaseSession: jest.Mock };
+const mockSyncService = jest.requireMock('../src/api/syncService') as { withSupabaseSession: jest.Mock };
 
 beforeEach(() => {
   mockSupabase.supabase.rpc.mockReset();
-  mockSyncService.ensureSupabaseSession.mockReset();
+  mockSyncService.withSupabaseSession.mockReset();
+  mockSyncService.withSupabaseSession.mockImplementation(async (_email: string, _sub: string | undefined, operation: () => Promise<unknown>) => operation());
 });
 
 test('leaderboard reads each user lifetime_stars value without summing activity rows', () => {
@@ -100,7 +101,7 @@ test('normalizes malformed remote rows without leaking identity or negative valu
 });
 
 test('establishes the authenticated Supabase session before loading global rows', async () => {
-  mockSyncService.ensureSupabaseSession.mockResolvedValue(undefined);
+  mockSyncService.withSupabaseSession.mockImplementation(async (_email: string, _sub: string | undefined, operation: () => Promise<unknown>) => operation());
   mockSupabase.supabase.rpc.mockResolvedValue({ data: [], error: null });
 
   const query = useLeaderboard('me@example.com', 'Thanh', 'Player') as unknown as {
@@ -108,12 +109,12 @@ test('establishes the authenticated Supabase session before loading global rows'
   };
   await query.queryFn();
 
-  expect(mockSyncService.ensureSupabaseSession).toHaveBeenCalledWith('me@example.com');
+  expect(mockSyncService.withSupabaseSession).toHaveBeenCalledWith('me@example.com', undefined, expect.any(Function));
   expect(mockSupabase.supabase.rpc).toHaveBeenCalledWith('get_global_leaderboard_v2', { p_limit: 50 });
 });
 
 test('records this visit as a rank snapshot, best-effort, without blocking or failing the load', async () => {
-  mockSyncService.ensureSupabaseSession.mockResolvedValue(undefined);
+  mockSyncService.withSupabaseSession.mockImplementation(async (_email: string, _sub: string | undefined, operation: () => Promise<unknown>) => operation());
   mockSupabase.supabase.rpc.mockImplementation((fn: string) =>
     fn === 'record_leaderboard_snapshot'
       ? Promise.reject(new Error('snapshot write failed'))
@@ -142,7 +143,7 @@ test('QA sandbox renders an in-memory board without restoring a session or calli
     expect(query.isUnavailable).toBe(false);
     expect(rows).toHaveLength(21);
     expect(rows.find(row => row.isCurrentUser)).toMatchObject({ playerId: 'qa-sandbox-local-v1', rank: 15, lifetimeStars: 419 });
-    expect(mockSyncService.ensureSupabaseSession).not.toHaveBeenCalled();
+    expect(mockSyncService.withSupabaseSession).not.toHaveBeenCalled();
     expect(mockSupabase.supabase.rpc).not.toHaveBeenCalled();
   } finally {
     setQaSandboxNetworkBlocked(false);
@@ -151,7 +152,7 @@ test('QA sandbox renders an in-memory board without restoring a session or calli
 
 test('does not call the RPC when session restoration fails', async () => {
   const failure = new Error('session expired');
-  mockSyncService.ensureSupabaseSession.mockRejectedValue(failure);
+  mockSyncService.withSupabaseSession.mockRejectedValue(failure);
 
   const query = useLeaderboard('me@example.com', 'Thanh', 'Player') as unknown as {
     queryFn: () => Promise<unknown>;

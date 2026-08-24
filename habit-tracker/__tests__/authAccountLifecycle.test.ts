@@ -33,7 +33,8 @@ function createMockDb(config: {
     // 1st call = lookup by google_sub, 2nd call = lookup by legacy email-as-sub
     return getFirstCallCount === 1 ? (config.bySubResult ?? null) : (config.byEmailResult ?? null);
   });
-  return { runAsync, getFirstAsync } as unknown as SQLiteDatabase;
+  const withTransactionAsync = jest.fn(async (callback: () => Promise<void>) => callback());
+  return { runAsync, getFirstAsync, withTransactionAsync } as unknown as SQLiteDatabase;
 }
 
 describe('resolveUserRow', () => {
@@ -64,6 +65,7 @@ describe('resolveUserRow', () => {
     const categoryInserts = (db.runAsync as jest.Mock).mock.calls.filter(([sql]) =>
       typeof sql === 'string' && sql.includes('INSERT INTO categories'));
     expect(categoryInserts).toHaveLength(5);
+    expect(db.withTransactionAsync).toHaveBeenCalledTimes(1);
   });
 });
 
