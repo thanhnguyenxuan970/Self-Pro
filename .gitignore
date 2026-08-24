@@ -8,6 +8,10 @@ AGENTS.override.md
 .codex-log/
 .codex/*.local.toml
 
+# Android QA raw logcat scratch files (keep device data out of the repository)
+/.audit/*.log
+/.audit/**/*.log
+
 # JVM crash dumps
 hs_err_pid*.log
 replay_pid*.log

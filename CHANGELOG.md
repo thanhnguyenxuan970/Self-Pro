@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Fixed
 - **Timezone-aware growth audit queries**: absolute timestamps and date calculations now use each user's validated profile timezone, with UTC fallback, instead of a fixed `Asia/Ho_Chi_Minh` timezone.
+- **QA artifact privacy**: raw Android logcat files are no longer tracked; root `.audit/` log output is ignored to prevent device identifiers and internal runtime details from entering future pushes while keeping sanitized screenshot/XML evidence available.
 
 ## [2.0.3.0] - 2026-08-18
 
