@@ -37,7 +37,8 @@ class AccountSyncInvalidatedError extends Error {
 const accountSyncGates = new Map<string, AccountSyncGate>();
 
 function getAccountSyncGate(accountKey: string): AccountSyncGate {
-  const existing = accountSyncGates.get(accountKey);
+  const canonicalAccountKey = normalizedAccountEmail(accountKey);
+  const existing = accountSyncGates.get(canonicalAccountKey);
   if (existing) return existing;
 
   const gate: AccountSyncGate = {
@@ -48,7 +49,7 @@ function getAccountSyncGate(accountKey: string): AccountSyncGate {
     resume: Promise.resolve(),
     releaseResume: () => undefined,
   };
-  accountSyncGates.set(accountKey, gate);
+  accountSyncGates.set(canonicalAccountKey, gate);
   return gate;
 }
 
@@ -150,7 +151,7 @@ async function resolveUserId(db: SQLiteDatabase, userSub: string, userEmail: str
   if (bySub) return bySub.id;
   // Legacy rows (pre-M3 migration) store email in google_sub
   const byEmail = await db.getFirstAsync<{ id: number }>(
-    'SELECT id FROM users WHERE google_sub = ?',
+    'SELECT id FROM users WHERE LOWER(TRIM(google_sub)) = LOWER(TRIM(?))',
     [userEmail]
   );
   return byEmail?.id ?? null;
@@ -399,7 +400,7 @@ let inFlightGoogleTokenSignIn: {
   expectedGoogleSub: ExpectedGoogleSubject;
   promise: Promise<void>;
   isActive: SessionActivityGuard;
-  releaseSessionOperation?: () => void;
+  isExecuting: () => boolean;
 } | null = null;
 
 // Supabase keeps one process-wide auth session. Serialize session-changing
@@ -411,9 +412,13 @@ async function withSessionOperation<T>(
   operation: () => Promise<T>,
   onReleaseAvailable?: (release: () => void) => void,
 ): Promise<T> {
+  let acquired = false;
   let released = false;
   const release = () => {
-    if (released) return;
+    // A queued operation cannot release its tail yet: doing so would let a
+    // later caller swap Supabase's process-global session while the previous
+    // operation still owns the session lease.
+    if (released || !acquired) return;
     released = true;
     releaseTail();
   };
@@ -422,6 +427,7 @@ async function withSessionOperation<T>(
   sessionOperationTail = new Promise<void>(resolve => { releaseTail = resolve; });
   onReleaseAvailable?.(release);
   await previous;
+  acquired = true;
   try {
     return await operation();
   } finally {
@@ -513,9 +519,13 @@ type TokenExchangeResult = {
   refreshToken: string | null;
 };
 
-async function signInWithGoogleTokenRequest(idToken: string): Promise<TokenExchangeResult> {
+async function signInWithGoogleTokenRequest(
+  idToken: string,
+  isActive: SessionActivityGuard = alwaysActive,
+): Promise<TokenExchangeResult> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    assertSessionActive(isActive);
     const { data, error } = await supabase!.auth.signInWithIdToken({ provider: 'google', token: idToken });
     if (!error) {
       const accessToken = data?.session?.access_token;
@@ -540,7 +550,10 @@ async function signInWithGoogleTokenRequest(idToken: string): Promise<TokenExcha
     }
 
     lastError = error;
-    if (attempt === 0 && isRetryableAuthExchangeError(error)) continue;
+    if (attempt === 0 && isRetryableAuthExchangeError(error)) {
+      assertSessionActive(isActive);
+      continue;
+    }
     throw error;
   }
 
@@ -602,7 +615,9 @@ function signInWithGoogleTokenInternal(
   let active = inFlightGoogleTokenSignIn;
   if (active && normalizedAccountEmail(active.userEmail) === accountKey) {
     if (!active.isActive()) {
-      active.releaseSessionOperation?.();
+      // The exchange may still be awaiting GoTrue and can mutate the global
+      // Supabase session after cancellation. Let its operation settle before
+      // a replacement caller acquires the session lease.
       inFlightGoogleTokenSignIn = null;
       active = null;
     }
@@ -624,50 +639,56 @@ function signInWithGoogleTokenInternal(
   }
 
   const waitForPrevious = active?.promise.catch(() => undefined) ?? Promise.resolve();
-  const operation = waitForPrevious
-    .then(async () => {
-      assertSessionActive(isActive);
-      const { data: { session }, error: sessionError } = await supabase!.auth.getSession();
-      if (sessionError) throw sessionError;
-      assertSessionActive(isActive);
-      if (hasFreshSessionForAccount(session, userEmail, expectedGoogleSub)) return;
-      let exchangeCompleted = false;
-      let exchangeAccessToken: string | null = null;
-      let exchangeRefreshToken: string | null = null;
-      let cleanupRequired = false;
-      try {
-        const exchange = await signInWithGoogleTokenRequest(idToken);
-        exchangeCompleted = true;
-        exchangeAccessToken = exchange.accessToken;
-        exchangeRefreshToken = exchange.refreshToken;
-        if (normalizedAccountEmail(exchange.returnedEmail) !== normalizedAccountEmail(userEmail)) {
-          cleanupRequired = true;
-          throw new Error('Google token does not match the signed-in user');
-        }
-        if (normalizedSubject && exchange.returnedGoogleSub !== normalizedSubject) {
-          cleanupRequired = true;
-          throw new Error('Google token does not match the signed-in Google account');
-        }
-        assertSessionActive(isActive);
-        if (exchangeAccessToken && exchangeRefreshToken) {
-          lastAcceptedGoogleSession = {
-            accessToken: exchangeAccessToken,
-            refreshToken: exchangeRefreshToken,
-            email: normalizedAccountEmail(userEmail),
-          };
-        }
-      } catch (error) {
-        if (exchangeCompleted && (cleanupRequired || !isActive())) {
-          await clearSupabaseSessionForAccount(exchangeAccessToken);
-        }
-        throw error;
+  const operation = async (): Promise<void> => {
+    await waitForPrevious;
+    assertSessionActive(isActive);
+    const { data: { session }, error: sessionError } = await supabase!.auth.getSession();
+    if (sessionError) throw sessionError;
+    assertSessionActive(isActive);
+    if (hasFreshSessionForAccount(session, userEmail, expectedGoogleSub)) return;
+    let exchangeCompleted = false;
+    let exchangeAccessToken: string | null = null;
+    let exchangeRefreshToken: string | null = null;
+    let cleanupRequired = false;
+    try {
+      const exchange = await signInWithGoogleTokenRequest(idToken, isActive);
+      exchangeCompleted = true;
+      exchangeAccessToken = exchange.accessToken;
+      exchangeRefreshToken = exchange.refreshToken;
+      if (normalizedAccountEmail(exchange.returnedEmail) !== normalizedAccountEmail(userEmail)) {
+        cleanupRequired = true;
+        throw new Error('Google token does not match the signed-in user');
       }
-    });
-  let trackedPromise!: Promise<void>;
-  let releaseSessionOperation: (() => void) | undefined;
-  const sessionOperation = lockSession
-    ? withSessionOperation(() => operation, release => { releaseSessionOperation = release; })
+      if (normalizedSubject && exchange.returnedGoogleSub !== normalizedSubject) {
+        cleanupRequired = true;
+        throw new Error('Google token does not match the signed-in Google account');
+      }
+      assertSessionActive(isActive);
+      if (exchangeAccessToken && exchangeRefreshToken) {
+        lastAcceptedGoogleSession = {
+          accessToken: exchangeAccessToken,
+          refreshToken: exchangeRefreshToken,
+          email: normalizedAccountEmail(userEmail),
+        };
+      }
+    } catch (error) {
+      if (exchangeCompleted && (cleanupRequired || !isActive())) {
+        await clearSupabaseSessionForAccount(exchangeAccessToken);
+      }
+      throw error;
+    }
+  };
+  let exchangeExecuting = !lockSession;
+  const leasedOperation = lockSession
+    ? async (): Promise<void> => {
+      exchangeExecuting = true;
+      await operation();
+    }
     : operation;
+  let trackedPromise!: Promise<void>;
+  const sessionOperation = lockSession
+    ? withSessionOperation(leasedOperation)
+    : leasedOperation();
   trackedPromise = sessionOperation
     .finally(() => {
       if (inFlightGoogleTokenSignIn?.promise === trackedPromise) {
@@ -680,7 +701,7 @@ function signInWithGoogleTokenInternal(
     expectedGoogleSub: normalizedSubject,
     promise: trackedPromise,
     isActive,
-    releaseSessionOperation,
+    isExecuting: () => exchangeExecuting,
   };
   return trackedPromise;
 }
@@ -773,12 +794,17 @@ function refreshSupabaseSessionOnce(
 
 /** Evict canceled native-auth gates so a later attempt cannot inherit stale work. */
 export function cancelSupabaseSessionRestore(): void {
+  // A Google token exchange can still mutate Supabase's global session after
+  // its caller is canceled. Keep the lease until that request settles; only a
+  // native refresh that has not reached the exchange may release early.
+  const googleExchangeInFlight = inFlightGoogleTokenSignIn?.isExecuting() ?? false;
   if (inFlightSessionRefresh && !inFlightSessionRefresh.isActive()) {
-    inFlightSessionRefresh.releaseSessionOperation?.();
+    if (!googleExchangeInFlight) {
+      inFlightSessionRefresh.releaseSessionOperation?.();
+    }
     inFlightSessionRefresh = null;
   }
   if (inFlightGoogleTokenSignIn && !inFlightGoogleTokenSignIn.isActive()) {
-    inFlightGoogleTokenSignIn.releaseSessionOperation?.();
     inFlightGoogleTokenSignIn = null;
   }
 }
@@ -901,20 +927,24 @@ export async function signOutSupabaseSession(): Promise<void> {
  */
 export async function syncToSupabase(userSub: string, userEmail: string): Promise<void> {
   if (isQaSandboxActive() || !supabase) return;
-  await runAccountSync(userEmail, async (assertActive) => {
+  const canonicalEmail = normalizedAccountEmail(userEmail);
+  await runAccountSync(canonicalEmail, async (assertActive) => {
     const sessionActive: SessionActivityGuard = () => {
       assertActive();
       return true;
     };
-    await withSupabaseSession(userEmail, userSub, async () => {
+    await withSupabaseSession(canonicalEmail, userSub, async () => {
       assertActive();
       const db = await getDb();
+      // Keep the original stored email for legacy local rows whose
+      // pre-migration google_sub value was email-cased; the remote ownership
+      // key below remains canonical.
       const userId = await resolveUserId(db, userSub, userEmail);
       if (userId == null) return;
-      await syncPendingActivityDeletes(userId, userEmail, assertActive);
+      await syncPendingActivityDeletes(userId, canonicalEmail, assertActive);
       await Promise.all([
-        syncActivity(db, userId, userEmail, assertActive),
-        syncFund(db, userId, userEmail, assertActive),
+        syncActivity(db, userId, canonicalEmail, assertActive),
+        syncFund(db, userId, canonicalEmail, assertActive),
       ]);
       // Publish the local social projection only after activity upload so remote
       // progress and freshness converge within this serialized account sync.
@@ -926,7 +956,7 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
         // Re-upload only this caller's append-only local source of truth, then
         // let the protected RPC recalculate rank; no client total is written to
         // `public.users`, and no other account's rows are touched.
-        await syncActivity(db, userId, userEmail, assertActive, true);
+        await syncActivity(db, userId, canonicalEmail, assertActive, true);
         remoteStars = await syncLifetimeStars(assertActive);
       }
       // A returning device can be behind even after its local rows are fully

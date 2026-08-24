@@ -181,6 +181,32 @@ describe('account sync gate', () => {
     });
     expect(writes).toEqual(['in-flight', 'after-release']);
   });
+
+  it('uses one gate for case-folded account emails', async () => {
+    let finishWork!: () => void;
+    let started!: () => void;
+    const workStarted = new Promise<void>(resolve => { started = resolve; });
+    const workFinishes = new Promise<void>(resolve => { finishWork = resolve; });
+
+    const inFlight = runAccountSync('User@Example.com', async () => {
+      started();
+      await workFinishes;
+    });
+    await workStarted;
+
+    let paused = false;
+    const pause = pauseAccountSync(' user@example.com ').then(release => {
+      paused = true;
+      return release;
+    });
+    await Promise.resolve();
+    expect(paused).toBe(false);
+
+    finishWork();
+    const release = await pause;
+    await inFlight;
+    release();
+  });
 });
 
 describe('syncUserStreak', () => {
@@ -370,6 +396,35 @@ describe('signInWithGoogleToken', () => {
     jest.clearAllMocks();
   });
 
+  it('does not release a queued canceled exchange before the prior session operation finishes', async () => {
+    let resolveFirstExchange!: (value: unknown) => void;
+    mockSignInWithIdToken.mockImplementation(({ token }: { token: string }) => {
+      if (token === 'first-token') {
+        return new Promise(resolve => { resolveFirstExchange = resolve; });
+      }
+      return Promise.resolve(successfulTokenResponse(token === 'new-token' ? 'new@example.com' : 'old@example.com'));
+    });
+
+    const first = signInWithGoogleToken('first@example.com', 'first-token');
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+    let active = true;
+    const canceled = signInWithGoogleToken('old@example.com', 'old-token', () => active);
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    active = false;
+    cancelSupabaseSessionRestore();
+
+    const live = signInWithGoogleToken('new@example.com', 'new-token');
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+
+    resolveFirstExchange(successfulTokenResponse('first@example.com'));
+    await expect(first).resolves.toBeUndefined();
+    await expect(canceled).rejects.toThrow('cancelled');
+    await expect(live).resolves.toBeUndefined();
+    expect(mockSignInWithIdToken).toHaveBeenNthCalledWith(2, { provider: 'google', token: 'new-token' });
+  });
+
   it('does not exchange a new token when the same account already has a fresh session', async () => {
     mockGetSession.mockResolvedValue({
       data: {
@@ -480,6 +535,20 @@ describe('signInWithGoogleToken', () => {
     expect(mockSignInWithIdToken).toHaveBeenCalledTimes(2);
   });
 
+  it('does not retry a transient auth error after the caller is canceled', async () => {
+    let active = true;
+    mockSignInWithIdToken
+      .mockImplementationOnce(async () => {
+        active = false;
+        return { data: null, error: { status: 500, message: 'temporary auth failure' } };
+      })
+      .mockResolvedValueOnce(successfulTokenResponse());
+
+    await expect(signInWithGoogleToken('user@example.com', 'google-token', () => active))
+      .rejects.toThrow('cancelled');
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+  });
+
   it('lets a concurrent caller retry with a different token after the first exchange fails', async () => {
     mockSignInWithIdToken
       .mockResolvedValueOnce({ data: null, error: { status: 400, code: 'invalid_grant', message: 'Google token rejected' } })
@@ -531,7 +600,7 @@ describe('signInWithGoogleToken', () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     active = false;
     cancelSupabaseSessionRestore();
-    await expect(signInWithGoogleToken('user@example.com', 'same-token')).resolves.toBeUndefined();
+    const live = signInWithGoogleToken('user@example.com', 'same-token');
 
     resolveStaleRequest({
       data: {
@@ -541,6 +610,7 @@ describe('signInWithGoogleToken', () => {
       error: null,
     });
     await expect(stale).rejects.toThrow('cancelled');
+    await expect(live).resolves.toBeUndefined();
     expect(mockSignOut).not.toHaveBeenCalled();
   });
 
@@ -670,6 +740,41 @@ describe('syncToSupabase', () => {
       p_timezone: 'Asia/Bangkok',
     });
     expect(writes).toEqual(['activity-upload', 'profile']);
+  });
+
+  it('uses the canonical email for server row ownership', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
+    mockStorageGetItem.mockResolvedValue(null);
+    let uploadedRows: Array<{ user_email?: string }> = [];
+    mockGetDb.mockResolvedValue({
+      getFirstAsync: jest.fn(async (sql: string, params: unknown[]) => {
+        if (sql.includes('SELECT id FROM users')) {
+          if (params[0] === 'google-sub') return null;
+          return sql.includes('LOWER(TRIM') && params[0] === ' User@Example.com '
+            ? { id: 1 }
+            : null;
+        }
+        if (sql.includes('daily_summary')) return { current_streak: 0 };
+        if (sql.includes('activity_log')) return { last_active_local_date: null };
+        if (sql.includes('lifetime_stars')) return { lifetime_stars: 0 };
+        throw new Error(`Unexpected sync query: ${sql}`);
+      }),
+      getAllAsync: jest.fn((sql: string) => sql.includes('activity_log')
+        ? [{ id: 9, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 1, source: 'TASK', logged_at: 1, local_date: '2026-08-10', week_start: '2026-08-10', note: null }]
+        : []),
+      runAsync: jest.fn(),
+    });
+    mockUpsert.mockImplementation((rows: Array<{ user_email?: string }>) => {
+      uploadedRows = rows;
+      return { select: jest.fn().mockResolvedValue({ data: null, error: null }) };
+    });
+    mockRpc.mockImplementation(async (name: string) => (
+      name === 'sync_lifetime_stars' ? { data: 0, error: null } : { data: null, error: null }
+    ));
+
+    await syncToSupabase('google-sub', ' User@Example.com ');
+
+    expect(uploadedRows[0]?.user_email).toBe('user@example.com');
   });
 
   it('surfaces an activity_log upload failure instead of swallowing it', async () => {
