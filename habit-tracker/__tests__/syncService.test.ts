@@ -308,7 +308,30 @@ describe('ensureSupabaseSession', () => {
 
 describe('signInWithGoogleToken', () => {
   beforeEach(() => {
+    mockSignInWithIdToken.mockReset();
+    mockGetSession.mockReset();
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
     jest.clearAllMocks();
+  });
+
+  it('does not exchange a new token when the same account already has a fresh session', async () => {
+    mockGetSession.mockResolvedValue({
+      data: {
+        session: {
+          user: { email: 'User@Example.com' },
+          expires_at: Math.floor(Date.now() / 1000) + 300,
+        },
+      },
+      error: null,
+    });
+    mockSignInWithIdToken.mockResolvedValue({
+      data: { user: { email: 'user@example.com' } },
+      error: null,
+    });
+
+    await signInWithGoogleToken('user@example.com', 'google-token');
+
+    expect(mockSignInWithIdToken).not.toHaveBeenCalled();
   });
 
   it('shares one GoTrue request between direct sign-in and concurrent rehydration', async () => {
@@ -326,7 +349,7 @@ describe('signInWithGoogleToken', () => {
 
     const directSignIn = signInWithGoogleToken('USER@example.com', 'google-token-1');
     resolveSilent({ type: 'success', data: {} });
-    await Promise.resolve();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
     expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
     resolveRequest({ data: { user: { email: 'user@example.com' } }, error: null });
@@ -342,8 +365,17 @@ describe('signInWithGoogleToken', () => {
     expect(mockSignInWithIdToken).toHaveBeenCalledTimes(2);
   });
 
+  it('retries one transient HTTP 500 from the auth exchange before succeeding', async () => {
+    mockSignInWithIdToken
+      .mockResolvedValueOnce({ data: null, error: { status: 500, code: 'unexpected_failure', message: 'Internal Server Error' } })
+      .mockResolvedValueOnce({ data: { user: { email: 'user@example.com' } }, error: null });
+
+    await expect(signInWithGoogleToken('user@example.com', 'google-token')).resolves.toBeUndefined();
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(2);
+  });
+
   it('surfaces non-race auth failures instead of publishing an unauthenticated local account', async () => {
-    const authError = new Error('Google token rejected');
+    const authError = { status: 400, code: 'invalid_grant', message: 'Google token rejected' };
     mockSignInWithIdToken.mockResolvedValue({ data: null, error: authError });
 
     await expect(signInWithGoogleToken('user@example.com', 'google-token')).rejects.toBe(authError);

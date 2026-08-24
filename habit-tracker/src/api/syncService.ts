@@ -372,20 +372,31 @@ function normalizedAccountEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-function isAuthUserCreationConflict(error: unknown): boolean {
+function hasFreshSessionForAccount(
+  session: { expires_at?: number | null; user?: { email?: string | null } } | null,
+  userEmail: string,
+): boolean {
+  return session != null
+    && (session.expires_at == null || session.expires_at > Math.floor(Date.now() / 1000) + SESSION_EXPIRY_SKEW_SECONDS)
+    && normalizedAccountEmail(session.user?.email ?? '') === normalizedAccountEmail(userEmail);
+}
+
+function isRetryableAuthExchangeError(error: unknown): boolean {
   const details = error && typeof error === 'object'
-    ? error as { code?: unknown; message?: unknown; details?: unknown }
+    ? error as { code?: unknown; message?: unknown; details?: unknown; status?: unknown }
     : {};
   const text = [details.code, details.message, details.details, String(error)]
     .filter(value => value != null)
     .join(' ')
     .toLowerCase();
+  const status = typeof details.status === 'number' ? details.status : undefined;
 
-  // GoTrue may expose either the PostgreSQL constraint or its generic 500
-  // wrapper. A second token request is safe: if another request won the user
-  // insert race, GoTrue now finds that request's Google identity; if the email
-  // belongs to a different provider, the retry still fails and is surfaced.
-  return text.includes('users_email_partial_key')
+  // GoTrue may expose either the PostgreSQL constraint, its generic 500 wrapper,
+  // or an infrastructure 5xx. One bounded retry is safe: if another request
+  // won the user insert race, GoTrue now finds that request's Google identity;
+  // if the token/provider is actually invalid, the 4xx response is surfaced.
+  return (status != null && status >= 500 && status <= 599)
+    || text.includes('users_email_partial_key')
     || text.includes('database error saving new user')
     || text.includes('23505');
 }
@@ -402,7 +413,7 @@ async function signInWithGoogleTokenRequest(userEmail: string, idToken: string):
     }
 
     lastError = error;
-    if (attempt === 0 && isAuthUserCreationConflict(error)) continue;
+    if (attempt === 0 && isRetryableAuthExchangeError(error)) continue;
     throw error;
   }
 
@@ -424,7 +435,12 @@ export function signInWithGoogleToken(userEmail: string, idToken: string): Promi
   const waitForPrevious = active?.promise.catch(() => undefined) ?? Promise.resolve();
   let trackedPromise!: Promise<void>;
   trackedPromise = waitForPrevious
-    .then(() => signInWithGoogleTokenRequest(userEmail, idToken))
+    .then(async () => {
+      const { data: { session }, error: sessionError } = await supabase!.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (hasFreshSessionForAccount(session, userEmail)) return;
+      await signInWithGoogleTokenRequest(userEmail, idToken);
+    })
     .finally(() => {
       if (inFlightGoogleTokenSignIn?.promise === trackedPromise) {
         inFlightGoogleTokenSignIn = null;
