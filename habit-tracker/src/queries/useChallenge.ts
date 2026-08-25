@@ -26,10 +26,12 @@ import { challengeReminderPrefix, type ChallengeReminderState } from '../lib/cha
 import { syncCurrentUserToSupabase } from '../api/syncService';
 import { useLanguage } from '../hooks/useSettings';
 
-function enqueueChallengeConfigSync(context: string): void {
-  void syncCurrentUserToSupabase().catch(error => {
-    if (__DEV__) console.warn(`[sync] ${context} config sync failed:`, error);
-  });
+async function syncChallengeData(context: string): Promise<void> {
+  try {
+    await syncCurrentUserToSupabase();
+  } catch (error) {
+    if (__DEV__) console.warn(`[sync] ${context} failed:`, error);
+  }
 }
 
 export interface ActiveChallenge {
@@ -802,19 +804,15 @@ export function useChallengeRollover(userId: number) {
         await syncActiveChallengeReminders(userId, lang);
       } catch {}
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
-      enqueueChallengeConfigSync('created Challenge');
       qc.invalidateQueries({ queryKey: ['rank'] });
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
-      void syncCurrentUserToSupabase()
-        .catch(error => { if (__DEV__) console.warn('[sync] rollover sync failed:', error); })
-        .finally(() => {
-          qc.invalidateQueries({ queryKey: ['rank'] });
-          qc.invalidateQueries({ queryKey: ['leaderboard'] });
-        });
+      await syncChallengeData('rolled over Challenge');
+      qc.invalidateQueries({ queryKey: ['rank'] });
+      qc.invalidateQueries({ queryKey: ['leaderboard'] });
     },
   });
 }
@@ -993,19 +991,16 @@ export function useLogChallengeDay(userId: number) {
       } catch {}
       return { lifetimeCrossings };
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['treats'] });
       qc.invalidateQueries({ queryKey: ['achievements'] });
-      void syncCurrentUserToSupabase()
-        .catch(error => { if (__DEV__) console.warn('[sync] activity log sync failed:', error); })
-        .finally(() => {
-          qc.invalidateQueries({ queryKey: ['rank'] });
-          qc.invalidateQueries({ queryKey: ['leaderboard'] });
-        });
+      await syncChallengeData('logged challenge day');
+      qc.invalidateQueries({ queryKey: ['rank'] });
+      qc.invalidateQueries({ queryKey: ['leaderboard'] });
       if (data.lifetimeCrossings.length > 0) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(data.lifetimeCrossings);
@@ -1064,9 +1059,9 @@ export function useCreateChallenge(userId: number) {
       }
       return { notificationDenied };
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
-      enqueueChallengeConfigSync('created Challenge');
+      await syncChallengeData('created Challenge');
     },
   });
 }
@@ -1107,9 +1102,9 @@ export function useUpdateChallengeName(userId: number) {
       const db = await getDb();
       await updateChallengeNameById(db, userId, challengeId, name);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
-      enqueueChallengeConfigSync('renamed Challenge');
+      await syncChallengeData('renamed Challenge');
     },
   });
 }
@@ -1166,9 +1161,9 @@ export function useRestartChallenge(userId: number) {
       }
       return { id: newId, notificationDenied };
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
-      enqueueChallengeConfigSync('restarted Challenge');
+      await syncChallengeData('restarted Challenge');
     },
   });
 }
@@ -1183,7 +1178,7 @@ export function useDeleteChallenge(userId: number) {
       const { deletedActivityIds } = await deleteChallengesById(db, userId, ids);
       await enqueuePendingActivityDeletes(userId, deletedActivityIds);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['week'] });
@@ -1191,7 +1186,7 @@ export function useDeleteChallenge(userId: number) {
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['treats'] });
       qc.invalidateQueries({ queryKey: ['achievements'] });
-      enqueueChallengeConfigSync('deleted Challenge');
+      await syncChallengeData('deleted Challenge');
     },
   });
 }

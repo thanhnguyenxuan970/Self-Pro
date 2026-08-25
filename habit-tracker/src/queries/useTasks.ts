@@ -21,10 +21,12 @@ interface TaskFormParams {
   isTemplate?: boolean;
 }
 
-function enqueueTaskConfigSync(context: string): void {
-  void syncCurrentUserToSupabase().catch(error => {
-    if (__DEV__) console.warn(`[sync] ${context} config sync failed:`, error);
-  });
+async function syncTaskData(context: string): Promise<void> {
+  try {
+    await syncCurrentUserToSupabase();
+  } catch (error) {
+    if (__DEV__) console.warn(`[sync] ${context} failed:`, error);
+  }
 }
 
 export function useCreateTask(userId: number) {
@@ -63,9 +65,9 @@ export function useCreateTask(userId: number) {
       if (!row) throw new Error(`useCreateTask: task not found after insert (name=${params.name})`);
       return row.id;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['today', 'tasks'] });
-      enqueueTaskConfigSync('created task');
+      await syncTaskData('created task');
     },
   });
 }
@@ -104,9 +106,9 @@ export function useSetTaskPinned(userId: number) {
         await db.runAsync('UPDATE task_types SET is_pinned = ? WHERE id = ? AND user_id = ?', [pinned ? 1 : 0, taskId, userId]);
       });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['activity-picker', userId] });
-      enqueueTaskConfigSync('pinned task');
+      await syncTaskData('pinned task');
     },
   });
 }
@@ -118,10 +120,10 @@ export function useRestoreTask(userId: number) {
       const db = await getDb();
       await db.runAsync('UPDATE task_types SET archived = 0 WHERE id = ? AND user_id = ?', [taskId, userId]);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['activity-picker', userId] });
       qc.invalidateQueries({ queryKey: ['today', 'tasks', userId] });
-      enqueueTaskConfigSync('restored task');
+      await syncTaskData('restored task');
     },
   });
 }
@@ -356,18 +358,15 @@ export function useArchiveTask(userId: number) {
 
       return { lifetimeCrossings };
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       qc.invalidateQueries({ queryKey: ['activity-picker', userId] });
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
-      void syncCurrentUserToSupabase()
-        .catch(error => { if (__DEV__) console.warn('[sync] archived task sync failed:', error); })
-        .finally(() => {
-          qc.invalidateQueries({ queryKey: ['rank'] });
-          qc.invalidateQueries({ queryKey: ['leaderboard'] });
-        });
+      await syncTaskData('archived task');
+      qc.invalidateQueries({ queryKey: ['rank'] });
+      qc.invalidateQueries({ queryKey: ['leaderboard'] });
       if (data?.lifetimeCrossings?.length) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(data.lifetimeCrossings);
@@ -387,13 +386,13 @@ export function useUpdateTaskName(userId: number) {
         [name, isTimeBased == null ? null : isTimeBased ? 1 : 0, taskId, userId]
       );
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['activity-picker', userId] });
-      enqueueTaskConfigSync('renamed task');
+      await syncTaskData('renamed task');
     },
   });
 }

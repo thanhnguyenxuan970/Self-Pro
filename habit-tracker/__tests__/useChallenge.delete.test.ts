@@ -9,10 +9,12 @@ jest.mock('@tanstack/react-query', () => ({
   useQueryClient: jest.fn(() => ({ invalidateQueries: jest.fn() })),
 }));
 jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletes: jest.fn() }));
+jest.mock('../src/api/syncService', () => ({ syncCurrentUserToSupabase: jest.fn() }));
 import * as Notifications from 'expo-notifications';
 import { getDb } from '../src/db/client';
 import { deleteChallengeById, deleteChallengesById, useDeleteChallenge } from '../src/queries/useChallenge';
 import { enqueuePendingActivityDeletes } from '../src/game/pendingActivityDeletes';
+import { syncCurrentUserToSupabase } from '../src/api/syncService';
 
 function createDeleteDb(config: {
   challenge: { status: 'active' | 'done' | 'failed'; completed_at: string | null; notification_id?: string | null } | null;
@@ -235,6 +237,24 @@ describe('deleteChallengeById', () => {
     await mutation.mutationFn(11);
 
     expect(enqueuePendingActivityDeletes).toHaveBeenCalledWith(5, [77]);
+  });
+
+  it('waits for the cloud backup after a challenge deletion', async () => {
+    let releaseSync!: () => void;
+    const syncPromise = new Promise<void>(resolve => { releaseSync = resolve; });
+    jest.mocked(syncCurrentUserToSupabase).mockReturnValueOnce(syncPromise);
+
+    const mutation = useDeleteChallenge(5) as unknown as { onSuccess: () => Promise<void> };
+    let settled = false;
+    const completion = mutation.onSuccess().then(() => { settled = true; });
+
+    await Promise.resolve();
+    expect(syncCurrentUserToSupabase).toHaveBeenCalledTimes(1);
+    expect(settled).toBe(false);
+
+    releaseSync();
+    await completion;
+    expect(settled).toBe(true);
   });
 
   it('refuses to guess which legacy reward belongs to a challenge when candidates are ambiguous', async () => {

@@ -4,12 +4,14 @@ jest.mock('@tanstack/react-query', () => ({
   useMutation: jest.fn((options) => options),
   useQueryClient: jest.fn(() => ({ invalidateQueries: jest.fn() })),
 }));
+jest.mock('../src/api/syncService', () => ({ syncCurrentUserToSupabase: jest.fn() }));
 import { getDb } from '../src/db/client';
 import { useCreateTask } from '../src/queries/useTasks';
+import { syncCurrentUserToSupabase } from '../src/api/syncService';
 
 type Mutation = { mutationFn: (params: {
   name: string; kind: 'GOOD' | 'BAD'; isTimeBased: boolean; basePoints: number; starPenalty: number;
-}) => Promise<number> };
+}) => Promise<number>; onSuccess: () => Promise<void> };
 
 function createDb(existing: { id: number; name: string }[], newTaskId = 7) {
   const getAllAsync = jest.fn(async () => existing);
@@ -54,5 +56,23 @@ describe('useCreateTask -- normalized-name duplicate guard', () => {
     const id = await mutation.mutationFn({ name: 'Bơi lội', kind: 'GOOD', isTimeBased: false, basePoints: 5, starPenalty: 0 });
     expect(id).toBe(7);
     expect(db.runAsync).toHaveBeenCalled();
+  });
+
+  it('waits for the cloud backup before reporting the mutation callback complete', async () => {
+    let releaseSync!: () => void;
+    const syncPromise = new Promise<void>(resolve => { releaseSync = resolve; });
+    jest.mocked(syncCurrentUserToSupabase).mockReturnValueOnce(syncPromise);
+
+    const mutation = useCreateTask(5) as unknown as Mutation;
+    let settled = false;
+    const completion = mutation.onSuccess().then(() => { settled = true; });
+
+    await Promise.resolve();
+    expect(syncCurrentUserToSupabase).toHaveBeenCalledTimes(1);
+    expect(settled).toBe(false);
+
+    releaseSync();
+    await completion;
+    expect(settled).toBe(true);
   });
 });

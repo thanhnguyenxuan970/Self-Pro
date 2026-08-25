@@ -99,8 +99,8 @@ android {
         applicationId 'com.habitring.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 71
-        versionName "2.0.3.d"
+        versionCode 72
+        versionName "2.0.3.e"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
 

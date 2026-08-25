@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.3.e - 2026-08-25
+
+- Habit and Challenge mutations now await the authenticated cloud-backup attempt before their mutation callback completes, so closing or reinstalling immediately after a change cannot race the backup snapshot; challenge rollover and completion use one serialized sync instead of duplicate fire-and-forget uploads.
+- Android native release metadata is 2.0.3.e (versionCode 72); the shared Expo/iOS version remains 2.0.3.
+- Validation: TypeScript, 76 Jest suites/709 tests/1 snapshot, debug Metro reload on `emulator-5554` with 69 active days/260 stars/heatmap retained, and signed `bundleRelease`/`assembleRelease` passed. AAB SHA-256: `AF5B969FD4E40409EC89F90C484E37CA4782820D1728DC89CE486E8FD4271CDA`.
+
 ## 2.0.3.d - 2026-08-25
 
 - Reinstall recovery now falls back to the authenticated legacy activity mirror when a ranked cloud snapshot has no history, rebuilds heatmap/summary data without reattaching stale task ids, remaps cross-account SQLite id collisions, and reconciles the server-derived lifetime rank before the next upload.
