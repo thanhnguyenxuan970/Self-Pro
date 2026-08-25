@@ -31,6 +31,7 @@ type SyncTask = (assertActive: AssertSyncActive) => Promise<void>;
 interface AccountSyncGate {
   epoch: number;
   blocked: boolean;
+  failClosed: boolean;
   tail: Promise<void>;
   active: Set<Promise<void>>;
   resume: Promise<void>;
@@ -54,6 +55,7 @@ function getAccountSyncGate(accountKey: string): AccountSyncGate {
   const gate: AccountSyncGate = {
     epoch: 0,
     blocked: false,
+    failClosed: false,
     tail: Promise.resolve(),
     active: new Set(),
     resume: Promise.resolve(),
@@ -64,9 +66,21 @@ function getAccountSyncGate(accountKey: string): AccountSyncGate {
 }
 
 /** Serialize one account's uploads and make them quiesce before reset/delete. */
-export function runAccountSync(accountKey: string, task: SyncTask): Promise<void> {
+export function runAccountSync(
+  accountKey: string,
+  task: SyncTask,
+  allowFailClosed = false,
+  waitForGate = false,
+  cancellationSignal?: AbortSignal,
+): Promise<void> {
   const gate = getAccountSyncGate(accountKey);
-  if (gate.blocked) return Promise.resolve();
+  if (gate.blocked) {
+    return waitForGate
+      ? waitForAccountGate(gate.resume, cancellationSignal)
+        .then(() => runAccountSync(accountKey, task, allowFailClosed, waitForGate, cancellationSignal))
+      : Promise.resolve();
+  }
+  if (gate.failClosed && !allowFailClosed) return Promise.resolve();
   const epoch = gate.epoch;
   const operation = gate.tail.then(async () => {
     if (gate.blocked || gate.epoch !== epoch) return;
@@ -87,6 +101,30 @@ export function runAccountSync(accountKey: string, task: SyncTask): Promise<void
   gate.active.add(tracked);
   gate.tail = tracked.then(() => undefined, () => undefined);
   return tracked;
+}
+
+function waitForAccountGate(resume: Promise<void>, cancellationSignal?: AbortSignal): Promise<void> {
+  if (!cancellationSignal) return resume;
+  if (cancellationSignal.aborted) return Promise.reject(new AccountSyncInvalidatedError());
+
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => cancellationSignal.removeEventListener('abort', onAbort);
+    const onAbort = () => {
+      cleanup();
+      reject(new AccountSyncInvalidatedError());
+    };
+    cancellationSignal.addEventListener('abort', onAbort, { once: true });
+    resume.then(
+      () => {
+        cleanup();
+        resolve();
+      },
+      error => {
+        cleanup();
+        reject(error);
+      },
+    );
+  });
 }
 
 /**
@@ -475,14 +513,24 @@ async function writeBackupRevision(accountKey: string, revision: unknown): Promi
 }
 
 export async function markBackupRestoreBlocked(accountKey: string): Promise<void> {
-  await AsyncStorage.setItem(backupBlockedKey(accountKey), '1');
+  try {
+    await AsyncStorage.setItem(backupBlockedKey(accountKey), '1');
+  } catch (error) {
+    // AsyncStorage failure must not turn a restore failure into an upload
+    // window. Keep this account's in-process gate fail-closed until a later
+    // retry successfully removes the marker.
+    getAccountSyncGate(accountKey).failClosed = true;
+    throw error;
+  }
 }
 
 export async function clearBackupRestoreBlocked(accountKey: string): Promise<void> {
   await AsyncStorage.removeItem(backupBlockedKey(accountKey));
+  getAccountSyncGate(accountKey).failClosed = false;
 }
 
 async function isBackupRestoreBlocked(accountKey: string): Promise<boolean> {
+  if (getAccountSyncGate(accountKey).failClosed) return true;
   return (await AsyncStorage.getItem(backupBlockedKey(accountKey))) === '1';
 }
 
@@ -558,6 +606,17 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
   return Promise.race([promise, timeout]).finally(() => {
     if (timer) clearTimeout(timer);
   });
+}
+
+type AbortableSupabaseRequest<T> = PromiseLike<T> & {
+  abortSignal?: (signal: AbortSignal) => PromiseLike<T>;
+};
+
+function withSupabaseAbortSignal<T>(request: PromiseLike<T>, signal: AbortSignal): PromiseLike<T> {
+  const abortable = request as AbortableSupabaseRequest<T>;
+  return typeof abortable.abortSignal === 'function'
+    ? abortable.abortSignal(signal)
+    : request;
 }
 
 function isRetryableAuthExchangeError(error: unknown): boolean {
@@ -1107,17 +1166,22 @@ export async function restoreUserDataIfNeeded(
   userEmail: string,
   expectedGoogleSub?: ExpectedGoogleSubject,
   isActive: SessionActivityGuard = alwaysActive,
+  allowBlockedRetry = false,
+  onRestoreSettled?: () => void,
 ): Promise<UserDataRestoreResult> {
-  if (isQaSandboxActive() || !supabase) return 'unavailable';
+  if (isQaSandboxActive() || !supabase) {
+    onRestoreSettled?.();
+    return 'unavailable';
+  }
 
   // Revision and restore-block markers use the same canonical email key for
   // restore, reset, delete, and normal upload. The Google subject still
   // authenticates the Supabase RPC, but must not create a second local CAS
   // namespace for the same account.
   const accountKey = normalizedAccountEmail(userEmail);
-  if (await isBackupRestoreBlocked(accountKey)) return 'unavailable';
   let result: UserDataRestoreResult = 'unavailable';
   let restoreTimedOut = false;
+  const restoreAbortController = new AbortController();
   try {
     const restoreOperation = runAccountSync(userEmail, async (assertActive) => {
       const assertRestoreActive = () => {
@@ -1128,82 +1192,109 @@ export async function restoreUserDataIfNeeded(
         assertRestoreActive();
         return true;
       };
-
-      await withSupabaseSession(userEmail, expectedGoogleSub, async () => {
-        assertRestoreActive();
-        const { data, error } = await supabase!.rpc('restore_my_data_backup_v2');
-        if (error) throw error;
-        assertRestoreActive();
-
-        const envelope = parseCloudBackupEnvelope(data);
-        if (!envelope) throw new Error('Invalid cloud backup envelope');
-
-        const db = await getDb();
-
-        if (envelope.payload === null) {
-          // An older app version never stored Challenges/tasks remotely. Recover
-          // the legacy activity mirror before allowing the empty local database
-          // to become the new cloud snapshot.
-          assertRestoreActive();
-          const { data: legacyRows, error: legacyError } = await supabase!.from('activity_log')
-            .select('local_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note')
-            .order('local_id', { ascending: true });
-          if (legacyError) throw legacyError;
-          const restoredRows = await restoreLegacyActivityMirror(
-            db,
-            userId,
-            (legacyRows ?? []) as LegacyActivityMirrorRow[],
-            assertRestoreActive,
-            transactionDb => isLocalAccountFresh(transactionDb, userId),
-          );
-          if (restoredRows === 'not_needed') {
-            result = 'not_needed';
-            return;
-          }
-          result = restoredRows > 0 ? 'restored' : 'empty';
-        } else if (isCloudBackupPayload(envelope.payload)) {
-          const restored = await restoreUserDataBackup(
-            db,
-            userId,
-            envelope.payload,
-            expectedGoogleSub,
-            assertRestoreActive,
-            transactionDb => isLocalAccountFresh(transactionDb, userId),
-          );
-          if (!restored) {
-            result = 'not_needed';
-            return;
-          }
-          result = 'restored';
-        } else {
-          // A non-null, unsupported snapshot is not the same as an empty
-          // account. Falling back to the legacy mirror would allow startup to
-          // upload a seeded/partial database over the real cloud copy.
-          throw new Error('Unsupported cloud backup payload');
+      try {
+        // Keep the marker set until this account owns the sync gate. A retry
+        // must never expose an empty local database to a queued upload while
+        // restore is still waiting behind another account operation.
+        if (!allowBlockedRetry && await isBackupRestoreBlocked(accountKey)) {
+          result = 'unavailable';
+          return;
+        }
+        if (allowBlockedRetry) {
+          await clearBackupRestoreBlocked(accountKey);
         }
 
-        // The revision becomes local authority only after the complete,
-        // validated restore (or a confirmed empty legacy mirror) succeeds.
-        assertRestoreActive();
-        await writeBackupRevision(accountKey, envelope.revision);
-        assertRestoreActive();
-      }, sessionActive);
-    });
-    await withTimeout(restoreOperation, SESSION_RESTORE_TIMEOUT_MS, 'Cloud backup restore timed out');
-    await clearBackupRestoreBlocked(accountKey);
-  } catch (error) {
-    if (isSessionRestoreCancellation(error) || error instanceof AccountSyncInvalidatedError) {
-      result = 'unavailable';
-    } else {
-      Sentry.captureException(error);
-      await markBackupRestoreBlocked(accountKey);
+        await withSupabaseSession(userEmail, expectedGoogleSub, async () => {
+          assertRestoreActive();
+          const { data, error } = await withSupabaseAbortSignal(
+            supabase!.rpc('restore_my_data_backup_v2'),
+            restoreAbortController.signal,
+          );
+          if (error) throw error;
+          assertRestoreActive();
+
+          const envelope = parseCloudBackupEnvelope(data);
+          if (!envelope) throw new Error('Invalid cloud backup envelope');
+
+          const db = await getDb();
+
+          if (envelope.payload === null) {
+            // An older app version never stored Challenges/tasks remotely. Recover
+            // the legacy activity mirror before allowing the empty local database
+            // to become the new cloud snapshot.
+            assertRestoreActive();
+            const legacyRequest = supabase!.from('activity_log')
+              .select('local_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note')
+              .order('local_id', { ascending: true });
+            const { data: legacyRows, error: legacyError } = await withSupabaseAbortSignal(
+              legacyRequest,
+              restoreAbortController.signal,
+            );
+            if (legacyError) throw legacyError;
+            const restoredRows = await restoreLegacyActivityMirror(
+              db,
+              userId,
+              (legacyRows ?? []) as LegacyActivityMirrorRow[],
+              assertRestoreActive,
+              transactionDb => isLocalAccountFresh(transactionDb, userId),
+            );
+            if (restoredRows === 'not_needed') {
+              result = 'not_needed';
+              return;
+            }
+            result = restoredRows > 0 ? 'restored' : 'empty';
+          } else if (isCloudBackupPayload(envelope.payload)) {
+            const restored = await restoreUserDataBackup(
+              db,
+              userId,
+              envelope.payload,
+              expectedGoogleSub,
+              assertRestoreActive,
+              transactionDb => isLocalAccountFresh(transactionDb, userId),
+            );
+            if (!restored) {
+              result = 'not_needed';
+              return;
+            }
+            result = 'restored';
+          } else {
+            // A non-null, unsupported snapshot is not the same as an empty
+            // account. Falling back to the legacy mirror would allow startup to
+            // upload a seeded/partial database over the real cloud copy.
+            throw new Error('Unsupported cloud backup payload');
+          }
+
+          // The revision becomes local authority only after the complete,
+          // validated restore (or a confirmed empty legacy mirror) succeeds.
+          assertRestoreActive();
+          await writeBackupRevision(accountKey, envelope.revision);
+          assertRestoreActive();
+        }, sessionActive);
+        // Clear only after the complete restore, while the account gate is
+        // still held. Queued uploads can proceed only after this point.
+        await clearBackupRestoreBlocked(accountKey);
+      } catch (error) {
+        const cancelled = isSessionRestoreCancellation(error) || error instanceof AccountSyncInvalidatedError;
+        // Every incomplete restore must remain fail-closed. This also covers a
+        // normal restore invalidated after a queued upload passed its fast-path
+        // marker check; re-mark before releasing the account gate.
+        if (!cancelled) Sentry.captureException(error);
+        await markBackupRestoreBlocked(accountKey);
+        throw error;
+      }
+    }, allowBlockedRetry, allowBlockedRetry, restoreAbortController.signal);
+    if (onRestoreSettled) {
+      void restoreOperation.then(onRestoreSettled, onRestoreSettled);
     }
+    await withTimeout(restoreOperation, SESSION_RESTORE_TIMEOUT_MS, 'Cloud backup restore timed out');
+  } catch (error) {
     result = 'unavailable';
   } finally {
     // The SQLite write phase checks this guard after every awaited operation.
     // If the network call outlives the timeout, it can finish harmlessly but it
     // cannot enter the destructive restore transaction afterward.
     restoreTimedOut = true;
+    restoreAbortController.abort();
   }
   return result;
 }
@@ -1294,6 +1385,10 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
   const canonicalEmail = normalizedAccountEmail(userEmail);
   if (await isBackupRestoreBlocked(canonicalEmail)) return;
   await runAccountSync(canonicalEmail, async (assertActive) => {
+    // Re-check after waiting for earlier account work. A restore failure can
+    // set the marker after this call's fast-path check but before its queued
+    // task acquires the account gate.
+    if (await isBackupRestoreBlocked(canonicalEmail)) return;
     const sessionActive: SessionActivityGuard = () => {
       assertActive();
       return true;

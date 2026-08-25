@@ -79,7 +79,10 @@ function AppInner() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const [accountRecoveryError, setAccountRecoveryError] = useState(false);
+  const [recoveryRetryPending, setRecoveryRetryPending] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const recoveryRetryRequested = useRef<{ email: string; sub?: string } | null>(null);
+  const recoveryRetryInFlight = useRef<{ email: string; sub?: string } | null>(null);
   const qaSeedInFlight = useRef(false);
   const qaSeededForSub = useRef<string | null>(null);
   const { colors } = useTheme();
@@ -104,6 +107,21 @@ function AppInner() {
     completePendingReset,
     completePendingDelete,
   } = useAuth();
+  const googleUserRef = useRef(googleUser);
+  googleUserRef.current = googleUser;
+
+  const handleAccountRecoveryRetry = useCallback(() => {
+    if (!googleUser?.email) {
+      retryInit();
+      return;
+    }
+    if (recoveryRetryInFlight.current) return;
+    const request = { email: googleUser.email, sub: googleUser.sub };
+    recoveryRetryInFlight.current = request;
+    recoveryRetryRequested.current = request;
+    setRecoveryRetryPending(true);
+    retryInit();
+  }, [googleUser?.email, googleUser?.sub, retryInit]);
 
   // Wait for auth to finish loading (AsyncStorage is async) so googleUser is
   // available before we resolve the DB row. Without this guard, init() runs
@@ -111,18 +129,32 @@ function AppInner() {
   useEffect(() => {
     if (authLoading) return;
     async function init() {
-      const db = await getDb();
+      const requestedRecoveryRetry = recoveryRetryRequested.current;
+      const allowBlockedRetry = Boolean(
+        requestedRecoveryRetry
+        && googleUser?.email
+        && requestedRecoveryRetry.email.trim().toLowerCase() === googleUser.email.trim().toLowerCase()
+        && (!requestedRecoveryRetry.sub || requestedRecoveryRetry.sub === googleUser.sub),
+      );
+      if (!allowBlockedRetry && recoveryRetryInFlight.current === requestedRecoveryRetry) {
+        recoveryRetryInFlight.current = null;
+        setRecoveryRetryPending(false);
+      }
+      recoveryRetryRequested.current = null;
+      let retryGatePending = false;
+      try {
+        const db = await getDb();
 
-      // Remove any debug-only QA rows if a release build is installed over a
-      // debug build. This is local cleanup only; no production account is
-      // touched because purgeQaSandbox targets the reserved QA sub exactly.
-      if (!isQaSandboxBuildAvailable()) await purgeQaSandbox(db);
+        // Remove any debug-only QA rows if a release build is installed over a
+        // debug build. This is local cleanup only; no production account is
+        // touched because purgeQaSandbox targets the reserved QA sub exactly.
+        if (!isQaSandboxBuildAvailable()) await purgeQaSandbox(db);
 
-      let resolvedUserId = 1;
-      if (googleUser?.email) {
-        const isQa = isQaSandboxIdentity(googleUser);
-        if (isQa) qaSeedInFlight.current = true;
-        try {
+        let resolvedUserId = 1;
+        if (googleUser?.email) {
+          const isQa = isQaSandboxIdentity(googleUser);
+          if (isQa) qaSeedInFlight.current = true;
+          try {
           // Check the deletion marker before resolving/creating a local row.
           // If a process died after purging SQLite, resolving first would
           // provision a new row and make the old marker look like a mismatch.
@@ -151,7 +183,30 @@ function AppInner() {
                 // unavailable, do not let an empty/reseeded SQLite file become
                 // an upload that can mask the user's cloud copy, and do not
                 // publish an apparently empty account to the user either.
-                const restoreResult = await restoreUserDataIfNeeded(resolvedUserId, googleUser.email, googleUser.sub);
+                if (allowBlockedRetry) retryGatePending = true;
+                const restoreResult = await restoreUserDataIfNeeded(
+                  resolvedUserId,
+                  googleUser.email,
+                  googleUser.sub,
+                  () => {
+                    const currentUser = googleUserRef.current;
+                    return Boolean(
+                      currentUser?.email
+                      && currentUser.email.trim().toLowerCase() === googleUser.email.trim().toLowerCase()
+                      && (!googleUser.sub || currentUser.sub === googleUser.sub),
+                    );
+                  },
+                  allowBlockedRetry,
+                  allowBlockedRetry
+                    ? () => {
+                      retryGatePending = false;
+                      setRecoveryRetryPending(false);
+                      if (recoveryRetryInFlight.current === requestedRecoveryRetry) {
+                        recoveryRetryInFlight.current = null;
+                      }
+                    }
+                    : undefined,
+                );
                 if (restoreResult === 'unavailable') {
                   setAccountRecoveryError(true);
                   console.warn('[sync] cloud restore is unavailable; keeping account recovery blocked');
@@ -168,12 +223,19 @@ function AppInner() {
               }
             }
           }
-        } finally {
-          if (isQa) qaSeedInFlight.current = false;
+          } finally {
+            if (isQa) qaSeedInFlight.current = false;
+          }
+        }
+
+        setDbReady(true);
+      } finally {
+        if ((!allowBlockedRetry || !retryGatePending)
+            && recoveryRetryInFlight.current === requestedRecoveryRetry) {
+          recoveryRetryInFlight.current = null;
+          setRecoveryRetryPending(false);
         }
       }
-
-      setDbReady(true);
     }
     init().catch(err => {
       console.error('DB init failed:', err);
@@ -321,18 +383,21 @@ function AppInner() {
   }, [dbReady, isOnboarded, userId, lang, googleUser?.email, googleUser?.sub, qaFixturePending]);
 
   if (accountRecoveryError) {
+    const retryBusy = recoveryRetryPending || recoveryRetryInFlight.current !== null;
     return (
       <View style={[appStyles.center, { backgroundColor: colors.bgBase }]}>
         <Text style={[appStyles.errorMsg, { color: colors.ink2 }]}>
           {'Account recovery is paused to protect your data.\nPlease retry when the connection is stable.'}
         </Text>
         <TouchableOpacity
-          style={[appStyles.retryBtn, { backgroundColor: colors.primary }]}
-          onPress={retryInit}
+          style={[appStyles.retryBtn, { backgroundColor: colors.primary }, retryBusy && appStyles.retryBtnDisabled]}
+          onPress={() => void handleAccountRecoveryRetry()}
+          disabled={retryBusy}
           accessibilityRole="button"
           accessibilityLabel="Retry account recovery"
+          accessibilityState={{ busy: retryBusy, disabled: retryBusy }}
         >
-          <Text style={[appStyles.retryTxt, { color: colors.onAccent }]}>Retry</Text>
+          <Text style={[appStyles.retryTxt, { color: colors.onAccent }]}>{retryBusy ? 'Waiting…' : 'Retry'}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -386,6 +451,7 @@ const appStyles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   errorMsg: { fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
   retryBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 10 },
+  retryBtnDisabled: { opacity: 0.65 },
   retryTxt: { fontSize: 15, fontFamily: FontFamily.semiBold },
 });
 

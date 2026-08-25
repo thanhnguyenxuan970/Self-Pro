@@ -7,7 +7,7 @@ const mockDelete = jest.fn(() => ({ in: mockDeleteIn }));
 const mockLegacyActivityOrder = jest.fn().mockResolvedValue({ data: [], error: null });
 const mockLegacyActivityEq = jest.fn(() => ({ order: mockLegacyActivityOrder }));
 const mockLegacyActivitySelect = jest.fn(() => ({ order: mockLegacyActivityOrder }));
-const mockRpc = jest.fn(async (name: string): Promise<{ data: unknown; error: null }> => {
+const mockRpc = jest.fn(async (name: string): Promise<{ data: unknown; error: unknown | null }> => {
   if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
   if (name === 'restore_my_data_backup_v2') return { data: { payload: null, revision: 0 }, error: null };
   return { data: null, error: null };
@@ -64,6 +64,7 @@ jest.mock('../src/db/client', () => ({ getDb: mockGetDb }));
 import * as Sentry from '@sentry/react-native';
 import {
   ensureSupabaseSession,
+  clearBackupRestoreBlocked,
   pauseAccountSync,
   readSocialProfile,
   restoreUserDataIfNeeded,
@@ -101,8 +102,21 @@ describe('restoreUserDataIfNeeded', () => {
     ...overrides,
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
+    mockRpc.mockReset();
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
+      if (name === 'restore_my_data_backup_v2') return { data: { payload: null, revision: 0 }, error: null };
+      return { data: null, error: null };
+    });
+    mockStorageGetItem.mockReset();
+    mockStorageSetItem.mockReset();
+    mockStorageRemoveItem.mockReset();
+    await clearBackupRestoreBlocked('user@example.com');
+    mockStorageRemoveItem.mockClear();
+    mockLegacyActivityOrder.mockReset();
+    mockLegacyActivityOrder.mockResolvedValue({ data: [], error: null });
     mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
   });
 
@@ -243,6 +257,226 @@ describe('restoreUserDataIfNeeded', () => {
     expect(mockLegacyActivityEq).not.toHaveBeenCalled();
     expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', '3');
     expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
+  });
+
+  it('allows a transiently blocked account to retry recovery without touching another account', async () => {
+    let restoreBlocked = false;
+    const blockedKey = 'habit_sync_backup_restore_blocked:user@example.com';
+    const otherBlockedKey = 'habit_sync_backup_restore_blocked:other@example.com';
+    mockStorageGetItem.mockImplementation(async (key: string) => (
+      key === blockedKey && restoreBlocked ? '1' : null
+    ));
+    mockStorageSetItem.mockImplementation(async (key: string, value: string) => {
+      if (key === blockedKey) restoreBlocked = value === '1';
+    });
+    mockStorageRemoveItem.mockImplementation(async (key: string) => {
+      if (key === blockedKey) restoreBlocked = false;
+    });
+    let rpcCalls = 0;
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name !== 'restore_my_data_backup_v2') return { data: null, error: null };
+      rpcCalls += 1;
+      return rpcCalls === 1
+        ? { data: null, error: { message: 'temporary network failure' } }
+        : { data: { payload: null, revision: 0 }, error: null };
+    });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(restoreBlocked).toBe(true);
+
+    await expect(restoreUserDataIfNeeded(1, ' USER@EXAMPLE.COM ', 'google-sub', undefined, true)).resolves.toBe('empty');
+    expect(mockStorageRemoveItem).toHaveBeenCalledWith(blockedKey);
+    expect(mockStorageRemoveItem).not.toHaveBeenCalledWith(otherBlockedKey);
+    expect(restoreBlocked).toBe(false);
+    expect(mockRpc).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a retry restore ahead of a concurrent upload', async () => {
+    const blockedKey = 'habit_sync_backup_restore_blocked:user@example.com';
+    let restoreBlocked = true;
+    let releaseRestore!: () => void;
+    let restoreStarted!: () => void;
+    const restoreStartedPromise = new Promise<void>(resolve => { restoreStarted = resolve; });
+    const restoreReleasePromise = new Promise<void>(resolve => { releaseRestore = resolve; });
+    const rpcOrder: string[] = [];
+    mockStorageGetItem.mockImplementation(async (key: string) => (
+      key === blockedKey && restoreBlocked ? '1' : null
+    ));
+    mockStorageRemoveItem.mockImplementation(async (key: string) => {
+      if (key === blockedKey) restoreBlocked = false;
+    });
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') {
+        rpcOrder.push('restore');
+        restoreStarted();
+        await restoreReleasePromise;
+        return { data: { payload: null, revision: 0 }, error: null };
+      }
+      if (name === 'save_my_data_backup_v2') rpcOrder.push('save');
+      return { data: 1, error: null };
+    });
+    type RaceTestDb = {
+      getFirstAsync: jest.Mock;
+      getAllAsync: jest.Mock;
+      runAsync: jest.Mock;
+      withTransactionAsync: jest.Mock;
+      withExclusiveTransactionAsync: jest.Mock;
+    };
+    let db!: RaceTestDb;
+    db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('COUNT(*)')) return { count: 0 };
+        if (sql.includes('SELECT id FROM users')) return { id: 1 };
+        if (sql.includes('FROM users WHERE id')) {
+          return {
+            username: 'me', timezone: 'Asia/Ho_Chi_Minh', carry_debt: 0, currency: 'VND',
+            last_seen_week_start: null, lifetime_stars: 0, current_tier_id: null,
+            treat_stars: 0, treat_stars_lifetime: 0, value_per_star: 1000,
+            penalty_hits_treats: 1, notification_time: null, notification_time_2: null,
+            notification_time_3: null,
+          };
+        }
+        return null;
+      }),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: (transactionDb: RaceTestDb) => Promise<void>) => fn(db)),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    const restorePromise = restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub', undefined, true);
+    await restoreStartedPromise;
+    const syncPromise = syncToSupabase('google-sub', 'user@example.com');
+    await Promise.resolve();
+    expect(rpcOrder).toEqual(['restore']);
+
+    releaseRestore();
+    await expect(restorePromise).resolves.toBe('empty');
+    await syncPromise;
+    expect(rpcOrder).toEqual(['restore', 'save']);
+  });
+
+  it('re-blocks a queued upload when the retry restore fails', async () => {
+    const blockedKey = 'habit_sync_backup_restore_blocked:user@example.com';
+    let restoreBlocked = true;
+    let releaseRestore!: () => void;
+    let restoreStarted!: () => void;
+    const restoreStartedPromise = new Promise<void>(resolve => { restoreStarted = resolve; });
+    const restoreReleasePromise = new Promise<void>(resolve => { releaseRestore = resolve; });
+    const rpcOrder: string[] = [];
+    mockStorageGetItem.mockImplementation(async (key: string) => (
+      key === blockedKey && restoreBlocked ? '1' : null
+    ));
+    mockStorageSetItem.mockImplementation(async (key: string, value: string) => {
+      if (key === blockedKey) restoreBlocked = value === '1';
+    });
+    mockStorageRemoveItem.mockImplementation(async (key: string) => {
+      if (key === blockedKey) restoreBlocked = false;
+    });
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') {
+        rpcOrder.push('restore');
+        restoreStarted();
+        await restoreReleasePromise;
+        return { data: null, error: new Error('temporary network failure') };
+      }
+      if (name === 'save_my_data_backup_v2') rpcOrder.push('save');
+      return { data: 1, error: null };
+    });
+
+    const restorePromise = restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub', undefined, true);
+    await restoreStartedPromise;
+    const syncPromise = syncToSupabase('google-sub', 'user@example.com');
+
+    releaseRestore();
+    await expect(restorePromise).resolves.toBe('unavailable');
+    await expect(syncPromise).resolves.toBeUndefined();
+    expect(rpcOrder).toEqual(['restore']);
+    expect(restoreBlocked).toBe(true);
+  });
+
+  it('re-blocks a queued upload when a normal restore is cancelled', async () => {
+    const blockedKey = 'habit_sync_backup_restore_blocked:user@example.com';
+    let restoreBlocked = false;
+    let restoreActive = true;
+    let releaseRestore!: () => void;
+    let restoreStarted!: () => void;
+    const restoreStartedPromise = new Promise<void>(resolve => { restoreStarted = resolve; });
+    const restoreReleasePromise = new Promise<void>(resolve => { releaseRestore = resolve; });
+    const rpcOrder: string[] = [];
+    mockStorageGetItem.mockImplementation(async (key: string) => (
+      key === blockedKey && restoreBlocked ? '1' : null
+    ));
+    mockStorageSetItem.mockImplementation(async (key: string, value: string) => {
+      if (key === blockedKey) restoreBlocked = value === '1';
+    });
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') {
+        rpcOrder.push('restore');
+        restoreStarted();
+        await restoreReleasePromise;
+        return { data: { payload: null, revision: 0 }, error: null };
+      }
+      if (name === 'save_my_data_backup_v2') rpcOrder.push('save');
+      return { data: 1, error: null };
+    });
+
+    const restorePromise = restoreUserDataIfNeeded(
+      1,
+      'user@example.com',
+      'google-sub',
+      () => restoreActive,
+    );
+    await restoreStartedPromise;
+    const syncPromise = syncToSupabase('google-sub', 'user@example.com');
+    restoreActive = false;
+    releaseRestore();
+
+    await expect(restorePromise).resolves.toBe('unavailable');
+    await expect(syncPromise).resolves.toBeUndefined();
+    expect(rpcOrder).toEqual(['restore']);
+    expect(restoreBlocked).toBe(true);
+  });
+
+  it('keeps queued uploads blocked when persisting the restore marker fails', async () => {
+    const blockedKey = 'habit_sync_backup_restore_blocked:user@example.com';
+    let releaseRestore!: () => void;
+    let restoreStarted!: () => void;
+    const restoreStartedPromise = new Promise<void>(resolve => { restoreStarted = resolve; });
+    const restoreReleasePromise = new Promise<void>(resolve => { releaseRestore = resolve; });
+    const rpcOrder: string[] = [];
+    mockStorageGetItem.mockResolvedValue(null);
+    mockStorageSetItem.mockImplementation(async (key: string) => {
+      if (key === blockedKey) throw new Error('AsyncStorage unavailable');
+    });
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') {
+        rpcOrder.push('restore');
+        restoreStarted();
+        await restoreReleasePromise;
+        return { data: null, error: new Error('temporary network failure') };
+      }
+      if (name === 'save_my_data_backup_v2') rpcOrder.push('save');
+      return { data: 1, error: null };
+    });
+
+    const restorePromise = restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub');
+    await restoreStartedPromise;
+    const syncPromise = syncToSupabase('google-sub', 'user@example.com');
+    releaseRestore();
+
+    await expect(restorePromise).resolves.toBe('unavailable');
+    await expect(syncPromise).resolves.toBeUndefined();
+    expect(rpcOrder).toEqual(['restore']);
   });
 
   it('fails closed when a legacy activity id belongs to another local account', async () => {
@@ -548,6 +782,27 @@ describe('account sync gate', () => {
     const release = await pause;
     await inFlight;
     release();
+  });
+
+  it('cancels a retry waiting behind a blocked account gate', async () => {
+    const account = 'cancelled-retry@example.com';
+    const release = await pauseAccountSync(account);
+    const cancellation = new AbortController();
+    const writes: string[] = [];
+
+    const waitingRetry = runAccountSync(
+      account,
+      async () => { writes.push('stale-retry'); },
+      true,
+      true,
+      cancellation.signal,
+    );
+    cancellation.abort();
+
+    await expect(waitingRetry).rejects.toThrow('Account sync was invalidated');
+    release();
+    await Promise.resolve();
+    expect(writes).toEqual([]);
   });
 });
 
