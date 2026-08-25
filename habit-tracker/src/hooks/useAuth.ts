@@ -522,7 +522,7 @@ export function useAuth() {
     if (!isQaSandboxIdentity(user)) {
       if (!remoteSyncService) throw new Error('Google sign-in session unavailable');
       const syncService = remoteSyncService as typeof import('../api/syncService');
-      const restoreResult = await syncService.restoreUserDataIfNeeded(result.id, user.email, user.sub, () => remoteAuthActive);
+      const restoreResult = await syncService.restoreUserDataIfNeeded(result.id, user.email, user.sub, () => remoteAuthActive, true);
       if (restoreResult === 'unavailable') {
         throw new Error('Cloud data restore is unavailable; sign-in remains blocked for safety');
       }

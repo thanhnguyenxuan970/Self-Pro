@@ -1225,6 +1225,7 @@ export async function restoreUserDataIfNeeded(
             assertRestoreActive();
             const legacyRequest = supabase!.from('activity_log')
               .select('local_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note')
+              .gt('local_id', 0)
               .order('local_id', { ascending: true });
             const { data: legacyRows, error: legacyError } = await withSupabaseAbortSignal(
               legacyRequest,

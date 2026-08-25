@@ -6,7 +6,8 @@ const mockDeleteEq = jest.fn(() => ({ in: mockDeleteIn }));
 const mockDelete = jest.fn(() => ({ in: mockDeleteIn }));
 const mockLegacyActivityOrder = jest.fn().mockResolvedValue({ data: [], error: null });
 const mockLegacyActivityEq = jest.fn(() => ({ order: mockLegacyActivityOrder }));
-const mockLegacyActivitySelect = jest.fn(() => ({ order: mockLegacyActivityOrder }));
+const mockLegacyActivityGt = jest.fn(() => ({ order: mockLegacyActivityOrder }));
+const mockLegacyActivitySelect = jest.fn(() => ({ gt: mockLegacyActivityGt, order: mockLegacyActivityOrder }));
 const mockRpc = jest.fn(async (name: string): Promise<{ data: unknown; error: unknown | null }> => {
   if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
   if (name === 'restore_my_data_backup_v2') return { data: { payload: null, revision: 0 }, error: null };
@@ -233,6 +234,7 @@ describe('restoreUserDataIfNeeded', () => {
     await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
 
     expect(mockLegacyActivityEq).not.toHaveBeenCalled();
+    expect(mockLegacyActivityGt).toHaveBeenCalledWith('local_id', 0);
     expect(writes.filter(sql => sql.includes('INSERT OR REPLACE INTO activity_log'))).toHaveLength(2);
     expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO daily_summary'));
     expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO weekly_summary'));
