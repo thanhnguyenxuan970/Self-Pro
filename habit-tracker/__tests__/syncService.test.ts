@@ -240,6 +240,53 @@ describe('restoreUserDataIfNeeded', () => {
     expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO weekly_summary'));
   });
 
+  it('blocks an empty legacy restore when the server still reports rank progress', async () => {
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') return { data: { payload: null, revision: 0 }, error: null };
+      if (name === 'sync_lifetime_stars') return { data: 264, error: null };
+      return { data: null, error: null };
+    });
+    const db = {
+      getFirstAsync: jest.fn().mockResolvedValue(null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(db.runAsync).not.toHaveBeenCalled();
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
+    expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', expect.anything());
+  });
+
+  it('blocks a cloud snapshot that contains stars but no persisted progress rows', async () => {
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'restore_my_data_backup_v2'
+        ? {
+            data: {
+              payload: emptyBackupPayload({ user: { lifetime_stars: 264, current_tier_id: 6 } }),
+              revision: 1,
+            },
+            error: null,
+          }
+        : { data: null, error: null });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(db.runAsync).not.toHaveBeenCalled();
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
+    expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', expect.anything());
+  });
+
   it('fails closed when the server returns a non-null unsupported snapshot', async () => {
     mockRpc.mockImplementation(async (name: string) =>
       name === 'restore_my_data_backup_v2'
@@ -298,10 +345,10 @@ describe('restoreUserDataIfNeeded', () => {
     expect(mockStorageRemoveItem).toHaveBeenCalledWith(blockedKey);
     expect(mockStorageRemoveItem).not.toHaveBeenCalledWith(otherBlockedKey);
     expect(restoreBlocked).toBe(false);
-    expect(mockRpc).toHaveBeenCalledTimes(2);
+    expect(mockRpc).toHaveBeenCalledTimes(3);
   });
 
-  it('keeps a retry restore ahead of a concurrent upload', async () => {
+  it('does not let a concurrent upload pass while retry restore is in flight', async () => {
     const blockedKey = 'habit_sync_backup_restore_blocked:user@example.com';
     let restoreBlocked = true;
     let releaseRestore!: () => void;
@@ -323,7 +370,7 @@ describe('restoreUserDataIfNeeded', () => {
         return { data: { payload: null, revision: 0 }, error: null };
       }
       if (name === 'save_my_data_backup_v2') rpcOrder.push('save');
-      return { data: 1, error: null };
+      return { data: name === 'sync_lifetime_stars' ? 0 : 1, error: null };
     });
     type RaceTestDb = {
       getFirstAsync: jest.Mock;
@@ -364,7 +411,7 @@ describe('restoreUserDataIfNeeded', () => {
     releaseRestore();
     await expect(restorePromise).resolves.toBe('empty');
     await syncPromise;
-    expect(rpcOrder).toEqual(['restore', 'save']);
+    expect(rpcOrder).toEqual(['restore']);
   });
 
   it('re-blocks a queued upload when the retry restore fails', async () => {

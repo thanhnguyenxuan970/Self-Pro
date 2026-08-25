@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.3.c - 2026-08-25
+
+- Google subject changes for the same verified email now reuse the existing local account instead of creating a second empty account.
+- Account restore remains fail-closed until the snapshot completes; rank progress without activity history is rejected instead of being uploaded as an empty reinstall snapshot.
+- Added regression coverage for subject migration, empty legacy restore with remote stars, inconsistent cloud snapshots, and retry/upload ordering. Android native release metadata is 2.0.3.c (versionCode 70); the shared Expo/iOS version remains 2.0.3.
+
 ## 2.0.3.b - 2026-08-25
 
 - Challenge "today" now follows the device-local calendar consistently with activity logs, including non-ICT evening boundaries; Android native release metadata is 2.0.3.b (versionCode 69), while the shared Expo/iOS version remains 2.0.3.

@@ -16,6 +16,7 @@ import {
   isCloudBackupPayload,
   restoreLegacyActivityMirror,
   restoreUserDataBackup,
+  type CloudBackupPayload,
   type LegacyActivityMirrorRow,
 } from '../lib/userDataBackup';
 
@@ -545,6 +546,15 @@ function parseCloudBackupEnvelope(value: unknown): CloudBackupEnvelope | null {
   if (!Object.prototype.hasOwnProperty.call(candidate, 'payload')
       || !Number.isSafeInteger(revision) || revision < 0) return null;
   return { payload: candidate.payload ?? null, revision };
+}
+
+/** A rank total without any persisted progress is an unsafe restore result. */
+function isInconsistentEmptyCloudBackup(payload: CloudBackupPayload): boolean {
+  const user = payload.user;
+  const hasRemoteProgressTotal = Number(user?.lifetime_stars) > 0
+    || Number(user?.treat_stars) > 0
+    || Number(user?.treat_stars_lifetime) > 0;
+  return hasRemoteProgressTotal && payload.activity_log.length === 0;
 }
 
 function stableJson(value: unknown): string {
@@ -1155,6 +1165,31 @@ async function isLocalAccountFresh(
     && !user?.notification_time_3;
 }
 
+async function hasLocalAccountData(
+  db: Pick<SQLiteDatabase, 'getFirstAsync'>,
+  userId: number,
+): Promise<boolean> {
+  const counts = await Promise.all([
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM activity_log WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM challenges WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM daily_summary WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM weekly_summary WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM task_types WHERE user_id = ? AND COALESCE(is_template, 0) = 0', userId),
+    countLocalRows(db, `SELECT COUNT(*) AS count FROM categories
+                        WHERE user_id = ? AND name NOT IN ('Health', 'Mind', 'Work', 'Social', 'Other')`, userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM reward_unlocks WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM fund_transactions WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM streak_freezes WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM treats WHERE user_id = ?', userId),
+    countLocalRows(db, 'SELECT COUNT(*) AS count FROM treat_history WHERE user_id = ?', userId),
+    countLocalRows(db, `SELECT COUNT(*) AS count FROM challenge_log
+                        WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)`, userId),
+    countLocalRows(db, `SELECT COUNT(*) AS count FROM challenge_days
+                        WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)`, userId),
+  ]);
+  return counts.some(count => count > 0);
+}
+
 /**
  * Hydrate a fresh local account before any upload can treat the empty SQLite
  * file as authoritative. The Supabase RPC is keyed by auth.uid(), not email,
@@ -1192,6 +1227,15 @@ export async function restoreUserDataIfNeeded(
         assertRestoreActive();
         return true;
       };
+      const assertEmptyRestoreIsSafe = async (): Promise<void> => {
+        assertRestoreActive();
+        const { data: remoteStars, error: remoteStarsError } = await supabase!.rpc('sync_lifetime_stars');
+        if (remoteStarsError) throw remoteStarsError;
+        assertRestoreActive();
+        if (Number.isFinite(Number(remoteStars)) && Number(remoteStars) > 0) {
+          throw new Error('Cloud backup is empty while the account still has remote progress');
+        }
+      };
       try {
         // Keep the marker set until this account owns the sync gate. A retry
         // must never expose an empty local database to a queued upload while
@@ -1200,10 +1244,6 @@ export async function restoreUserDataIfNeeded(
           result = 'unavailable';
           return;
         }
-        if (allowBlockedRetry) {
-          await clearBackupRestoreBlocked(accountKey);
-        }
-
         await withSupabaseSession(userEmail, expectedGoogleSub, async () => {
           assertRestoreActive();
           const { data, error } = await withSupabaseAbortSignal(
@@ -1240,11 +1280,20 @@ export async function restoreUserDataIfNeeded(
               transactionDb => isLocalAccountFresh(transactionDb, userId),
             );
             if (restoredRows === 'not_needed') {
+              if (!await hasLocalAccountData(db, userId)) await assertEmptyRestoreIsSafe();
               result = 'not_needed';
               return;
             }
-            result = restoredRows > 0 ? 'restored' : 'empty';
+            if (restoredRows > 0) {
+              result = 'restored';
+            } else {
+              await assertEmptyRestoreIsSafe();
+              result = 'empty';
+            }
           } else if (isCloudBackupPayload(envelope.payload)) {
+            if (isInconsistentEmptyCloudBackup(envelope.payload)) {
+              throw new Error('Cloud backup contains rank progress without history');
+            }
             const restored = await restoreUserDataBackup(
               db,
               userId,

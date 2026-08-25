@@ -72,6 +72,23 @@ describe('resolveUserRow', () => {
     expect(categoryInserts).toHaveLength(5);
     expect(db.withTransactionAsync).toHaveBeenCalledTimes(1);
   });
+
+  it('reuses the previous local row when the verified email is unchanged but Google subject changes', async () => {
+    const getFirstAsync = jest.fn()
+      .mockResolvedValueOnce(null) // new subject is not present
+      .mockResolvedValueOnce({ id: 7 }); // previous subject owns the data
+    const runAsync = jest.fn(async () => ({ changes: 1 }));
+    const db = {
+      getFirstAsync,
+      runAsync,
+      withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => callback()),
+    } as unknown as SQLiteDatabase;
+
+    await expect(resolveUserRow(db, 'sub-new', 'same@example.com', undefined, 'sub-old'))
+      .resolves.toEqual({ id: 7, isNew: false });
+    expect(runAsync).toHaveBeenCalledWith('UPDATE users SET google_sub = ? WHERE id = ?', ['sub-new', 7]);
+    expect(runAsync).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO users'), expect.anything());
+  });
 });
 
 function tableNameFromDeleteStatement(sql: string): string {

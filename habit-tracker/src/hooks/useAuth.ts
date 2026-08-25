@@ -110,6 +110,7 @@ export async function resolveUserRow(
   googleSub: string,
   googleEmail: string,
   isActive: () => boolean = () => true,
+  previousGoogleSub?: string,
 ): Promise<{ id: number; isNew: boolean }> {
   let resolved: { id: number; isNew: boolean } | null = null;
   await db.withTransactionAsync(async () => {
@@ -123,6 +124,24 @@ export async function resolveUserRow(
     if (existing) {
       resolved = { id: existing.id, isNew: false };
       return;
+    }
+
+    // Google subjects can change when an account is reprovisioned or the
+    // OAuth client/project changes. If this sign-in is for the same verified
+    // email as the identity already stored on this device, move that existing
+    // local row instead of creating a second empty account. The caller only
+    // supplies previousGoogleSub after comparing the two verified emails.
+    if (previousGoogleSub && previousGoogleSub !== googleSub) {
+      const previous = await db.getFirstAsync<{ id: number }>(
+        'SELECT id FROM users WHERE google_sub = ?',
+        [previousGoogleSub],
+      );
+      if (previous) {
+        if (!isActive()) throw new Error('Google sign-in cancelled');
+        await db.runAsync('UPDATE users SET google_sub = ? WHERE id = ?', [googleSub, previous.id]);
+        resolved = { id: previous.id, isNew: false };
+        return;
+      }
     }
 
     // Migration: legacy install stored email in google_sub — upgrade in-place
@@ -494,7 +513,12 @@ export function useAuth() {
           return result;
         }
         setQaSandboxNetworkBlocked(false);
-        return resolveUserRow(db, user.sub, user.email, () => remoteAuthActive);
+        const previousGoogleSub = previousUser
+          && previousUser.email.trim().toLowerCase() === user.email.trim().toLowerCase()
+          && previousUser.sub.trim() !== user.sub.trim()
+          ? previousUser.sub
+          : undefined;
+        return resolveUserRow(db, user.sub, user.email, () => remoteAuthActive, previousGoogleSub);
       } catch (e) {
         if (isQaSandboxIdentity(user)) setQaSandboxNetworkBlocked(false);
         if (__DEV__) console.warn('[auth] resolveUserRow failed; sign-in aborted:', e);
