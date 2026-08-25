@@ -4,6 +4,7 @@
 
 - Challenge "today" now follows the device-local calendar consistently with activity logs, including non-ICT evening boundaries; Android/Expo release metadata is aligned to 2.0.3 (versionCode 67).
 - Supabase auth-audit diagnostics now match the live schema (`payload` is `json`, with `action` and `provider` read from that payload); no app or migration change was required.
+- Added a read-only `Docs/supabase_diagnostics.sql` catalog checklist with corrected queries for the reported `42703`/`42809` introspection errors and documented credential (`28P01`) and transport (`08006`) boundaries.
 - Google/Supabase sign-in now skips redundant exchanges for a fresh same-account session, serializes direct and background ID-token exchanges, retries one transient auth-user race or HTTP 5xx exchange failure, verifies the returned email, and fails closed instead of publishing a local account after remote auth failure.
 - Google accounts now use an authenticated, account-scoped Supabase snapshot to restore local tasks, activity, heatmap rollups, Challenges, rewards, and rank state before any post-reinstall upload; older activity mirrors remain a heatmap fallback, snapshot writes use revision compare-and-swap, cross-account SQLite collisions fail closed, and interrupted reset/delete flows cannot resurrect old data.
 - Challenge reminders now re-arm deterministic Expo notification IDs after Android force-stop, and denied notification permission clears the persisted reminder token for retry.
