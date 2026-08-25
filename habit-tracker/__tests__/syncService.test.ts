@@ -4,7 +4,13 @@ const mockUpsert = jest.fn();
 const mockDeleteIn = jest.fn().mockResolvedValue({ error: null });
 const mockDeleteEq = jest.fn(() => ({ in: mockDeleteIn }));
 const mockDelete = jest.fn(() => ({ in: mockDeleteIn }));
-const mockLegacyActivityOrder = jest.fn().mockResolvedValue({ data: [], error: null });
+const mockLegacyActivityRange = jest.fn().mockResolvedValue({ data: [], error: null });
+const mockLegacyPage = (response: { data: unknown; error: unknown }) => {
+  mockLegacyActivityRange
+    .mockResolvedValueOnce(response)
+    .mockResolvedValueOnce({ data: [], error: null });
+};
+const mockLegacyActivityOrder = jest.fn(() => ({ range: mockLegacyActivityRange }));
 const mockLegacyActivityEq = jest.fn(() => ({ order: mockLegacyActivityOrder }));
 const mockLegacyActivityGt = jest.fn(() => ({ order: mockLegacyActivityOrder }));
 const mockLegacyActivitySelect = jest.fn(() => ({ gt: mockLegacyActivityGt, order: mockLegacyActivityOrder }));
@@ -117,7 +123,9 @@ describe('restoreUserDataIfNeeded', () => {
     await clearBackupRestoreBlocked('user@example.com');
     mockStorageRemoveItem.mockClear();
     mockLegacyActivityOrder.mockReset();
-    mockLegacyActivityOrder.mockResolvedValue({ data: [], error: null });
+    mockLegacyActivityOrder.mockImplementation(() => ({ range: mockLegacyActivityRange }));
+    mockLegacyActivityRange.mockReset();
+    mockLegacyActivityRange.mockResolvedValue({ data: [], error: null });
     mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
   });
 
@@ -204,8 +212,10 @@ describe('restoreUserDataIfNeeded', () => {
     mockRpc.mockImplementation(async (name: string) =>
       name === 'restore_my_data_backup_v2'
         ? { data: { payload: null, revision: 0 }, error: null }
+        : name === 'sync_lifetime_stars'
+        ? { data: 180, error: null }
         : { data: null, error: null });
-    mockLegacyActivityOrder.mockResolvedValue({
+    mockLegacyPage({
       data: [
         {
           local_id: 11, kind: 'GOOD', duration_min: 20, points_earned: 10, stars_delta: 2,
@@ -213,14 +223,61 @@ describe('restoreUserDataIfNeeded', () => {
         },
         {
           local_id: 12, kind: 'GOOD', duration_min: null, points_earned: 0, stars_delta: 1,
-          source: 'DAILY_BONUS', logged_at: 2, local_date: '2026-08-21', week_start: '2026-08-17',
+          source: 'DAILY_BONUS', logged_at: 2, local_date: '2026-08-21',
         },
       ],
       error: null,
     });
     const writes: string[] = [];
+    let weeklyWriteParams: unknown[] | undefined;
     const db = {
-      getFirstAsync: jest.fn().mockResolvedValue(null),
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('MAX(id)') ? { max_id: 12 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(async (sql: string, params?: unknown[]) => {
+        writes.push(sql);
+        if (sql.includes('INSERT OR REPLACE INTO weekly_summary')) weeklyWriteParams = params;
+        return { changes: 1, lastInsertRowId: 1 };
+      }),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
+
+    expect(mockLegacyActivityEq).not.toHaveBeenCalled();
+    expect(mockLegacyActivityGt).toHaveBeenCalledWith('local_id', 0);
+    expect(writes.filter(sql => sql.includes('INSERT OR REPLACE INTO activity_log'))).toHaveLength(1);
+    expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO daily_summary'));
+    expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO weekly_summary'));
+    expect(weeklyWriteParams).toEqual(expect.arrayContaining(['2026-08-17']));
+  });
+
+  it('continues keyset pages and excludes legacy login telemetry from restored heatmap rows', async () => {
+    mockRpc.mockImplementation(async (name: string) => name === 'restore_my_data_backup_v2'
+      ? { data: { payload: null, revision: 0 }, error: null }
+      : name === 'sync_lifetime_stars'
+      ? { data: 180, error: null }
+      : { data: null, error: null });
+    mockLegacyActivityRange
+      .mockResolvedValueOnce({
+        data: [{
+          local_id: 11, kind: 'GOOD', duration_min: 20, points_earned: 10, stars_delta: 2,
+          source: 'TASK', logged_at: 1, local_date: '2026-08-20', week_start: '2026-08-17',
+        }],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [{
+          local_id: 12, kind: 'LOGIN', duration_min: null, points_earned: 0, stars_delta: 0,
+          source: 'LOGIN', logged_at: 2, local_date: '2026-08-21', week_start: '2026-08-17',
+        }],
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: [], error: null });
+    const writes: string[] = [];
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
       getAllAsync: jest.fn().mockResolvedValue([]),
       runAsync: jest.fn(async (sql: string) => {
         writes.push(sql);
@@ -233,11 +290,33 @@ describe('restoreUserDataIfNeeded', () => {
 
     await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
 
-    expect(mockLegacyActivityEq).not.toHaveBeenCalled();
-    expect(mockLegacyActivityGt).toHaveBeenCalledWith('local_id', 0);
-    expect(writes.filter(sql => sql.includes('INSERT OR REPLACE INTO activity_log'))).toHaveLength(2);
-    expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO daily_summary'));
-    expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO weekly_summary'));
+    expect(mockLegacyActivityGt.mock.calls).toEqual([
+      ['local_id', 0],
+      ['local_id', 11],
+      ['local_id', 12],
+    ]);
+    expect(writes.filter(sql => sql.includes('INSERT OR REPLACE INTO activity_log'))).toHaveLength(1);
+  });
+
+  it('fails closed when the legacy activity page is null without an API error', async () => {
+    mockRpc.mockImplementation(async (name: string) => name === 'restore_my_data_backup_v2'
+      ? { data: { payload: null, revision: 0 }, error: null }
+      : name === 'sync_lifetime_stars'
+      ? { data: 0, error: null }
+      : { data: null, error: null });
+    mockLegacyActivityRange.mockResolvedValueOnce({ data: null, error: null });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(db.runAsync).not.toHaveBeenCalled();
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
   });
 
   it('blocks an empty legacy restore when the server still reports rank progress', async () => {
@@ -247,7 +326,7 @@ describe('restoreUserDataIfNeeded', () => {
       return { data: null, error: null };
     });
     const db = {
-      getFirstAsync: jest.fn().mockResolvedValue(null),
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('MAX(id)') ? { max_id: 41 } : null),
       getAllAsync: jest.fn().mockResolvedValue([]),
       runAsync: jest.fn(),
       withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
@@ -261,17 +340,54 @@ describe('restoreUserDataIfNeeded', () => {
     expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', expect.anything());
   });
 
+  it('fails closed when legacy activity exists but the server rank total is missing', async () => {
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') return { data: { payload: null, revision: 0 }, error: null };
+      if (name === 'sync_lifetime_stars') return { data: null, error: null };
+      return { data: null, error: null };
+    });
+    mockLegacyPage({
+      data: [{
+        local_id: 11,
+        kind: 'GOOD',
+        duration_min: 20,
+        points_earned: 10,
+        stars_delta: 2,
+        source: 'TASK',
+        logged_at: 1,
+        local_date: '2026-08-20',
+        week_start: '2026-08-17',
+      }],
+      error: null,
+    });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(db.runAsync).not.toHaveBeenCalled();
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
+  });
+
   it('blocks a cloud snapshot that contains stars but no persisted progress rows', async () => {
-    mockRpc.mockImplementation(async (name: string) =>
-      name === 'restore_my_data_backup_v2'
-        ? {
-            data: {
-              payload: emptyBackupPayload({ user: { lifetime_stars: 264, current_tier_id: 6 } }),
-              revision: 1,
-            },
-            error: null,
-          }
-        : { data: null, error: null });
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') {
+        return {
+          data: {
+            payload: emptyBackupPayload({ user: { lifetime_stars: 264, current_tier_id: 6 } }),
+            revision: 1,
+          },
+          error: null,
+        };
+      }
+      if (name === 'sync_lifetime_stars') return { data: 264, error: null };
+      return { data: null, error: null };
+    });
     const db = {
       getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
       getAllAsync: jest.fn().mockResolvedValue([]),
@@ -285,6 +401,364 @@ describe('restoreUserDataIfNeeded', () => {
     expect(db.runAsync).not.toHaveBeenCalled();
     expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
     expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', expect.anything());
+  });
+
+  it('restores a treat-only snapshot instead of misclassifying it as lost progress', async () => {
+    mockRpc.mockImplementation(async (name: string) => name === 'restore_my_data_backup_v2'
+      ? {
+          data: {
+            payload: emptyBackupPayload({
+              user: {
+                lifetime_stars: 0,
+                current_tier_id: null,
+                treat_stars: 20,
+                treat_stars_lifetime: 20,
+              },
+            }),
+            revision: 2,
+          },
+          error: null,
+        }
+      : { data: null, error: null });
+    const writes: Array<{ sql: string; params?: unknown[] }> = [];
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(async (sql: string, params?: unknown[]) => {
+        writes.push({ sql, params });
+        return { changes: 1, lastInsertRowId: 1 };
+      }),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
+
+    expect(mockLegacyActivityGt).not.toHaveBeenCalled();
+    const userWrite = writes.find(write => write.sql.includes('UPDATE users SET'));
+    expect(userWrite?.params).toEqual(expect.arrayContaining([20]));
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', '2');
+  });
+
+  it('blocks a ranked partial snapshot instead of advancing its revision over missing activity', async () => {
+    mockRpc.mockImplementation(async (name: string) => name === 'restore_my_data_backup_v2'
+      ? {
+          data: {
+            payload: emptyBackupPayload({
+              user: { lifetime_stars: 264, current_tier_id: 6 },
+              task_types: [{ id: 11, name: 'Running', kind: 'GOOD' }],
+            }),
+            revision: 8,
+          },
+          error: null,
+        }
+      : { data: null, error: null });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(db.runAsync).not.toHaveBeenCalled();
+    expect(mockLegacyActivityGt).not.toHaveBeenCalled();
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
+    expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', '8');
+  });
+
+  it('falls back to the legacy activity mirror when a ranked cloud snapshot has no history', async () => {
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'restore_my_data_backup_v2'
+        ? {
+            data: {
+              payload: emptyBackupPayload({ user: { lifetime_stars: 264, current_tier_id: 6 } }),
+              revision: 4,
+            },
+            error: null,
+          }
+        : name === 'sync_lifetime_stars'
+        ? { data: 260, error: null }
+        : { data: null, error: null });
+    mockLegacyPage({
+      data: [{
+        local_id: 41,
+        kind: 'GOOD',
+        duration_min: 20,
+        points_earned: 10,
+        stars_delta: 2,
+        source: 'TASK',
+        logged_at: 1,
+        local_date: '2026-08-20',
+        week_start: '2026-08-17',
+        note: null,
+      }],
+      error: null,
+    });
+    const writes: string[] = [];
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('MAX(id)') ? { max_id: 41 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(async (sql: string) => {
+        writes.push(sql);
+        return { changes: 1, lastInsertRowId: 1 };
+      }),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
+
+    expect(mockLegacyActivityGt).toHaveBeenCalledWith('local_id', 0);
+    expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO activity_log'));
+    expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO daily_summary'));
+    expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO weekly_summary'));
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', '4');
+    expect(mockStorageRemoveItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com');
+  });
+
+  it('sets the restored local rank to the server-derived total before normal sync can re-upload the mirror', async () => {
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') {
+        return {
+          data: {
+            payload: emptyBackupPayload({ user: { lifetime_stars: 264, current_tier_id: 6 } }),
+            revision: 4,
+          },
+          error: null,
+        };
+      }
+      if (name === 'sync_lifetime_stars') return { data: 260, error: null };
+      return { data: null, error: null };
+    });
+    mockLegacyPage({
+      data: [{
+        local_id: 41,
+        kind: 'GOOD',
+        duration_min: 20,
+        points_earned: 10,
+        stars_delta: 2,
+        source: 'TASK',
+        logged_at: 1,
+        local_date: '2026-08-20',
+        week_start: '2026-08-17',
+        note: null,
+      }],
+      error: null,
+    });
+    const writes: Array<{ sql: string; params?: unknown[] }> = [];
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('COUNT(*)')) return { count: 0 };
+        if (sql.includes('MAX(id)')) return { max_id: 41 };
+        return null;
+      }),
+      getAllAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('FROM tiers')) return [{ id: 6, tier_order: 6, rank_name: 'Goated', stars_required: 256 }];
+        return [];
+      }),
+      runAsync: jest.fn(async (sql: string, params?: unknown[]) => {
+        writes.push({ sql, params });
+        return { changes: 1, lastInsertRowId: 1 };
+      }),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
+
+    expect(mockRpc).toHaveBeenCalledWith('sync_lifetime_stars');
+    expect(writes).toContainEqual({
+      sql: 'UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?',
+      params: [260, 6, 1],
+    });
+  });
+
+  it('preserves a higher local rank tier while reconciling restored stars', async () => {
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') {
+        return {
+          data: {
+            payload: emptyBackupPayload({ user: { lifetime_stars: 264, current_tier_id: 6 } }),
+            revision: 4,
+          },
+          error: null,
+        };
+      }
+      if (name === 'sync_lifetime_stars') return { data: 260, error: null };
+      return { data: null, error: null };
+    });
+    mockLegacyPage({
+      data: [{
+        local_id: 41,
+        kind: 'GOOD',
+        duration_min: 20,
+        points_earned: 10,
+        stars_delta: 2,
+        source: 'TASK',
+        logged_at: 1,
+        local_date: '2026-08-20',
+        week_start: '2026-08-17',
+        note: null,
+      }],
+      error: null,
+    });
+    const writes: Array<{ sql: string; params?: unknown[] }> = [];
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('COUNT(*)')) return { count: 0 };
+        if (sql.includes('current_tier_id')) return { current_tier_id: 8 };
+        if (sql.includes('positive_stars')) return { positive_stars: 0 };
+        return null;
+      }),
+      getAllAsync: jest.fn(async (sql: string) => sql.includes('FROM tiers')
+        ? [
+            { id: 6, tier_order: 6, rank_name: 'Goated', stars_required: 256 },
+            { id: 8, tier_order: 8, rank_name: 'Legend', stars_required: 1024 },
+          ]
+        : []),
+      runAsync: jest.fn(async (sql: string, params?: unknown[]) => {
+        writes.push({ sql, params });
+        return { changes: 1, lastInsertRowId: 1 };
+      }),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
+
+    expect(writes).toContainEqual({
+      sql: 'UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?',
+      params: [260, 8, 1],
+    });
+  });
+
+  it('carries the cloud high-water tier through a legacy restore even when snapshot stars are zero', async () => {
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') {
+        return {
+          data: {
+            payload: emptyBackupPayload({ user: { lifetime_stars: 0, current_tier_id: 8 } }),
+            revision: 4,
+          },
+          error: null,
+        };
+      }
+      if (name === 'sync_lifetime_stars') return { data: 260, error: null };
+      return { data: null, error: null };
+    });
+    mockLegacyPage({
+      data: [{
+        local_id: 41,
+        kind: 'GOOD',
+        duration_min: 20,
+        points_earned: 10,
+        stars_delta: 2,
+        source: 'TASK',
+        logged_at: 1,
+        local_date: '2026-08-20',
+        week_start: '2026-08-17',
+        note: null,
+      }],
+      error: null,
+    });
+    const writes: Array<{ sql: string; params?: unknown[] }> = [];
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('COUNT(*)')) return { count: 0 };
+        if (sql.includes('current_tier_id')) return { current_tier_id: null };
+        if (sql.includes('positive_stars')) return { positive_stars: 0 };
+        return null;
+      }),
+      getAllAsync: jest.fn(async (sql: string) => sql.includes('FROM tiers')
+        ? [
+            { id: 6, tier_order: 6, rank_name: 'Goated', stars_required: 256 },
+            { id: 8, tier_order: 8, rank_name: 'Legend', stars_required: 1024 },
+          ]
+        : []),
+      runAsync: jest.fn(async (sql: string, params?: unknown[]) => {
+        writes.push({ sql, params });
+        return { changes: 1, lastInsertRowId: 1 };
+      }),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
+
+    expect(writes).toContainEqual({
+      sql: 'UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?',
+      params: [260, 8, 1],
+    });
+  });
+
+  it('restores legacy history when the fresh local account only has a stale rank total', async () => {
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'restore_my_data_backup_v2'
+        ? {
+            data: {
+              payload: emptyBackupPayload({ user: { lifetime_stars: 264, current_tier_id: 6 } }),
+              revision: 4,
+            },
+            error: null,
+          }
+        : name === 'sync_lifetime_stars'
+        ? { data: 260, error: null }
+        : { data: null, error: null });
+    mockLegacyPage({
+      data: [{
+        local_id: 42,
+        kind: 'GOOD',
+        duration_min: 20,
+        points_earned: 10,
+        stars_delta: 2,
+        source: 'TASK',
+        logged_at: 1,
+        local_date: '2026-08-20',
+        week_start: '2026-08-17',
+        note: null,
+      }],
+      error: null,
+    });
+    const writes: Array<{ sql: string; params?: unknown[] }> = [];
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('COUNT(*)')) return { count: 0 };
+        if (sql.includes('MAX(id)')) return { max_id: 42 };
+        if (sql.includes('FROM users')) {
+          return {
+            username: 'me', timezone: 'Asia/Ho_Chi_Minh', carry_debt: 0, currency: 'VND',
+            last_seen_week_start: null, lifetime_stars: 264, current_tier_id: 6,
+            treat_stars: 0, treat_stars_lifetime: 0, value_per_star: 1000,
+            penalty_hits_treats: 1, notification_time: null, notification_time_2: null,
+            notification_time_3: null,
+          };
+        }
+        return null;
+      }),
+      getAllAsync: jest.fn(async (sql: string) => sql.includes('FROM activity_log') ? [{ id: 42 }] : []),
+      runAsync: jest.fn(async (sql: string, params?: unknown[]) => {
+        writes.push({ sql, params });
+        return { changes: 1, lastInsertRowId: 1 };
+      }),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
+
+    const activityWrite = writes.find(write => write.sql.includes('INSERT OR REPLACE INTO activity_log'));
+    expect(activityWrite?.params?.[0]).toBeGreaterThan(42);
+    expect(writes.map(write => write.sql)).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO daily_summary'));
+    expect(writes.map(write => write.sql)).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO weekly_summary'));
   });
 
   it('fails closed when the server returns a non-null unsupported snapshot', async () => {
@@ -323,6 +797,7 @@ describe('restoreUserDataIfNeeded', () => {
     });
     let rpcCalls = 0;
     mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'sync_lifetime_stars') return { data: 0, error: null };
       if (name !== 'restore_my_data_backup_v2') return { data: null, error: null };
       rpcCalls += 1;
       return rpcCalls === 1
@@ -345,7 +820,7 @@ describe('restoreUserDataIfNeeded', () => {
     expect(mockStorageRemoveItem).toHaveBeenCalledWith(blockedKey);
     expect(mockStorageRemoveItem).not.toHaveBeenCalledWith(otherBlockedKey);
     expect(restoreBlocked).toBe(false);
-    expect(mockRpc).toHaveBeenCalledTimes(3);
+    expect(mockRpc).toHaveBeenCalledTimes(4);
   });
 
   it('does not let a concurrent upload pass while retry restore is in flight', async () => {
@@ -528,12 +1003,13 @@ describe('restoreUserDataIfNeeded', () => {
     expect(rpcOrder).toEqual(['restore']);
   });
 
-  it('fails closed when a legacy activity id belongs to another local account', async () => {
-    mockRpc.mockImplementation(async (name: string) =>
-      name === 'restore_my_data_backup_v2'
-        ? { data: { payload: null, revision: 4 }, error: null }
-        : { data: null, error: null });
-    mockLegacyActivityOrder.mockResolvedValue({
+  it('remaps a legacy activity id that belongs to another local account', async () => {
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') return { data: { payload: null, revision: 4 }, error: null };
+      if (name === 'sync_lifetime_stars') return { data: 2, error: null };
+      return { data: null, error: null };
+    });
+    mockLegacyPage({
       data: [{
         local_id: 11, kind: 'GOOD', duration_min: 20, points_earned: 10, stars_delta: 2,
         source: 'TASK', logged_at: 1, local_date: '2026-08-20', week_start: '2026-08-17',
@@ -549,9 +1025,132 @@ describe('restoreUserDataIfNeeded', () => {
     };
     mockGetDb.mockResolvedValue(db);
 
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
+    const activityWrite = db.runAsync.mock.calls.find(([sql]) => sql.includes('INSERT OR REPLACE INTO activity_log'));
+    expect(activityWrite?.[1]?.[0]).toBeGreaterThan(11);
+    expect(mockStorageRemoveItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com');
+  });
+
+  it('does not commit legacy rows when the server rank cannot be reconciled', async () => {
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') return { data: { payload: null, revision: 4 }, error: null };
+      if (name === 'sync_lifetime_stars') return { data: null, error: { message: 'rank unavailable' } };
+      return { data: null, error: null };
+    });
+    mockLegacyPage({
+      data: [{
+        local_id: 11,
+        kind: 'GOOD',
+        duration_min: 20,
+        points_earned: 10,
+        stars_delta: 2,
+        source: 'TASK',
+        logged_at: 1,
+        local_date: '2026-08-20',
+        week_start: '2026-08-17',
+      }],
+      error: null,
+    });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
     await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
     expect(db.runAsync).not.toHaveBeenCalled();
     expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
+  });
+
+  it('fails closed when local activity appears before the legacy restore transaction starts', async () => {
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') return { data: { payload: null, revision: 4 }, error: null };
+      if (name === 'sync_lifetime_stars') return { data: 2, error: null };
+      return { data: null, error: null };
+    });
+    mockLegacyPage({
+      data: [{
+        local_id: 11,
+        kind: 'GOOD',
+        duration_min: 20,
+        points_earned: 10,
+        stars_delta: 2,
+        source: 'TASK',
+        logged_at: 1,
+        local_date: '2026-08-20',
+        week_start: '2026-08-17',
+      }],
+      error: null,
+    });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 1 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(db.runAsync).not.toHaveBeenCalled();
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
+  });
+
+  it('replays journaled legacy cursor finalization after the first cursor write fails', async () => {
+    let pending: string | null = null;
+    let failCursorWrite = true;
+    const pendingKey = 'habit_sync_legacy_restore_pending:user@example.com:1';
+    const cursorKey = 'habit_sync_last_activity_id:1';
+    mockStorageGetItem.mockImplementation(async (key: string) => key === pendingKey ? pending : null);
+    mockStorageSetItem.mockImplementation(async (key: string, value: string) => {
+      if (key === cursorKey && failCursorWrite) throw new Error('cursor storage unavailable');
+      if (key === pendingKey) pending = value;
+    });
+    mockStorageRemoveItem.mockImplementation(async (key: string) => {
+      if (key === pendingKey) pending = null;
+    });
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') return { data: { payload: null, revision: 4 }, error: null };
+      if (name === 'sync_lifetime_stars') return { data: 2, error: null };
+      return { data: null, error: null };
+    });
+    mockLegacyPage({
+      data: [{
+        local_id: 11,
+        kind: 'GOOD',
+        duration_min: 20,
+        points_earned: 10,
+        stars_delta: 2,
+        source: 'TASK',
+        logged_at: 1,
+        local_date: '2026-08-20',
+        week_start: '2026-08-17',
+      }],
+      error: null,
+    });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('COALESCE(MAX(id)')) return { count: 1, max_id: 11 };
+        return sql.includes('COUNT(*)') ? { count: 0 } : null;
+      }),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
+    expect(pending).toBe('committed:11');
+
+    failCursorWrite = false;
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub', undefined, true)).resolves.toBe('restored');
+    expect(pending).toBeNull();
+    expect(mockLegacyActivityGt).toHaveBeenCalledTimes(2);
+    expect(mockStorageSetItem).toHaveBeenCalledWith(cursorKey, '11');
   });
 
   it('fails closed when a legacy activity contains a malformed numeric field', async () => {
@@ -559,7 +1158,7 @@ describe('restoreUserDataIfNeeded', () => {
       name === 'restore_my_data_backup_v2'
         ? { data: { payload: null, revision: 5 }, error: null }
         : { data: null, error: null });
-    mockLegacyActivityOrder.mockResolvedValue({
+    mockLegacyPage({
       data: [{
         local_id: 11, kind: 'GOOD', duration_min: 20, points_earned: 'not-a-number', stars_delta: 2,
         source: 'TASK', logged_at: 1, local_date: '2026-08-20', week_start: '2026-08-17',
@@ -584,7 +1183,7 @@ describe('restoreUserDataIfNeeded', () => {
       name === 'restore_my_data_backup_v2'
         ? { data: { payload: null, revision: 6 }, error: null }
         : { data: null, error: null });
-    mockLegacyActivityOrder.mockResolvedValue({
+    mockLegacyPage({
       data: [{
         local_id: 11, kind: 'GOOD', duration_min: ' ', points_earned: 10, stars_delta: 2,
         source: 'TASK', logged_at: 1, local_date: '2024-02-30', week_start: '2024-02-26',

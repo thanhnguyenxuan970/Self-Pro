@@ -18,12 +18,14 @@ import {
   restoreUserDataBackup,
   type CloudBackupPayload,
   type LegacyActivityMirrorRow,
+  type LegacyActivityRestoreResult,
 } from '../lib/userDataBackup';
 
 const KEY_LAST_ACTIVITY = 'habit_sync_last_activity_id';
 const KEY_LAST_FUND = 'habit_sync_last_fund_id';
 const KEY_BACKUP_REVISION = 'habit_sync_backup_revision';
 const KEY_BACKUP_RESTORE_BLOCKED = 'habit_sync_backup_restore_blocked';
+const KEY_LEGACY_RESTORE_PENDING = 'habit_sync_legacy_restore_pending';
 const BATCH = 100;
 
 type AssertSyncActive = () => void;
@@ -413,6 +415,102 @@ async function pullLifetimeStarsIntoLocal(
   }
 }
 
+/**
+ * Set the local rank to the server-derived total after a legacy mirror restore.
+ * The restored activity rows are already present remotely, so treating them as
+ * new local stars would make the next sync upload the same history again.
+ * Normal sync keeps its high-water semantics; this exact reconciliation is
+ * intentionally limited to the guarded restore path.
+ */
+function normalizeServerLifetimeStars(value: unknown): number {
+  if ((typeof value !== 'number' && typeof value !== 'string')
+      || (typeof value === 'string' && !value.trim())) {
+    throw new Error('Server returned no lifetime-star total for the restored account');
+  }
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized) || normalized < 0) {
+    throw new Error('Server returned an invalid lifetime-star total');
+  }
+  return normalized;
+}
+
+async function setLifetimeStarsFromServer(
+  db: SQLiteDatabase,
+  userId: number,
+  remoteStars: number,
+  assertActive: AssertSyncActive,
+  restoredMaxId?: number,
+  preservedTierId?: number,
+): Promise<void> {
+  const normalizedStars = normalizeServerLifetimeStars(remoteStars);
+
+  assertActive();
+  const tiers = await db.getAllAsync<LifetimeTierRow>(
+    'SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY tier_order',
+  );
+  const write = (transactionDb: Pick<SQLiteDatabase, 'getFirstAsync' | 'runAsync'>) =>
+    setLifetimeStarsInTransaction(
+      transactionDb,
+      userId,
+      normalizedStars,
+      tiers,
+      assertActive,
+      restoredMaxId,
+      preservedTierId,
+    );
+
+  if (typeof db.withExclusiveTransactionAsync === 'function') {
+    await db.withExclusiveTransactionAsync(async transactionDb => {
+      await write(transactionDb ?? db);
+    });
+  } else {
+    await db.withTransactionAsync(async () => {
+      await write(db);
+    });
+  }
+}
+
+async function setLifetimeStarsInTransaction(
+  transactionDb: Pick<SQLiteDatabase, 'getFirstAsync' | 'runAsync'>,
+  userId: number,
+  normalizedStars: number,
+  tiers: LifetimeTierRow[],
+  assertActive: AssertSyncActive,
+  restoredMaxId?: number,
+  preservedTierId?: number,
+): Promise<void> {
+  assertActive();
+  const localUser = await transactionDb.getFirstAsync<{ current_tier_id: number | null }>(
+    'SELECT current_tier_id FROM users WHERE id = ?',
+    [userId],
+  );
+  const newActivityStars = Number.isSafeInteger(restoredMaxId) && (restoredMaxId as number) >= 0
+    ? Number((await transactionDb.getFirstAsync<{ positive_stars: number | null }>(
+      `SELECT COALESCE(SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END), 0) AS positive_stars
+         FROM activity_log WHERE user_id = ? AND id > ?`,
+      [userId, restoredMaxId as number],
+    ))?.positive_stars) || 0
+    : 0;
+  const effectiveStars = normalizedStars + newActivityStars;
+  const reachedTier = [...tiers]
+    .sort((left, right) => left.tier_order - right.tier_order)
+    .reverse()
+    .find(tier => tier.stars_required <= effectiveStars);
+  const existingTier = tiers.find(tier => tier.id === Number(localUser?.current_tier_id));
+  const persistedHighWaterTier = tiers.find(tier => tier.id === Number(preservedTierId));
+  const highWaterTier = [existingTier, persistedHighWaterTier]
+    .filter((tier): tier is LifetimeTierRow => Boolean(tier))
+    .sort((left, right) => right.tier_order - left.tier_order)[0];
+  const tierToKeep = highWaterTier && (!reachedTier || highWaterTier.tier_order >= reachedTier.tier_order)
+    ? highWaterTier
+    : reachedTier;
+  await transactionDb.runAsync(
+    'UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?',
+    [effectiveStars, tierToKeep?.id ?? null, userId],
+  );
+  assertActive();
+}
+
 /** Establish the short-lived Supabase session required by RLS before syncing.
  * Google owns the fresh ID token; Supabase sessions intentionally are not
  * persisted on-device. */
@@ -548,13 +646,64 @@ function parseCloudBackupEnvelope(value: unknown): CloudBackupEnvelope | null {
   return { payload: candidate.payload ?? null, revision };
 }
 
-/** A rank total without any persisted progress is an unsafe restore result. */
+/** A lifetime rank total without any activity history is an unsafe restore result. */
+function hasMeaningfulNonActivitySnapshotRows(payload: CloudBackupPayload): boolean {
+  const defaultCategories: Record<string, { icon: string; sortOrder: number }> = {
+    Health: { icon: '🏃', sortOrder: 1 },
+    Mind: { icon: '🧠', sortOrder: 2 },
+    Work: { icon: '💼', sortOrder: 3 },
+    Social: { icon: '👥', sortOrder: 4 },
+    Other: { icon: '⭐', sortOrder: 5 },
+  };
+  const hasNonPristineCategories = payload.categories.some(row => {
+    const name = typeof row.name === 'string' ? row.name : '';
+    const defaults = defaultCategories[name];
+    if (!defaults) return true;
+    return row.icon !== undefined && row.icon !== defaults.icon
+      || row.sort_order !== undefined && Number(row.sort_order) !== defaults.sortOrder
+      || row.archived !== undefined && Number(row.archived) !== 0;
+  });
+  const hasCustomTaskTypes = payload.task_types.some(row => Number(row.is_template) !== 1);
+  const hasMeaningfulUserState = Boolean(payload.user && (
+    payload.user.username !== undefined && payload.user.username !== 'me'
+      || payload.user.timezone !== undefined && payload.user.timezone !== 'Asia/Ho_Chi_Minh'
+      || payload.user.carry_debt !== undefined && Number(payload.user.carry_debt) !== 0
+      || payload.user.currency !== undefined && payload.user.currency !== 'VND'
+      || payload.user.last_seen_week_start != null
+      || Number(payload.user.treat_stars) > 0
+      || Number(payload.user.treat_stars_lifetime) > 0
+      || payload.user.value_per_star !== undefined && Number(payload.user.value_per_star) !== 1000
+      || payload.user.penalty_hits_treats !== undefined && Number(payload.user.penalty_hits_treats) !== 1
+      || Boolean(payload.user.notification_time)
+      || Boolean(payload.user.notification_time_2)
+      || Boolean(payload.user.notification_time_3)
+  ));
+  const hasOtherRows = Object.entries(payload).some(([key, value]) => (
+    !['activity_log', 'categories', 'task_types'].includes(key)
+      && Array.isArray(value) && value.length > 0
+  ));
+  return hasNonPristineCategories || hasCustomTaskTypes || hasMeaningfulUserState || hasOtherRows;
+}
+
 function isInconsistentEmptyCloudBackup(payload: CloudBackupPayload): boolean {
   const user = payload.user;
-  const hasRemoteProgressTotal = Number(user?.lifetime_stars) > 0
-    || Number(user?.treat_stars) > 0
-    || Number(user?.treat_stars_lifetime) > 0;
-  return hasRemoteProgressTotal && payload.activity_log.length === 0;
+  const hasRankProgress = Number(user?.lifetime_stars) > 0 || user?.current_tier_id != null;
+  return hasRankProgress
+    && payload.activity_log.length === 0
+    && !hasMeaningfulNonActivitySnapshotRows(payload);
+}
+
+function isPartialInconsistentCloudBackup(payload: CloudBackupPayload): boolean {
+  const user = payload.user;
+  const hasRankProgress = Number(user?.lifetime_stars) > 0 || user?.current_tier_id != null;
+  return hasRankProgress
+    && payload.activity_log.length === 0
+    && hasMeaningfulNonActivitySnapshotRows(payload);
+}
+
+function snapshotTierId(payload: CloudBackupPayload): number | undefined {
+  const tierId = Number(payload.user?.current_tier_id);
+  return Number.isSafeInteger(tierId) && tierId > 0 ? tierId : undefined;
 }
 
 function stableJson(value: unknown): string {
@@ -1050,6 +1199,8 @@ export async function withSupabaseSession<T>(
 }
 
 type UserDataRestoreResult = 'restored' | 'empty' | 'not_needed' | 'unavailable';
+const LEGACY_ACTIVITY_PAGE_SIZE = 500;
+const MAX_LEGACY_ACTIVITY_ROWS = 100_000;
 
 async function countLocalRows(
   db: Pick<SQLiteDatabase, 'getFirstAsync'>,
@@ -1191,6 +1342,19 @@ async function hasLocalAccountData(
 }
 
 /**
+ * A legacy activity restore can safely ignore a stale user-level rank total:
+ * it only inserts history and derived summaries, then the server total wins
+ * in the normal post-restore rank sync. Any persisted progress row still
+ * blocks the fallback so a real local account is never overwritten.
+ */
+async function isLegacyActivityRestoreSafe(
+  db: Pick<SQLiteDatabase, 'getFirstAsync'>,
+  userId: number,
+): Promise<boolean> {
+  return !await hasLocalAccountData(db, userId);
+}
+
+/**
  * Hydrate a fresh local account before any upload can treat the empty SQLite
  * file as authoritative. The Supabase RPC is keyed by auth.uid(), not email,
  * so a reinstalled app can only read the backup belonging to the verified
@@ -1227,14 +1391,183 @@ export async function restoreUserDataIfNeeded(
         assertRestoreActive();
         return true;
       };
-      const assertEmptyRestoreIsSafe = async (): Promise<void> => {
+      const assertEmptyRestoreIsSafe = async (): Promise<number> => {
         assertRestoreActive();
         const { data: remoteStars, error: remoteStarsError } = await supabase!.rpc('sync_lifetime_stars');
         if (remoteStarsError) throw remoteStarsError;
         assertRestoreActive();
-        if (Number.isFinite(Number(remoteStars)) && Number(remoteStars) > 0) {
+        // A brand-new authenticated account may not have a public.users row
+        // yet, so the server RPC legitimately returns NULL. That is safe only
+        // after the legacy mirror has also proved empty; a non-empty mirror is
+        // handled below and remains fail-closed when its rank total is absent.
+        const normalizedStars = remoteStars == null ? 0 : normalizeServerLifetimeStars(remoteStars);
+        if (normalizedStars > 0) {
           throw new Error('Cloud backup is empty while the account still has remote progress');
         }
+        return normalizedStars;
+      };
+      const pendingLegacyRestoreKey = `${KEY_LEGACY_RESTORE_PENDING}:${accountKey}:${userId}`;
+      const restoreLegacyActivityFromSupabase = async (
+        db: SQLiteDatabase,
+        allowRankOnlyLocalState = false,
+        preservedTierId?: number,
+      ): Promise<LegacyActivityRestoreResult> => {
+        assertRestoreActive();
+        const { data: remoteStars, error: remoteStarsError } = await supabase!.rpc('sync_lifetime_stars');
+        if (remoteStarsError) throw remoteStarsError;
+        assertRestoreActive();
+        const remoteStarsMissing = remoteStars == null;
+        const normalizedStars = remoteStarsMissing ? 0 : normalizeServerLifetimeStars(remoteStars);
+        const tiers = await db.getAllAsync<LifetimeTierRow>(
+          'SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY tier_order',
+        );
+        const legacyRows: LegacyActivityMirrorRow[] = [];
+        let lastLocalId = 0;
+        for (;;) {
+          const legacyRequest = supabase!.from('activity_log')
+            .select('local_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note')
+            .gt('local_id', lastLocalId)
+            .order('local_id', { ascending: true });
+          const range = (legacyRequest as unknown as {
+            range?: (from: number, to: number) => unknown;
+          }).range;
+          if (typeof range !== 'function') {
+            throw new Error('Legacy activity restore cannot establish bounded pagination');
+          }
+          const pageRequest = range.call(
+            legacyRequest,
+            0,
+            LEGACY_ACTIVITY_PAGE_SIZE - 1,
+          ) as typeof legacyRequest;
+          const { data, error } = await withSupabaseAbortSignal(
+            pageRequest,
+            restoreAbortController.signal,
+          );
+          if (error) throw error;
+          if (!Array.isArray(data)) {
+            throw new Error('Legacy activity restore returned an invalid page');
+          }
+          const page = data as LegacyActivityMirrorRow[];
+          if (!page.length) break;
+          const pageIds = page.map(row => Number(row.local_id));
+          if (pageIds.some(id => !Number.isSafeInteger(id) || id <= lastLocalId)) {
+            throw new Error('Legacy activity restore returned a non-advancing page');
+          }
+          lastLocalId = pageIds.reduce((max, id) => Math.max(max, id), lastLocalId);
+          legacyRows.push(...page);
+          if (legacyRows.length > MAX_LEGACY_ACTIVITY_ROWS) {
+            throw new Error('Legacy activity mirror exceeds the restore safety limit');
+          }
+          assertRestoreActive();
+        }
+        if (remoteStarsMissing && legacyRows.some(row => row.source !== 'LOGIN')) {
+          throw new Error('Server returned no lifetime-star total for the restored account');
+        }
+        return restoreLegacyActivityMirror(
+          db,
+          userId,
+          legacyRows,
+          assertRestoreActive,
+          transactionDb => allowRankOnlyLocalState
+            ? isLegacyActivityRestoreSafe(transactionDb, userId)
+            : isLocalAccountFresh(transactionDb, userId),
+          allowRankOnlyLocalState,
+          async (transactionDb, restoredMaxId) => {
+            await setLifetimeStarsInTransaction(
+              transactionDb,
+              userId,
+              normalizedStars,
+              tiers,
+              assertRestoreActive,
+              restoredMaxId,
+              preservedTierId,
+            );
+            // Write the committed state before the SQLite transaction callback
+            // returns. If this write fails, the transaction must roll back.
+            await AsyncStorage.setItem(
+              pendingLegacyRestoreKey,
+              `committed:${restoredMaxId}`,
+            );
+          },
+        );
+      };
+      const markLegacyActivityMirrorSynced = async (maxId: number): Promise<void> => {
+        assertRestoreActive();
+        if (!Number.isSafeInteger(maxId) || maxId < 1) {
+          throw new Error('Legacy activity restore did not produce a valid local cursor');
+        }
+        // These rows already came from the account's remote mirror. Mark them
+        // synced so remapped ids cannot be uploaded as duplicate activity rows.
+        await AsyncStorage.setItem(activityKey(userId), String(maxId));
+      };
+      const finalizePendingLegacyRestore = async (db: SQLiteDatabase): Promise<boolean> => {
+        const pending = await AsyncStorage.getItem(pendingLegacyRestoreKey);
+        if (!pending) return false;
+        if (pending === 'in_progress') {
+          const localActivity = await db.getFirstAsync<{ count: number }>(
+            'SELECT COUNT(*) AS count FROM activity_log WHERE user_id = ?',
+            [userId],
+          );
+          if (Number(localActivity?.count) > 0) {
+            throw new Error('Legacy activity restore has an unfinalized local transaction');
+          }
+          await AsyncStorage.removeItem(pendingLegacyRestoreKey);
+          return false;
+        }
+        const pendingMaxId = Number(
+          pending.startsWith('committed:') ? pending.slice('committed:'.length) : pending,
+        );
+        if (!Number.isSafeInteger(pendingMaxId) || pendingMaxId < 1) {
+          throw new Error('Legacy activity restore journal is invalid');
+        }
+        const localActivity = await db.getFirstAsync<{ count: number; max_id: number | null }>(
+          'SELECT COUNT(*) AS count, COALESCE(MAX(id), 0) AS max_id FROM activity_log WHERE user_id = ?',
+          [userId],
+        );
+        if (Number(localActivity?.count) < 1) {
+          // The journal may have been written just before a transaction
+          // rollback. Clear it and let the guarded restore run again.
+          await AsyncStorage.removeItem(pendingLegacyRestoreKey);
+          return false;
+        }
+        if (Number(localActivity?.max_id) < pendingMaxId) {
+          throw new Error('Legacy activity restore journal does not match local rows');
+        }
+        await markLegacyActivityMirrorSynced(pendingMaxId);
+        return true;
+      };
+      const restoreLegacyActivityWithFinalization = async (
+        db: SQLiteDatabase,
+        preservedTierId?: number,
+      ): Promise<'not_needed' | 'restored' | 'empty'> => {
+        if (await finalizePendingLegacyRestore(db)) return 'restored';
+        await assertRestoreActive();
+        // This journal makes cursor finalization retryable after a process
+        // death or an AsyncStorage write failure. SQLite rank/data restoration
+        // itself is committed atomically before this marker advances.
+        await AsyncStorage.setItem(pendingLegacyRestoreKey, 'in_progress');
+        const restoredRows = await restoreLegacyActivityFromSupabase(db, true, preservedTierId);
+        if (restoredRows === 'not_needed') {
+          if (await hasLocalAccountData(db, userId)) {
+            throw new Error('Legacy activity restore found incomplete local progress');
+          }
+          await assertEmptyRestoreIsSafe();
+          return 'not_needed';
+        }
+        if (restoredRows.count > 0) {
+          await markLegacyActivityMirrorSynced(restoredRows.maxId);
+          return 'restored';
+        }
+        const remoteStars = await assertEmptyRestoreIsSafe();
+        await setLifetimeStarsFromServer(
+          db,
+          userId,
+          remoteStars,
+          assertRestoreActive,
+          undefined,
+          preservedTierId,
+        );
+        return 'empty';
       };
       try {
         // Keep the marker set until this account owns the sync gate. A retry
@@ -1262,51 +1595,35 @@ export async function restoreUserDataIfNeeded(
             // An older app version never stored Challenges/tasks remotely. Recover
             // the legacy activity mirror before allowing the empty local database
             // to become the new cloud snapshot.
-            assertRestoreActive();
-            const legacyRequest = supabase!.from('activity_log')
-              .select('local_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note')
-              .gt('local_id', 0)
-              .order('local_id', { ascending: true });
-            const { data: legacyRows, error: legacyError } = await withSupabaseAbortSignal(
-              legacyRequest,
-              restoreAbortController.signal,
-            );
-            if (legacyError) throw legacyError;
-            const restoredRows = await restoreLegacyActivityMirror(
-              db,
-              userId,
-              (legacyRows ?? []) as LegacyActivityMirrorRow[],
-              assertRestoreActive,
-              transactionDb => isLocalAccountFresh(transactionDb, userId),
-            );
-            if (restoredRows === 'not_needed') {
-              if (!await hasLocalAccountData(db, userId)) await assertEmptyRestoreIsSafe();
-              result = 'not_needed';
-              return;
-            }
-            if (restoredRows > 0) {
-              result = 'restored';
-            } else {
-              await assertEmptyRestoreIsSafe();
-              result = 'empty';
-            }
+            result = await restoreLegacyActivityWithFinalization(db);
           } else if (isCloudBackupPayload(envelope.payload)) {
+            if (isPartialInconsistentCloudBackup(envelope.payload)) {
+              throw new Error('Cloud backup is partial while the account still has remote progress');
+            }
             if (isInconsistentEmptyCloudBackup(envelope.payload)) {
-              throw new Error('Cloud backup contains rank progress without history');
+              // A newer release may have overwritten the full snapshot with a
+              // valid-looking but empty payload after reinstall. The legacy
+              // activity mirror is still safe to recover because it is
+              // validated and rebuilt without reattaching task ids.
+              result = await restoreLegacyActivityWithFinalization(
+                db,
+                snapshotTierId(envelope.payload),
+              );
+            } else {
+              const restored = await restoreUserDataBackup(
+                db,
+                userId,
+                envelope.payload,
+                expectedGoogleSub,
+                assertRestoreActive,
+                transactionDb => isLocalAccountFresh(transactionDb, userId),
+              );
+              if (!restored) {
+                result = 'not_needed';
+                return;
+              }
+              result = 'restored';
             }
-            const restored = await restoreUserDataBackup(
-              db,
-              userId,
-              envelope.payload,
-              expectedGoogleSub,
-              assertRestoreActive,
-              transactionDb => isLocalAccountFresh(transactionDb, userId),
-            );
-            if (!restored) {
-              result = 'not_needed';
-              return;
-            }
-            result = 'restored';
           } else {
             // A non-null, unsupported snapshot is not the same as an empty
             // account. Falling back to the legacy mirror would allow startup to
@@ -1318,6 +1635,7 @@ export async function restoreUserDataIfNeeded(
           // validated restore (or a confirmed empty legacy mirror) succeeds.
           assertRestoreActive();
           await writeBackupRevision(accountKey, envelope.revision);
+          await AsyncStorage.removeItem(pendingLegacyRestoreKey);
           assertRestoreActive();
         }, sessionActive);
         // Clear only after the complete restore, while the account gate is
@@ -1376,6 +1694,10 @@ async function syncUserDataBackup(
         const remoteEnvelope = parseCloudBackupEnvelope(remoteData);
         if (remoteEnvelope && remoteEnvelope.payload !== null
             && isCloudBackupPayload(remoteEnvelope.payload)) {
+          if (isInconsistentEmptyCloudBackup(remoteEnvelope.payload)
+              || isPartialInconsistentCloudBackup(remoteEnvelope.payload)) {
+            throw new Error('CAS recovery received a partial cloud backup');
+          }
           if (stableJson(payload) === stableJson(remoteEnvelope.payload)) {
             assertActive();
             await writeBackupRevision(accountKey, remoteEnvelope.revision);

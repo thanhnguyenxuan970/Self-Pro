@@ -614,13 +614,16 @@ async function ensureLifetimeRankColumns(db: SQLiteDatabase, forceBackfill = fal
     const incomplete = await db.getFirstAsync<{ count: number }>(
       `SELECT COUNT(*) AS count
        FROM users AS u
-       WHERE COALESCE(u.lifetime_stars, 0) < COALESCE((
-         SELECT SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END)
-         FROM activity_log WHERE user_id = u.id
-       ), 0)
-       OR (u.current_tier_id IS NULL AND COALESCE(u.lifetime_stars, 0) >= COALESCE((
-         SELECT MIN(stars_required) FROM tiers
-       ), 1))`,
+       WHERE u.current_tier_id IS NULL
+         AND (
+           COALESCE(u.lifetime_stars, 0) < COALESCE((
+             SELECT SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END)
+             FROM activity_log WHERE user_id = u.id
+           ), 0)
+           OR COALESCE(u.lifetime_stars, 0) >= COALESCE((
+             SELECT MIN(stars_required) FROM tiers
+           ), 1)
+         )`,
     );
     if ((incomplete?.count ?? 0) === 0) return;
   }

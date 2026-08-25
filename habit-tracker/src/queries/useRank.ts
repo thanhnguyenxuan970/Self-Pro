@@ -8,8 +8,11 @@ export type TierRow = {
   stars_required: number;
 };
 
-export function visibleTierId(currentTierId: number | null, currentStars: number, tiers: TierRow[]): number | null {
-  return tiers.some(item => item.id === currentTierId && currentStars >= item.stars_required) ? currentTierId : null;
+export function visibleTierId(currentTierId: number | null, _currentStars: number, tiers: TierRow[]): number | null {
+  // current_tier_id is a lifetime high-water mark. The server can reconcile
+  // the star total downward after a correction, but Rank must not visually
+  // demote a tier that was already reached.
+  return tiers.some(item => item.id === currentTierId) ? currentTierId : null;
 }
 
 /** Lifetime rank state — reads users.lifetime_stars/current_tier_id, not the

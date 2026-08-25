@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.3.d - 2026-08-25
+
+- Reinstall recovery now falls back to the authenticated legacy activity mirror when a ranked cloud snapshot has no history, rebuilds heatmap/summary data without reattaching stale task ids, remaps cross-account SQLite id collisions, and reconciles the server-derived lifetime rank before the next upload.
+- Android native release metadata is 2.0.3.d (versionCode 71); the shared Expo/iOS version remains 2.0.3.
+- Validation: TypeScript, 76 Jest suites/707 tests/1 snapshot, and the signed release AAB passed; the AAB contains `com.habitring.app` version `2.0.3.d` (versionCode 71). Data-preserving debug recovery on `emulator-5554` retained heatmap, 69 active days, and 260 stars; the arm64 release AAB was not installed over the x86_64 debug emulator.
+
 ## 2.0.3.c - 2026-08-25
 
 - Google subject changes for the same verified email now reuse the existing local account instead of creating a second empty account.

@@ -8,11 +8,18 @@ import { runMigrations } from '../src/db/migrations';
 // its one-time backfill in an earlier app version. runMigrations must still
 // repair that user rather than trusting the version number alone.
 
-function createDb(config: { userLifetimeStars: number; activityTotal: number; incompleteCount: number }) {
+function createDb(config: {
+  userLifetimeStars: number;
+  activityTotal: number;
+  incompleteCount: number;
+  currentTierId?: number | null;
+}) {
   const runAsync = jest.fn().mockResolvedValue({});
   const getFirstAsync = jest.fn(async (sql: string) => {
     if (sql === 'PRAGMA user_version') return { user_version: 27 };
-    if (sql.includes('COUNT(*) AS count')) return { count: config.incompleteCount };
+    if (sql.includes('COUNT(*) AS count')) {
+      return { count: config.currentTierId == null ? config.incompleteCount : 0 };
+    }
     if (sql.includes('SUM(CASE')) return { total: config.activityTotal };
     return null;
   });
@@ -53,6 +60,27 @@ test('does not scan or rewrite any user when the incomplete-row probe reports ze
   await runMigrations(db as never);
 
   expect(db.runAsync).not.toHaveBeenCalled();
+  expect(db.getAllAsync).not.toHaveBeenCalledWith(
+    'SELECT id, lifetime_stars FROM users',
+  );
+});
+
+test('does not mistake a server-adjusted activity mirror for an incomplete local rank migration', async () => {
+  const db = createDb({
+    userLifetimeStars: 260,
+    activityTotal: 450,
+    incompleteCount: 1,
+    currentTierId: 6,
+  });
+
+  await runMigrations(db as never);
+
+  const probe = db.getFirstAsync.mock.calls.find(([sql]) => String(sql).includes('COUNT(*) AS count'))?.[0];
+  expect(probe).toEqual(expect.stringContaining('u.current_tier_id IS NULL'));
+  expect(db.runAsync).not.toHaveBeenCalledWith(
+    'UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?',
+    expect.anything(),
+  );
   expect(db.getAllAsync).not.toHaveBeenCalledWith(
     'SELECT id, lifetime_stars FROM users',
   );

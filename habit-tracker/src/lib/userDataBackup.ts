@@ -1,4 +1,5 @@
 import type { SQLiteBindValue, SQLiteDatabase } from 'expo-sqlite';
+import { getWeekStartFor } from '../utils/formatters';
 
 export const CLOUD_BACKUP_SCHEMA_VERSION = 1 as const;
 
@@ -548,27 +549,37 @@ async function assertNoCrossAccountIdConflicts(
   }
 }
 
-async function assertNoCrossAccountActivityIdConflicts(
+async function hasCrossAccountActivityIdConflict(
   db: BackupQueryDb,
   userId: number,
   activityIds: number[],
   assertActive: AssertActive,
-): Promise<void> {
+): Promise<boolean> {
   const batchSize = 400;
   const ids = [...new Set(activityIds)];
   for (let start = 0; start < ids.length; start += batchSize) {
     assertActive();
     const batch = ids.slice(start, start + batchSize);
     const placeholders = batch.map(() => '?').join(', ');
-    const conflicts = await db.getAllAsync<{ id: number }>(
-      `SELECT id FROM activity_log
-        WHERE id IN (${placeholders}) AND user_id <> ?
-        LIMIT 1`,
-      [...batch, userId],
-    );
-    if (conflicts.length) {
-      throw new Error('Legacy activity restore conflicts with another local account');
-    }
+      const conflictRows = await db.getAllAsync<{ id: number }>(
+        `SELECT id FROM activity_log
+          WHERE id IN (${placeholders}) AND user_id <> ?
+          LIMIT 1`,
+        [...batch, userId],
+      );
+      if (conflictRows.length) return true;
+  }
+  return false;
+}
+
+async function assertNoCrossAccountActivityIdConflicts(
+  db: BackupQueryDb,
+  userId: number,
+  activityIds: number[],
+  assertActive: AssertActive,
+): Promise<void> {
+  if (await hasCrossAccountActivityIdConflict(db, userId, activityIds, assertActive)) {
+    throw new Error('Legacy activity restore conflicts with another local account');
   }
 }
 
@@ -793,6 +804,11 @@ export async function restoreUserDataBackup(
 }
 
 export type LegacyActivityMirrorRow = BackupRow;
+export type LegacyActivityRestoreResult = { count: number; maxId: number } | 'not_needed';
+type LegacyActivityRestoreFinalizer = (
+  transactionDb: BackupQueryDb,
+  restoredMaxId: number,
+) => Promise<void>;
 
 function validDateKey(row: BackupRow, key: string): string | null {
   const candidate = value(row, key);
@@ -815,14 +831,19 @@ export async function restoreLegacyActivityMirror(
   remoteRows: LegacyActivityMirrorRow[],
   assertActive: AssertActive = alwaysActive,
   isFresh?: (transactionDb: BackupQueryDb) => Promise<boolean>,
-): Promise<number | 'not_needed'> {
+  remapConflictingIds = false,
+  finalizeRestore?: LegacyActivityRestoreFinalizer,
+): Promise<LegacyActivityRestoreResult> {
   const activities = remoteRows
+    // LOGIN rows were telemetry in the legacy mirror, not user habit logs.
+    // Restoring them would create false heatmap days and streak continuity.
+    .filter(row => stringValue(row, 'source', 'TASK') !== 'LOGIN')
     .map((row) => {
       const id = strictLegacyNumberValue(row, 'local_id');
       const localDate = validDateKey(row, 'local_date');
       const rawWeekStart = value(row, 'week_start');
       const weekStart = rawWeekStart === null || rawWeekStart === undefined
-        ? localDate
+        ? localDate ? getWeekStartFor(new Date(`${localDate}T12:00:00`)) : null
         : validDateKey(row, 'week_start');
       const durationMin = strictLegacyNumberValue(row, 'duration_min', true);
       const pointsEarned = strictLegacyNumberValue(row, 'points_earned');
@@ -883,6 +904,7 @@ export async function restoreLegacyActivityMirror(
   }
 
   let restored = true;
+  let activitiesToInsert = activities;
   const restore = async (transactionDb: BackupQueryDb = db): Promise<void> => {
     assertActive();
     if (isFresh && !await isFresh(transactionDb)) {
@@ -892,22 +914,46 @@ export async function restoreLegacyActivityMirror(
     // Keep the conflict check in the same exclusive transaction as the
     // inserts. A second local account cannot appear between preflight and
     // restore and turn INSERT OR REPLACE into a cross-account overwrite.
-    await assertNoCrossAccountActivityIdConflicts(
-      transactionDb,
-      userId,
-      activities.map(activity => activity.id),
-      assertActive,
-    );
-    for (const activity of activities) {
+    if (remapConflictingIds) {
+      const hasConflict = await hasCrossAccountActivityIdConflict(
+        transactionDb,
+        userId,
+        activities.map(activity => activity.id),
+        assertActive,
+      );
+      if (hasConflict) {
+        const maxExisting = await transactionDb.getFirstAsync<{ max_id: number | null }>(
+          'SELECT COALESCE(MAX(id), 0) AS max_id FROM activity_log',
+        );
+        const maxIncoming = activities.reduce((max, activity) => Math.max(max, activity.id), 0);
+        let nextId = Math.max(Number(maxExisting?.max_id) || 0, maxIncoming);
+        if (!Number.isSafeInteger(nextId) || nextId > Number.MAX_SAFE_INTEGER - activities.length) {
+          throw new Error('Legacy activity id remap exceeds SQLite integer safety');
+        }
+        activitiesToInsert = activities.map(activity => ({ ...activity, id: ++nextId }));
+      }
+    } else {
+      await assertNoCrossAccountActivityIdConflicts(
+        transactionDb,
+        userId,
+        activities.map(activity => activity.id),
+        assertActive,
+      );
+    }
+    const activityColumns = '(id, user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note, is_backfill, is_clock_suspect)';
+    const activityValues = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)';
+    const activityBatchSize = 50;
+    for (let start = 0; start < activitiesToInsert.length; start += activityBatchSize) {
       assertActive();
+      const batch = activitiesToInsert.slice(start, start + activityBatchSize);
       await transactionDb.runAsync(
-        `INSERT OR REPLACE INTO activity_log
-          (id, user_id, task_type_id, kind, duration_min, points_earned, stars_delta,
-           source, logged_at, local_date, week_start, note, is_backfill, is_clock_suspect)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)`,
-        [activity.id, userId, activity.taskTypeId, activity.kind, activity.durationMin,
+        `INSERT OR REPLACE INTO activity_log ${activityColumns}
+         VALUES ${batch.map(() => activityValues).join(', ')}`,
+        batch.flatMap(activity => [
+          activity.id, userId, activity.taskTypeId, activity.kind, activity.durationMin,
           activity.pointsEarned, activity.starsDelta, activity.source, activity.loggedAt,
-          activity.localDate, activity.weekStart, activity.note],
+          activity.localDate, activity.weekStart, activity.note,
+        ]),
       );
     }
 
@@ -935,6 +981,18 @@ export async function restoreLegacyActivityMirror(
       );
     }
 
+    if (finalizeRestore && activitiesToInsert.length) {
+      assertActive();
+      const restoredMaxId = activitiesToInsert.reduce(
+        (max, activity) => Math.max(max, activity.id),
+        0,
+      );
+      await finalizeRestore(
+        transactionDb,
+        restoredMaxId,
+      );
+    }
+
     assertActive();
   };
 
@@ -944,5 +1002,14 @@ export async function restoreLegacyActivityMirror(
     throw new Error('Exclusive SQLite restore transaction unavailable');
   }
 
-  return restored ? activities.length : 'not_needed';
+  const restoredMaxId = activitiesToInsert.reduce(
+    (max, activity) => Math.max(max, activity.id),
+    0,
+  );
+  return restored
+    ? {
+      count: activities.length,
+      maxId: restoredMaxId,
+    }
+    : 'not_needed';
 }
