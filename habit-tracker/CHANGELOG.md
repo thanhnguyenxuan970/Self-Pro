@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.3.f - 2026-08-26
+
+- Heatmap date cells are now tappable again and open the selected day's card with its date, stars, and points, including zero-activity days.
+- Android native release metadata is 2.0.3.f (versionCode 73); the shared Expo/iOS version remains 2.0.3.
+- Validation: TypeScript, 76 Jest suites/709 tests/1 snapshot, and the signed release AAB passed; emulator stress covered a populated day (+21 stars, 50/50 points), an empty day (+0 stars, 0/25 points), card dismissal, and relaunch/retry recovery. The AAB contains `com.habitring.app` version `2.0.3.f` (versionCode 73).
+
 ## 2.0.3.e - 2026-08-25
 
 - Habit and Challenge mutations now await the authenticated cloud-backup attempt before their mutation callback completes, so closing or reinstalling immediately after a change cannot race the backup snapshot; challenge rollover and completion use one serialized sync instead of duplicate fire-and-forget uploads.
