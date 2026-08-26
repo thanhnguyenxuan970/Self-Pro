@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   FriendsUnavailableError,
@@ -16,6 +17,7 @@ import {
 } from '../api/friendsApi';
 import { mapFriendDashboardRows } from '../lib/friends';
 import { supabase } from '../api/supabase';
+import { refreshSupabaseSessionForAccount } from '../api/syncService';
 import { isQaSandboxActive } from '../qa/qaSandbox';
 
 // Keyed by the stable Google `sub`, never email alone, so switching accounts
@@ -67,6 +69,17 @@ export function useFriendDashboard(currentUserEmail: string | null, accountSub: 
 }
 
 export function useFriendCode(currentUserEmail: string | null, accountSub: string | null, enabled: boolean) {
+  const retryIdentityRef = useRef({
+    email: currentUserEmail,
+    sub: accountSub,
+  });
+  if (
+    retryIdentityRef.current.email !== currentUserEmail
+    || retryIdentityRef.current.sub !== accountSub
+  ) {
+    retryIdentityRef.current = { email: currentUserEmail, sub: accountSub };
+  }
+
   const query = useQuery({
     queryKey: friendKeys.code(accountSub ?? 'anon'),
     enabled: enabled && !isQaSandboxActive() && !!supabase && !!currentUserEmail && !!accountSub,
@@ -74,7 +87,26 @@ export function useFriendCode(currentUserEmail: string | null, accountSub: strin
     retry: false,
     queryFn: () => getOrCreateFriendCode(currentUserEmail!, accountSub!),
   });
-  return { ...query, isUnavailable: query.error instanceof FriendsUnavailableError };
+  async function retryCode() {
+    const startedIdentity = retryIdentityRef.current;
+    if (currentUserEmail && accountSub && enabled) {
+      try {
+        await refreshSupabaseSessionForAccount(currentUserEmail, accountSub);
+      } catch (error) {
+        if (retryIdentityRef.current === startedIdentity) throw error;
+        // Do not repeat the write-capable get-or-create RPC when the auth-only
+        // recovery failed or the account changed while it was in flight. The
+        // sheet keeps the retry affordance without touching the other account.
+        return;
+      }
+      if (retryIdentityRef.current !== startedIdentity) return;
+      const result = await query.refetch();
+      if (result.isError) throw result.error ?? new Error('Friend code unavailable');
+      return result;
+    }
+    return;
+  }
+  return { ...query, isUnavailable: query.error != null, retryCode };
 }
 
 export function useBlockedAccounts(currentUserEmail: string | null, accountSub: string | null, enabled: boolean) {

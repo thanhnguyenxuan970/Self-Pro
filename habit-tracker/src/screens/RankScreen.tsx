@@ -270,6 +270,8 @@ export function RankScreen({ qaBannerVisible = false }: { qaBannerVisible?: bool
     title: t.friendsSheetTitle,
     close: t.close,
     yourCodeEyebrow: t.friendsYourCodeEyebrow,
+    retry: t.friendsRetry,
+    retryError: t.friendsResultUnavailable,
     copy: t.friendsCopy,
     copied: t.friendsCopied,
     share: t.friendsShare,
@@ -527,8 +529,9 @@ export function RankScreen({ qaBannerVisible = false }: { qaBannerVisible?: bool
         colors={colors}
         copy={addFriendCopy}
         code={codeQuery.data ?? null}
-        codeLoading={codeQuery.isLoading}
+        codeLoading={codeQuery.isLoading || codeQuery.isFetching}
         codeUnavailable={codeQuery.isUnavailable}
+        onRetryCode={codeQuery.retryCode}
         onRotateCode={() => rotateMutation.mutateAsync()}
         rotating={rotateMutation.isPending}
         onSubmitCode={handleSubmitCode}

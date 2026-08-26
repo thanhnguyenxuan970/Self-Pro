@@ -1822,6 +1822,91 @@ describe('withSupabaseSession', () => {
     expect(operation).toHaveBeenCalledTimes(1);
     expect(mockSignInWithIdToken).not.toHaveBeenCalled();
   });
+
+  it('does not re-authenticate a 403/5xx response just because its nested error mentions a token', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: freshSession('user@example.com') },
+      error: null,
+    });
+    const operation = jest.fn(async () => ({
+      status: 403,
+      data: null,
+      error: { message: 'invalid token for this private resource' },
+    }));
+
+    await expect(withSupabaseSession(
+      'user@example.com',
+      'google-sub',
+      operation,
+      undefined,
+      { retryOnUnauthorized: true },
+    )).resolves.toEqual({
+      status: 403,
+      data: null,
+      error: { message: 'invalid token for this private resource' },
+    });
+
+    expect(operation).toHaveBeenCalledTimes(1);
+    expect(mockSignInWithIdToken).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when Supabase returns a malformed session response', async () => {
+    mockGetSession.mockResolvedValue(undefined);
+    const operation = jest.fn(async () => ({ data: 1, error: null }));
+
+    await expect(withSupabaseSession(
+      'user@example.com',
+      'google-sub',
+      operation,
+      undefined,
+      { retryOnUnauthorized: true },
+    )).rejects.toThrow('Supabase session response was malformed');
+
+    expect(operation).not.toHaveBeenCalled();
+    expect(mockSignInWithIdToken).not.toHaveBeenCalled();
+  });
+
+  it('does not deadlock forced JWT recovery behind a direct sign-in queued on the same session lease', async () => {
+    let currentSession = freshSession('user@example.com');
+    mockGetSession.mockImplementation(async () => ({ data: { session: currentSession }, error: null }));
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: {} });
+    mockGetTokens.mockResolvedValue({ idToken: 'fresh-google-id-token' });
+    mockSignInWithIdToken.mockImplementation(async ({ token }: { token: string }) => {
+      currentSession = { ...freshSession('user@example.com'), access_token: `session-${token}` };
+      return { data: { user: currentSession.user, session: currentSession }, error: null };
+    });
+
+    let releaseFirstOperation!: () => void;
+    const firstOperationGate = new Promise<void>(resolve => { releaseFirstOperation = resolve; });
+    let firstOperationStarted!: () => void;
+    const firstOperationStartedPromise = new Promise<void>(resolve => { firstOperationStarted = resolve; });
+    let attempts = 0;
+    const operation = jest.fn(async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        firstOperationStarted();
+        await firstOperationGate;
+        return { data: null, error: { status: 401, message: 'Invalid JWT' } };
+      }
+      return { data: 4, error: null };
+    });
+
+    const read = withSupabaseSession(
+      'user@example.com',
+      'google-sub',
+      operation,
+      undefined,
+      { retryOnUnauthorized: true },
+    );
+    await firstOperationStartedPromise;
+
+    const directSignIn = signInWithGoogleToken('user@example.com', 'direct-token');
+    releaseFirstOperation();
+
+    await expect(read).resolves.toEqual({ data: 4, error: null });
+    await expect(directSignIn).resolves.toBeUndefined();
+    expect(mockSignInWithIdToken).toHaveBeenCalledWith({ provider: 'google', token: 'fresh-google-id-token' });
+  });
 });
 
 describe('signInWithGoogleToken', () => {
@@ -1891,6 +1976,22 @@ describe('signInWithGoogleToken', () => {
     await expect(signInWithGoogleToken('user@example.com', 'google-token')).resolves.toBeUndefined();
 
     expect(mockSignInWithIdToken).toHaveBeenCalledWith({ provider: 'google', token: 'google-token' });
+  });
+
+  it('bounds a hung GoTrue token exchange so the process-wide session lease cannot remain pinned forever', async () => {
+    jest.useFakeTimers();
+    try {
+      mockSignInWithIdToken.mockReturnValue(new Promise(() => undefined));
+      const pending = signInWithGoogleToken('user@example.com', 'hung-token');
+      for (let index = 0; index < 5; index += 1) await Promise.resolve();
+      expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+
+      jest.advanceTimersByTime(15_000);
+      for (let index = 0; index < 5; index += 1) await Promise.resolve();
+      await expect(pending).rejects.toThrow('Supabase token exchange timed out');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('fails closed when GoTrue returns a user without a usable session', async () => {

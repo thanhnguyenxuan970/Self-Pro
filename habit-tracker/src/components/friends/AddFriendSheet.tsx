@@ -12,6 +12,8 @@ export type AddFriendSheetCopy = {
   title: string;
   close: string;
   yourCodeEyebrow: string;
+  retry: string;
+  retryError: string;
   copy: string;
   copied: string;
   share: string;
@@ -37,6 +39,7 @@ type Props = {
   code: string | null;
   codeLoading: boolean;
   codeUnavailable: boolean;
+  onRetryCode: () => Promise<unknown>;
   onRotateCode: () => Promise<unknown>;
   rotating: boolean;
   onSubmitCode: (code: string) => Promise<FriendActionResult>;
@@ -49,7 +52,7 @@ type Props = {
  * six visible cells are decorative — one real, labelled `TextInput` sits
  * behind them so paste, selection, and screen readers all work normally.
  */
-export function AddFriendSheet({ visible, colors, copy, code, codeLoading, codeUnavailable, onRotateCode, rotating, onSubmitCode, submitting, onClose }: Props) {
+export function AddFriendSheet({ visible, colors, copy, code, codeLoading, codeUnavailable, onRetryCode, onRotateCode, rotating, onSubmitCode, submitting, onClose }: Props) {
   const reduceMotion = useReduceMotion();
   const { bottom } = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors, bottom), [colors, bottom]);
@@ -59,8 +62,11 @@ export function AddFriendSheet({ visible, colors, copy, code, codeLoading, codeU
   const [lastResult, setLastResult] = useState<FriendActionResult | null>(null);
   const [rotateConfirmVisible, setRotateConfirmVisible] = useState(false);
   const [copiedNotice, setCopiedNotice] = useState(false);
+  const [retryingCode, setRetryingCode] = useState(false);
+  const [retryError, setRetryError] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const rotateInFlightRef = useRef(false);
+  const retryInFlightRef = useRef(false);
 
   useEffect(() => {
     if (visible) {
@@ -68,6 +74,7 @@ export function AddFriendSheet({ visible, colors, copy, code, codeLoading, codeU
       setFilteredNotice(null);
       setLastResult(null);
       setCopiedNotice(false);
+      setRetryError(false);
     }
   }, [visible]);
 
@@ -84,6 +91,21 @@ export function AddFriendSheet({ visible, colors, copy, code, codeLoading, codeU
     if (!code) return;
     await Clipboard.setStringAsync(code);
     setCopiedNotice(true);
+  }
+
+  async function handleRetryCode() {
+    if (retryInFlightRef.current) return;
+    retryInFlightRef.current = true;
+    setRetryingCode(true);
+    setRetryError(false);
+    try {
+      await onRetryCode();
+    } catch {
+      setRetryError(true);
+    } finally {
+      retryInFlightRef.current = false;
+      setRetryingCode(false);
+    }
   }
 
   async function handleRotateConfirm() {
@@ -157,7 +179,19 @@ export function AddFriendSheet({ visible, colors, copy, code, codeLoading, codeU
                   {codeLoading ? (
                     <ActivityIndicator color={colors.primaryText} />
                   ) : codeUnavailable ? (
-                    <Text style={styles.codeUnavailable}>—</Text>
+                    <View style={styles.codeUnavailableWrap}>
+                      <Text style={styles.codeUnavailable}>—</Text>
+                      <TouchableOpacity
+                        style={styles.codeRetryBtn}
+                        onPress={() => void handleRetryCode()}
+                        disabled={codeLoading || retryingCode}
+                        hitSlop={4}
+                        accessibilityRole="button"
+                        accessibilityLabel={copy.retry}
+                      >
+                        {retryingCode ? <ActivityIndicator color={colors.primaryText} /> : <Text style={styles.codeRetryText}>{copy.retry}</Text>}
+                      </TouchableOpacity>
+                    </View>
                   ) : (
                     <Text style={styles.codeText} accessibilityLabel={code ? code.split('').join(' ') : ''}>{code}</Text>
                   )}
@@ -168,6 +202,9 @@ export function AddFriendSheet({ visible, colors, copy, code, codeLoading, codeU
                     items={[{ label: copy.rotate, onPress: () => setRotateConfirmVisible(true) }]}
                   />
                 </View>
+                {retryError && codeUnavailable ? (
+                  <Text style={styles.codeRetryError} accessibilityLiveRegion="polite">{copy.retryError}</Text>
+                ) : null}
                 <View style={styles.codeActionsRow}>
                   <TouchableOpacity style={styles.codeActionBtn} onPress={() => void handleCopy()} disabled={!code} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={copiedNotice ? copy.copied : copy.copy}>
                     <Text style={styles.codeActionText}>{copiedNotice ? copy.copied : copy.copy}</Text>
@@ -272,6 +309,10 @@ function makeStyles(C: AppColors, bottomInset: number) {
     codeBlockHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     codeText: { fontSize: 27, fontFamily: FontFamily.extraBold, letterSpacing: 7, color: C.inkDark },
     codeUnavailable: { fontSize: 27, fontFamily: FontFamily.extraBold, color: C.disabledInk },
+    codeUnavailableWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    codeRetryBtn: { minHeight: 44, paddingHorizontal: 10, borderRadius: Radii.sm, justifyContent: 'center', backgroundColor: C.primarySoft },
+    codeRetryText: { fontSize: 13, fontFamily: FontFamily.bold, color: C.primaryText },
+    codeRetryError: { fontSize: 12, lineHeight: 17, fontFamily: FontFamily.semiBold, color: C.dangerText, marginTop: 8 },
     codeActionsRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
     codeActionBtn: { flex: 1, minHeight: 44, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primarySoft },
     codeActionText: { fontSize: 13, fontFamily: FontFamily.bold, color: C.primaryText },

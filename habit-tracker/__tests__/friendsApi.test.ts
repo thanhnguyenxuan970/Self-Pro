@@ -9,6 +9,7 @@ jest.mock('../src/api/syncService', () => ({
 import {
   FriendsUnavailableError,
   blockFriend,
+  getBlockedAccounts,
   getFriendDashboard,
   getFriendPendingCount,
   getOrCreateFriendCode,
@@ -25,18 +26,36 @@ beforeEach(() => {
   mockSyncService.withSupabaseSession.mockImplementation(async (_email: string, _sub: string | undefined, operation: () => Promise<unknown>) => operation());
 });
 
-test('friend-code reads establish the Supabase session and request one bounded auth retry', async () => {
+test('friend-code creation establishes the Supabase session without retrying its write RPC', async () => {
   mockSupabase.supabase.rpc.mockResolvedValue({ data: 'K7M2QX', error: null });
   await getOrCreateFriendCode('me@example.com', 'sub-1');
   expect(mockSyncService.withSupabaseSession).toHaveBeenCalledWith(
     'me@example.com',
     'sub-1',
     expect.any(Function),
-    undefined,
-    { retryOnUnauthorized: true },
   );
   const [, params] = mockSupabase.supabase.rpc.mock.calls[0] ?? [];
   expect(params).toBeUndefined();
+});
+
+test('friend dashboard rejects a malformed non-array RPC payload before the mapper sees it', async () => {
+  mockSupabase.supabase.rpc.mockResolvedValue({ data: { section: 'self' }, error: null });
+  await expect(getFriendDashboard('me@example.com', 'sub-1')).rejects.toThrow('Invalid Friends dashboard response');
+});
+
+test('friend dashboard rejects a null success payload instead of treating it as an empty list', async () => {
+  mockSupabase.supabase.rpc.mockResolvedValue({ data: null, error: null });
+  await expect(getFriendDashboard('me@example.com', 'sub-1')).rejects.toThrow('Invalid Friends dashboard response');
+});
+
+test('friend-code responses must use the six-character server format', async () => {
+  mockSupabase.supabase.rpc.mockResolvedValue({ data: 'not-valid', error: null });
+  await expect(getOrCreateFriendCode('me@example.com', 'sub-1')).rejects.toThrow('Invalid friend code response');
+});
+
+test('blocked-account reads reject malformed success payloads instead of giving FlatList unchecked rows', async () => {
+  mockSupabase.supabase.rpc.mockResolvedValue({ data: [{ relationship_id: 'rel-1', display_name: 'Binh' }], error: null });
+  await expect(getBlockedAccounts('me@example.com', 'sub-1')).rejects.toThrow('Invalid blocked accounts response');
 });
 
 test('a missing RPC (PGRST202) on a read call maps to FriendsUnavailableError, not a generic throw', async () => {
@@ -78,6 +97,20 @@ test('does not misclassify an invalid JWT as an unavailable Friends backend', as
 test('request_friend_by_code unpacks the single-row status+retry_after_seconds result', async () => {
   mockSupabase.supabase.rpc.mockResolvedValue({ data: [{ status: 'RATE_LIMITED', retry_after_seconds: 2520 }], error: null });
   await expect(requestFriendByCode('me@example.com', 'K7M2QX', 'sub-1')).resolves.toEqual({ status: 'RATE_LIMITED', retryAfterSeconds: 2520 });
+});
+
+test('mutation payloads with unknown statuses or retry values fail closed to UNAVAILABLE', async () => {
+  mockSupabase.supabase.rpc
+    .mockResolvedValueOnce({ data: [{ status: 'MAYBE', retry_after_seconds: null }], error: null })
+    .mockResolvedValueOnce({ data: [{ status: 'OK', retry_after_seconds: 'soon' }], error: null })
+    .mockResolvedValueOnce({ data: [{ status: 'MAYBE' }], error: null });
+
+  await expect(requestFriendByCode('me@example.com', 'K7M2QX', 'sub-1'))
+    .resolves.toEqual({ status: 'UNAVAILABLE', retryAfterSeconds: null });
+  await expect(requestFriendByCode('me@example.com', 'K7M2QX', 'sub-1'))
+    .resolves.toEqual({ status: 'UNAVAILABLE', retryAfterSeconds: null });
+  await expect(respondToFriendRequest('me@example.com', 'req-1', 'accept', 'sub-1'))
+    .resolves.toBe('UNAVAILABLE');
 });
 
 test('a mutation RPC never throws — any error maps to status UNAVAILABLE so the sheet stays open with a message, never a crash', async () => {

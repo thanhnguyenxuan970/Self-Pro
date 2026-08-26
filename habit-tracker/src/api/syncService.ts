@@ -586,6 +586,38 @@ type SupabaseSession = {
   user?: SupabaseIdentityUser;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object';
+}
+
+function numericStatus(value: unknown): number | undefined {
+  if (!isRecord(value)) return undefined;
+  const rawStatus = value.status;
+  const status = typeof rawStatus === 'number'
+    ? rawStatus
+    : typeof rawStatus === 'string' && rawStatus.trim()
+      ? Number(rawStatus)
+      : undefined;
+  return typeof status === 'number' && Number.isFinite(status) ? status : undefined;
+}
+
+async function readSupabaseSession(): Promise<SupabaseSession | null> {
+  const response = await supabase!.auth.getSession() as unknown;
+  if (!isRecord(response)) throw new Error('Supabase session response was malformed');
+  if (response.error) throw response.error;
+
+  const data = response.data;
+  if (!isRecord(data) || !Object.prototype.hasOwnProperty.call(data, 'session')) {
+    throw new Error('Supabase session response was malformed');
+  }
+  const session = data.session;
+  if (session === null) return null;
+  if (!isRecord(session) || !isRecord(session.user)) {
+    throw new Error('Supabase session response was malformed');
+  }
+  return session as SupabaseSession;
+}
+
 let inFlightSessionRefresh: {
   userEmail: string;
   expectedGoogleSub: ExpectedGoogleSubject;
@@ -858,7 +890,10 @@ function isUnauthorizedSupabaseError(error: unknown): boolean {
   const details = error && typeof error === 'object'
     ? error as { code?: unknown; message?: unknown; status?: unknown; details?: unknown }
     : {};
-  const status = typeof details.status === 'number' ? details.status : Number(details.status);
+  const status = numericStatus(error);
+  // A token-shaped message is not enough to classify a 403/5xx response as a
+  // stale JWT. Only a confirmed 401 may trigger a session-changing retry.
+  if (status !== undefined && status !== 401) return false;
   if (status === 401) return true;
 
   const code = typeof details.code === 'string' ? details.code.toUpperCase() : '';
@@ -872,16 +907,20 @@ function isUnauthorizedSupabaseError(error: unknown): boolean {
   // attempt instead of being misreported as an unavailable Friends backend.
   return code === 'PGRST301'
     || code === 'UNAUTHORIZED'
-    || text.includes('invalid jwt')
-    || text.includes('jwt expired')
-    || text.includes('jwt is expired')
-    || text.includes('invalid token')
-    || text.includes('token expired');
+    || (status === undefined && (
+      text.includes('invalid jwt')
+      || text.includes('jwt expired')
+      || text.includes('jwt is expired')
+      || text.includes('invalid token')
+      || text.includes('token expired')
+    ));
 }
 
 function hasUnauthorizedResponse(value: unknown): boolean {
   if (value === null || typeof value !== 'object') return false;
   const response = value as { error?: unknown };
+  const topLevelStatus = numericStatus(value);
+  if (topLevelStatus !== undefined && topLevelStatus !== 401) return false;
   return ('error' in response && isUnauthorizedSupabaseError(response.error))
     || isUnauthorizedSupabaseError(value);
 }
@@ -900,7 +939,33 @@ async function signInWithGoogleTokenRequest(
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     assertSessionActive(isActive);
-    const { data, error } = await supabase!.auth.signInWithIdToken({ provider: 'google', token: idToken });
+    const exchangeRequest = supabase!.auth.signInWithIdToken({ provider: 'google', token: idToken });
+    let timedOut = false;
+    // A timed-out GoTrue request cannot be cancelled by every Supabase client
+    // version. If it eventually resolves with a session, clean up only that
+    // exact late token so it cannot replace a newer accepted account session.
+    void exchangeRequest.then(response => {
+      if (!timedOut || !isRecord(response)) return;
+      const data = isRecord(response.data) ? response.data : null;
+      const session = data && isRecord(data.session) ? data.session : null;
+      const accessToken = session && typeof session.access_token === 'string'
+        ? session.access_token
+        : null;
+      if (accessToken) void clearSupabaseSessionForAccount(accessToken);
+    }, () => undefined);
+
+    let response: Awaited<typeof exchangeRequest>;
+    try {
+      response = await withTimeout(
+        exchangeRequest,
+        SESSION_RESTORE_TIMEOUT_MS,
+        'Supabase token exchange timed out',
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Supabase token exchange timed out') timedOut = true;
+      throw error;
+    }
+    const { data, error } = response;
     if (!error) {
       const accessToken = data?.session?.access_token;
       const expiresAt = data?.session?.expires_at;
@@ -939,7 +1004,7 @@ let lastAcceptedGoogleSession: { accessToken: string; refreshToken: string; emai
 async function clearSupabaseSessionForAccount(ownedAccessToken: string | null): Promise<void> {
   if (!ownedAccessToken) return;
   try {
-    const { data: { session } } = await supabase!.auth.getSession();
+    const session = await readSupabaseSession();
     if (session?.access_token === ownedAccessToken) {
       const newerSession = lastAcceptedGoogleSession;
       if (newerSession && newerSession.accessToken !== ownedAccessToken) {
@@ -997,6 +1062,20 @@ function signInWithGoogleTokenInternal(
       active = null;
     }
   }
+  if (
+    active
+    && forceExchange
+    && !lockSession
+    && !active.isExecuting()
+  ) {
+    // A direct sign-in for any account may already be queued behind this
+    // protected read's process-wide session lease. Waiting for that queued
+    // promise here would deadlock: it cannot acquire the lease until this read
+    // finishes, while this read is waiting for the forced exchange. Keep the
+    // direct sign-in in the tail; the forced exchange owns the current lease
+    // and runs now.
+    active = null;
+  }
   if (active && normalizedAccountEmail(active.userEmail) === accountKey) {
     const sameExpectedSubject = (active.expectedGoogleSub?.trim() || null) === (normalizedSubject || null);
     const canReuseActiveExchange = !forceExchange || active.forceExchange;
@@ -1018,8 +1097,7 @@ function signInWithGoogleTokenInternal(
   const operation = async (): Promise<void> => {
     await waitForPrevious;
     assertSessionActive(isActive);
-    const { data: { session }, error: sessionError } = await supabase!.auth.getSession();
-    if (sessionError) throw sessionError;
+    const session = await readSupabaseSession();
     assertSessionActive(isActive);
     if (!forceExchange && hasFreshSessionForAccount(session, userEmail, expectedGoogleSub)) return;
     let exchangeCompleted = false;
@@ -1200,8 +1278,7 @@ async function ensureSupabaseSessionUnlocked(
   if (isQaSandboxActive() || !supabase) return;
   const normalizedSubject = normalizedExpectedGoogleSub(userEmail, expectedGoogleSub);
   assertSessionActive(isActive);
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError) throw sessionError;
+  const session = await readSupabaseSession();
   assertSessionActive(isActive);
   // getSession() only reports whether a session object is cached in memory —
   // with autoRefreshToken: false it never refreshes, so a session held across
@@ -1220,7 +1297,7 @@ async function ensureSupabaseSessionUnlocked(
     // re-logins. A strict `!==` here silently blocked every sync for any
     // account that ever picked up a casing difference, with no error
     // surfaced anywhere the failure could be diagnosed from.
-    if (session!.user.email?.trim().toLowerCase() !== userEmail.trim().toLowerCase()) {
+    if (session!.user?.email?.trim().toLowerCase() !== userEmail.trim().toLowerCase()) {
       throw new Error('Supabase session does not match the signed-in user');
     }
     if (forceExchange) {
@@ -1245,8 +1322,7 @@ async function getOwnedSupabaseSession(
   isActive: SessionActivityGuard = alwaysActive,
 ): Promise<SupabaseSession> {
   assertSessionActive(isActive);
-  const { data: { session }, error: sessionError } = await supabase!.auth.getSession();
-  if (sessionError) throw sessionError;
+  const session = await readSupabaseSession();
   assertSessionActive(isActive);
   if (!session || !hasFreshSessionForAccount(session, userEmail, expectedGoogleSub)) {
     throw new Error('Supabase session is unavailable or does not match the signed-in Google account');
@@ -1267,6 +1343,25 @@ export async function ensureSupabaseSession(
       isActive,
       expectedGoogleSub,
       () => releaseSessionOperation,
+    ),
+    release => { releaseSessionOperation = release; },
+  );
+}
+
+/** Force a fresh Google-backed Supabase session before a user-initiated retry. */
+export async function refreshSupabaseSessionForAccount(
+  userEmail: string,
+  expectedGoogleSub?: ExpectedGoogleSubject,
+): Promise<void> {
+  if (isQaSandboxActive() || !supabase) return;
+  let releaseSessionOperation: (() => void) | undefined;
+  await withSessionOperation(
+    () => ensureSupabaseSessionUnlocked(
+      userEmail,
+      alwaysActive,
+      expectedGoogleSub,
+      () => releaseSessionOperation,
+      true,
     ),
     release => { releaseSessionOperation = release; },
   );
