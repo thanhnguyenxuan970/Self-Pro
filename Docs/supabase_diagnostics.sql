@@ -131,7 +131,33 @@ FROM auth.audit_log_entries
 WHERE created_at >= now() - interval '24 hours'
 ORDER BY created_at DESC;
 
+-- 10) Account-scoped public.users read for a JWT-backed request. The live
+--     ownership column is user_email, not email. auth.email() avoids pasting
+--     an unescaped email into SQL. In the SQL Editor it normally returns NULL
+--     because there is no request JWT; use the catalog checks above there.
+SELECT
+  user_email,
+  activity_start_date,
+  lifetime_stars,
+  lifetime_stars_adjustment
+FROM public.users
+WHERE lower(btrim(user_email)) = lower(btrim(auth.email()));
+
 -- Operational interpretation of the attached errors:
+-- * 42703 on users.email: use public.users.user_email; the logged query used
+--   a column that does not exist in the live schema.
+-- * 401/42501 on REST public.users with auth_user = null: this is the expected
+--   RLS boundary for an anonymous request. Use a real user's access token for
+--   account-scoped reads; the JWT also needs the table's SELECT grant/policy.
+--   Do not grant anon access to public.users. If auth_user is present but the
+--   request is still 42501, inspect table privileges/RLS instead of changing
+--   the query's column name.
+-- * PGRST301 / HTTP 401: the cached Supabase JWT is invalid or expired. The
+--   app may re-authenticate once for read-only Friends RPCs; it is not a
+--   missing-RPC/schema-cache error.
+-- * P0001 "Backup revision conflict": another writer advanced the snapshot.
+--   Preserve both copies and require an explicit, validated reconciliation;
+--   never force-overwrite the cloud snapshot or delete the local SQLite data.
 -- * 28P01 (cli_login_postgres): refresh/re-authenticate the Supabase
 --   CLI/database credential; no app SQL can repair a rejected password.
 -- * 08006 (connection reset by peer): retry from a healthy connection and

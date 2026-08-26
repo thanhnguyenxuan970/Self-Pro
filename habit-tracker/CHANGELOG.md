@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Friends read RPCs now retry once after Supabase rejects an expired/invalid JWT, while mutations remain single-attempt to avoid duplicate writes; `PGRST301` is no longer mislabeled as a missing backend.
+- Supabase diagnostics now use the live `public.users.user_email` column and document the expected anonymous-RLS, backup-CAS, and CLI-credential boundaries without changing user data.
+- The Sky accent now uses a calmer cobalt blue across light and dark themes, with runtime contrast checks and emulator screenshots covering the selected accent and Analytics state.
+
 ## 2.0.3.g - 2026-08-26
 
 - The confirmed thanguyenxuan account now treats 2026-07-06 as the start of real activity: earlier fake rows stay available for audit but no longer inflate the heatmap, lifetime stars, rank, backup, restore, or sync.

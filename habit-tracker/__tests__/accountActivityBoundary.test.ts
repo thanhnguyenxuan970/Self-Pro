@@ -4,6 +4,7 @@ import {
 } from '../src/lib/accountActivityBoundary';
 import {
   filterCloudBackupPayload,
+  restoreUserDataBackup,
   type CloudBackupPayload,
 } from '../src/lib/userDataBackup';
 
@@ -72,4 +73,46 @@ test('does not filter another account when no boundary is configured', () => {
 
   expect(filtered.activity_log).toEqual(payload.activity_log);
   expect(filtered.user?.lifetime_stars).toBe(999);
+});
+
+test('does not overwrite a populated local account during a divergent restore', async () => {
+  const runAsync = jest.fn();
+  type TestDb = {
+    getFirstAsync: jest.Mock;
+    getAllAsync: jest.Mock;
+    runAsync: jest.Mock;
+    withTransactionAsync: (task: () => Promise<void>) => Promise<void>;
+    withExclusiveTransactionAsync?: (task: (transactionDb: TestDb) => Promise<void>) => Promise<void>;
+  };
+  const db: TestDb = {
+    getFirstAsync: jest.fn(async (sql: string) => (
+      sql.includes('FROM activity_log WHERE user_id = ?') ? { count: 1 } : { count: 0 }
+    )),
+    getAllAsync: jest.fn(),
+    runAsync,
+    withTransactionAsync: async (task: () => Promise<void>) => task(),
+    withExclusiveTransactionAsync: undefined,
+  };
+  db.withExclusiveTransactionAsync = async task => task(db);
+
+  await expect(restoreUserDataBackup(
+    db,
+    1,
+    emptyPayload(),
+    undefined,
+    () => undefined,
+    async transactionDb => {
+      const row = await transactionDb.getFirstAsync<{ count: number }>(
+        'SELECT COUNT(*) AS count FROM activity_log WHERE user_id = ?',
+        [1],
+      );
+      return Number(row?.count) === 0;
+    },
+  )).resolves.toBe(false);
+
+  expect(db.getFirstAsync).toHaveBeenCalledWith(
+    'SELECT COUNT(*) AS count FROM activity_log WHERE user_id = ?',
+    [1],
+  );
+  expect(runAsync).not.toHaveBeenCalled();
 });

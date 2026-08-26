@@ -71,6 +71,7 @@ jest.mock('../src/db/client', () => ({ getDb: mockGetDb }));
 import * as Sentry from '@sentry/react-native';
 import {
   ensureSupabaseSession,
+  withSupabaseSession,
   clearBackupRestoreBlocked,
   pauseAccountSync,
   readSocialProfile,
@@ -1702,6 +1703,124 @@ describe('ensureSupabaseSession', () => {
     mockSignInWithIdToken.mockResolvedValue(successfulTokenResponse('User@Example.com'));
 
     await expect(ensureSupabaseSession('user@example.com')).resolves.toBeUndefined();
+  });
+});
+
+describe('withSupabaseSession', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetSession.mockReset();
+    mockSignInSilently.mockReset();
+    mockGetTokens.mockReset();
+    mockSignInWithIdToken.mockReset();
+  });
+
+  it('re-authenticates once and retries a protected read after the server returns 401', async () => {
+    let currentSession = freshSession('user@example.com');
+    mockGetSession.mockImplementation(async () => ({ data: { session: currentSession }, error: null }));
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: {} });
+    mockGetTokens.mockResolvedValue({ idToken: 'fresh-google-id-token' });
+    mockSignInWithIdToken.mockImplementation(async () => {
+      currentSession = { ...freshSession('user@example.com'), access_token: 'reauthenticated-user-token' };
+      return { data: { user: currentSession.user, session: currentSession }, error: null };
+    });
+
+    let attempts = 0;
+    const operation = jest.fn(async () => {
+      attempts += 1;
+      return attempts === 1
+        ? { data: null, error: { status: 401, message: 'Invalid JWT' } }
+        : { data: 3, error: null };
+    });
+
+    await expect(withSupabaseSession(
+      'user@example.com',
+      'google-sub',
+      operation,
+      undefined,
+      { retryOnUnauthorized: true },
+    )).resolves.toEqual({ data: 3, error: null });
+
+    expect(operation).toHaveBeenCalledTimes(2);
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('bounds recovery to one re-authentication across mixed throw and response 401 shapes', async () => {
+    let currentSession = freshSession('user@example.com');
+    mockGetSession.mockImplementation(async () => ({ data: { session: currentSession }, error: null }));
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: {} });
+    mockGetTokens.mockResolvedValue({ idToken: 'fresh-google-id-token' });
+    mockSignInWithIdToken.mockImplementation(async () => {
+      currentSession = { ...freshSession('user@example.com'), access_token: 'reauthenticated-user-token' };
+      return { data: { user: currentSession.user, session: currentSession }, error: null };
+    });
+
+    let attempts = 0;
+    const operation = jest.fn(async () => {
+      attempts += 1;
+      if (attempts === 1) throw { status: 401, message: 'Invalid JWT' };
+      return { data: null, error: { status: 401, message: 'JWT still invalid' } };
+    });
+
+    await expect(withSupabaseSession(
+      'user@example.com',
+      'google-sub',
+      operation,
+      undefined,
+      { retryOnUnauthorized: true },
+    )).resolves.toEqual({ data: null, error: { status: 401, message: 'JWT still invalid' } });
+
+    expect(operation).toHaveBeenCalledTimes(2);
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-authenticates when a protected read reports a top-level 401 status', async () => {
+    let currentSession = freshSession('user@example.com');
+    mockGetSession.mockImplementation(async () => ({ data: { session: currentSession }, error: null }));
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: {} });
+    mockGetTokens.mockResolvedValue({ idToken: 'fresh-google-id-token' });
+    mockSignInWithIdToken.mockImplementation(async () => {
+      currentSession = { ...freshSession('user@example.com'), access_token: 'reauthenticated-user-token' };
+      return { data: { user: currentSession.user, session: currentSession }, error: null };
+    });
+
+    let attempts = 0;
+    const operation = jest.fn(async () => {
+      attempts += 1;
+      return attempts === 1 ? { status: 401, data: null } : { status: 200, data: 4 };
+    });
+
+    await expect(withSupabaseSession(
+      'user@example.com',
+      'google-sub',
+      operation,
+      undefined,
+      { retryOnUnauthorized: true },
+    )).resolves.toEqual({ status: 200, data: 4 });
+
+    expect(operation).toHaveBeenCalledTimes(2);
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not re-authenticate for a non-JWT error that only mentions authorization', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: freshSession('user@example.com') },
+      error: null,
+    });
+    const operation = jest.fn(async () => {
+      throw { status: 403, message: 'User is unauthorized to view this private row' };
+    });
+
+    await expect(withSupabaseSession(
+      'user@example.com',
+      'google-sub',
+      operation,
+      undefined,
+      { retryOnUnauthorized: true },
+    )).rejects.toMatchObject({ status: 403 });
+
+    expect(operation).toHaveBeenCalledTimes(1);
+    expect(mockSignInWithIdToken).not.toHaveBeenCalled();
   });
 });
 

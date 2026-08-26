@@ -34,10 +34,10 @@ export const ACCENTS: Record<AccentKey, AccentPalette> = {
     dark:  { primary: '#FB7185', primaryHover: '#F43F5E', primaryPress: '#FDA4AF', primarySoft: '#4C0519' },
   },
   sky: {
-    swatch: '#0EA5E9',
+    swatch: '#3B82F6',
     onAccent: { light: '#FFFFFF', dark: '#141816' },
-    light: { primary: '#0277BD', primaryHover: '#0369A1', primaryPress: '#075985', primarySoft: '#E0F2FE' },
-    dark:  { primary: '#38BDF8', primaryHover: '#0EA5E9', primaryPress: '#7DD3FC', primarySoft: '#0C2A3E' },
+    light: { primary: '#2563EB', primaryHover: '#1D4ED8', primaryPress: '#1E40AF', primarySoft: '#DBEAFE' },
+    dark:  { primary: '#60A5FA', primaryHover: '#3B82F6', primaryPress: '#BFDBFE', primarySoft: '#1E3A8A' },
   },
   violet: {
     swatch: '#8B5CF6',

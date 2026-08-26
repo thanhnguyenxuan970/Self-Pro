@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { withSupabaseSession } from './syncService';
+import { withSupabaseSession, type SupabaseSessionOptions } from './syncService';
 import type { FriendActionResult, FriendMutationStatus, RemoteFriendDashboardRow } from '../lib/friends';
 
 export type { FriendActionResult, FriendMutationStatus };
@@ -28,23 +28,31 @@ export class FriendsUnavailableError extends Error {
 
 function isMissingRpcError(error: unknown): boolean {
   const code = error && typeof error === 'object' && 'code' in error ? (error as { code?: unknown }).code : undefined;
-  // PGRST202: PostgREST couldn't find the RPC — the exact signature of "client
-  // ahead of backend." PGRST301 covers a stale/invalid schema cache entry for
-  // the same underlying cause.
-  return code === 'PGRST202' || code === 'PGRST301';
+  // PGRST202 means PostgREST could not find the RPC — the exact signature of
+  // "client ahead of backend." PGRST301 is an invalid/expired JWT and must not
+  // be mislabeled as a missing Friends backend.
+  return code === 'PGRST202';
 }
 
 async function withFriendSession<T>(
   currentUserEmail: string,
   accountSub: string | undefined,
   operation: () => Promise<T>,
+  options?: SupabaseSessionOptions,
 ): Promise<T> {
   if (!supabase) throw new FriendsUnavailableError();
-  return withSupabaseSession(currentUserEmail, accountSub, operation);
+  return options
+    ? withSupabaseSession(currentUserEmail, accountSub, operation, undefined, options)
+    : withSupabaseSession(currentUserEmail, accountSub, operation);
 }
 
 export async function getOrCreateFriendCode(currentUserEmail: string, accountSub?: string): Promise<string> {
-  const { data, error } = await withFriendSession(currentUserEmail, accountSub, async () => supabase!.rpc('get_or_create_my_friend_code'));
+  const { data, error } = await withFriendSession(
+    currentUserEmail,
+    accountSub,
+    async () => supabase!.rpc('get_or_create_my_friend_code'),
+    { retryOnUnauthorized: true },
+  );
   if (error) throw isMissingRpcError(error) ? new FriendsUnavailableError(error) : error;
   return data as string;
 }
@@ -56,19 +64,34 @@ export async function rotateFriendCode(currentUserEmail: string, accountSub?: st
 }
 
 export async function getFriendPendingCount(currentUserEmail: string, accountSub?: string): Promise<number> {
-  const { data, error } = await withFriendSession(currentUserEmail, accountSub, async () => supabase!.rpc('get_friend_pending_count'));
+  const { data, error } = await withFriendSession(
+    currentUserEmail,
+    accountSub,
+    async () => supabase!.rpc('get_friend_pending_count'),
+    { retryOnUnauthorized: true },
+  );
   if (error) throw isMissingRpcError(error) ? new FriendsUnavailableError(error) : error;
   return Math.max(0, Number(data) || 0);
 }
 
 export async function getFriendDashboard(currentUserEmail: string, accountSub?: string): Promise<RemoteFriendDashboardRow[]> {
-  const { data, error } = await withFriendSession(currentUserEmail, accountSub, async () => supabase!.rpc('get_my_friend_dashboard'));
+  const { data, error } = await withFriendSession(
+    currentUserEmail,
+    accountSub,
+    async () => supabase!.rpc('get_my_friend_dashboard'),
+    { retryOnUnauthorized: true },
+  );
   if (error) throw isMissingRpcError(error) ? new FriendsUnavailableError(error) : error;
   return (data ?? []) as RemoteFriendDashboardRow[];
 }
 
 export async function getBlockedAccounts(currentUserEmail: string, accountSub?: string): Promise<RemoteBlockedAccountRow[]> {
-  const { data, error } = await withFriendSession(currentUserEmail, accountSub, async () => supabase!.rpc('get_my_blocked_accounts'));
+  const { data, error } = await withFriendSession(
+    currentUserEmail,
+    accountSub,
+    async () => supabase!.rpc('get_my_blocked_accounts'),
+    { retryOnUnauthorized: true },
+  );
   if (error) throw isMissingRpcError(error) ? new FriendsUnavailableError(error) : error;
   return (data ?? []) as RemoteBlockedAccountRow[];
 }

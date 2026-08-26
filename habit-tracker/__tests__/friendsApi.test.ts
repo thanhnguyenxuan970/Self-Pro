@@ -25,10 +25,16 @@ beforeEach(() => {
   mockSyncService.withSupabaseSession.mockImplementation(async (_email: string, _sub: string | undefined, operation: () => Promise<unknown>) => operation());
 });
 
-test('every call establishes the Supabase session with the Google subject — never sent to the RPC itself', async () => {
+test('friend-code reads establish the Supabase session and request one bounded auth retry', async () => {
   mockSupabase.supabase.rpc.mockResolvedValue({ data: 'K7M2QX', error: null });
   await getOrCreateFriendCode('me@example.com', 'sub-1');
-  expect(mockSyncService.withSupabaseSession).toHaveBeenCalledWith('me@example.com', 'sub-1', expect.any(Function));
+  expect(mockSyncService.withSupabaseSession).toHaveBeenCalledWith(
+    'me@example.com',
+    'sub-1',
+    expect.any(Function),
+    undefined,
+    { retryOnUnauthorized: true },
+  );
   const [, params] = mockSupabase.supabase.rpc.mock.calls[0] ?? [];
   expect(params).toBeUndefined();
 });
@@ -48,6 +54,27 @@ test('get_friend_pending_count clamps a null/negative value to 0 rather than sur
   await expect(getFriendPendingCount('me@example.com', 'sub-1')).resolves.toBe(0);
 });
 
+test('pending-count reads request one bounded auth retry for a server-rejected JWT', async () => {
+  mockSupabase.supabase.rpc.mockResolvedValue({ data: 2, error: null });
+
+  await getFriendPendingCount('me@example.com', 'sub-1');
+
+  expect(mockSyncService.withSupabaseSession).toHaveBeenCalledWith(
+    'me@example.com',
+    'sub-1',
+    expect.any(Function),
+    undefined,
+    { retryOnUnauthorized: true },
+  );
+});
+
+test('does not misclassify an invalid JWT as an unavailable Friends backend', async () => {
+  const authError = { code: 'PGRST301', status: 401, message: 'JWT expired' };
+  mockSupabase.supabase.rpc.mockResolvedValue({ data: null, error: authError });
+
+  await expect(getFriendPendingCount('me@example.com', 'sub-1')).rejects.toBe(authError);
+});
+
 test('request_friend_by_code unpacks the single-row status+retry_after_seconds result', async () => {
   mockSupabase.supabase.rpc.mockResolvedValue({ data: [{ status: 'RATE_LIMITED', retry_after_seconds: 2520 }], error: null });
   await expect(requestFriendByCode('me@example.com', 'K7M2QX', 'sub-1')).resolves.toEqual({ status: 'RATE_LIMITED', retryAfterSeconds: 2520 });
@@ -58,6 +85,11 @@ test('a mutation RPC never throws — any error maps to status UNAVAILABLE so th
   await expect(requestFriendByCode('me@example.com', 'K7M2QX', 'sub-1')).resolves.toEqual({ status: 'UNAVAILABLE', retryAfterSeconds: null });
   await expect(respondToFriendRequest('me@example.com', 'req-1', 'accept', 'sub-1')).resolves.toBe('UNAVAILABLE');
   await expect(blockFriend('me@example.com', 'rel-1', 'sub-1')).resolves.toBe('UNAVAILABLE');
+
+  expect(mockSyncService.withSupabaseSession.mock.calls).toHaveLength(3);
+  for (const call of mockSyncService.withSupabaseSession.mock.calls) {
+    expect(call).toHaveLength(3);
+  }
 });
 
 test('respond_to_friend_request passes the request id and action through as RPC params', async () => {

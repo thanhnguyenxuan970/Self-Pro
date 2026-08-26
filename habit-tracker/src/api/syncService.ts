@@ -589,6 +589,7 @@ type SupabaseSession = {
 let inFlightSessionRefresh: {
   userEmail: string;
   expectedGoogleSub: ExpectedGoogleSubject;
+  forceExchange: boolean;
   promise: Promise<void>;
   isActive: SessionActivityGuard;
   releaseSessionOperation?: () => void;
@@ -597,6 +598,7 @@ let inFlightGoogleTokenSignIn: {
   userEmail: string;
   idToken: string;
   expectedGoogleSub: ExpectedGoogleSubject;
+  forceExchange: boolean;
   promise: Promise<void>;
   isActive: SessionActivityGuard;
   isExecuting: () => boolean;
@@ -852,6 +854,38 @@ function isRetryableAuthExchangeError(error: unknown): boolean {
     || text.includes('23505');
 }
 
+function isUnauthorizedSupabaseError(error: unknown): boolean {
+  const details = error && typeof error === 'object'
+    ? error as { code?: unknown; message?: unknown; status?: unknown; details?: unknown }
+    : {};
+  const status = typeof details.status === 'number' ? details.status : Number(details.status);
+  if (status === 401) return true;
+
+  const code = typeof details.code === 'string' ? details.code.toUpperCase() : '';
+  const text = [details.code, details.message, details.details, String(error)]
+    .filter(value => value != null)
+    .join(' ')
+    .toLowerCase();
+
+  // PostgREST uses PGRST301 for an invalid/expired JWT. Keep this separate
+  // from PGRST202 (missing RPC), so a stale token gets one silent recovery
+  // attempt instead of being misreported as an unavailable Friends backend.
+  return code === 'PGRST301'
+    || code === 'UNAUTHORIZED'
+    || text.includes('invalid jwt')
+    || text.includes('jwt expired')
+    || text.includes('jwt is expired')
+    || text.includes('invalid token')
+    || text.includes('token expired');
+}
+
+function hasUnauthorizedResponse(value: unknown): boolean {
+  if (value === null || typeof value !== 'object') return false;
+  const response = value as { error?: unknown };
+  return ('error' in response && isUnauthorizedSupabaseError(response.error))
+    || isUnauthorizedSupabaseError(value);
+}
+
 type TokenExchangeResult = {
   returnedEmail: string;
   returnedGoogleSub: string | null;
@@ -936,6 +970,7 @@ function signInWithGoogleTokenInternal(
   expectedGoogleSub?: ExpectedGoogleSubject,
   lockSession = false,
   skipSessionRefreshWait = false,
+  forceExchange = false,
 ): Promise<void> {
   if (typeof idToken !== 'string' || !idToken.trim()) {
     return Promise.reject(new Error('Google ID token is required'));
@@ -945,8 +980,8 @@ function signInWithGoogleTokenInternal(
   const activeRefresh = inFlightSessionRefresh;
   if (!skipSessionRefreshWait && activeRefresh && activeRefresh.isActive()) {
     return activeRefresh.promise.then(
-      () => signInWithGoogleTokenInternal(userEmail, idToken, isActive, expectedGoogleSub, lockSession),
-      () => signInWithGoogleTokenInternal(userEmail, idToken, isActive, expectedGoogleSub, lockSession),
+      () => signInWithGoogleTokenInternal(userEmail, idToken, isActive, expectedGoogleSub, lockSession, skipSessionRefreshWait, forceExchange),
+      () => signInWithGoogleTokenInternal(userEmail, idToken, isActive, expectedGoogleSub, lockSession, skipSessionRefreshWait, forceExchange),
     );
   }
 
@@ -964,17 +999,18 @@ function signInWithGoogleTokenInternal(
   }
   if (active && normalizedAccountEmail(active.userEmail) === accountKey) {
     const sameExpectedSubject = (active.expectedGoogleSub?.trim() || null) === (normalizedSubject || null);
-    if (active.idToken === idToken && sameExpectedSubject) {
+    const canReuseActiveExchange = !forceExchange || active.forceExchange;
+    if (active.idToken === idToken && sameExpectedSubject && canReuseActiveExchange) {
       return active.promise.catch(error => {
         if (isSessionRestoreCancellation(error)) {
-          return signInWithGoogleTokenInternal(userEmail, idToken, isActive, normalizedSubject, lockSession, skipSessionRefreshWait);
+          return signInWithGoogleTokenInternal(userEmail, idToken, isActive, normalizedSubject, lockSession, skipSessionRefreshWait, forceExchange);
         }
         throw error;
       });
     }
     return active.promise.then(
-      () => signInWithGoogleTokenInternal(userEmail, idToken, isActive, normalizedSubject, lockSession, skipSessionRefreshWait),
-      () => signInWithGoogleTokenInternal(userEmail, idToken, isActive, normalizedSubject, lockSession, skipSessionRefreshWait),
+      () => signInWithGoogleTokenInternal(userEmail, idToken, isActive, normalizedSubject, lockSession, skipSessionRefreshWait, forceExchange),
+      () => signInWithGoogleTokenInternal(userEmail, idToken, isActive, normalizedSubject, lockSession, skipSessionRefreshWait, forceExchange),
     );
   }
 
@@ -985,7 +1021,7 @@ function signInWithGoogleTokenInternal(
     const { data: { session }, error: sessionError } = await supabase!.auth.getSession();
     if (sessionError) throw sessionError;
     assertSessionActive(isActive);
-    if (hasFreshSessionForAccount(session, userEmail, expectedGoogleSub)) return;
+    if (!forceExchange && hasFreshSessionForAccount(session, userEmail, expectedGoogleSub)) return;
     let exchangeCompleted = false;
     let exchangeAccessToken: string | null = null;
     let exchangeRefreshToken: string | null = null;
@@ -1039,6 +1075,7 @@ function signInWithGoogleTokenInternal(
     userEmail,
     idToken,
     expectedGoogleSub: normalizedSubject,
+    forceExchange,
     promise: trackedPromise,
     isActive,
     isExecuting: () => exchangeExecuting,
@@ -1059,6 +1096,7 @@ async function refreshSupabaseSession(
   userEmail: string,
   isActive: SessionActivityGuard,
   expectedGoogleSub?: ExpectedGoogleSubject,
+  forceExchange = false,
 ): Promise<void> {
   assertSessionActive(isActive);
   // require at call-time: preserves the native-module loading guard used by auth.
@@ -1083,7 +1121,7 @@ async function refreshSupabaseSession(
   );
   if (!idToken) throw new Error('Google did not provide an ID token for Supabase sync');
   assertSessionActive(isActive);
-  await signInWithGoogleTokenInternal(userEmail, idToken, isActive, expectedGoogleSub, false, true);
+  await signInWithGoogleTokenInternal(userEmail, idToken, isActive, expectedGoogleSub, false, true, forceExchange);
 }
 
 function refreshSupabaseSessionOnce(
@@ -1091,6 +1129,7 @@ function refreshSupabaseSessionOnce(
   isActive: SessionActivityGuard,
   expectedGoogleSub?: ExpectedGoogleSubject,
   sessionOperationRelease?: () => (() => void) | undefined,
+  forceExchange = false,
 ): Promise<void> {
   const normalizedSubject = normalizedExpectedGoogleSub(userEmail, expectedGoogleSub);
   let activeRefresh = inFlightSessionRefresh;
@@ -1098,6 +1137,7 @@ function refreshSupabaseSessionOnce(
     if (
       normalizedAccountEmail(activeRefresh.userEmail) === normalizedAccountEmail(userEmail)
       && (activeRefresh.expectedGoogleSub?.trim() || null) === (normalizedSubject || null)
+      && (!forceExchange || activeRefresh.forceExchange)
     ) {
       if (!activeRefresh.isActive()) {
         inFlightSessionRefresh = null;
@@ -1105,7 +1145,7 @@ function refreshSupabaseSessionOnce(
       } else {
         return activeRefresh.promise.catch(error => {
           if (isSessionRestoreCancellation(error)) {
-            return refreshSupabaseSessionOnce(userEmail, isActive, normalizedSubject, sessionOperationRelease);
+            return refreshSupabaseSessionOnce(userEmail, isActive, normalizedSubject, sessionOperationRelease, forceExchange);
           }
           throw error;
         });
@@ -1113,11 +1153,11 @@ function refreshSupabaseSessionOnce(
     }
     if (activeRefresh) return activeRefresh.promise
       .catch(() => undefined)
-      .then(() => refreshSupabaseSessionOnce(userEmail, isActive, normalizedSubject, sessionOperationRelease));
+      .then(() => refreshSupabaseSessionOnce(userEmail, isActive, normalizedSubject, sessionOperationRelease, forceExchange));
   }
 
   let trackedPromise: Promise<void>;
-  trackedPromise = refreshSupabaseSession(userEmail, isActive, normalizedSubject).finally(() => {
+  trackedPromise = refreshSupabaseSession(userEmail, isActive, normalizedSubject, forceExchange).finally(() => {
     if (inFlightSessionRefresh?.promise === trackedPromise) {
       inFlightSessionRefresh = null;
     }
@@ -1125,6 +1165,7 @@ function refreshSupabaseSessionOnce(
   inFlightSessionRefresh = {
     userEmail,
     expectedGoogleSub: normalizedSubject,
+    forceExchange,
     promise: trackedPromise,
     isActive,
     releaseSessionOperation: sessionOperationRelease?.(),
@@ -1154,6 +1195,7 @@ async function ensureSupabaseSessionUnlocked(
   isActive: SessionActivityGuard = alwaysActive,
   expectedGoogleSub?: ExpectedGoogleSubject,
   sessionOperationRelease?: () => (() => void) | undefined,
+  forceExchange = false,
 ): Promise<void> {
   if (isQaSandboxActive() || !supabase) return;
   const normalizedSubject = normalizedExpectedGoogleSub(userEmail, expectedGoogleSub);
@@ -1181,6 +1223,10 @@ async function ensureSupabaseSessionUnlocked(
     if (session!.user.email?.trim().toLowerCase() !== userEmail.trim().toLowerCase()) {
       throw new Error('Supabase session does not match the signed-in user');
     }
+    if (forceExchange) {
+      await refreshSupabaseSessionOnce(userEmail, isActive, normalizedSubject, sessionOperationRelease, true);
+      return;
+    }
     if (normalizedSubject && googleSubjectFromSupabaseUser(session.user) !== normalizedSubject) {
       // A cached session with no matching Google identity must not be reused
       // for a different local OIDC subject; force a fresh token exchange.
@@ -1190,7 +1236,7 @@ async function ensureSupabaseSessionUnlocked(
     return;
   }
 
-  await refreshSupabaseSessionOnce(userEmail, isActive, normalizedSubject, sessionOperationRelease);
+  await refreshSupabaseSessionOnce(userEmail, isActive, normalizedSubject, sessionOperationRelease, forceExchange);
 }
 
 async function getOwnedSupabaseSession(
@@ -1227,11 +1273,17 @@ export async function ensureSupabaseSession(
 }
 
 /** Run one protected Supabase operation while holding the owned session lease. */
+export type SupabaseSessionOptions = {
+  /** Retry one read-style operation after Supabase rejects the cached JWT. */
+  retryOnUnauthorized?: boolean;
+};
+
 export async function withSupabaseSession<T>(
   userEmail: string,
   expectedGoogleSub: ExpectedGoogleSubject,
   operation: () => Promise<T>,
   isActive: SessionActivityGuard = alwaysActive,
+  options: SupabaseSessionOptions = {},
 ): Promise<T> {
   if (isQaSandboxActive() || !supabase) return operation();
   let releaseSessionOperation: (() => void) | undefined;
@@ -1242,8 +1294,36 @@ export async function withSupabaseSession<T>(
       expectedGoogleSub,
       () => releaseSessionOperation,
     );
-    const ownedSession = await getOwnedSupabaseSession(userEmail, expectedGoogleSub, isActive);
-    const result = await operation();
+    let ownedSession = await getOwnedSupabaseSession(userEmail, expectedGoogleSub, isActive);
+    let result: T;
+    let retriedAfterUnauthorized = false;
+    try {
+      result = await operation();
+    } catch (error) {
+      if (!options.retryOnUnauthorized || !isUnauthorizedSupabaseError(error)) throw error;
+      retriedAfterUnauthorized = true;
+      await ensureSupabaseSessionUnlocked(
+        userEmail,
+        isActive,
+        expectedGoogleSub,
+        () => releaseSessionOperation,
+        true,
+      );
+      ownedSession = await getOwnedSupabaseSession(userEmail, expectedGoogleSub, isActive);
+      result = await operation();
+    }
+    if (options.retryOnUnauthorized && !retriedAfterUnauthorized && hasUnauthorizedResponse(result)) {
+      retriedAfterUnauthorized = true;
+      await ensureSupabaseSessionUnlocked(
+        userEmail,
+        isActive,
+        expectedGoogleSub,
+        () => releaseSessionOperation,
+        true,
+      );
+      ownedSession = await getOwnedSupabaseSession(userEmail, expectedGoogleSub, isActive);
+      result = await operation();
+    }
     const currentSession = await getOwnedSupabaseSession(userEmail, expectedGoogleSub, isActive);
     if (currentSession.access_token !== ownedSession.access_token) {
       throw new Error('Supabase session changed during the protected operation');
