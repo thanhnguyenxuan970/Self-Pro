@@ -106,6 +106,8 @@ export function getColors(isDark: boolean, accent: AccentKey = DEFAULT_ACCENT): 
   const palette = ACCENTS[accent];
   const p = isDark ? palette.dark : palette.light;
   const onAccent = isDark ? palette.onAccent.dark : palette.onAccent.light;
+  // `primary` is the accent fill; use the darker/lighter press stop for
+  // text, icons, and outlines so bright accents remain readable on surfaces.
   return { ...base, ...p, onAccent, primaryText: p.primaryPress, primaryLine: withAlpha(p.primary, '55') };
 }
 

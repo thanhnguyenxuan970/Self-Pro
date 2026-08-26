@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.3.g - 2026-08-26
+
+- The confirmed thanguyenxuan account now treats 2026-07-06 as the start of real activity: earlier fake rows stay available for audit but no longer inflate the heatmap, lifetime stars, rank, backup, restore, or sync.
+- The signed-in user's leaderboard stars now use the same cutoff-filtered total shown on Home, while rank position and other players remain server-derived.
+- A temporary cloud-restore outage no longer replaces an already-populated local account with the recovery screen; fresh or seeded databases remain fail-closed until restore succeeds.
+- Accent, loading, selection, and celebration states now use the semantic contrast-safe theme tokens across light and dark modes.
+- Android native release metadata is 2.0.3.g (versionCode 74); the shared Expo/iOS version remains 2.0.3.
+- Validation: TypeScript, 79 Jest suites/719 tests/1 snapshot, Supabase migration dry-run, signed release AAB/APK, and the data-preserving emulator Home/Rank flow passed. AAB SHA-256: 3633CD6082FA187CFD5BE3EA015511E89325ECDFA948C4AB74640D41A32E88F3.
+
 ## 2.0.3.f - 2026-08-26
 
 - Heatmap date cells are now tappable again and open the selected day's card with its date, stars, and points, including zero-activity days.

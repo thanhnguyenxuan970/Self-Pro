@@ -101,7 +101,7 @@ const EntryList = React.memo(function EntryList({ entries, editingEntryId, locke
         const meta = formatEntryMeta(entry, formatDuration);
         const isEditing = editingEntryId === entry.id;
         return (
-          <View key={entry.id} style={[styles.entryRow, isEditing && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
+          <View key={entry.id} style={[styles.entryRow, isEditing && { backgroundColor: colors.primarySoft, borderColor: colors.primaryPress }]}>
             <Text style={styles.taskIcon}>{entry.icon ?? '⭐'}</Text>
             <View style={styles.entryTextCol}>
               <Text style={[styles.entryName, isEditing && { color: colors.primaryText, fontFamily: FontFamily.semiBold }]} numberOfLines={1}>{entry.name}</Text>
@@ -515,7 +515,7 @@ function makeStyles(colors: AppColors, bottomInset: number) {
     addBtn: {
       marginTop: 14,
       borderWidth: 1,
-      borderColor: colors.primary,
+      borderColor: colors.primaryPress,
       borderRadius: Radii.md,
       paddingVertical: 12,
       alignItems: 'center',

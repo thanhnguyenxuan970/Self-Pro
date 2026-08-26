@@ -100,7 +100,7 @@ export function NewsScreen() {
 
       {isLoading ? (
         <View style={styles.loadingBox}>
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={colors.primaryText} />
         </View>
       ) : error ? (
         <View style={styles.stateCard}>

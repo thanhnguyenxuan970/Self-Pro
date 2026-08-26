@@ -318,7 +318,7 @@ function makeStyles(C: AppColors, bottomInset: number) {
       borderRadius: Radii.md, backgroundColor: C.surface2, borderWidth: 1.5, borderColor: C.line2,
       marginBottom: 8,
     },
-    choiceActive: { borderColor: C.primary, backgroundColor: C.primarySoft },
+    choiceActive: { borderColor: C.primaryPress, backgroundColor: C.primarySoft },
     choiceText: { fontSize: 14, fontFamily: FontFamily.medium, color: C.ink2 },
     choiceTextActive: { color: C.primaryText, fontFamily: FontFamily.semiBold },
     input: {

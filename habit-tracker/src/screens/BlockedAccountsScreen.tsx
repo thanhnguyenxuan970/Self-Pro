@@ -30,7 +30,7 @@ export function BlockedAccountsScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       {query.isLoading ? (
-        <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
+        <View style={styles.center}><ActivityIndicator color={colors.primaryText} /></View>
       ) : query.error && rows.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.errorText}>{query.isUnavailable ? t.friendsUnavailableHeadline : t.friendsErrorHeadline}</Text>

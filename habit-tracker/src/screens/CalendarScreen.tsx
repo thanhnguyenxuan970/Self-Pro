@@ -47,7 +47,7 @@ function resolveCellColors(
   hasActivity: boolean,
   colors: AppColors,
 ): { cellBg: string; numColor: string } {
-  if (hasActivity) return { cellBg: colors.primarySoft, numColor: colors.primary };
+  if (hasActivity) return { cellBg: colors.primarySoft, numColor: colors.primaryText };
   return { cellBg: 'transparent', numColor: colors.inkDark };
 }
 
@@ -307,10 +307,10 @@ function makeStyles(colors: AppColors, bottomInset: number) {
     },
     dayNum: { fontSize: 15, fontFamily: FontFamily.bold },
     cellBottom: { alignItems: 'center', height: 16 },
-    cellToday: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft, ...Shadows.light },
+    cellToday: { borderWidth: 2, borderColor: colors.primaryPress, backgroundColor: colors.primarySoft, ...Shadows.light },
     cellEligible: {
       borderWidth: 1,
-      borderColor: colors.primary,
+      borderColor: colors.primaryPress,
       borderStyle: 'dashed' as const,
     },
     backfillHint: {
@@ -329,7 +329,7 @@ function makeStyles(colors: AppColors, bottomInset: number) {
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     legendCheck: { color: colors.primaryText, fontSize: 14, fontFamily: FontFamily.extraBold },
     legendPlus: { color: colors.primaryText, fontSize: 16, fontFamily: FontFamily.extraBold },
-    legendToday: { width: 13, height: 13, borderRadius: 3, borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft },
+    legendToday: { width: 13, height: 13, borderRadius: 3, borderWidth: 2, borderColor: colors.primaryPress, backgroundColor: colors.primarySoft },
     legendLabel: { fontSize: 12, lineHeight: 17, fontFamily: FontFamily.semiBold, color: colors.ink2 },
     summary: {
       flexDirection: 'row',

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SQLiteDatabase } from 'expo-sqlite';
 import { type GoogleUser, readGoogleUser, writeGoogleUser, deleteGoogleUser, parseGoogleUser, getStoredGoogleUser } from '../lib/googleUserStorage';
@@ -326,15 +326,7 @@ export async function cancelUserChallengeReminders(
   ]);
 }
 
-export const UserIdContext = createContext<number>(1);
-export function useAuthUser(): number {
-  return useContext(UserIdContext);
-}
-
-export const GoogleUserContext = createContext<GoogleUser | null>(null);
-export function useGoogleUser(): GoogleUser | null {
-  return useContext(GoogleUserContext);
-}
+export { GoogleUserContext, UserIdContext, useAuthUser, useGoogleUser } from './authContext';
 
 export function useAuth() {
   const [isLoading, setIsLoading] = useState(true);

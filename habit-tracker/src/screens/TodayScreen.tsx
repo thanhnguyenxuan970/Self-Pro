@@ -649,7 +649,7 @@ export function TodayScreen({ qaBannerVisible = false }: { qaBannerVisible?: boo
               <View style={styles.emptyCtaPill}>
                 <Text style={styles.emptyCtaText}>{t.emptyDesc}</Text>
               </View>
-              <FabArrow color={colors.primary} reduceMotion={reduceMotion} />
+              <FabArrow color={colors.primaryText} reduceMotion={reduceMotion} />
             </View>
           ) : (
             displayTasks.map((item, idx) => {

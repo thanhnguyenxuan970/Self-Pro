@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../db/client';
+import { useGoogleUser } from '../hooks/authContext';
+import { getAccountActivityStartDate } from '../lib/accountActivityBoundary';
 import { getLocalDate } from '../utils/formatters';
 import { challengeDate } from '../lib/challenge';
 import { weekWindows, weekSessionsDone } from '../lib/challengeWeekly';
@@ -60,8 +62,11 @@ export function useWeeklyOverachieverCount(userId: number) {
 
 /** Extra Trophy Shelf metrics derived directly from the append-only activity log. */
 export function useAchievementActivityMetrics(userId: number) {
+  const googleUser = useGoogleUser();
+  const activityStartDate = getAccountActivityStartDate(googleUser?.email);
+  const queryStartDate = activityStartDate ?? '0000-01-01';
   return useQuery({
-    queryKey: ['achievements', 'activity-metrics', userId],
+    queryKey: ['achievements', 'activity-metrics', userId, activityStartDate],
     queryFn: async () => {
       const db = await getDb();
       const row = await db.getFirstAsync<{ morningLogs: number; nightLogs: number; activityTypes: number }>(
@@ -69,8 +74,8 @@ export function useAchievementActivityMetrics(userId: number) {
            COALESCE(SUM(CASE WHEN CAST(strftime('%H', datetime(logged_at / 1000, 'unixepoch', 'localtime')) AS INTEGER) < 9 THEN 1 ELSE 0 END), 0) AS morningLogs,
            COALESCE(SUM(CASE WHEN CAST(strftime('%H', datetime(logged_at / 1000, 'unixepoch', 'localtime')) AS INTEGER) >= 22 THEN 1 ELSE 0 END), 0) AS nightLogs,
            COUNT(DISTINCT task_type_id) AS activityTypes
-         FROM activity_log WHERE user_id = ? AND source = 'TASK'`,
-        [userId],
+         FROM activity_log WHERE user_id = ? AND local_date >= ? AND source = 'TASK'`,
+        [userId, queryStartDate],
       );
       return row ?? { morningLogs: 0, nightLogs: 0, activityTypes: 0 };
     },

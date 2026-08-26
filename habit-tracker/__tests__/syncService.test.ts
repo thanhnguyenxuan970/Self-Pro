@@ -129,6 +129,39 @@ describe('restoreUserDataIfNeeded', () => {
     mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
   });
 
+  it('does not block an existing local account when startup cloud restore is unavailable', async () => {
+    mockStorageGetItem.mockImplementation(async (key: string) => (
+      key === 'habit_sync_backup_restore_blocked:user@example.com' ? '1' : null
+    ));
+    mockRpc.mockImplementation(async (name: string) => (
+      name === 'restore_my_data_backup_v2'
+        ? { data: null, error: { message: 'temporary network failure' } }
+        : { data: null, error: null }
+    ));
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('COUNT(*)') && sql.includes('activity_log')) return { count: 1 };
+        if (sql.includes('COUNT(*)')) return { count: 0 };
+        return {
+          username: 'me', timezone: 'Asia/Ho_Chi_Minh', carry_debt: 0, currency: 'VND',
+          last_seen_week_start: null, lifetime_stars: 1, current_tier_id: 1,
+          treat_stars: 0, treat_stars_lifetime: 0, value_per_star: 1000,
+          penalty_hits_treats: 1, notification_time: null, notification_time_2: null,
+          notification_time_3: null,
+        };
+      }),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('not_needed');
+    expect(mockRpc).not.toHaveBeenCalledWith('restore_my_data_backup_v2');
+    expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
+  });
+
   it('restores a reinstall from the same Google account without losing habits, heatmap, challenges, or rank state', async () => {
     const payload = {
       schema_version: 1,
@@ -1085,8 +1118,15 @@ describe('restoreUserDataIfNeeded', () => {
       }],
       error: null,
     });
+    let activityCountReads = 0;
     const db = {
-      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 1 } : null),
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('COUNT(*)') && sql.includes('activity_log')) {
+          activityCountReads += 1;
+          return { count: activityCountReads === 1 ? 0 : 1 };
+        }
+        return sql.includes('COUNT(*)') ? { count: 0 } : null;
+      }),
       getAllAsync: jest.fn().mockResolvedValue([]),
       runAsync: jest.fn(),
       withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),

@@ -22,7 +22,7 @@ export function createToastConfig(colors: AppColors): ToastConfig {
     return (
       <BaseToast
         {...params}
-        style={[sharedStyle, { borderLeftColor: colors.primary }]}
+        style={[sharedStyle, { borderLeftColor: colors.primaryPress }]}
         contentContainerStyle={{ paddingHorizontal: 16 }}
         text1Style={text1Style}
         text2Style={text2Style}

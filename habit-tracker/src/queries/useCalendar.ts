@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDb } from '../db/client';
+import { useGoogleUser } from '../hooks/authContext';
+import { getAccountActivityStartDate } from '../lib/accountActivityBoundary';
 
 export type CalendarDay = {
   local_date: string;
@@ -15,8 +17,11 @@ type HeatmapDay = { local_date: string; total_points: number; stars: number };
 const MILESTONE_STREAKS = [3, 7, 14, 30, 100];
 
 export function useCalendarData(userId: number, yearMonth: string) {
+  const googleUser = useGoogleUser();
+  const activityStartDate = getAccountActivityStartDate(googleUser?.email);
+  const queryStartDate = activityStartDate ?? '0000-01-01';
   return useQuery({
-    queryKey: ['calendar', userId, yearMonth],
+    queryKey: ['calendar', userId, yearMonth, activityStartDate],
     queryFn: async (): Promise<CalendarDay[]> => {
       const db = await getDb();
 
@@ -33,10 +38,10 @@ export function useCalendarData(userId: number, yearMonth: string) {
            MAX(COALESCE(a.is_backfill, 0)) AS is_backfill
          FROM activity_log a
          LEFT JOIN daily_summary ds ON ds.user_id = a.user_id AND ds.local_date = a.local_date
-         WHERE a.user_id = ? AND substr(a.local_date, 1, 7) = ?
+         WHERE a.user_id = ? AND substr(a.local_date, 1, 7) = ? AND a.local_date >= ?
          GROUP BY a.local_date
          ORDER BY a.local_date`,
-        [userId, yearMonth]
+        [userId, yearMonth, queryStartDate]
       );
 
       if (rows.length === 0) return [];
@@ -56,8 +61,11 @@ export function useCalendarData(userId: number, yearMonth: string) {
 }
 
 export function useHeatmapData(userId: number) {
+  const googleUser = useGoogleUser();
+  const activityStartDate = getAccountActivityStartDate(googleUser?.email);
+  const queryStartDate = activityStartDate ?? '0000-01-01';
   return useQuery({
-    queryKey: ['calendar', 'heatmap', userId],
+    queryKey: ['calendar', 'heatmap', userId, activityStartDate],
     queryFn: async (): Promise<HeatmapDay[]> => {
       const db = await getDb();
       return db.getAllAsync<HeatmapDay>(
@@ -66,12 +74,12 @@ export function useHeatmapData(userId: number) {
          LEFT JOIN (
            SELECT local_date, SUM(CASE WHEN stars_delta > 0 THEN CAST(stars_delta AS INTEGER) ELSE 0 END) AS stars
            FROM activity_log
-           WHERE user_id = ? AND local_date >= date('now', '-1 year')
+           WHERE user_id = ? AND local_date >= date('now', '-1 year') AND local_date >= ?
            GROUP BY local_date
          ) al ON al.local_date = ds.local_date
-         WHERE ds.user_id = ? AND ds.local_date >= date('now', '-1 year')
+         WHERE ds.user_id = ? AND ds.local_date >= date('now', '-1 year') AND ds.local_date >= ?
          ORDER BY ds.local_date`,
-        [userId, userId],
+        [userId, queryStartDate, userId, queryStartDate],
       );
     },
   });

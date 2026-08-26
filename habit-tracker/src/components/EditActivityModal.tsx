@@ -136,7 +136,7 @@ function makeStyles(C: AppColors) {
     },
     typeRow: { flexDirection: 'row', gap: Spacing.sm },
     typeBtn: { flex: 1, minHeight: 44, borderRadius: Radii.md, borderWidth: 1, borderColor: C.line, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' },
-    typeBtnSelected: { borderColor: C.primary },
+    typeBtnSelected: { borderColor: C.primaryPress },
     typeText: { ...Typography.caption, color: C.ink2, fontFamily: FontFamily.semiBold },
     btnRow: { flexDirection: 'row', gap: 10, marginTop: Spacing.lg },
     btn: { flex: 1 },

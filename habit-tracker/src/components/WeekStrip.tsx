@@ -69,7 +69,7 @@ export function WeekStrip({ weekStart, doneDates, today }: Props) {
             style={[
               styles.cell,
               { backgroundColor: cellColor(cell.state) },
-              cell.state === 'today' && { borderWidth: 2, borderColor: C.primary },
+              cell.state === 'today' && { borderWidth: 2, borderColor: C.primaryPress },
             ]}
             accessible
             accessibilityLabel={`${cell.date}, ${stateLabel(cell.state)}`}

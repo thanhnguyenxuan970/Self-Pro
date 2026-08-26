@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
+import { useGoogleUser } from '../hooks/authContext';
+import { getAccountActivityStartDate } from '../lib/accountActivityBoundary';
 import { dailyBonusStarsForPoints } from '../config/constants';
 import { getLocalDate, getWeekStart, getLocalDateOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
 import { AnalyticsDashboard, AnalyticsRange, AnalyticsDaily, AnalyticsLog, analyticsDemo, buildAnalyticsDashboard } from '../analytics/dashboardModel';
@@ -26,6 +28,9 @@ type PointChartBucket = { bucket: string; points: number };
 
 /** Returns non-zero daily point totals for the selected analytics range. */
 export function useAnalyticsPointsData(userId: number, range: 'W' | 'M' | 'Y', enabled = true) {
+  const googleUser = useGoogleUser();
+  const activityStartDate = getAccountActivityStartDate(googleUser?.email);
+  const queryStartDate = activityStartDate ?? '0000-01-01';
   const weekStart = getLocalDateOffset(-6);
   const today = getLocalDate();
   const month = getMonthOffset(0);
@@ -33,7 +38,7 @@ export function useAnalyticsPointsData(userId: number, range: 'W' | 'M' | 'Y', e
 
   return useQuery({
     enabled,
-    queryKey: ['progress', 'points-chart', userId, range, weekStart, month, year],
+    queryKey: ['progress', 'points-chart', userId, range, weekStart, month, year, activityStartDate],
     queryFn: async (): Promise<PointChartBucket[]> => {
       const db = await getDb();
       const [bucket, where, params] = range === 'W'
@@ -43,9 +48,9 @@ export function useAnalyticsPointsData(userId: number, range: 'W' | 'M' | 'Y', e
           : ['substr(local_date, 1, 7)', "substr(local_date, 1, 4) = ?", [year]];
       return db.getAllAsync<PointChartBucket>(
         `SELECT ${bucket} AS bucket, SUM(total_points) AS points FROM daily_summary
-         WHERE user_id = ? AND ${where} AND total_points > 0
+         WHERE user_id = ? AND ${where} AND local_date >= ? AND total_points > 0
          GROUP BY bucket ORDER BY bucket`,
-        [userId, ...params],
+        [userId, ...params, queryStartDate],
       );
     },
   });
@@ -53,30 +58,37 @@ export function useAnalyticsPointsData(userId: number, range: 'W' | 'M' | 'Y', e
 
 /** One SQLite-backed view model for the reference Analytics dashboard. */
 export function useAnalyticsDashboard(userId: number, range: AnalyticsRange) {
+  const googleUser = useGoogleUser();
+  const activityStartDate = getAccountActivityStartDate(googleUser?.email);
+  const queryStartDate = activityStartDate ?? '0000-01-01';
   const today = getLocalDate();
   // buildAnalyticsDashboard only ever reads `logs` after filtering it down to
   // the current/previous comparison window (see dashboardModel.ts's inWindow
-  // filter) — `daily` is the one array that legitimately needs full history,
-  // for the all-time consistency stat. Bounding the activity_log fetch to a
+  // filter) — `daily` is the broadest array, but it still respects the
+  // account-specific activity boundary for the all-time consistency stat.
+  // Bounding the activity_log fetch to a
   // generous superset of that window avoids pulling a user's entire lifetime
   // of logs into JS just to filter almost all of them back out.
   const logsFromDate = range === 'W' ? getLocalDateOffset(-13)
     : range === 'M' ? getLocalDateOffset(-62)
     : getLocalDateOffset(-731);
+  const boundedLogsFromDate = activityStartDate && activityStartDate > logsFromDate
+    ? activityStartDate
+    : logsFromDate;
   return useQuery({
-    queryKey: ['progress', 'dashboard', userId, range, today],
+    queryKey: ['progress', 'dashboard', userId, range, today, activityStartDate],
     queryFn: async (): Promise<AnalyticsDashboard> => {
       if (__DEV__ && process.env.EXPO_PUBLIC_ANALYTICS_DEMO === '1') return analyticsDemo;
       const db = await getDb();
       const [daily, logs, activeDays] = await Promise.all([
-        db.getAllAsync<AnalyticsDaily>(`SELECT local_date, total_points FROM daily_summary WHERE user_id = ?`, [userId]),
+        db.getAllAsync<AnalyticsDaily>(`SELECT local_date, total_points FROM daily_summary WHERE user_id = ? AND local_date >= ?`, [userId, queryStartDate]),
         db.getAllAsync<AnalyticsLog>(`
           SELECT a.local_date, a.logged_at, a.points_earned, a.stars_delta, tt.name AS task_name
           FROM activity_log a LEFT JOIN task_types tt ON tt.id = a.task_type_id
-          WHERE a.user_id = ? AND a.source = 'TASK' AND a.local_date >= ?`, [userId, logsFromDate]),
+          WHERE a.user_id = ? AND a.source = 'TASK' AND a.local_date >= ?`, [userId, boundedLogsFromDate]),
         db.getAllAsync<{ local_date: string }>(`
           SELECT DISTINCT local_date FROM activity_log
-          WHERE user_id = ? AND source IN ('TASK', 'CHALLENGE')`, [userId]),
+          WHERE user_id = ? AND local_date >= ? AND source IN ('TASK', 'CHALLENGE')`, [userId, queryStartDate]),
       ]);
       return buildAnalyticsDashboard(daily, logs, range, new Date(), activeDays.map(row => row.local_date));
     },
@@ -102,10 +114,13 @@ export function useStreakCount(userId: number) {
 /** Recent activity log entries with task name, for display and bulk delete.
  *  fromDate/toDate: 'YYYY-MM-DD'. Defaults to past 7 days when omitted. */
 export function useRecentActivityLogs(userId: number, limit = 50, fromDate?: string, toDate?: string) {
+  const googleUser = useGoogleUser();
+  const activityStartDate = getAccountActivityStartDate(googleUser?.email);
+  const queryStartDate = activityStartDate ?? '0000-01-01';
   const effectiveTo = toDate ?? getLocalDate();
   const effectiveFrom = fromDate ?? getLocalDateOffset(-6);
   return useQuery({
-    queryKey: ['progress', 'actlog', userId, effectiveFrom, effectiveTo, limit],
+    queryKey: ['progress', 'actlog', userId, effectiveFrom, effectiveTo, limit, activityStartDate],
     queryFn: async (): Promise<ActivityLogEntry[]> => {
       const db = await getDb();
       const rows = await db.getAllAsync<ActivityLogEntry>(
@@ -115,9 +130,10 @@ export function useRecentActivityLogs(userId: number, limit = 50, fromDate?: str
          LEFT JOIN task_types tt ON tt.id = a.task_type_id
          WHERE a.user_id = ?
            AND a.local_date BETWEEN ? AND ?
+           AND a.local_date >= ?
          ORDER BY a.logged_at DESC
          LIMIT ?`,
-        [userId, effectiveFrom, effectiveTo, limit]
+        [userId, effectiveFrom, effectiveTo, queryStartDate, limit]
       );
       return rows;
     },
@@ -293,16 +309,19 @@ export function useDeleteActivityLogs(userId: number) {
 }
 
 export function useWeeklyConsistency(userId: number) {
+  const googleUser = useGoogleUser();
+  const activityStartDate = getAccountActivityStartDate(googleUser?.email);
+  const queryStartDate = activityStartDate ?? '0000-01-01';
   const weekStart = getWeekStart();
   return useQuery({
-    queryKey: ['progress', 'consistency', userId, weekStart],
+    queryKey: ['progress', 'consistency', userId, weekStart, activityStartDate],
     queryFn: async () => {
       const db = await getDb();
       const row = await db.getFirstAsync<{ active_days: number }>(
         `SELECT COUNT(DISTINCT local_date) AS active_days
          FROM activity_log
-         WHERE user_id = ? AND week_start = ?`,
-        [userId, weekStart]
+         WHERE user_id = ? AND week_start = ? AND local_date >= ?`,
+        [userId, weekStart, queryStartDate]
       );
       return row?.active_days ?? 0;
     },
@@ -310,19 +329,22 @@ export function useWeeklyConsistency(userId: number) {
 }
 
 export function useTopActivities(userId: number, limit = 3) {
+  const googleUser = useGoogleUser();
+  const activityStartDate = getAccountActivityStartDate(googleUser?.email);
+  const queryStartDate = activityStartDate ?? '0000-01-01';
   return useQuery({
-    queryKey: ['progress', 'top-activities', userId],
+    queryKey: ['progress', 'top-activities', userId, activityStartDate],
     queryFn: async () => {
       const db = await getDb();
       const rows = await db.getAllAsync<{ name: string; count: number }>(
         `SELECT tt.name, COUNT(*) AS count
          FROM activity_log a
          JOIN task_types tt ON tt.id = a.task_type_id
-         WHERE a.user_id = ? AND a.source = 'TASK'
+         WHERE a.user_id = ? AND a.source = 'TASK' AND a.local_date >= ?
          GROUP BY a.task_type_id
          ORDER BY count DESC
          LIMIT ?`,
-        [userId, limit]
+        [userId, queryStartDate, limit]
       );
       return rows;
     },
@@ -330,27 +352,30 @@ export function useTopActivities(userId: number, limit = 3) {
 }
 
 export function useAllTimeStats(userId: number) {
+  const googleUser = useGoogleUser();
+  const activityStartDate = getAccountActivityStartDate(googleUser?.email);
+  const queryStartDate = activityStartDate ?? '0000-01-01';
   return useQuery({
-    queryKey: ['progress', 'alltime', userId],
+    queryKey: ['progress', 'alltime', userId, activityStartDate],
     queryFn: async () => {
       const db = await getDb();
       const [acts, stars, bestStreak, activeDays] = await Promise.all([
         db.getFirstAsync<{ total: number }>(
-          `SELECT COUNT(*) AS total FROM activity_log WHERE user_id = ? AND source = 'TASK'`,
-          [userId]
+          `SELECT COUNT(*) AS total FROM activity_log WHERE user_id = ? AND local_date >= ? AND source = 'TASK'`,
+          [userId, queryStartDate]
         ),
         db.getFirstAsync<{ total: number }>(
           `SELECT COALESCE(SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END), 0) AS total
-           FROM activity_log WHERE user_id = ?`,
-          [userId]
+           FROM activity_log WHERE user_id = ? AND local_date >= ?`,
+          [userId, queryStartDate]
         ),
         db.getFirstAsync<{ best: number }>(
-          `SELECT COALESCE(MAX(streak_count), 0) AS best FROM daily_summary WHERE user_id = ?`,
-          [userId]
+          `SELECT COALESCE(MAX(streak_count), 0) AS best FROM daily_summary WHERE user_id = ? AND local_date >= ?`,
+          [userId, queryStartDate]
         ),
         db.getFirstAsync<{ total: number }>(
-          `SELECT COUNT(*) AS total FROM daily_summary WHERE user_id = ?`,
-          [userId]
+          `SELECT COUNT(*) AS total FROM daily_summary WHERE user_id = ? AND local_date >= ?`,
+          [userId, queryStartDate]
         ),
       ]);
       return {

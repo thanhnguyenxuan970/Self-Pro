@@ -1,5 +1,10 @@
 import type { SQLiteBindValue, SQLiteDatabase } from 'expo-sqlite';
 import { getWeekStartFor } from '../utils/formatters';
+import {
+  filterRowsByActivityStartDate,
+  isActivityDateIncluded,
+  sumPositiveStarsFromRows,
+} from './accountActivityBoundary';
 
 export const CLOUD_BACKUP_SCHEMA_VERSION = 1 as const;
 
@@ -25,6 +30,33 @@ export type CloudBackupPayload = {
   milestone_stars: BackupRow[];
   boost_events: BackupRow[];
 };
+
+/**
+ * Keep the raw local audit trail intact while preventing a confirmed fake-data
+ * period from entering the cloud snapshot or being restored into a new device.
+ * Derived activity tables use the same inclusive start date so their totals do
+ * not drift back when a backup is restored.
+ */
+export function filterCloudBackupPayload(
+  payload: CloudBackupPayload,
+  activityStartDate: string | null,
+): CloudBackupPayload {
+  if (activityStartDate === null) return payload;
+
+  const activityLog = filterRowsByActivityStartDate(payload.activity_log, activityStartDate);
+  return {
+    ...payload,
+    user: payload.user
+      ? { ...payload.user, lifetime_stars: sumPositiveStarsFromRows(activityLog) }
+      : null,
+    activity_log: activityLog,
+    daily_summary: filterRowsByActivityStartDate(payload.daily_summary, activityStartDate),
+    weekly_summary: payload.weekly_summary.filter(row => (
+      typeof row.week_start === 'string'
+      && isActivityDateIncluded(row.week_start, activityStartDate)
+    )),
+  };
+}
 
 export type BackupQueryDb = Pick<SQLiteDatabase, 'getFirstAsync' | 'getAllAsync' | 'runAsync'>;
 type BackupDb = BackupQueryDb & Pick<SQLiteDatabase, 'withTransactionAsync'> & {
@@ -52,6 +84,7 @@ export async function buildUserDataBackup(
   db: BackupDb,
   userId: number,
   assertActive: AssertActive = alwaysActive,
+  activityStartDate: string | null = null,
 ): Promise<CloudBackupPayload> {
   let backup!: CloudBackupPayload;
   const readSnapshot = async (readDb: BackupQueryDb): Promise<void> => {
@@ -129,7 +162,7 @@ export async function buildUserDataBackup(
     // production uses the exclusive transaction branch above.
     await readSnapshot(db);
   }
-  return backup;
+  return filterCloudBackupPayload(backup, activityStartDate);
 }
 
 function isRecord(value: unknown): value is BackupRow {
@@ -436,6 +469,19 @@ function nullableNumberValue(row: BackupRow, key: string): number | null {
   return raw;
 }
 
+async function tierIdForExactStars(
+  db: Pick<SQLiteDatabase, 'getAllAsync'>,
+  stars: number,
+): Promise<number | null> {
+  const tiers = await db.getAllAsync<{ id: number; tier_order: number; stars_required: number }>(
+    'SELECT id, tier_order, stars_required FROM tiers ORDER BY tier_order',
+  );
+  return [...tiers]
+    .sort((left, right) => left.tier_order - right.tier_order)
+    .reverse()
+    .find(tier => tier.stars_required <= stars)?.id ?? null;
+}
+
 function stringValue(row: BackupRow, key: string, fallback = ''): string {
   if (!hasOwn(row, key)) return fallback;
   const raw = row[key];
@@ -591,8 +637,10 @@ export async function restoreUserDataBackup(
   googleSub?: string,
   assertActive: AssertActive = alwaysActive,
   isFresh?: (transactionDb: BackupQueryDb) => Promise<boolean>,
+  activityStartDate: string | null = null,
 ): Promise<boolean> {
   if (!isCloudBackupPayload(payload)) throw new Error('Invalid cloud backup payload');
+  payload = filterCloudBackupPayload(payload, activityStartDate);
 
   let restored = true;
   const restore = async (transactionDb: BackupQueryDb = db): Promise<void> => {
@@ -629,6 +677,9 @@ export async function restoreUserDataBackup(
 
     if (payload.user) {
       const user = payload.user;
+      const restoredTierId = activityStartDate === null
+        ? nullableNumberValue(user, 'current_tier_id')
+        : await tierIdForExactStars(db, numberValue(user, 'lifetime_stars'));
       await db.runAsync(
         `UPDATE users SET username = ?, timezone = ?, carry_debt = ?, currency = ?,
           last_seen_week_start = ?, notification_time = ?, notification_time_2 = ?,
@@ -650,7 +701,7 @@ export async function restoreUserDataBackup(
           numberValue(user, 'value_per_star', 1000),
           numberValue(user, 'penalty_hits_treats', 1),
           numberValue(user, 'lifetime_stars'),
-          nullableNumberValue(user, 'current_tier_id'),
+          restoredTierId,
           googleSub ?? null,
           userId,
         ],
@@ -833,6 +884,7 @@ export async function restoreLegacyActivityMirror(
   isFresh?: (transactionDb: BackupQueryDb) => Promise<boolean>,
   remapConflictingIds = false,
   finalizeRestore?: LegacyActivityRestoreFinalizer,
+  activityStartDate: string | null = null,
 ): Promise<LegacyActivityRestoreResult> {
   const activities = remoteRows
     // LOGIN rows were telemetry in the legacy mirror, not user habit logs.
@@ -865,6 +917,9 @@ export async function restoreLegacyActivityMirror(
           || (note !== null && note.length > MAX_BACKUP_TEXT_LENGTH)) {
         throw new Error('Invalid legacy activity row');
       }
+      if (activityStartDate !== null && !isActivityDateIncluded(localDate, activityStartDate)) {
+        return null;
+      }
       return {
         id,
         kind,
@@ -882,6 +937,7 @@ export async function restoreLegacyActivityMirror(
         note,
       };
     })
+    .filter((activity): activity is NonNullable<typeof activity> => activity !== null)
     .sort((left, right) => left.localDate.localeCompare(right.localDate) || left.id - right.id);
 
   if (new Set(activities.map(activity => activity.id)).size !== activities.length) {

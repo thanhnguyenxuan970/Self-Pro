@@ -115,7 +115,7 @@ export function OnboardingScreen({ onComplete }: Props) {
                 {(['vi', 'en'] as const).map(l => (
                   <TouchableOpacity
                     key={l}
-                    style={[styles.langBtn, lang === l && { borderColor: colors.primary, backgroundColor: colors.primarySoft }]}
+                    style={[styles.langBtn, lang === l && { borderColor: colors.primaryPress, backgroundColor: colors.primarySoft }]}
                     onPress={() => setLanguage(l)}
                     activeOpacity={0.7}
                     accessibilityRole="button"
@@ -324,7 +324,7 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.surface,
     },
     optionBtnActive: {
-      borderColor: C.primary,
+      borderColor: C.primaryPress,
       backgroundColor: C.primarySoft,
     },
     optionBtnText: { fontSize: 14, fontFamily: FontFamily.semiBold, color: C.inkDark },

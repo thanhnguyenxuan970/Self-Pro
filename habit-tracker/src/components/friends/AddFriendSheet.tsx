@@ -155,7 +155,7 @@ export function AddFriendSheet({ visible, colors, copy, code, codeLoading, codeU
               <View style={styles.codeBlock}>
                 <View style={styles.codeBlockHeader}>
                   {codeLoading ? (
-                    <ActivityIndicator color={colors.primary} />
+                    <ActivityIndicator color={colors.primaryText} />
                   ) : codeUnavailable ? (
                     <Text style={styles.codeUnavailable}>—</Text>
                   ) : (
@@ -290,7 +290,7 @@ function makeStyles(C: AppColors, bottomInset: number) {
     helper: { fontSize: 12, fontFamily: FontFamily.regular, color: C.muted, marginTop: 8 },
 
     banner: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderRadius: Radii.md, borderWidth: 1, padding: 12, marginTop: 14 },
-    bannerSuccess: { backgroundColor: C.primarySoft, borderColor: C.primary },
+    bannerSuccess: { backgroundColor: C.primarySoft, borderColor: C.primaryPress },
     bannerWarning: { backgroundColor: C.starSoft, borderColor: C.starGold },
     bannerDanger: { backgroundColor: C.dangerSoft, borderColor: C.danger },
     bannerIcon: { fontSize: 15, fontFamily: FontFamily.extraBold },

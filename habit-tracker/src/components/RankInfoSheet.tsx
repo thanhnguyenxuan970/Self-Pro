@@ -118,7 +118,7 @@ function makeStyles(C: AppColors, bottomInset: number) {
     ptSub: { fontSize: 11.5, fontFamily: FontFamily.regular, color: C.ink2, marginTop: 1 },
     sec: { fontSize: 12, fontFamily: FontFamily.semiBold, color: C.ink2, marginTop: 10, marginBottom: 8 },
     lrow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.sm, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 7 },
-    lrowCur: { borderWidth: 2, borderColor: C.primary, backgroundColor: C.primarySoft },
+    lrowCur: { borderWidth: 2, borderColor: C.primaryPress, backgroundColor: C.primarySoft },
     lnum: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.surface3, alignItems: 'center', justifyContent: 'center' },
     lnumCur: { backgroundColor: C.primary },
     lockedMark: { width: 36, textAlign: 'center', fontSize: 20 },

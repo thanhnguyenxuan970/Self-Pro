@@ -10,6 +10,7 @@ import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierRow } from '../game/lifetimeRank';
 import { readPendingActivityDeletes, clearPendingActivityDeletes } from '../game/pendingActivityDeletes';
 import { isQaSandboxActive } from '../qa/qaSandbox';
+import { getAccountActivityStartDate } from '../lib/accountActivityBoundary';
 import {
   buildUserDataBackup,
   CLOUD_BACKUP_SCHEMA_VERSION,
@@ -248,6 +249,7 @@ async function syncActivity(
   userId: number,
   userEmail: string,
   assertActive: AssertSyncActive,
+  activityStartDate: string | null,
   fromBeginning = false,
 ): Promise<void> {
   const key = activityKey(userId);
@@ -259,8 +261,11 @@ async function syncActivity(
   // device had accumulated more activity than one sync pass could upload.
   while (true) {
     const rows = await db.getAllAsync<ActivityRow>(
-      `SELECT ${ACTIVITY_SYNC_COLUMNS} FROM activity_log WHERE user_id = ? AND id > ? ORDER BY id ASC LIMIT ?`,
-      [userId, lastId, BATCH]
+      `SELECT ${ACTIVITY_SYNC_COLUMNS}
+         FROM activity_log
+        WHERE user_id = ? AND id > ? AND local_date >= ?
+        ORDER BY id ASC LIMIT ?`,
+      [userId, lastId, activityStartDate ?? '0000-01-01', BATCH]
     );
     if (!rows.length) return;
     const upserted = await upsertBatch('activity_log', rows, userEmail, key, assertActive);
@@ -315,18 +320,20 @@ export async function readSocialProfile(
   db: SQLiteDatabase,
   userId: number,
   timezone: string,
+  activityStartDate: string | null = null,
 ): Promise<SocialProfileSignal> {
+  const effectiveStartDate = activityStartDate ?? '0000-01-01';
   const streak = await db.getFirstAsync<{ current_streak: number }>(
     `SELECT COALESCE(streak_count, 0) AS current_streak
-     FROM daily_summary WHERE user_id = ?
+     FROM daily_summary WHERE user_id = ? AND local_date >= ?
      ORDER BY local_date DESC LIMIT 1`,
-    [userId],
+    [userId, effectiveStartDate],
   );
   const freshness = await db.getFirstAsync<{ last_active_local_date: string | null }>(
     `SELECT MAX(local_date) AS last_active_local_date
      FROM activity_log
-     WHERE user_id = ? AND source IN ('TASK', 'CHALLENGE')`,
-    [userId],
+     WHERE user_id = ? AND local_date >= ? AND source IN ('TASK', 'CHALLENGE')`,
+    [userId, effectiveStartDate],
   );
 
   return {
@@ -336,9 +343,14 @@ export async function readSocialProfile(
   };
 }
 
-async function syncUserProfile(db: SQLiteDatabase, userId: number, assertActive: AssertSyncActive): Promise<void> {
+async function syncUserProfile(
+  db: SQLiteDatabase,
+  userId: number,
+  assertActive: AssertSyncActive,
+  activityStartDate: string | null,
+): Promise<void> {
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Ho_Chi_Minh';
-  const profile = await readSocialProfile(db, userId, timezone);
+  const profile = await readSocialProfile(db, userId, timezone, activityStartDate);
   assertActive();
   const { error } = await supabase!.rpc('sync_user_profile_v2', {
     p_current_streak: profile.currentStreak,
@@ -458,6 +470,48 @@ async function setLifetimeStarsFromServer(
       restoredMaxId,
       preservedTierId,
     );
+
+  if (typeof db.withExclusiveTransactionAsync === 'function') {
+    await db.withExclusiveTransactionAsync(async transactionDb => {
+      await write(transactionDb ?? db);
+    });
+  } else {
+    await db.withTransactionAsync(async () => {
+      await write(db);
+    });
+  }
+}
+
+/**
+ * Re-anchor the one account whose historical seed data is out of scope. This
+ * deliberately recomputes the tier from the filtered server total instead of
+ * preserving the old high-water tier reached by the fake period.
+ */
+async function setLifetimeStarsExactly(
+  db: SQLiteDatabase,
+  userId: number,
+  remoteStars: number,
+  assertActive: AssertSyncActive,
+): Promise<void> {
+  const normalizedStars = normalizeServerLifetimeStars(remoteStars);
+  assertActive();
+  const tiers = await db.getAllAsync<LifetimeTierRow>(
+    'SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY tier_order',
+  );
+  const reachedTier = [...tiers]
+    .sort((left, right) => left.tier_order - right.tier_order)
+    .reverse()
+    .find(tier => tier.stars_required <= normalizedStars);
+  const write = async (
+    transactionDb: Pick<SQLiteDatabase, 'runAsync'>,
+  ): Promise<void> => {
+    assertActive();
+    await transactionDb.runAsync(
+      'UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?',
+      [normalizedStars, reachedTier?.id ?? null, userId],
+    );
+    assertActive();
+  };
 
   if (typeof db.withExclusiveTransactionAsync === 'function') {
     await db.withExclusiveTransactionAsync(async transactionDb => {
@@ -1378,6 +1432,7 @@ export async function restoreUserDataIfNeeded(
   // authenticates the Supabase RPC, but must not create a second local CAS
   // namespace for the same account.
   const accountKey = normalizedAccountEmail(userEmail);
+  const activityStartDate = getAccountActivityStartDate(userEmail);
   let result: UserDataRestoreResult = 'unavailable';
   let restoreTimedOut = false;
   const restoreAbortController = new AbortController();
@@ -1489,6 +1544,7 @@ export async function restoreUserDataIfNeeded(
               `committed:${restoredMaxId}`,
             );
           },
+          activityStartDate,
         );
       };
       const markLegacyActivityMirrorSynced = async (maxId: number): Promise<void> => {
@@ -1573,6 +1629,21 @@ export async function restoreUserDataIfNeeded(
         // Keep the marker set until this account owns the sync gate. A retry
         // must never expose an empty local database to a queued upload while
         // restore is still waiting behind another account operation.
+        const db = await getDb();
+        // A normal cold start with an already-populated local account does not
+        // need to hydrate the same account again. Requiring a cloud round-trip
+        // here made a temporary network/RPC failure replace usable local data
+        // with the recovery screen. Fresh/seeded SQLite and rank-only state
+        // still take the restore path, and an explicit Retry always bypasses
+        // this shortcut.
+        if (!allowBlockedRetry && await hasLocalAccountData(db, userId)) {
+          result = 'not_needed';
+          return;
+        }
+        // Keep a block on fresh/seeded SQLite, where allowing an upload could
+        // overwrite the cloud account. Existing local data is safe to show
+        // offline; the marker remains in place so normal sync still stays
+        // fail-closed until an explicit recovery retry succeeds.
         if (!allowBlockedRetry && await isBackupRestoreBlocked(accountKey)) {
           result = 'unavailable';
           return;
@@ -1588,8 +1659,6 @@ export async function restoreUserDataIfNeeded(
 
           const envelope = parseCloudBackupEnvelope(data);
           if (!envelope) throw new Error('Invalid cloud backup envelope');
-
-          const db = await getDb();
 
           if (envelope.payload === null) {
             // An older app version never stored Challenges/tasks remotely. Recover
@@ -1617,6 +1686,7 @@ export async function restoreUserDataIfNeeded(
                 expectedGoogleSub,
                 assertRestoreActive,
                 transactionDb => isLocalAccountFresh(transactionDb, userId),
+                activityStartDate,
               );
               if (!restored) {
                 result = 'not_needed';
@@ -1672,9 +1742,10 @@ async function syncUserDataBackup(
   userId: number,
   accountKey: string,
   assertActive: AssertSyncActive,
+  activityStartDate: string | null,
 ): Promise<void> {
   assertActive();
-  const payload = await buildUserDataBackup(db, userId, assertActive);
+  const payload = await buildUserDataBackup(db, userId, assertActive, activityStartDate);
   assertActive();
   const expectedRevision = await readBackupRevision(accountKey);
   assertActive();
@@ -1711,6 +1782,7 @@ async function syncUserDataBackup(
             undefined,
             assertActive,
             transactionDb => isLocalAccountFresh(transactionDb, userId),
+            activityStartDate,
           );
           if (restored) {
             assertActive();
@@ -1755,6 +1827,7 @@ export async function signOutSupabaseSession(): Promise<void> {
 export async function syncToSupabase(userSub: string, userEmail: string): Promise<void> {
   if (isQaSandboxActive() || !supabase) return;
   const canonicalEmail = normalizedAccountEmail(userEmail);
+  const activityStartDate = getAccountActivityStartDate(canonicalEmail);
   if (await isBackupRestoreBlocked(canonicalEmail)) return;
   await runAccountSync(canonicalEmail, async (assertActive) => {
     // Re-check after waiting for earlier account work. A restore failure can
@@ -1776,15 +1849,15 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
       // Snapshot CAS is deliberately first. If another device reset, deleted,
       // or advanced this account, no legacy activity/fund/profile write may
       // run before the stale device is rejected.
-      await syncUserDataBackup(db, userId, canonicalEmail, assertActive);
+      await syncUserDataBackup(db, userId, canonicalEmail, assertActive, activityStartDate);
       await syncPendingActivityDeletes(userId, assertActive);
       await Promise.all([
-        syncActivity(db, userId, canonicalEmail, assertActive),
+        syncActivity(db, userId, canonicalEmail, assertActive, activityStartDate),
         syncFund(db, userId, canonicalEmail, assertActive),
       ]);
       // Publish the local social projection only after activity upload so remote
       // progress and freshness converge within this serialized account sync.
-      await syncUserProfile(db, userId, assertActive);
+      await syncUserProfile(db, userId, assertActive, activityStartDate);
       let remoteStars = await syncLifetimeStars(assertActive);
       const localStars = await readLocalLifetimeStars(db, userId);
       if (remoteStars !== null && remoteStars < localStars) {
@@ -1792,7 +1865,7 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
         // Re-upload only this caller's append-only local source of truth, then
         // let the protected RPC recalculate rank; no client total is written to
         // `public.users`, and no other account's rows are touched.
-        await syncActivity(db, userId, canonicalEmail, assertActive, true);
+        await syncActivity(db, userId, canonicalEmail, assertActive, activityStartDate, true);
         remoteStars = await syncLifetimeStars(assertActive);
       }
       // A returning device can be behind even after its local rows are fully
@@ -1800,6 +1873,12 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
       // authenticated leaderboard agree.
       if (remoteStars !== null && remoteStars > localStars) {
         await pullLifetimeStarsIntoLocal(db, userId, remoteStars, assertActive);
+      }
+      if (activityStartDate && remoteStars !== null) {
+        // The server migration filters the remote aggregate; mirror that
+        // authoritative total locally so the old fake lifetime total cannot
+        // trigger another upload loop or leak through another local reader.
+        await setLifetimeStarsExactly(db, userId, remoteStars, assertActive);
       }
     }, sessionActive);
   });

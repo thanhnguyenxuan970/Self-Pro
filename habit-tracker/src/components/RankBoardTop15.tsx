@@ -332,7 +332,7 @@ function makeStyles(C: AppColors) {
     note: { fontSize: 13, color: C.muted, textAlign: 'center' },
     retryBtn: {
       minHeight: 48, marginTop: 8, paddingHorizontal: 16, paddingVertical: 10,
-      borderRadius: Radii.pill, backgroundColor: C.primarySoft, borderWidth: 1, borderColor: C.primary,
+      borderRadius: Radii.pill, backgroundColor: C.primarySoft, borderWidth: 1, borderColor: C.primaryPress,
       alignItems: 'center', justifyContent: 'center',
     },
     retryText: { fontSize: 12, fontFamily: FontFamily.extraBold, color: C.primaryText },
@@ -369,7 +369,7 @@ function makeStyles(C: AppColors) {
     replayBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 0,
       minHeight: 48, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radii.pill,
-      backgroundColor: C.primarySoft, borderWidth: 1, borderColor: C.primary,
+      backgroundColor: C.primarySoft, borderWidth: 1, borderColor: C.primaryPress,
     },
     replayIcon: { fontSize: 11, lineHeight: 11, fontFamily: FontFamily.extraBold, color: C.primaryText },
     replayText: { fontSize: 10, fontFamily: FontFamily.extraBold, letterSpacing: 0.4, color: C.primaryText },
@@ -405,13 +405,13 @@ function makeStyles(C: AppColors) {
     rowVal: { flexShrink: 0, minWidth: 44, textAlign: 'right', fontSize: 16, fontFamily: FontFamily.extraBold, letterSpacing: -0.6, color: C.ink2 },
     rowValMe: { color: C.inkDark },
 
-    zeroCard: { marginHorizontal: Spacing.lg, borderRadius: Radii.xl, backgroundColor: C.primarySoft, borderWidth: 1.5, borderColor: C.primary, padding: 22 },
+    zeroCard: { marginHorizontal: Spacing.lg, borderRadius: Radii.xl, backgroundColor: C.primarySoft, borderWidth: 1.5, borderColor: C.primaryPress, padding: 22 },
     zeroEyebrow: { fontSize: 10, fontFamily: FontFamily.extraBold, letterSpacing: 1.2, color: C.primaryText },
     zeroHeadline: { fontSize: 20, fontFamily: FontFamily.extraBold, letterSpacing: -0.8, color: C.inkDark, marginTop: 8 },
     zeroCta: {
       flexDirection: 'row', alignSelf: 'flex-start', alignItems: 'center', gap: 7, marginTop: 16,
       paddingHorizontal: 16, paddingVertical: 11, borderRadius: Radii.pill,
-      backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.primary, minHeight: 44,
+      backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.primaryPress, minHeight: 44,
     },
     zeroCtaPlus: { fontSize: 14, lineHeight: 14, fontFamily: FontFamily.extraBold, color: C.primaryText },
     zeroCtaText: { fontSize: 13, fontFamily: FontFamily.extraBold, color: C.primaryText },

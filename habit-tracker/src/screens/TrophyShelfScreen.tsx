@@ -72,7 +72,7 @@ export function TrophyShelfScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
-        <View style={styles.loadingBox}><ActivityIndicator color={colors.primary} /></View>
+        <View style={styles.loadingBox}><ActivityIndicator color={colors.primaryText} /></View>
       </SafeAreaView>
     );
   }

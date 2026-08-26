@@ -13,6 +13,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Removed user photo selection from Challenge Detail and share-card creation; existing challenge photos remain display-only.
 
 ### Fixed
+- **Account activity boundary**: the confirmed thanguyenxuan account now starts counting real activity on 2026-07-06; earlier fake rows no longer inflate its heatmap, lifetime stars, rank, backup, restore, or sync.
+- **Rank/Home consistency**: the signed-in user's leaderboard stars now use the same cutoff-filtered lifetime total shown on Home while preserving the server-derived rank.
+- **Offline-safe recovery**: a temporary cloud-restore outage no longer replaces an already-populated local account with the recovery screen; fresh databases remain fail-closed until restore succeeds.
+- **Theme contrast**: accent, loading, selection, and celebration states now use semantic contrast-safe tokens across light and dark modes.
 - **Android launcher icon**: synchronized the committed native launcher resources with Habi's green checkmark adaptive icon so installed Android builds no longer show the legacy blue A.
 - **Google sign-in race hardening**: malformed identities and missing ID tokens now fail closed before local account mutation; same-account exchanges remain serialized with bounded duplicate-key/5xx retry, cancellation-fenced retries and queued exchanges, finite-expiry/email/Google-subject checks, one process-wide session lease for protected RPCs, canonical remote ownership keys with legacy local-email lookup preserved, cancellation-safe native restore, token-owned cleanup, atomic local user/category seeding, and localized failure copy.
 - **Timezone-aware growth audit queries**: absolute timestamps and date calculations now use each user's validated profile timezone, with UTC fallback, instead of a fixed `Asia/Ho_Chi_Minh` timezone.

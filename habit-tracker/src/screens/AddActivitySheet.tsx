@@ -537,7 +537,7 @@ function makeStyles(C: AppColors, bottomInset: number) {
       paddingVertical: 7, paddingHorizontal: 14,
       borderWidth: 1, borderColor: C.line2,
     },
-    chipSelected: { borderColor: C.primary, backgroundColor: C.primarySoft },
+    chipSelected: { borderColor: C.primaryPress, backgroundColor: C.primarySoft },
     chipName: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.inkDark, lineHeight: 18 },
     chipNameSelected: { color: C.primaryText },
     durationLabel: {

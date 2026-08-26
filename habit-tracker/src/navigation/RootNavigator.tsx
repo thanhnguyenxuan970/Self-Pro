@@ -155,7 +155,7 @@ function MainTabs({ onFABPress, googleUser }: { onFABPress: () => void; googleUs
             paddingBottom: insets.bottom + (Platform.OS === 'android' ? 4 : 0),
             paddingTop: 9,
           },
-          tabBarActiveTintColor: colors.primary,
+          tabBarActiveTintColor: colors.primaryText,
           tabBarInactiveTintColor: colors.faint,
           tabBarAllowFontScaling: true,
           tabBarShowLabel: responsiveWidth >= 320,
@@ -238,7 +238,7 @@ function AppStack({
   const modalHeaderOptions = {
     presentation: APP_STACK_PRESENTATION,
     headerShown: true,
-    headerTintColor: colors.primary,
+    headerTintColor: colors.primaryText,
     headerStyle: { backgroundColor: colors.surface },
     headerTitleStyle: { color: colors.inkDark },
   };

@@ -221,7 +221,7 @@ function ProgressChartContent({ isLoading, chartData, range, formatBucket, color
   formatBucket: (bucket: string, range: Range) => string; colors: AppColors;
   reduceMotion: boolean; focusKey: number; styles: ProgStyles; t: ProgTranslations;
 }) {
-  if (isLoading) return <ActivityIndicator color={colors.primary} />;
+  if (isLoading) return <ActivityIndicator color={colors.primaryText} />;
   if (chartData.length === 0) {
     return (
       <View style={styles.emptyChart}>
@@ -387,7 +387,7 @@ export function ProgressScreen({ qaBannerVisible = false }: { qaBannerVisible?: 
       </SafeAreaView>
     );
   }
-  if (isDashboardLoading) return <SafeAreaView style={styles.safeArea} edges={qaBannerVisible ? ['bottom'] : ['top']}><ActivityIndicator color={colors.primary} /></SafeAreaView>;
+  if (isDashboardLoading) return <SafeAreaView style={styles.safeArea} edges={qaBannerVisible ? ['bottom'] : ['top']}><ActivityIndicator color={colors.primaryText} /></SafeAreaView>;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={qaBannerVisible ? ['bottom'] : ['top']}>

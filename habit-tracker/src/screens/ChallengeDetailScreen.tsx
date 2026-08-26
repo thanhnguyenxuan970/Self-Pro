@@ -73,7 +73,7 @@ export function ChallengeDetailScreen() {
   if (isLoading || !challenge) {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
-        <View style={styles.loadingBox}><ActivityIndicator color={colors.primary} /></View>
+        <View style={styles.loadingBox}><ActivityIndicator color={colors.primaryText} /></View>
       </SafeAreaView>
     );
   }
@@ -266,7 +266,7 @@ function makeStyles(C: AppColors) {
     rewardCard: {
       alignSelf: 'stretch', backgroundColor: C.surface, borderRadius: Radii.lg, padding: Spacing.md, ...Shadows.light,
     },
-    rewardClaimed: { borderWidth: 1, borderColor: C.primary },
+    rewardClaimed: { borderWidth: 1, borderColor: C.primaryPress },
     rewardLocked: { borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, opacity: 0.72 },
     rewardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
     rewardTitle: { ...Typography.sectionLabel, color: C.ink2 },

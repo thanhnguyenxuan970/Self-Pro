@@ -148,7 +148,7 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.surface2, borderWidth: 1.5, borderColor: C.line2,
       alignItems: 'center',
     },
-    typeChipActive: { borderColor: C.primary, backgroundColor: C.primarySoft },
+    typeChipActive: { borderColor: C.primaryPress, backgroundColor: C.primarySoft },
     typeChipText: { fontSize: 13, fontFamily: FontFamily.semiBold, color: C.muted },
     typeChipTextActive: { color: C.primaryText },
     input: {

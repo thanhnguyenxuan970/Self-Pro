@@ -119,7 +119,7 @@ function makeStyles(C: AppColors, bottom: number) {
     confetti: { position: 'absolute', top: '42%', left: '50%' },
     hero: { alignItems: 'center', width: '100%' },
     flame: { fontSize: 58, marginBottom: 8 },
-    numeral: { color: C.primary, fontFamily: FontFamily.extraBold, fontSize: 128, lineHeight: 108, letterSpacing: -6, includeFontPadding: false },
+    numeral: { color: C.primaryText, fontFamily: FontFamily.extraBold, fontSize: 128, lineHeight: 108, letterSpacing: -6, includeFontPadding: false },
     eyebrow: { color: C.muted, fontFamily: FontFamily.extraBold, fontSize: 15, letterSpacing: 2, marginTop: 10, textAlign: 'center' },
     headline: { color: C.inkDark, fontFamily: FontFamily.extraBold, fontSize: 21, lineHeight: 28, letterSpacing: -0.3, marginTop: 22, textAlign: 'center' },
     boostChip: { backgroundColor: C.primarySoft, borderRadius: Radii.pill, marginTop: 16, paddingHorizontal: 18, paddingVertical: 8 },

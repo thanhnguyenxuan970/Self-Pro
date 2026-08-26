@@ -28,6 +28,26 @@ describe('accent contrast', () => {
     }
   });
 
+  it('keeps negative metric deltas readable on their primary metric surfaces', () => {
+    for (const name of Object.keys(ACCENTS) as AccentKey[]) {
+      const light = getColors(false, name);
+      const dark = getColors(true, name);
+      expect(contrast(light.dangerText, light.primarySoft)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(dark.dangerText, dark.surface2)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('keeps semantic primary text readable on plain light and dark surfaces', () => {
+    for (const name of Object.keys(ACCENTS) as AccentKey[]) {
+      const light = getColors(false, name);
+      const dark = getColors(true, name);
+      expect(contrast(light.primaryText, light.surface)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(light.primaryText, light.bgBase)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(dark.primaryText, dark.surface)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(dark.primaryText, dark.bgBase)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   it('keeps analytic gold metric text readable on metric cards', () => {
     for (const name of Object.keys(ACCENTS) as AccentKey[]) {
       const light = getColors(false, name);

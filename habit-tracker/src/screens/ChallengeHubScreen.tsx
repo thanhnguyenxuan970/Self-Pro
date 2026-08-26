@@ -110,7 +110,7 @@ export function ChallengeHubScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <View style={styles.loadingBox}><ActivityIndicator color={colors.primary} /></View>
+        <View style={styles.loadingBox}><ActivityIndicator color={colors.primaryText} /></View>
       </SafeAreaView>
     );
   }

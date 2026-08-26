@@ -124,7 +124,7 @@ function makeStyles(C: AppColors) {
     wheelContent: { paddingVertical: ROW_HEIGHT },
     wheelRow: { height: ROW_HEIGHT, justifyContent: 'center', alignItems: 'center' },
     wheelText: { color: C.muted, fontSize: 22, fontFamily: FontFamily.extraBold },
-    wheelInput: { width: 70, height: ROW_HEIGHT * 3, borderWidth: 1.5, borderColor: C.primary, borderRadius: Radii.md, backgroundColor: C.surface2, color: C.inkDark, fontSize: 22, fontFamily: FontFamily.extraBold, textAlign: 'center' },
+    wheelInput: { width: 70, height: ROW_HEIGHT * 3, borderWidth: 1.5, borderColor: C.primaryPress, borderRadius: Radii.md, backgroundColor: C.surface2, color: C.inkDark, fontSize: 22, fontFamily: FontFamily.extraBold, textAlign: 'center' },
     label: { marginTop: 4, color: C.muted, fontSize: 10, fontFamily: FontFamily.bold },
     separator: { color: C.inkDark, fontSize: 24, fontFamily: FontFamily.extraBold },
     editBtn: { marginTop: 4, minWidth: 48, minHeight: 32, alignItems: 'center', justifyContent: 'center' },

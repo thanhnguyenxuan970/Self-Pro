@@ -19,6 +19,7 @@ import { SkeletonRow } from '../components/SkeletonRow';
 import { RankBoardTop15 } from '../components/RankBoardTop15';
 import { useLeaderboardPromotion } from '../hooks/useLeaderboardPromotion';
 import { boardRowsWithCurrentUserFallback } from '../lib/leaderboardPromotion';
+import { displayStarsForRankRow } from '../lib/rankDisplay';
 import { FriendsSection } from '../components/friends/FriendsSection';
 import { AddFriendSheet, type AddFriendSheetCopy } from '../components/friends/AddFriendSheet';
 import { useFriendCode, useFriendDashboard, useFriendPendingCount, useRequestFriendByCode, useRotateFriendCode } from '../queries/useFriends';
@@ -113,13 +114,24 @@ export function RankScreen({ qaBannerVisible = false }: { qaBannerVisible?: bool
     rankDelta7d: null,
   }), [googleUser?.sub, googleUser?.name, data?.currentStars, t.leaderboardYou]);
 
+  // The Home heatmap and rank hero both read the local, cutoff-filtered total
+  // from useRankData. Keep the current user's leaderboard row on that same
+  // value while retaining the server-provided rank and other players' stars.
+  const leaderboardForDisplay = useMemo(
+    () => leaderboard.map(entry => ({
+      ...entry,
+      lifetimeStars: displayStarsForRankRow(entry, data?.currentStars),
+    })),
+    [leaderboard, data?.currentStars],
+  );
+
   // Board is capped to the true top 15 by rank; a caller outside that block
   // is never spliced in as a fabricated 16th row (see RankBoardTop15) — the
   // sticky bar instead shows their real standing at all times.
-  const top15 = useMemo(() => leaderboard.slice(0, 15), [leaderboard]);
+  const top15 = useMemo(() => leaderboardForDisplay.slice(0, 15), [leaderboardForDisplay]);
   const myLeaderboardEntry: LBEntry = useMemo(
-    () => leaderboard.find(entry => entry.isCurrentUser) ?? currentUserEntry,
-    [leaderboard, currentUserEntry],
+    () => leaderboardForDisplay.find(entry => entry.isCurrentUser) ?? currentUserEntry,
+    [leaderboardForDisplay, currentUserEntry],
   );
   // Zero-star readers never see a competitive board, they see a CTA to log
   // their first activity — independent of whether other players are ranked.
@@ -146,8 +158,11 @@ export function RankScreen({ qaBannerVisible = false }: { qaBannerVisible?: bool
     [leaderboard],
   );
   const promoSnapshot = useMemo(
-    () => (realMyEntry ? { stars: realMyEntry.lifetimeStars, rank: realMyEntry.rank } : null),
-    [realMyEntry],
+    () => (realMyEntry ? {
+      stars: displayStarsForRankRow(realMyEntry, data?.currentStars),
+      rank: realMyEntry.rank,
+    } : null),
+    [realMyEntry, data?.currentStars],
   );
   const {
     displayStars: animatedStars,
