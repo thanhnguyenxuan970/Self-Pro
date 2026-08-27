@@ -1994,6 +1994,61 @@ describe('signInWithGoogleToken', () => {
     }
   });
 
+  it('queues late timed-out exchange cleanup behind a newer session operation', async () => {
+    jest.useFakeTimers();
+    try {
+      let resolveStaleExchange!: (value: ReturnType<typeof successfulTokenResponse>) => void;
+      let resolveLiveExchange!: (value: ReturnType<typeof successfulTokenResponse>) => void;
+      let liveExchangeStarted = false;
+      let staleLateResponseReceived = false;
+      let lateCleanupReadStarted = false;
+
+      mockGetSession.mockImplementation(async () => {
+        if (staleLateResponseReceived && liveExchangeStarted) {
+          lateCleanupReadStarted = true;
+          return {
+            data: {
+              session: {
+                user: { email: 'user@example.com' },
+                access_token: 'stale-access-token',
+              },
+            },
+            error: null,
+          };
+        }
+        return { data: { session: null }, error: null };
+      });
+      mockSignInWithIdToken
+        .mockImplementationOnce(() => new Promise(resolve => { resolveStaleExchange = resolve; }))
+        .mockImplementationOnce(() => {
+          liveExchangeStarted = true;
+          return new Promise(resolve => { resolveLiveExchange = resolve; });
+        });
+
+      const stale = signInWithGoogleToken('user@example.com', 'stale-token');
+      for (let index = 0; index < 6; index += 1) await Promise.resolve();
+      jest.advanceTimersByTime(15_000);
+      for (let index = 0; index < 6; index += 1) await Promise.resolve();
+      await expect(stale).rejects.toThrow('Supabase token exchange timed out');
+
+      const live = signInWithGoogleToken('other@example.com', 'live-token');
+      for (let index = 0; index < 6; index += 1) await Promise.resolve();
+      expect(liveExchangeStarted).toBe(true);
+
+      staleLateResponseReceived = true;
+      resolveStaleExchange(successfulTokenResponse('user@example.com'));
+      for (let index = 0; index < 6; index += 1) await Promise.resolve();
+      expect(lateCleanupReadStarted).toBe(false);
+
+      resolveLiveExchange(successfulTokenResponse('other@example.com'));
+      await expect(live).resolves.toBeUndefined();
+      for (let index = 0; index < 6; index += 1) await Promise.resolve();
+      expect(lateCleanupReadStarted).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('fails closed when GoTrue returns a user without a usable session', async () => {
     mockSignInWithIdToken.mockResolvedValue({
       data: { user: { email: 'user@example.com' }, session: null },

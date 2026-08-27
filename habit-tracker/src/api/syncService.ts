@@ -951,7 +951,12 @@ async function signInWithGoogleTokenRequest(
       const accessToken = session && typeof session.access_token === 'string'
         ? session.access_token
         : null;
-      if (accessToken) void clearSupabaseSessionForAccount(accessToken);
+      if (accessToken) {
+        // Late GoTrue completions can still mutate Supabase's process-wide
+        // session. Serialize their cleanup with sign-in/sign-out and protected
+        // RPCs so the read-and-restore decision cannot cross account leases.
+        void withSessionOperation(() => clearSupabaseSessionForAccount(accessToken));
+      }
     }, () => undefined);
 
     let response: Awaited<typeof exchangeRequest>;
