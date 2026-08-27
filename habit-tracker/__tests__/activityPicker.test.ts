@@ -1,4 +1,4 @@
-import { activityGroup, activityMatches, activityPinAccessibilityLabel, findPresetTask, normalizeActivityName, resolvePresetTask } from '../src/utils/activityPicker';
+import { activityGroup, activityMatches, activityPinAccessibilityLabel, buildPresetTaskLogParams, findPresetTask, normalizeActivityName, resolvePresetTask } from '../src/utils/activityPicker';
 
 describe('activity picker matching', () => {
   test('matches Vietnamese names without accents or casing', () => {
@@ -52,5 +52,22 @@ describe('resolvePresetTask', () => {
 
   test('returns null when the given id does not match any task', () => {
     expect(resolvePresetTask(collidingTasks, 'Đọc sách', 999)).toBeNull();
+  });
+});
+
+describe('buildPresetTaskLogParams', () => {
+  test('builds an instant log for a linked challenge preset without changing task settings', () => {
+    expect(buildPresetTaskLogParams({
+      id: 16,
+      kind: 'GOOD',
+      base_points: 5,
+      star_penalty: 0,
+    })).toEqual({
+      taskTypeId: 16,
+      kind: 'GOOD',
+      isTimeBased: false,
+      basePoints: 5,
+      starPenalty: 0,
+    });
   });
 });

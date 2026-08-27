@@ -23,6 +23,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **Timezone-aware growth audit queries**: absolute timestamps and date calculations now use each user's validated profile timezone, with UTC fallback, instead of a fixed `Asia/Ho_Chi_Minh` timezone.
 - **QA artifact privacy**: raw Android logcat files are no longer tracked; root `.audit/` log output is ignored to prevent device identifiers and internal runtime details from entering future pushes while keeping sanitized screenshot/XML evidence available.
 
+## [2.0.3.h] - 2026-08-27
+
+- Fixed linked Challenge habits using the instant preset flow so logging the habit also appends the expected `activity_log` row and completes the day's Challenge progress; timed presets continue through the duration flow.
+- Android native release metadata is 2.0.3.h (versionCode 75); the shared Expo/iOS version remains 2.0.3.
+- Validation: TypeScript, 79 Jest suites/737 tests/1 snapshot, debug E2E across core, Challenge, Rewards, Rank, Friends, Calendar, Analytics, and reminders, 500-habit x 365-day local stress coverage, and signed dual-ABI release AAB/APK verification passed. Authenticated Supabase E2E remained blocked without a dedicated test account.
+
 ## [2.0.3.0] - 2026-08-18
 
 ### Changed

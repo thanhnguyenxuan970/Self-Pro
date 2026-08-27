@@ -16,7 +16,7 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 import { Strings } from '../config/i18n';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
-import { activityGroup, activityMatches, activityPinAccessibilityLabel, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask, resolvePresetTask } from '../utils/activityPicker';
+import { activityGroup, activityMatches, activityPinAccessibilityLabel, buildPresetTaskLogParams, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask, resolvePresetTask } from '../utils/activityPicker';
 import { DurationClockInput } from '../components/DurationClockInput';
 import { DurationPresetChips } from '../components/DurationPresetChips';
 import { clockMinutes } from '../utils/durationClock';
@@ -279,6 +279,36 @@ export function AddActivitySheet({ visible, onClose, presetName, presetTaskId }:
       : (selectedExistingTask?.base_points ?? selectedSuggestion?.basePoints ?? 5);
 
     try {
+      // Challenge linked-task CTAs preset an existing habit. In that flow the
+      // user is logging the habit, not creating/reconfiguring it; the old
+      // branch only upserted the task and reported success without writing an
+      // activity_log row, leaving the Challenge at "Not logged today".
+      if (presetName != null && selectedExistingTask != null) {
+        if (isTimeBased) {
+          Keyboard.dismiss();
+          setPendingTask({
+            id: selectedExistingTask.id,
+            name: selectedExistingTask.name,
+            basePoints: selectedExistingTask.base_points,
+            starPenalty: selectedExistingTask.star_penalty,
+            isTemplate: selectedExistingTask.is_template === 1,
+          });
+          setStep('duration');
+          submittingRef.current = false;
+          return;
+        }
+
+        await logTask.mutateAsync(buildPresetTaskLogParams(selectedExistingTask));
+        Toast.show({
+          type: 'success',
+          text1: t.taskAdded,
+          text2: resolveTaskDisplayName(selectedExistingTask.name, t, selectedExistingTask.is_template === 1),
+          visibilityTime: 2000,
+        });
+        handleClose();
+        return;
+      }
+
       const taskId = await createTask.mutateAsync({
         name: storeName,
         kind: 'GOOD',

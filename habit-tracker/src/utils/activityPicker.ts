@@ -14,6 +14,21 @@ export type PickerTask = {
   last_used_date: string | null;
 };
 
+/** Build the log payload used when a screen presets an existing task (for
+ * example, the linked habit from a Challenge). The preset flow logs the
+ * existing row instead of upserting its configuration first. */
+export function buildPresetTaskLogParams(
+  task: Pick<PickerTask, 'id' | 'kind' | 'base_points' | 'star_penalty'>,
+) {
+  return {
+    taskTypeId: task.id,
+    kind: task.kind as 'GOOD' | 'BAD',
+    isTimeBased: false,
+    basePoints: task.base_points,
+    starPenalty: task.star_penalty,
+  };
+}
+
 export function normalizeActivityName(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'd').toLowerCase().trim();
 }

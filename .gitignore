@@ -11,6 +11,17 @@ AGENTS.override.md
 # Android QA raw logcat scratch files (keep device data out of the repository)
 /.audit/*.log
 /.audit/**/*.log
+/.audit/*.db
+/.audit/**/*.db
+/.audit/*.txt
+/.audit/**/*.txt
+/.audit/META-INF/
+
+# Android QA captures containing local account or pre-release state
+/.visual-verify/oauth-debug-after-account.*
+/.visual-verify/pre-aab-emulator-5554.*
+/.visual-verify/pre-auth-2abi-update.*
+/.visual-verify/release-h-google-signin-dialog.*
 
 # JVM crash dumps
 hs_err_pid*.log

@@ -6,6 +6,12 @@
 - Supabase diagnostics now use the live `public.users.user_email` column and document the expected anonymous-RLS, backup-CAS, and CLI-credential boundaries without changing user data.
 - The Sky accent now uses a calmer cobalt blue across light and dark themes, with runtime contrast checks and emulator screenshots covering the selected accent and Analytics state.
 
+## 2.0.3.h - 2026-08-27
+
+- Fixed linked Challenge habits using the instant preset flow so logging the habit also appends the expected `activity_log` row and completes the day's Challenge progress; timed presets continue through the duration flow.
+- Android native release metadata is 2.0.3.h (versionCode 75); the shared Expo/iOS version remains 2.0.3.
+- Validation: TypeScript, 79 Jest suites/737 tests/1 snapshot, debug E2E across core, Challenge, Rewards, Rank, Friends, Calendar, Analytics, and reminders, 500-habit x 365-day local stress coverage, and signed dual-ABI release AAB/APK verification passed. Authenticated Supabase E2E remained blocked without a dedicated test account.
+
 ## 2.0.3.g - 2026-08-26
 
 - The confirmed thanguyenxuan account now treats 2026-07-06 as the start of real activity: earlier fake rows stay available for audit but no longer inflate the heatmap, lifetime stars, rank, backup, restore, or sync.
