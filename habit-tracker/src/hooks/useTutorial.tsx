@@ -1,8 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { PixelRatio, View } from 'react-native';
+import { PixelRatio, View, useWindowDimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Coachmark, TargetRect } from '../components/Coachmark';
+import { Spacing } from '../config/theme';
 import { useAuthUser } from './useAuth';
 import { useTranslations } from './useSettings';
 
@@ -15,19 +16,24 @@ interface TutorialCtx {
   targetRef: (key: string) => (node: View | null) => void;
   startIfFirstRun: () => void;
   restart: () => void;
+  activeKey: string | null;
+  refreshTarget: () => void;
 }
 
 const Ctx = createContext<TutorialCtx>({
   targetRef: () => () => {},
   startIfFirstRun: () => {},
   restart: () => {},
+  activeKey: null,
+  refreshTarget: () => {},
 });
 
 export const useTutorial = () => useContext(Ctx);
 
 export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const userId = useAuthUser();
-  const { bottom: bottomInset } = useSafeAreaInsets();
+  const { top: topInset, bottom: bottomInset } = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight, fontScale } = useWindowDimensions();
   const t = useTranslations();
   const nodes = useRef<Map<string, View>>(new Map());
   const rects = useRef<Map<string, TargetRect>>(new Map());
@@ -61,6 +67,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     node.measureInWindow((x, y, width, height) => {
+      if (apply && indexRef.current !== i) return;
       if (step.key === 'task') {
         const nextRect = { x: x + 12, y: y + 48, width: Math.max(0, width - 24), height: 64 };
         rects.current.set(step.key, nextRect);
@@ -73,15 +80,21 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
         if (apply) setRect(nextRect);
         return;
       }
-      const offsetY = step.key === 'fab' ? 18.5 * PixelRatio.get() : 0;
+      // The streak pill lives in the SafeAreaView content, while Coachmark's
+      // translucent Modal is rooted at the full display. Keep that target in
+      // the same coordinate space without affecting the task-row offset.
+      const offsetY = step.key === 'streak'
+        ? topInset + Spacing.sm
+        : (step.key === 'fab' ? 18.5 * PixelRatio.get() : 0);
       const nextRect = width || height ? { x, y: y + offsetY, width, height } : null;
       if (nextRect) rects.current.set(step.key, nextRect);
       if (apply) setRect(nextRect);
     });
-  }, [steps]);
+  }, [steps, topInset]);
 
   useEffect(() => {
     if (!visible) return;
+    rects.current.clear();
     const frame = requestAnimationFrame(() => {
       measure(index);
       steps.forEach((step, stepIndex) => {
@@ -89,15 +102,25 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       });
     });
     return () => cancelAnimationFrame(frame);
-  }, [visible, index, measure]);
+  }, [fontScale, index, measure, steps, visible, windowHeight, windowWidth]);
 
   const goTo = useCallback((nextIndex: number) => {
     indexRef.current = nextIndex;
     setIndex(nextIndex);
+    const nextKey = steps[nextIndex]?.key;
+    setRect(null);
+    if (nextKey === 'task' || nextKey === 'streak') return;
     const nextRect = rects.current.get(steps[nextIndex]?.key);
     if (nextRect) setRect(nextRect);
     else measure(nextIndex);
   }, [measure, steps]);
+
+  const refreshTarget = useCallback(() => {
+    if (!visible) return;
+    const currentStep = indexRef.current;
+    rects.current.delete(steps[currentStep]?.key ?? '');
+    measure(currentStep);
+  }, [measure, steps, visible]);
 
   const finish = useCallback(() => {
     setVisible(false);
@@ -131,7 +154,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ targetRef, startIfFirstRun, restart }}>
+    <Ctx.Provider value={{ targetRef, startIfFirstRun, restart, activeKey: visible ? steps[index]?.key ?? null : null, refreshTarget }}>
       {children}
       <Coachmark
         visible={visible}
@@ -142,6 +165,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
         body={steps[index]?.body ?? ''}
         roundHighlight={steps[index]?.key === 'fab'}
         highlightPadding={steps[index]?.key === 'fab' || steps[index]?.key === 'task' ? 4 : (steps[index]?.key === 'analytics' || steps[index]?.key === 'rank' ? 4 : DEFAULT_HIGHLIGHT_PADDING)}
+        topInset={topInset}
         bottomInset={bottomInset}
         onNext={next}
         onBack={back}

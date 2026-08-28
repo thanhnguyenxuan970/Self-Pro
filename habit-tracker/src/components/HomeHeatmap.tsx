@@ -12,7 +12,7 @@ import { boostPalette, formatCountdown, secsRemaining, type BoostPalette, type B
 
 type Props = {
   days: HeatmapDay[]; streak: number; goal: number; colors: AppColors; todayPoints?: number;
-  rankEmoji?: string; lifetimeStars?: number; rankName?: string; streakRef?: (node: View | null) => void;
+  rankEmoji?: string; lifetimeStars?: number; rankName?: string; streakRef?: (node: View | null) => void; streakOnLayout?: () => void;
   scoringGuideVisible?: boolean; onScoringGuideClose?: () => void;
   boostVisual?: { phase: BoostPhase; multiplier: number; expiresAt: number | null } | null;
 };
@@ -219,7 +219,7 @@ const AnimatedWeeks = React.memo(function AnimatedWeeks({ weeks, styles, shades,
   </View>;
 });
 
-export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji, lifetimeStars, rankName, streakRef, scoringGuideVisible = false, onScoringGuideClose, boostVisual = null }: Props) {
+export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal, colors, todayPoints, rankEmoji, lifetimeStars, rankName, streakRef, streakOnLayout, scoringGuideVisible = false, onScoringGuideClose, boostVisual = null }: Props) {
   const scrollRef = useRef<ScrollView>(null);
   const { width } = useWindowDimensions();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -292,7 +292,7 @@ export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal,
       </View>
     </View>
     <View style={styles.rewardRow}>
-      <View ref={streakRef} style={[styles.rewardPill, boostActive && palette ? { borderColor: palette.border, borderWidth: 1 } : null]}>
+      <View ref={streakRef} onLayout={streakOnLayout} style={[styles.rewardPill, boostActive && palette ? { borderColor: palette.border, borderWidth: 1 } : null]}>
         <Text style={styles.rewardText}>{rankName ? `🔥 ${streak} · ★ ${Math.round(lifetimeStars ?? 0)} › ${rankEmoji} ${rankName}` : `🔥 ${streak}`}</Text>
       </View>
       {boostActive && palette ? <View style={[styles.boostBadge, { backgroundColor: palette.fill }]}>

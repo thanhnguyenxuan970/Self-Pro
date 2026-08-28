@@ -1,9 +1,13 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, LayoutChangeEvent } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import { FontFamily, Shadows } from '../config/theme';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { useReduceMotion } from '../hooks/useReduceMotion';
+import {
+  COACHMARK_FALLBACK_HEIGHT,
+  getCoachmarkPosition,
+} from '../utils/coachmarkLayout';
 
 export interface TargetRect { x: number; y: number; width: number; height: number; }
 
@@ -16,37 +20,11 @@ interface Props {
   body: string;
   roundHighlight: boolean;
   highlightPadding: number;
+  topInset: number;
   bottomInset: number;
   onNext: () => void;
   onBack: () => void;
   onSkip: () => void;
-}
-
-const GAP = 24;
-const TIP_W = 280;
-const TIP_H = 160;
-const TAB_BAR_H = 62;
-
-function computeTipPosition(
-  rect: TargetRect | null, H: number, W: number, measuredTipH: number, minBottom: number,
-): { tipTop: number | undefined; tipBottom: number | undefined; tipLeft: number } {
-  let tipTop: number | undefined;
-  let tipBottom: number | undefined;
-  if (rect) {
-    const spaceBelow = H - (rect.y + rect.height) - minBottom - GAP;
-    const spaceAbove = rect.y - GAP;
-    if (spaceBelow >= measuredTipH) {
-      tipTop = Math.min(rect.y + rect.height + GAP, H - minBottom - measuredTipH);
-    } else if (spaceAbove >= measuredTipH) {
-      tipTop = Math.max(GAP, rect.y - measuredTipH - GAP);
-    } else {
-      tipTop = Math.max(GAP * 2, rect.y - measuredTipH - GAP);
-    }
-  } else {
-    tipTop = H / 2 - measuredTipH / 2;
-  }
-  const tipLeft = Math.max(16, Math.min(W - TIP_W - 16, (W - TIP_W) / 2));
-  return { tipTop, tipBottom, tipLeft };
 }
 
 function computeHighlightRect(rect: TargetRect | null, padding: number): { hx: number; hy: number; hw: number; hh: number } {
@@ -54,14 +32,23 @@ function computeHighlightRect(rect: TargetRect | null, padding: number): { hx: n
   return { hx: rect.x - padding, hy: rect.y - padding, hw: rect.width + padding * 2, hh: rect.height + padding * 2 };
 }
 
-export function Coachmark({ visible, rect, index, total, title, body, bottomInset, roundHighlight, highlightPadding, onNext, onBack, onSkip }: Props) {
+export function Coachmark({ visible, rect, index, total, title, body, bottomInset, topInset, roundHighlight, highlightPadding, onNext, onBack, onSkip }: Props) {
   const { colors: C } = useTheme();
   const t = useTranslations();
   const reduceMotion = useReduceMotion();
-  const { width: W, height: H } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight, fontScale } = useWindowDimensions();
   const overlayRef = useRef<View>(null);
-  const [overlay, setOverlay] = useState({ x: 0, y: 0, width: W, height: H });
-  const [measuredTipH, setMeasuredTipH] = useState(TIP_H);
+  const [overlay, setOverlay] = useState({ x: 0, y: 0, width: windowWidth, height: windowHeight });
+  const [measuredTipH, setMeasuredTipH] = useState(COACHMARK_FALLBACK_HEIGHT);
+
+  useEffect(() => {
+    setOverlay(previous => ({ ...previous, width: windowWidth, height: windowHeight }));
+  }, [windowHeight, windowWidth]);
+
+  useEffect(() => {
+    setMeasuredTipH(COACHMARK_FALLBACK_HEIGHT);
+  }, [body, title, windowWidth]);
+
   const handleTipLayout = (e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
     if (h > 0) setMeasuredTipH(h);
@@ -69,15 +56,17 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
 
   if (!visible) return null;
 
+  const overlayWidth = overlay.width || windowWidth;
+  const overlayHeight = overlay.height || windowHeight;
   const localRect = rect && {
-    x: rect.x,
-    y: rect.y,
+    x: rect.x - overlay.x,
+    y: rect.y - overlay.y,
     width: rect.width,
     height: rect.height,
   };
   const isLast = index >= total - 1;
-  const minBottom = TAB_BAR_H + bottomInset + 8;
-  const { tipTop, tipBottom, tipLeft } = computeTipPosition(localRect, overlay.height, overlay.width, measuredTipH, minBottom);
+  const { tipTop, tipLeft, tipWidth } = getCoachmarkPosition(localRect, overlayWidth, overlayHeight, measuredTipH, topInset, bottomInset);
+  const compactFooter = overlayWidth < 360 || fontScale > 1.15;
 
   const { hx, hy, hw, hh } = computeHighlightRect(localRect, highlightPadding);
   const nextLabel = isLast ? t.tutDone : t.tutNext;
@@ -89,14 +78,14 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
         style={StyleSheet.absoluteFill}
         onLayout={() => overlayRef.current?.measureInWindow((x, y, width, height) => setOverlay({ x, y, width, height }))}
       >
-      <Svg pointerEvents="none" width={overlay.width} height={overlay.height} style={[StyleSheet.absoluteFill, { zIndex: 0 }]}>
+      <Svg pointerEvents="none" width={overlayWidth} height={overlayHeight} style={[StyleSheet.absoluteFill, { zIndex: 0 }]}>
           <Defs>
             <Mask id="cut">
-              <Rect x={0} y={0} width={W} height={H} fill="#ffffff" />
+              <Rect x={0} y={0} width={overlayWidth} height={overlayHeight} fill="#ffffff" />
               {localRect ? <Rect x={hx} y={hy} width={hw} height={hh} rx={roundHighlight ? hw / 2 : 14} fill="#000000" /> : null}
             </Mask>
           </Defs>
-          <Rect x={0} y={0} width={W} height={H} fill={C.scrim} mask="url(#cut)" />
+          <Rect x={0} y={0} width={overlayWidth} height={overlayHeight} fill={C.scrim} mask="url(#cut)" />
           {localRect ? (
             <Rect x={hx} y={hy} width={hw} height={hh} rx={roundHighlight ? hw / 2 : 14} fill="none" stroke={C.primary} strokeWidth={2.5} />
           ) : null}
@@ -107,12 +96,12 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
         accessibilityLiveRegion="polite"
         style={[
           styles.tip,
-          { backgroundColor: C.surface, width: TIP_W, left: tipLeft, top: tipTop, bottom: tipBottom },
+          { backgroundColor: C.surface, width: tipWidth, left: tipLeft, top: tipTop },
         ]}
       >
         <Text style={[styles.title, { color: C.inkDark }]}>{title}</Text>
         <Text style={[styles.body, { color: C.ink2 }]}>{body}</Text>
-        <View style={styles.ft}>
+        <View style={[styles.ft, compactFooter && styles.ftCompact]}>
           <View
             style={styles.dots}
             accessible
@@ -127,15 +116,15 @@ export function Coachmark({ visible, rect, index, total, title, body, bottomInse
           </View>
           <View style={styles.actions}>
             {index > 0 ? (
-              <TouchableOpacity onPress={onBack} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.back.replace(/^[←→]\s*/, '')}>
+              <TouchableOpacity style={styles.actionButton} onPress={onBack} hitSlop={4} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.back.replace(/^[←→]\s*/, '')}>
                 <Text style={[styles.skip, { color: C.ink2 }]}>{t.back}</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity onPress={onSkip} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.tutSkip}>
+              <TouchableOpacity style={styles.actionButton} onPress={onSkip} hitSlop={4} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t.tutSkip}>
                 <Text style={[styles.skip, { color: C.ink2 }]}>{t.tutSkip}</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={onNext} style={[styles.next, { backgroundColor: C.primary }]} hitSlop={10} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={nextLabel.replace(/\s*[←→]$/, '')}>
+            <TouchableOpacity onPress={onNext} style={[styles.next, { backgroundColor: C.primary }]} hitSlop={4} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={nextLabel.replace(/\s*[←→]$/, '')}>
               <Text style={[styles.nextText, { color: C.onAccent }]}>{nextLabel}</Text>
             </TouchableOpacity>
           </View>
@@ -152,15 +141,18 @@ const styles = StyleSheet.create({
     zIndex: 1,
     borderRadius: 18,
     padding: 16,
+    maxWidth: '100%',
     ...Shadows.hero,
   },
-  title: { fontSize: 17, fontFamily: FontFamily.bold },
-  body: { fontSize: 13, fontFamily: FontFamily.regular, marginTop: 6, lineHeight: 18 },
-  ft: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
-  dots: { flexDirection: 'row', gap: 5, alignItems: 'center' },
+  title: { fontSize: 17, lineHeight: 22, fontFamily: FontFamily.bold, maxWidth: '100%' },
+  body: { fontSize: 13, fontFamily: FontFamily.regular, marginTop: 6, lineHeight: 18, maxWidth: '100%', flexShrink: 1 },
+  ft: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, gap: 8 },
+  ftCompact: { flexDirection: 'column', alignItems: 'stretch', gap: 6 },
+  dots: { flexDirection: 'row', gap: 5, alignItems: 'center', flexShrink: 1 },
   dot: { height: 6, borderRadius: 3 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  skip: { fontSize: 13, fontFamily: FontFamily.medium },
-  next: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-end' },
+  actionButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
+  skip: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.medium },
+  next: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999 },
   nextText: { fontSize: 13, fontFamily: FontFamily.bold },
 });

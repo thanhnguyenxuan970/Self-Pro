@@ -282,12 +282,81 @@ export function TodayScreen({ qaBannerVisible = false }: { qaBannerVisible?: boo
   const { data: suggestions = [] } = useConsecutiveSuggestions(userId);
   const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(tasks ?? []);
 
-  const { targetRef, startIfFirstRun } = useTutorial();
-  const taskTutorialRef = useMemo(() => targetRef('task'), [targetRef]);
-  const streakTutorialRef = useMemo(() => targetRef('streak'), [targetRef]);
+  const { targetRef, startIfFirstRun, activeKey, refreshTarget } = useTutorial();
+  const reduceMotion = useReduceMotion();
+  const homeScrollRef = useRef<ScrollView>(null);
+  const homeScrollOffset = useRef(0);
+  const taskNodeRef = useRef<View | null>(null);
+  const streakNodeRef = useRef<View | null>(null);
+  const taskTutorialRef = useMemo(() => {
+    const register = targetRef('task');
+    return (node: View | null) => {
+      taskNodeRef.current = node;
+      register(node);
+    };
+  }, [targetRef]);
+  const streakTutorialRef = useMemo(() => {
+    const register = targetRef('streak');
+    return (node: View | null) => {
+      streakNodeRef.current = node;
+      register(node);
+    };
+  }, [targetRef]);
   useEffect(() => {
     if (levelUpChecked && pendingLevelUp === null) startIfFirstRun();
   }, [levelUpChecked, pendingLevelUp, startIfFirstRun]);
+
+  useEffect(() => {
+    if (activeKey !== 'task' && activeKey !== 'streak') return undefined;
+    const refreshTimers: ReturnType<typeof setTimeout>[] = [];
+    const frame = requestAnimationFrame(() => {
+      const scrollView = homeScrollRef.current;
+      const targetNode = activeKey === 'task' ? taskNodeRef.current : streakNodeRef.current;
+      if (!scrollView || !targetNode) {
+        refreshTarget();
+        return;
+      }
+
+      const scrollViewNode = scrollView as unknown as View;
+      scrollViewNode.measureInWindow((_scrollX: number, scrollY: number, _scrollWidth: number, viewportHeight: number) => {
+        if (viewportHeight <= 0) {
+          refreshTarget();
+          return;
+        }
+        targetNode.measureInWindow((_targetX, targetY, _targetWidth, targetHeight) => {
+          const currentOffset = homeScrollOffset.current;
+          const targetTop = currentOffset + targetY - scrollY;
+          const targetBottom = targetTop + targetHeight;
+          const margin = Spacing.lg;
+          const visibleTop = currentOffset + margin;
+          const visibleBottom = currentOffset + viewportHeight - margin;
+          let nextOffset = currentOffset;
+
+          if (targetTop < visibleTop) {
+            nextOffset = Math.max(0, targetTop - margin);
+          } else if (targetBottom > visibleBottom) {
+            nextOffset = Math.max(0, targetBottom - viewportHeight + margin);
+          }
+
+          if (Math.abs(nextOffset - currentOffset) > 1) {
+            // The coachmark must never render against an intermediate scroll
+            // position. Tutorial navigation is already an explicit action, so
+            // an immediate reposition keeps the highlight and target aligned.
+            scrollView.scrollTo({ y: nextOffset, animated: false });
+          }
+          refreshTimers.push(setTimeout(refreshTarget, 0));
+          refreshTimers.push(setTimeout(refreshTarget, 120));
+          refreshTimers.push(setTimeout(refreshTarget, 400));
+          refreshTimers.push(setTimeout(refreshTarget, 800));
+        });
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      refreshTimers.forEach(clearTimeout);
+    };
+  }, [activeKey, refreshTarget]);
 
   const weeklyStars = weekly?.weekly_stars ?? 0;
   const dailyPoints = daily?.total_points ?? 0;
@@ -303,7 +372,6 @@ export function TodayScreen({ qaBannerVisible = false }: { qaBannerVisible?: boo
   const newsViewerKey = getNewsViewerKey(googleUser?.sub);
   const { unreadCount: unreadNewsCount } = useNewsFeed(newsViewerKey);
 
-  const reduceMotion = useReduceMotion();
   useEffect(() => {
     const nowMs = Date.now();
     setBoostPhase(deriveBoostPhase(nowMs, boostEvent ?? null));
@@ -565,9 +633,17 @@ export function TodayScreen({ qaBannerVisible = false }: { qaBannerVisible?: boo
           </TouchableOpacity>
         </View>
       </View>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 + bottomInset }}>
+      <ScrollView
+        ref={homeScrollRef}
+        onScroll={({ nativeEvent }) => { homeScrollOffset.current = nativeEvent.contentOffset.y; }}
+        onMomentumScrollEnd={refreshTarget}
+        onScrollEndDrag={refreshTarget}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 28 + bottomInset }}
+      >
         {boostPhase === 'available' ? boostExperience : null}
-        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} lifetimeStars={lifetimeStars} rankName={rankDisplayName} streakRef={streakTutorialRef} scoringGuideVisible={showScoringGuide} onScoringGuideClose={closeScoringGuide} boostVisual={boostVisual} />
+        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} lifetimeStars={lifetimeStars} rankName={rankDisplayName} streakRef={streakTutorialRef} streakOnLayout={activeKey === 'streak' ? refreshTarget : undefined} scoringGuideVisible={showScoringGuide} onScoringGuideClose={closeScoringGuide} boostVisual={boostVisual} />
         {boostPhase !== 'available' ? boostExperience : null}
 
         {!backfillNudgeDismissed && <HomeBackfillNudge
@@ -640,7 +716,7 @@ export function TodayScreen({ qaBannerVisible = false }: { qaBannerVisible?: boo
             </View>
           )}
         </View>
-        <View ref={taskTutorialRef} style={styles.taskCard}>
+        <View ref={taskTutorialRef} onLayout={activeKey === 'task' ? refreshTarget : undefined} style={styles.taskCard}>
           <View style={styles.taskCardClip}>
           {displayTasks.length === 0 ? (
             <View style={styles.empty}>

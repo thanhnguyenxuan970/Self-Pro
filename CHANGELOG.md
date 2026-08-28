@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 - Removed user photo selection from Challenge Detail and share-card creation; existing challenge photos remain display-only.
+- **Responsive onboarding and calendar surfaces**: tutorial coachmarks now size and reposition for narrow screens, enlarged font scales, safe-area insets, and the bottom tab bar; task/streak steps auto-scroll to and re-measure their live targets. Calendar's seven-column grid, month navigation, legend, and summary cards now use bounded flex layouts with responsive spacing and typography while preserving the phone-first portrait navigation.
 
 ### Fixed
 - **Account activity boundary**: the confirmed thanguyenxuan account now starts counting real activity on 2026-07-06; earlier fake rows no longer inflate its heatmap, lifetime stars, rank, backup, restore, or sync.
