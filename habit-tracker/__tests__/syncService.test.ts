@@ -86,6 +86,7 @@ import {
   deleteUserFromSupabase,
 } from '../src/api/syncService';
 import { isCloudBackupPayload } from '../src/lib/userDataBackup';
+import { THANGUYENXUAN_EMAIL } from '../src/lib/accountActivityBoundary';
 
 describe('restoreUserDataIfNeeded', () => {
   const emptyBackupPayload = (overrides: Record<string, unknown> = {}) => ({
@@ -190,7 +191,7 @@ describe('restoreUserDataIfNeeded', () => {
   });
 
   it('does not let retained pre-cutoff activity suppress restore', async () => {
-    const email = 'thanhnguyenxuan970@gmail.com';
+    const email = THANGUYENXUAN_EMAIL;
     const db = {
       getFirstAsync: jest.fn(async (sql: string, params?: unknown[]) => {
         if (sql.includes('COUNT(*)') && sql.includes('activity_log')) {
@@ -2516,7 +2517,7 @@ describe('syncToSupabase', () => {
   });
 
   it('reconciles CAS with the cutoff-filtered cloud snapshot', async () => {
-    const email = 'thanhnguyenxuan970@gmail.com';
+    const email = THANGUYENXUAN_EMAIL;
     const revisionKey = `habit_sync_backup_revision:${email}`;
     const blockedKey = `habit_sync_backup_restore_blocked:${email}`;
     const localActivity = [
