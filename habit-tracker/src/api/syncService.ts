@@ -27,6 +27,7 @@ const KEY_LAST_ACTIVITY = 'habit_sync_last_activity_id';
 const KEY_LAST_FUND = 'habit_sync_last_fund_id';
 const KEY_BACKUP_REVISION = 'habit_sync_backup_revision';
 const KEY_BACKUP_RESTORE_BLOCKED = 'habit_sync_backup_restore_blocked';
+const KEY_BACKUP_RESTORE_RETRYABLE = 'habit_sync_backup_restore_retryable';
 const KEY_LEGACY_RESTORE_PENDING = 'habit_sync_legacy_restore_pending';
 const BATCH = 100;
 
@@ -681,6 +682,10 @@ function backupBlockedKey(accountKey: string): string {
   return `${KEY_BACKUP_RESTORE_BLOCKED}:${backupAccountKey(accountKey)}`;
 }
 
+function backupRetryableKey(accountKey: string): string {
+  return `${KEY_BACKUP_RESTORE_RETRYABLE}:${backupAccountKey(accountKey)}`;
+}
+
 function backupAccountKey(accountKey: string): string {
   const normalized = normalizedAccountEmail(accountKey);
   return normalized || 'unknown-account';
@@ -700,9 +705,10 @@ async function writeBackupRevision(accountKey: string, revision: unknown): Promi
   await AsyncStorage.setItem(backupRevisionKey(accountKey), String(numericRevision));
 }
 
-export async function markBackupRestoreBlocked(accountKey: string): Promise<void> {
+export async function markBackupRestoreBlocked(accountKey: string, retryable = false): Promise<void> {
   try {
     await AsyncStorage.setItem(backupBlockedKey(accountKey), '1');
+    await AsyncStorage.setItem(backupRetryableKey(accountKey), retryable ? '1' : '0');
   } catch (error) {
     // AsyncStorage failure must not turn a restore failure into an upload
     // window. Keep this account's in-process gate fail-closed until a later
@@ -713,12 +719,26 @@ export async function markBackupRestoreBlocked(accountKey: string): Promise<void
 }
 
 export async function clearBackupRestoreBlocked(accountKey: string): Promise<void> {
+  // Remove the retry hint first so a partial clear can never turn a stale
+  // block into an automatic recovery bypass.
+  await AsyncStorage.removeItem(backupRetryableKey(accountKey));
   await AsyncStorage.removeItem(backupBlockedKey(accountKey));
   getAccountSyncGate(accountKey).failClosed = false;
 }
 
 async function isBackupRestoreBlocked(accountKey: string): Promise<boolean> {
   if (getAccountSyncGate(accountKey).failClosed) return true;
+  return (await AsyncStorage.getItem(backupBlockedKey(accountKey))) === '1';
+}
+
+async function isBackupRestoreRetryable(accountKey: string): Promise<boolean> {
+  if (getAccountSyncGate(accountKey).failClosed) return false;
+  const retryable = await AsyncStorage.getItem(backupRetryableKey(accountKey));
+  if (retryable === '1') return true;
+  if (retryable === '0') return false;
+  // A marker written by an older release has no retry hint. Allow one guarded
+  // probe so a transient offline block can self-heal after upgrading; any new
+  // failure writes an explicit hint and stops permanent blocks looping.
   return (await AsyncStorage.getItem(backupBlockedKey(accountKey))) === '1';
 }
 
@@ -885,6 +905,29 @@ function isRetryableAuthExchangeError(error: unknown): boolean {
     || text.includes('users_email_partial_key')
     || text.includes('database error saving new user')
     || text.includes('23505');
+}
+
+function isTransientBackupRestoreError(error: unknown): boolean {
+  if (isSessionRestoreCancellation(error) || error instanceof AccountSyncInvalidatedError) return false;
+  const details = isRecord(error)
+    ? error as { code?: unknown; message?: unknown; details?: unknown }
+    : {};
+  const status = numericStatus(error);
+  if (status === 0 || status === 408 || status === 425 || status === 429) return true;
+  if (status !== undefined) return status >= 500 && status <= 599;
+
+  const text = [details.code, details.message, details.details, String(error)]
+    .filter(value => value != null)
+    .join(' ')
+    .toLowerCase();
+  return text.includes('network')
+    || text.includes('failed to fetch')
+    || text.includes('connection')
+    || text.includes('offline')
+    || text.includes('timed out')
+    || text.includes('timeout')
+    || text.includes('abort')
+    || text.includes('temporar');
 }
 
 function isUnauthorizedSupabaseError(error: unknown): boolean {
@@ -1864,8 +1907,9 @@ export async function restoreUserDataIfNeeded(
         const localAccountHasData = await hasLocalAccountData(db, userId, activityStartDate);
         assertRestoreActive();
         const retryingBlockedAccount = retryBlockedAccountOnly
-          && allowBlockedRetry
-          && await isBackupRestoreBlocked(accountKey);
+          && (allowBlockedRetry
+            ? await isBackupRestoreBlocked(accountKey)
+            : !localAccountHasData && await isBackupRestoreRetryable(accountKey));
         assertRestoreActive();
         if (localAccountHasData && !retryingBlockedAccount && (!allowBlockedRetry || retryBlockedAccountOnly)) {
           assertRestoreActive();
@@ -1875,8 +1919,10 @@ export async function restoreUserDataIfNeeded(
         // Keep a block on fresh/seeded SQLite, where allowing an upload could
         // overwrite the cloud account. Existing local data is safe to show
         // offline; the marker remains in place so normal sync still stays
-        // fail-closed until an explicit recovery retry succeeds.
-        const restoreIsBlocked = !allowBlockedRetry && await isBackupRestoreBlocked(accountKey);
+        // fail-closed until a later guarded recovery retry succeeds.
+        const restoreIsBlocked = !allowBlockedRetry
+          && !retryingBlockedAccount
+          && await isBackupRestoreBlocked(accountKey);
         assertRestoreActive();
         if (restoreIsBlocked) {
           result = 'unavailable';
@@ -1968,7 +2014,7 @@ export async function restoreUserDataIfNeeded(
           await writeBackupRevision(accountKey, envelope.revision);
           await AsyncStorage.removeItem(pendingLegacyRestoreKey);
           assertRestoreActive();
-        }, sessionActive);
+        }, sessionActive, { retryOnUnauthorized: true });
         // Clear only after the complete restore, while the account gate is
         // still held. Queued uploads can proceed only after this point.
         if (!keepBackupRestoreBlocked) await clearBackupRestoreBlocked(accountKey);
@@ -1978,7 +2024,8 @@ export async function restoreUserDataIfNeeded(
         // normal restore invalidated after a queued upload passed its fast-path
         // marker check; re-mark before releasing the account gate.
         if (!cancelled) Sentry.captureException(error);
-        await markBackupRestoreBlocked(accountKey);
+        const retryable = restoreTimedOut || (!cancelled && isTransientBackupRestoreError(error));
+        await markBackupRestoreBlocked(accountKey, retryable);
         throw error;
       }
     }, allowBlockedRetry, allowBlockedRetry, restoreAbortController.signal);

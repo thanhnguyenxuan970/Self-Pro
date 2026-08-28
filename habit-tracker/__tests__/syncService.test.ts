@@ -988,6 +988,10 @@ describe('restoreUserDataIfNeeded', () => {
     expect(mockLegacyActivityEq).not.toHaveBeenCalled();
     expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', '3');
     expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
+    expect(mockStorageSetItem).toHaveBeenCalledWith(
+      'habit_sync_backup_restore_retryable:user@example.com',
+      '0',
+    );
   });
 
   it('allows a transiently blocked account to retry recovery without touching another account', async () => {
@@ -1023,12 +1027,159 @@ describe('restoreUserDataIfNeeded', () => {
 
     await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
     expect(restoreBlocked).toBe(true);
+    expect(mockStorageSetItem).toHaveBeenCalledWith(
+      'habit_sync_backup_restore_retryable:user@example.com',
+      '1',
+    );
 
     await expect(restoreUserDataIfNeeded(1, ' USER@EXAMPLE.COM ', 'google-sub', undefined, true, undefined, true)).resolves.toBe('empty');
     expect(mockStorageRemoveItem).toHaveBeenCalledWith(blockedKey);
     expect(mockStorageRemoveItem).not.toHaveBeenCalledWith(otherBlockedKey);
     expect(restoreBlocked).toBe(false);
     expect(mockRpc).toHaveBeenCalledTimes(4);
+  });
+
+  it('refreshes the Supabase session once after a restore 401', async () => {
+    let restoreCalls = 0;
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') {
+        restoreCalls += 1;
+        return restoreCalls === 1
+          ? { data: null, error: { status: 401, message: 'Invalid JWT' } }
+          : { data: { payload: null, revision: 2 }, error: null };
+      }
+      if (name === 'sync_lifetime_stars') return { data: 0, error: null };
+      return { data: null, error: null };
+    });
+    mockSignInSilently.mockResolvedValue({ type: 'success' });
+    mockGetTokens.mockResolvedValue({ idToken: 'id-token' });
+    mockSignInWithIdToken.mockResolvedValue(successfulTokenResponse());
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('empty');
+
+    expect(mockRpc).toHaveBeenCalledWith('restore_my_data_backup_v2');
+    expect(restoreCalls).toBe(2);
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a previously blocked fresh account on the next startup without a tap', async () => {
+    const blockedKey = 'habit_sync_backup_restore_blocked:user@example.com';
+    mockStorageGetItem.mockImplementation(async (key: string) => (
+      key === blockedKey ? '1' : null
+    ));
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') {
+        return { data: { payload: null, revision: 4 }, error: null };
+      }
+      if (name === 'sync_lifetime_stars') return { data: 0, error: null };
+      return { data: null, error: null };
+    });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(
+      restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub', undefined, false, undefined, true),
+    ).resolves.toBe('empty');
+
+    expect(mockRpc).toHaveBeenCalledWith('restore_my_data_backup_v2');
+    expect(mockStorageRemoveItem).toHaveBeenCalledWith(blockedKey);
+  });
+
+  it('keeps populated local data available during an automatic recovery probe', async () => {
+    const blockedKey = 'habit_sync_backup_restore_blocked:user@example.com';
+    const retryableKey = 'habit_sync_backup_restore_retryable:user@example.com';
+    mockStorageGetItem.mockImplementation(async (key: string) => (
+      key === blockedKey || key === retryableKey ? '1' : null
+    ));
+    mockRpc.mockImplementation(async (name: string) => (
+      name === 'restore_my_data_backup_v2'
+        ? { data: null, error: { message: 'temporary network failure' } }
+        : { data: null, error: null }
+    ));
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('COUNT(*)') && sql.includes('activity_log')) return { count: 1 };
+        if (sql.includes('COUNT(*)')) return { count: 0 };
+        return null;
+      }),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(
+      restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub', undefined, false, undefined, true),
+    ).resolves.toBe('not_needed');
+
+    expect(mockRpc).not.toHaveBeenCalledWith('restore_my_data_backup_v2');
+  });
+
+  it('lets an explicit recovery retry reconcile a blocked populated account', async () => {
+    const blockedKey = 'habit_sync_backup_restore_blocked:user@example.com';
+    mockStorageGetItem.mockImplementation(async (key: string) => (
+      key === blockedKey ? '1' : null
+    ));
+    mockRpc.mockImplementation(async (name: string) => (
+      name === 'restore_my_data_backup_v2'
+        ? { data: null, error: { message: 'temporary network failure' } }
+        : { data: null, error: null }
+    ));
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('COUNT(*)') && sql.includes('activity_log')) return { count: 1 };
+        if (sql.includes('COUNT(*)')) return { count: 0 };
+        return null;
+      }),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(
+      restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub', undefined, true, undefined, true),
+    ).resolves.toBe('unavailable');
+
+    expect(mockRpc).toHaveBeenCalledWith('restore_my_data_backup_v2');
+  });
+
+  it('does not automatically probe a permanently blocked fresh account', async () => {
+    const blockedKey = 'habit_sync_backup_restore_blocked:user@example.com';
+    const retryableKey = 'habit_sync_backup_restore_retryable:user@example.com';
+    mockStorageGetItem.mockImplementation(async (key: string) => (
+      key === blockedKey ? '1' : key === retryableKey ? '0' : null
+    ));
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(
+      restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub', undefined, false, undefined, true),
+    ).resolves.toBe('unavailable');
+
+    expect(mockRpc).not.toHaveBeenCalledWith('restore_my_data_backup_v2');
   });
 
   it('does not let a concurrent upload pass while retry restore is in flight', async () => {

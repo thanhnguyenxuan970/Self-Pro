@@ -206,6 +206,11 @@ function AppInner() {
                       }
                     }
                     : undefined,
+                  // A normal cold start may be recovering from an earlier
+                  // transient offline failure. Re-probe only a retryable
+                  // fresh/seeded block; the user-facing Retry button keeps
+                  // its full reconciliation behavior by leaving this false.
+                  !allowBlockedRetry,
                 );
                 if (restoreResult === 'unavailable') {
                   setAccountRecoveryError(true);
