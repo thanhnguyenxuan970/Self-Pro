@@ -163,6 +163,84 @@ describe('restoreUserDataIfNeeded', () => {
     expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
   });
 
+  it('advances the local backup revision when an existing snapshot matches cloud', async () => {
+    const payload = emptyBackupPayload({
+      categories: [{ id: 1, name: 'Health', icon: '🏃', sort_order: 1, archived: 0 }],
+    });
+    mockStorageGetItem.mockImplementation(async (key: string) => (
+      key === 'habit_sync_backup_revision:user@example.com' ? '45' : null
+    ));
+    mockRpc.mockImplementation(async (name: string) => (
+      name === 'restore_my_data_backup_v2'
+        ? { data: { payload, revision: 48 }, error: null }
+        : { data: null, error: null }
+    ));
+    type ExistingSnapshotTestDb = {
+      getFirstAsync: jest.Mock;
+      getAllAsync: jest.Mock;
+      runAsync: jest.Mock;
+      withExclusiveTransactionAsync: jest.Mock;
+    };
+    const db: ExistingSnapshotTestDb = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('COUNT(*)')) return { count: sql.includes('activity_log') ? 1 : 0 };
+        return null;
+      }),
+      getAllAsync: jest.fn(async (sql: string) => (
+        sql.includes('FROM categories') ? payload.categories : []
+      )),
+      runAsync: jest.fn(),
+      withExclusiveTransactionAsync: jest.fn(async (fn: (transactionDb: ExistingSnapshotTestDb) => Promise<void>) => fn(db)),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub', undefined, true))
+      .resolves.toBe('not_needed');
+
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', '48');
+  });
+
+  it('does not advance the revision when an existing snapshot differs from cloud', async () => {
+    const localPayload = emptyBackupPayload({
+      categories: [{ id: 1, name: 'Health', icon: '🏃', sort_order: 1, archived: 0 }],
+    });
+    const cloudPayload = emptyBackupPayload({
+      categories: [{ id: 1, name: 'Health', icon: '🧘', sort_order: 1, archived: 0 }],
+    });
+    mockStorageGetItem.mockImplementation(async (key: string) => (
+      key === 'habit_sync_backup_revision:user@example.com' ? '45' : null
+    ));
+    mockRpc.mockImplementation(async (name: string) => (
+      name === 'restore_my_data_backup_v2'
+        ? { data: { payload: cloudPayload, revision: 48 }, error: null }
+        : { data: null, error: null }
+    ));
+    type ExistingSnapshotTestDb = {
+      getFirstAsync: jest.Mock;
+      getAllAsync: jest.Mock;
+      runAsync: jest.Mock;
+      withExclusiveTransactionAsync: jest.Mock;
+    };
+    const db: ExistingSnapshotTestDb = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('COUNT(*)')) return { count: sql.includes('activity_log') ? 1 : 0 };
+        return null;
+      }),
+      getAllAsync: jest.fn(async (sql: string) => (
+        sql.includes('FROM categories') ? localPayload.categories : []
+      )),
+      runAsync: jest.fn(),
+      withExclusiveTransactionAsync: jest.fn(async (fn: (transactionDb: ExistingSnapshotTestDb) => Promise<void>) => fn(db)),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub', undefined, true))
+      .resolves.toBe('not_needed');
+
+    expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', '48');
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com', '1');
+  });
+
   it('restores a reinstall from the same Google account without losing habits, heatmap, challenges, or rank state', async () => {
     const payload = {
       schema_version: 1,

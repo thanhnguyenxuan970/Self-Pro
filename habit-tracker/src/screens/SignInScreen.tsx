@@ -6,7 +6,7 @@ import { GoogleUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
 import { useThemedScreenState } from '../hooks/useThemedScreenState';
 import { isQaSandboxBuildAvailable } from '../qa/qaSandbox';
-import { extractGoogleUser, isGoogleSignInCancelledResponse } from '../lib/googleAuth';
+import { extractGoogleUser, getGoogleSignInErrorCode, isGoogleSignInCancelledResponse } from '../lib/googleAuth';
 
 type Props = {
   onSignIn: () => void;
@@ -95,11 +95,16 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle, onEnterQaSandbox }:
       const isNew = await onSignInWithGoogle(extracted.googleUser, extracted.idToken);
       if (isNew) onSignIn();
     } catch (err: unknown) {
-      const code = (err as { code?: string }).code;
+      const code = getGoogleSignInErrorCode(err);
       if (!googleModuleLoaded) {
         Alert.alert(t.error, t.signInLibError);
       } else if (code !== signInCancelledCode) {
-        Alert.alert(t.error, code === playServicesUnavailableCode ? t.signInNoPlayServices : t.signInFailed);
+        const message = code === playServicesUnavailableCode
+          ? t.signInNoPlayServices
+          : process.env.EXPO_PUBLIC_GOOGLE_AUTH_DIAGNOSTICS === '1' && code
+            ? `${t.signInFailed} (${code})`
+            : t.signInFailed;
+        Alert.alert(t.error, message);
       }
     } finally {
       setLoading(false);

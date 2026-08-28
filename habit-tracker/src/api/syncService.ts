@@ -14,6 +14,7 @@ import { getAccountActivityStartDate } from '../lib/accountActivityBoundary';
 import {
   buildUserDataBackup,
   CLOUD_BACKUP_SCHEMA_VERSION,
+  filterCloudBackupPayload,
   isCloudBackupPayload,
   restoreLegacyActivityMirror,
   restoreUserDataBackup,
@@ -1614,6 +1615,7 @@ export async function restoreUserDataIfNeeded(
   const accountKey = normalizedAccountEmail(userEmail);
   const activityStartDate = getAccountActivityStartDate(userEmail);
   let result: UserDataRestoreResult = 'unavailable';
+  let keepBackupRestoreBlocked = false;
   let restoreTimedOut = false;
   const restoreAbortController = new AbortController();
   try {
@@ -1869,6 +1871,34 @@ export async function restoreUserDataIfNeeded(
                 activityStartDate,
               );
               if (!restored) {
+                // A populated local account must not be overwritten, but its
+                // snapshot may still be byte-for-byte identical to a newer
+                // cloud revision written by another session. Reconcile that
+                // harmless revision advance before normal sync attempts a CAS
+                // write with a stale marker.
+                const localPayload = await buildUserDataBackup(
+                  db,
+                  userId,
+                  assertRestoreActive,
+                  activityStartDate,
+                );
+                const comparableCloudPayload = filterCloudBackupPayload(
+                  envelope.payload,
+                  activityStartDate,
+                );
+                if (stableJson(localPayload) === stableJson(comparableCloudPayload)) {
+                  assertRestoreActive();
+                  await writeBackupRevision(accountKey, envelope.revision);
+                  assertRestoreActive();
+                } else {
+                  // Neither snapshot is safe to choose automatically. Keep
+                  // the local account usable, but prevent its next mutation
+                  // from sending the stale revision and raising another CAS
+                  // conflict until an explicit recovery retry reconciles it.
+                  assertRestoreActive();
+                  keepBackupRestoreBlocked = true;
+                  await markBackupRestoreBlocked(accountKey);
+                }
                 result = 'not_needed';
                 return;
               }
@@ -1890,7 +1920,7 @@ export async function restoreUserDataIfNeeded(
         }, sessionActive);
         // Clear only after the complete restore, while the account gate is
         // still held. Queued uploads can proceed only after this point.
-        await clearBackupRestoreBlocked(accountKey);
+        if (!keepBackupRestoreBlocked) await clearBackupRestoreBlocked(accountKey);
       } catch (error) {
         const cancelled = isSessionRestoreCancellation(error) || error instanceof AccountSyncInvalidatedError;
         // Every incomplete restore must remain fail-closed. This also covers a

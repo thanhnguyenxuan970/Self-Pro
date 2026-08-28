@@ -17,6 +17,13 @@ export function isGoogleSignInCancelledResponse(response: GoogleSignInResponse |
   return response?.type === 'cancelled';
 }
 
+/** Return only a short, non-sensitive native error code for opt-in diagnostics. */
+export function getGoogleSignInErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' && /^[A-Za-z0-9_]{1,64}$/.test(code) ? code : null;
+}
+
 /** Convert the native Google response only when the remote-auth credential is present. */
 export function extractGoogleUser(response: GoogleSignInResponse): { googleUser: GoogleUser; idToken: string } | null {
   const user = response.data?.user;

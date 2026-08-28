@@ -1,4 +1,8 @@
-import { extractGoogleUser, isGoogleSignInCancelledResponse } from '../src/lib/googleAuth';
+import {
+  extractGoogleUser,
+  getGoogleSignInErrorCode,
+  isGoogleSignInCancelledResponse,
+} from '../src/lib/googleAuth';
 import { GOOGLE_PICTURE_PLACEHOLDER } from '../src/lib/googleUserStorage';
 
 describe('extractGoogleUser', () => {
@@ -64,5 +68,19 @@ describe('isGoogleSignInCancelledResponse', () => {
   it('recognizes a native cancellation response without surfacing a missing-info error', () => {
     expect(isGoogleSignInCancelledResponse({ type: 'cancelled', data: null })).toBe(true);
     expect(isGoogleSignInCancelledResponse({ type: 'success', data: null })).toBe(false);
+  });
+});
+
+describe('getGoogleSignInErrorCode', () => {
+  it('keeps only a short safe native error code', () => {
+    expect(getGoogleSignInErrorCode({ code: '10' })).toBe('10');
+    expect(getGoogleSignInErrorCode({ code: 'DEVELOPER_ERROR' })).toBe('DEVELOPER_ERROR');
+  });
+
+  it('does not expose arbitrary error messages or malformed codes', () => {
+    expect(getGoogleSignInErrorCode({ code: 'token=secret; email=user@example.com' })).toBeNull();
+    expect(getGoogleSignInErrorCode({ code: { message: 'secret' } })).toBeNull();
+    expect(getGoogleSignInErrorCode(new Error('secret'))).toBeNull();
+    expect(getGoogleSignInErrorCode(null)).toBeNull();
   });
 });

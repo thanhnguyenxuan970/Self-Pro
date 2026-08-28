@@ -44,6 +44,7 @@ Use `EXPO_METRO_MAX_WORKERS=1` for release bundling when Node 24 triggers Metro 
 - `parseGoogleUser` must validate email, name, and photo.
 - Keep Google Sign-In imports inside runtime `require(...)` calls. Static imports and async Metro chunks have caused native-module failures.
 - Android Google Sign-In reads its client configuration from `google-services.json`; do not add `androidClientId` to `GoogleSignin.configure()`.
+- Native Google error diagnostics are opt-in and may expose only a short validated error code; never surface arbitrary native error text.
 
 ## UI Rules
 
@@ -73,6 +74,7 @@ Use the `emulator` skill before any adb tap or swipe so coordinates are computed
 - Keep multi-step invariants inside one transaction.
 - Treat `google-services.json`, `.env*`, keystores, certificates, OAuth IDs, and API keys as sensitive.
 - Supabase auth is configured with `persistSession: false` and `autoRefreshToken: false`; do not re-enable startup refresh without addressing offline DNS behavior. Keep Google token exchange and protected RPCs behind the shared session lease, validate access-token expiry plus email/Google subject ownership, and release canceled native-auth work before starting another account operation.
+- A populated account may advance a stale backup CAS revision only when its cutoff-filtered local payload matches the cloud payload; divergent snapshots remain restore-blocked rather than overwriting either side.
 - `ALTER TABLE ADD COLUMN` migrations require try/catch because SQLite lacks `IF NOT EXISTS` for this operation.
 
 ## Crash Reporting
