@@ -155,9 +155,13 @@ WHERE lower(btrim(user_email)) = lower(btrim(auth.email()));
 -- * PGRST301 / HTTP 401: the cached Supabase JWT is invalid or expired. The
 --   app may re-authenticate once for read-only Friends RPCs; it is not a
 --   missing-RPC/schema-cache error.
--- * P0001 "Backup revision conflict": another writer advanced the snapshot.
---   Preserve both copies and require an explicit, validated reconciliation;
---   never force-overwrite the cloud snapshot or delete the local SQLite data.
+-- * P0001 "Backup revision conflict": before migration 068, another writer
+--   advancing the snapshot surfaced as this expected database error. The
+--   current v2 function returns a non-error sentinel so the app can reconcile
+--   without a P0001; a remaining P0001 usually indicates an older deployed
+--   function/client or the legacy void wrapper. Preserve both copies and
+--   require explicit, validated reconciliation; never force-overwrite cloud
+--   data or delete local SQLite data.
 -- * 28P01 (cli_login_postgres): refresh/re-authenticate the Supabase
 --   CLI/database credential; no app SQL can repair a rejected password.
 -- * 08006 (connection reset by peer): retry from a healthy connection and

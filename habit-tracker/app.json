@@ -17,7 +17,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "versionCode": 75,
+      "versionCode": 76,
       "predictiveBackGestureEnabled": true,
       "allowBackup": false,
       "blockedPermissions": [

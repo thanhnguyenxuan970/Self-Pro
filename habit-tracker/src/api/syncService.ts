@@ -29,6 +29,11 @@ const KEY_BACKUP_REVISION = 'habit_sync_backup_revision';
 const KEY_BACKUP_RESTORE_BLOCKED = 'habit_sync_backup_restore_blocked';
 const KEY_BACKUP_RESTORE_RETRYABLE = 'habit_sync_backup_restore_retryable';
 const KEY_LEGACY_RESTORE_PENDING = 'habit_sync_legacy_restore_pending';
+// The latest backup RPC returns this non-error result for an expected CAS
+// mismatch so Supabase does not record normal multi-device contention as a
+// P0001 database failure. Older clients pass it to writeBackupRevision and
+// fail closed; current clients route it through the recovery probe below.
+const BACKUP_CAS_CONFLICT_SENTINEL = -1;
 const BATCH = 100;
 
 type AssertSyncActive = () => void;
@@ -2062,7 +2067,11 @@ async function syncUserDataBackup(
     p_payload: payload,
     p_expected_revision: expectedRevision,
   });
-  if (error) {
+  const isCasConflict = error != null
+    || data === BACKUP_CAS_CONFLICT_SENTINEL
+    || data === String(BACKUP_CAS_CONFLICT_SENTINEL);
+  if (isCasConflict) {
+    const conflictError = error ?? new Error('Backup revision conflict');
     // A CAS conflict is recoverable when the remote snapshot is identical or
     // this device is still genuinely fresh. Otherwise keep the account blocked
     // rather than silently choosing either device's divergent history.
@@ -2113,7 +2122,7 @@ async function syncUserDataBackup(
       if (recoveryError instanceof AccountSyncInvalidatedError) throw recoveryError;
     }
     await markBackupRestoreBlocked(accountKey);
-    throw error;
+    throw conflictError;
   }
   try {
     assertActive();

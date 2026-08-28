@@ -2667,6 +2667,61 @@ describe('syncToSupabase', () => {
     expect(mockFrom).not.toHaveBeenCalled();
   });
 
+  it('reconciles a non-throwing CAS conflict result before any legacy writes', async () => {
+    const email = 'sentinel-conflict@example.com';
+    const revisionKey = `habit_sync_backup_revision:${email}`;
+    const blockedKey = `habit_sync_backup_restore_blocked:${email}`;
+    const localActivity = [makeSyncActivityRow(1, '2026-08-20', '2026-08-17')];
+    const cloudPayload = makeSyncBackupPayload([
+      makeSyncActivityRow(1, '2026-08-20', '2026-08-17', 2),
+    ]);
+    let restoreBlocked = false;
+    let revision = '45';
+
+    mockGetSession.mockResolvedValue({ data: { session: freshSession(email) }, error: null });
+    mockStorageGetItem.mockImplementation(async (key: string) => {
+      if (key === revisionKey) return revision;
+      if (key === blockedKey) return restoreBlocked ? '1' : null;
+      return null;
+    });
+    mockStorageSetItem.mockImplementation(async (key: string, value: string) => {
+      if (key === revisionKey) revision = value;
+      if (key === blockedKey) restoreBlocked = value === '1';
+    });
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'save_my_data_backup_v2') return { data: -1, error: null };
+      if (name === 'restore_my_data_backup_v2') {
+        return { data: { payload: cloudPayload, revision: 51 }, error: null };
+      }
+      if (name === 'sync_lifetime_stars') return { data: 0, error: null };
+      return { data: null, error: null };
+    });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('SELECT id FROM users WHERE google_sub')) return { id: 1 };
+        if (sql.includes('COUNT(*)') && sql.includes('activity_log')) return { count: 1 };
+        if (sql.includes('COUNT(*)')) return { count: 0 };
+        if (sql.includes('SELECT lifetime_stars')) return { lifetime_stars: 0 };
+        if (sql.includes('daily_summary')) return { current_streak: 0 };
+        if (sql.includes('MAX(local_date)')) return { last_active_local_date: null };
+        return null;
+      }),
+      getAllAsync: jest.fn(async (sql: string) => (
+        sql.includes('FROM activity_log') && !sql.includes('id > ?') ? localActivity : []
+      )),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(syncToSupabase('google-sub', email)).rejects.toThrow('Backup revision conflict');
+
+    expect(mockRpc).toHaveBeenCalledWith('restore_my_data_backup_v2');
+    expect(restoreBlocked).toBe(true);
+    expect(mockStorageSetItem).toHaveBeenCalledWith(blockedKey, '1');
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
   it('reconciles CAS with the cutoff-filtered cloud snapshot', async () => {
     const email = THANGUYENXUAN_EMAIL;
     const revisionKey = `habit_sync_backup_revision:${email}`;

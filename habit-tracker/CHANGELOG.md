@@ -8,6 +8,12 @@
 - Supabase diagnostics now use the live `public.users.user_email` column and document the expected anonymous-RLS, backup-CAS, and CLI-credential boundaries without changing user data.
 - The Sky accent now uses a calmer cobalt blue across light and dark themes, with runtime contrast checks and emulator screenshots covering the selected accent and Analytics state.
 
+## 2.0.3.i - 2026-08-28
+
+- Expected backup revision contention now returns a non-error CAS sentinel to avoid normal multi-device conflicts becoming Supabase `P0001` log failures; divergent payloads remain blocked and the legacy backup wrapper preserves its fail-closed conflict behavior.
+- Android native release metadata is 2.0.3.i (versionCode 76); the shared Expo/iOS version remains 2.0.3.
+- Validation: TypeScript, 81 Jest suites/763 tests/1 snapshot, 10 repeated CAS/recovery stress runs (110 targeted test passes), linked Supabase lint with pre-existing warnings only, migration dry-run, and signed release AAB verification passed. Authenticated Supabase E2E and live migration deployment remain pending dedicated authorization/test-account validation. AAB SHA-256: E7E971BA51F4E95E2547CA9431B98AC814C47FB9FDECD5F376FF359673F6DFF7.
+
 ## 2.0.3.h - 2026-08-27
 
 - Fixed linked Challenge habits using the instant preset flow so logging the habit also appends the expected `activity_log` row and completes the day's Challenge progress; timed presets continue through the duration flow.
