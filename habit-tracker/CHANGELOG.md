@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Interactive Google sign-in now skips full backup reconciliation for unblocked populated local accounts, retries durable restore blocks without publishing an unsafe account, and uses cutoff-aware, indexed bounded local presence probes; explicit account-recovery Retry remains the fail-closed reconciliation path. CAS recovery compares the same account-cutoff-filtered view on both local and cloud snapshots while preserving retained pre-boundary audit rows.
 - Friends read RPCs now retry once after Supabase rejects an expired/invalid JWT, while mutations remain single-attempt to avoid duplicate writes; `PGRST301` is no longer mislabeled as a missing backend.
 - Supabase diagnostics now use the live `public.users.user_email` column and document the expected anonymous-RLS, backup-CAS, and CLI-credential boundaries without changing user data.
 - The Sky accent now uses a calmer cobalt blue across light and dark themes, with runtime contrast checks and emulator screenshots covering the selected accent and Analytics state.

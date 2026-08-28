@@ -47,7 +47,14 @@ export function filterCloudBackupPayload(
   return {
     ...payload,
     user: payload.user
-      ? { ...payload.user, lifetime_stars: sumPositiveStarsFromRows(activityLog) }
+      ? {
+          ...payload.user,
+          lifetime_stars: sumPositiveStarsFromRows(activityLog),
+          // The stored tier is a high-water value from the unfiltered history.
+          // Restore recalculates it from the filtered lifetime total, and a
+          // null value keeps local/cloud CAS views comparable before that.
+          current_tier_id: null,
+        }
       : null,
     activity_log: activityLog,
     daily_summary: filterRowsByActivityStartDate(payload.daily_summary, activityStartDate),
@@ -653,26 +660,31 @@ export async function restoreUserDataBackup(
 
     await assertNoCrossAccountIdConflicts(db, userId, payload, assertActive);
 
-    for (const sql of [
-      'DELETE FROM challenge_days WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)',
-      'DELETE FROM challenge_log WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)',
-      'DELETE FROM challenges WHERE user_id = ?',
-      'DELETE FROM treat_history WHERE user_id = ?',
-      'DELETE FROM achievements WHERE user_id = ?',
-      'DELETE FROM activity_log WHERE user_id = ?',
-      'DELETE FROM daily_summary WHERE user_id = ?',
-      'DELETE FROM weekly_summary WHERE user_id = ?',
-      'DELETE FROM reward_unlocks WHERE user_id = ?',
-      'DELETE FROM streak_freezes WHERE user_id = ?',
-      'DELETE FROM treats WHERE user_id = ?',
-      'DELETE FROM fund_transactions WHERE user_id = ?',
-      'DELETE FROM milestone_stars WHERE user_id = ?',
-      'DELETE FROM boost_events WHERE user_id = ?',
-      'DELETE FROM task_types WHERE user_id = ?',
-      'DELETE FROM categories WHERE user_id = ?',
-    ]) {
+    const dateScopedDelete = (table: 'activity_log' | 'daily_summary' | 'weekly_summary', column: 'local_date' | 'week_start') => ({
+      sql: `DELETE FROM ${table} WHERE user_id = ?${activityStartDate === null ? '' : ` AND ${column} >= ?`}`,
+      params: activityStartDate === null ? [userId] : [userId, activityStartDate],
+    });
+    const deleteStatements = [
+      { sql: 'DELETE FROM challenge_days WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)', params: [userId] },
+      { sql: 'DELETE FROM challenge_log WHERE challenge_id IN (SELECT id FROM challenges WHERE user_id = ?)', params: [userId] },
+      { sql: 'DELETE FROM challenges WHERE user_id = ?', params: [userId] },
+      { sql: 'DELETE FROM treat_history WHERE user_id = ?', params: [userId] },
+      { sql: 'DELETE FROM achievements WHERE user_id = ?', params: [userId] },
+      dateScopedDelete('activity_log', 'local_date'),
+      dateScopedDelete('daily_summary', 'local_date'),
+      dateScopedDelete('weekly_summary', 'week_start'),
+      { sql: 'DELETE FROM reward_unlocks WHERE user_id = ?', params: [userId] },
+      { sql: 'DELETE FROM streak_freezes WHERE user_id = ?', params: [userId] },
+      { sql: 'DELETE FROM treats WHERE user_id = ?', params: [userId] },
+      { sql: 'DELETE FROM fund_transactions WHERE user_id = ?', params: [userId] },
+      { sql: 'DELETE FROM milestone_stars WHERE user_id = ?', params: [userId] },
+      { sql: 'DELETE FROM boost_events WHERE user_id = ?', params: [userId] },
+      { sql: 'DELETE FROM task_types WHERE user_id = ?', params: [userId] },
+      { sql: 'DELETE FROM categories WHERE user_id = ?', params: [userId] },
+    ];
+    for (const { sql, params } of deleteStatements) {
       assertActive();
-      await db.runAsync(sql, [userId]);
+      await db.runAsync(sql, params);
     }
 
     if (payload.user) {

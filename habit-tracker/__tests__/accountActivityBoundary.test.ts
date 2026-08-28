@@ -62,6 +62,7 @@ test('filters old activity-derived backup rows and reanchors the backed-up stars
   expect(filtered.daily_summary).toEqual([{ id: 2, local_date: '2026-07-06', total_points: 10 }]);
   expect(filtered.weekly_summary).toEqual([{ id: 2, week_start: '2026-07-06', weekly_stars: 7 }]);
   expect(filtered.user?.lifetime_stars).toBe(7);
+  expect(filtered.user?.current_tier_id).toBeNull();
   expect(payload.activity_log).toHaveLength(2);
 });
 
@@ -115,4 +116,51 @@ test('does not overwrite a populated local account during a divergent restore', 
     [1],
   );
   expect(runAsync).not.toHaveBeenCalled();
+});
+
+test('preserves pre-boundary audit rows during a filtered snapshot restore', async () => {
+  const runAsync = jest.fn();
+  type RestoreTestDb = {
+    getFirstAsync: jest.Mock;
+    getAllAsync: jest.Mock;
+    runAsync: jest.Mock;
+    withTransactionAsync: (task: () => Promise<void>) => Promise<void>;
+    withExclusiveTransactionAsync: (task: (transactionDb: RestoreTestDb) => Promise<void>) => Promise<void>;
+  };
+  const db: RestoreTestDb = {
+    getFirstAsync: jest.fn().mockResolvedValue(null),
+    getAllAsync: jest.fn(async (sql: string) => (
+      sql.includes('FROM tiers') ? [{ id: 1, tier_order: 1, stars_required: 5 }] : []
+    )),
+    runAsync,
+    withTransactionAsync: async (task: () => Promise<void>) => task(),
+    withExclusiveTransactionAsync: async (task: (transactionDb: RestoreTestDb) => Promise<void>) => task(db),
+  };
+
+  await expect(restoreUserDataBackup(
+    db,
+    1,
+    emptyPayload(),
+    undefined,
+    () => undefined,
+    async () => true,
+    '2026-07-06',
+  )).resolves.toBe(true);
+
+  expect(runAsync).toHaveBeenCalledWith(
+    'DELETE FROM activity_log WHERE user_id = ? AND local_date >= ?',
+    [1, '2026-07-06'],
+  );
+  expect(runAsync).toHaveBeenCalledWith(
+    'DELETE FROM daily_summary WHERE user_id = ? AND local_date >= ?',
+    [1, '2026-07-06'],
+  );
+  expect(runAsync).toHaveBeenCalledWith(
+    'DELETE FROM weekly_summary WHERE user_id = ? AND week_start >= ?',
+    [1, '2026-07-06'],
+  );
+  expect(runAsync).not.toHaveBeenCalledWith(
+    'DELETE FROM activity_log WHERE user_id = ?',
+    [1],
+  );
 });

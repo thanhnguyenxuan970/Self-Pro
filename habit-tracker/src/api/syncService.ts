@@ -1436,14 +1436,44 @@ export async function withSupabaseSession<T>(
 type UserDataRestoreResult = 'restored' | 'empty' | 'not_needed' | 'unavailable';
 const LEGACY_ACTIVITY_PAGE_SIZE = 500;
 const MAX_LEGACY_ACTIVITY_ROWS = 100_000;
+type LocalPresenceParam = string | number | null;
 
 async function countLocalRows(
   db: Pick<SQLiteDatabase, 'getFirstAsync'>,
   sql: string,
   userId: number,
+  additionalParams: readonly LocalPresenceParam[] = [],
 ): Promise<number> {
-  const row = await db.getFirstAsync<{ count: number }>(sql, [userId]);
+  // Presence checks must not count an entire large table just to decide
+  // whether a restore may proceed. The source queries are constants in this
+  // module, so wrapping each one in a one-row subquery preserves its bind
+  // parameters while bounding the SQLite work to the first matching row.
+  const boundedSql = sql.replace(
+    /^SELECT COUNT\(\*\) AS count FROM ([\s\S]+)$/i,
+    'SELECT COUNT(*) AS count FROM (SELECT 1 FROM $1 LIMIT 1) AS bounded_rows',
+  );
+  const row = await db.getFirstAsync<{ count: number }>(boundedSql, [userId, ...additionalParams]);
   return Math.max(0, Number(row?.count) || 0);
+}
+
+function countLocalRowsSince(
+  db: Pick<SQLiteDatabase, 'getFirstAsync'>,
+  table: 'activity_log' | 'daily_summary' | 'weekly_summary',
+  dateColumn: 'local_date' | 'week_start',
+  userId: number,
+  activityStartDate: string | null,
+): Promise<number> {
+  const dateFilter = activityStartDate === null ? '' : ` AND ${dateColumn} >= ?`;
+  // Auth-trigger LOGIN rows are retained as audit telemetry, not user
+  // progress. They must not make an otherwise fresh local account skip cloud
+  // hydration or make the legacy restore safety check reject it.
+  const telemetryFilter = table === 'activity_log' ? " AND source <> 'LOGIN'" : '';
+  return countLocalRows(
+    db,
+    `SELECT COUNT(*) AS count FROM ${table} WHERE user_id = ?${dateFilter}${telemetryFilter}`,
+    userId,
+    activityStartDate === null ? [] : [activityStartDate],
+  );
 }
 
 /**
@@ -1455,6 +1485,7 @@ async function countLocalRows(
 async function isLocalAccountFresh(
   db: Pick<SQLiteDatabase, 'getFirstAsync'>,
   userId: number,
+  activityStartDate: string | null = null,
 ): Promise<boolean> {
   const [
     activity,
@@ -1475,10 +1506,10 @@ async function isLocalAccountFresh(
     boostEvents,
     user,
   ] = await Promise.all([
-    countLocalRows(db, 'SELECT COUNT(*) AS count FROM activity_log WHERE user_id = ?', userId),
+    countLocalRowsSince(db, 'activity_log', 'local_date', userId, activityStartDate),
     countLocalRows(db, 'SELECT COUNT(*) AS count FROM challenges WHERE user_id = ?', userId),
-    countLocalRows(db, 'SELECT COUNT(*) AS count FROM daily_summary WHERE user_id = ?', userId),
-    countLocalRows(db, 'SELECT COUNT(*) AS count FROM weekly_summary WHERE user_id = ?', userId),
+    countLocalRowsSince(db, 'daily_summary', 'local_date', userId, activityStartDate),
+    countLocalRowsSince(db, 'weekly_summary', 'week_start', userId, activityStartDate),
     countLocalRows(db, 'SELECT COUNT(*) AS count FROM task_types WHERE user_id = ? AND COALESCE(is_template, 0) = 0', userId),
     countLocalRows(db, `SELECT COUNT(*) AS count FROM categories
                         WHERE user_id = ? AND name NOT IN ('Health', 'Mind', 'Work', 'Social', 'Other')`, userId),
@@ -1519,6 +1550,15 @@ async function isLocalAccountFresh(
     ),
   ]);
 
+  // The boundary account can retain a pre-boundary lifetime total and tier in
+  // its local users row. Those scalar rank fields are replaced from the
+  // cutoff-filtered snapshot; only included activity/rollups decide whether
+  // the local account is populated for this restore.
+  const rankStateIsFromExcludedActivity = activityStartDate !== null
+    && activity === 0
+    && daily === 0
+    && weekly === 0;
+
   return activity === 0
     && challenges === 0
     && daily === 0
@@ -1539,9 +1579,9 @@ async function isLocalAccountFresh(
     && (!user || user.timezone === 'Asia/Ho_Chi_Minh')
     && (!user || Number(user.carry_debt) === 0)
     && (!user || user.currency === 'VND')
-    && (!user || user.last_seen_week_start == null)
-    && (!user || Math.max(0, Number(user.lifetime_stars) || 0) === 0)
-    && (!user || user.current_tier_id == null)
+    && (rankStateIsFromExcludedActivity || !user || user.last_seen_week_start == null)
+    && (rankStateIsFromExcludedActivity || !user || Math.max(0, Number(user.lifetime_stars) || 0) === 0)
+    && (rankStateIsFromExcludedActivity || !user || user.current_tier_id == null)
     && (!user || Math.max(0, Number(user.treat_stars) || 0) === 0)
     && (!user || Math.max(0, Number(user.treat_stars_lifetime) || 0) === 0)
     && (!user || Number(user.value_per_star) === 1000)
@@ -1554,12 +1594,13 @@ async function isLocalAccountFresh(
 async function hasLocalAccountData(
   db: Pick<SQLiteDatabase, 'getFirstAsync'>,
   userId: number,
+  activityStartDate: string | null = null,
 ): Promise<boolean> {
   const counts = await Promise.all([
-    countLocalRows(db, 'SELECT COUNT(*) AS count FROM activity_log WHERE user_id = ?', userId),
+    countLocalRowsSince(db, 'activity_log', 'local_date', userId, activityStartDate),
     countLocalRows(db, 'SELECT COUNT(*) AS count FROM challenges WHERE user_id = ?', userId),
-    countLocalRows(db, 'SELECT COUNT(*) AS count FROM daily_summary WHERE user_id = ?', userId),
-    countLocalRows(db, 'SELECT COUNT(*) AS count FROM weekly_summary WHERE user_id = ?', userId),
+    countLocalRowsSince(db, 'daily_summary', 'local_date', userId, activityStartDate),
+    countLocalRowsSince(db, 'weekly_summary', 'week_start', userId, activityStartDate),
     countLocalRows(db, 'SELECT COUNT(*) AS count FROM task_types WHERE user_id = ? AND COALESCE(is_template, 0) = 0', userId),
     countLocalRows(db, `SELECT COUNT(*) AS count FROM categories
                         WHERE user_id = ? AND name NOT IN ('Health', 'Mind', 'Work', 'Social', 'Other')`, userId),
@@ -1585,8 +1626,9 @@ async function hasLocalAccountData(
 async function isLegacyActivityRestoreSafe(
   db: Pick<SQLiteDatabase, 'getFirstAsync'>,
   userId: number,
+  activityStartDate: string | null = null,
 ): Promise<boolean> {
-  return !await hasLocalAccountData(db, userId);
+  return !await hasLocalAccountData(db, userId, activityStartDate);
 }
 
 /**
@@ -1602,6 +1644,7 @@ export async function restoreUserDataIfNeeded(
   isActive: SessionActivityGuard = alwaysActive,
   allowBlockedRetry = false,
   onRestoreSettled?: () => void,
+  retryBlockedAccountOnly = false,
 ): Promise<UserDataRestoreResult> {
   if (isQaSandboxActive() || !supabase) {
     onRestoreSettled?.();
@@ -1706,8 +1749,8 @@ export async function restoreUserDataIfNeeded(
           legacyRows,
           assertRestoreActive,
           transactionDb => allowRankOnlyLocalState
-            ? isLegacyActivityRestoreSafe(transactionDb, userId)
-            : isLocalAccountFresh(transactionDb, userId),
+            ? isLegacyActivityRestoreSafe(transactionDb, userId, activityStartDate)
+            : isLocalAccountFresh(transactionDb, userId, activityStartDate),
           allowRankOnlyLocalState,
           async (transactionDb, restoredMaxId) => {
             await setLifetimeStarsInTransaction(
@@ -1786,7 +1829,7 @@ export async function restoreUserDataIfNeeded(
         await AsyncStorage.setItem(pendingLegacyRestoreKey, 'in_progress');
         const restoredRows = await restoreLegacyActivityFromSupabase(db, true, preservedTierId);
         if (restoredRows === 'not_needed') {
-          if (await hasLocalAccountData(db, userId)) {
+          if (await hasLocalAccountData(db, userId, activityStartDate)) {
             throw new Error('Legacy activity restore found incomplete local progress');
           }
           await assertEmptyRestoreIsSafe();
@@ -1818,7 +1861,14 @@ export async function restoreUserDataIfNeeded(
         // with the recovery screen. Fresh/seeded SQLite and rank-only state
         // still take the restore path, and an explicit Retry always bypasses
         // this shortcut.
-        if (!allowBlockedRetry && await hasLocalAccountData(db, userId)) {
+        const localAccountHasData = await hasLocalAccountData(db, userId, activityStartDate);
+        assertRestoreActive();
+        const retryingBlockedAccount = retryBlockedAccountOnly
+          && allowBlockedRetry
+          && await isBackupRestoreBlocked(accountKey);
+        assertRestoreActive();
+        if (localAccountHasData && !retryingBlockedAccount && (!allowBlockedRetry || retryBlockedAccountOnly)) {
+          assertRestoreActive();
           result = 'not_needed';
           return;
         }
@@ -1826,7 +1876,9 @@ export async function restoreUserDataIfNeeded(
         // overwrite the cloud account. Existing local data is safe to show
         // offline; the marker remains in place so normal sync still stays
         // fail-closed until an explicit recovery retry succeeds.
-        if (!allowBlockedRetry && await isBackupRestoreBlocked(accountKey)) {
+        const restoreIsBlocked = !allowBlockedRetry && await isBackupRestoreBlocked(accountKey);
+        assertRestoreActive();
+        if (restoreIsBlocked) {
           result = 'unavailable';
           return;
         }
@@ -1867,7 +1919,7 @@ export async function restoreUserDataIfNeeded(
                 envelope.payload,
                 expectedGoogleSub,
                 assertRestoreActive,
-                transactionDb => isLocalAccountFresh(transactionDb, userId),
+                transactionDb => isLocalAccountFresh(transactionDb, userId, activityStartDate),
                 activityStartDate,
               );
               if (!restored) {
@@ -1892,14 +1944,13 @@ export async function restoreUserDataIfNeeded(
                   assertRestoreActive();
                 } else {
                   // Neither snapshot is safe to choose automatically. Keep
-                  // the local account usable, but prevent its next mutation
-                  // from sending the stale revision and raising another CAS
-                  // conflict until an explicit recovery retry reconciles it.
+                  // the local data intact, but keep the account behind the
+                  // recovery screen until an explicit retry reconciles it.
                   assertRestoreActive();
                   keepBackupRestoreBlocked = true;
                   await markBackupRestoreBlocked(accountKey);
                 }
-                result = 'not_needed';
+                result = keepBackupRestoreBlocked ? 'unavailable' : 'not_needed';
                 return;
               }
               result = 'restored';
@@ -1979,7 +2030,14 @@ async function syncUserDataBackup(
               || isPartialInconsistentCloudBackup(remoteEnvelope.payload)) {
             throw new Error('CAS recovery received a partial cloud backup');
           }
-          if (stableJson(payload) === stableJson(remoteEnvelope.payload)) {
+          // The local snapshot already applies the account activity cutoff;
+          // compare against the same filtered cloud view so retained audit
+          // rows from an older backup cannot create a false CAS divergence.
+          const comparableRemotePayload = filterCloudBackupPayload(
+            remoteEnvelope.payload,
+            activityStartDate,
+          );
+          if (stableJson(payload) === stableJson(comparableRemotePayload)) {
             assertActive();
             await writeBackupRevision(accountKey, remoteEnvelope.revision);
             assertActive();
@@ -1991,7 +2049,7 @@ async function syncUserDataBackup(
             remoteEnvelope.payload,
             undefined,
             assertActive,
-            transactionDb => isLocalAccountFresh(transactionDb, userId),
+            transactionDb => isLocalAccountFresh(transactionDb, userId, activityStartDate),
             activityStartDate,
           );
           if (restored) {

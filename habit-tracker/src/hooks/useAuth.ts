@@ -538,7 +538,20 @@ export function useAuth() {
     if (!isQaSandboxIdentity(user)) {
       if (!remoteSyncService) throw new Error('Google sign-in session unavailable');
       const syncService = remoteSyncService as typeof import('../api/syncService');
-      const restoreResult = await syncService.restoreUserDataIfNeeded(result.id, user.email, user.sub, () => remoteAuthActive, true);
+      // Interactive sign-in must stay bounded for an already-populated local
+      // account. A durable restore block is the exception: retry it here so a
+      // fresh/seeded account never gets stranded outside App.tsx's Retry UI.
+      // The final flag keeps ordinary populated sign-ins on the fast path;
+      // App.tsx's explicit recovery Retry still opts into full reconciliation.
+      const restoreResult = await syncService.restoreUserDataIfNeeded(
+        result.id,
+        user.email,
+        user.sub,
+        () => remoteAuthActive,
+        true,
+        undefined,
+        true,
+      );
       if (restoreResult === 'unavailable') {
         throw new Error('Cloud data restore is unavailable; sign-in remains blocked for safety');
       }

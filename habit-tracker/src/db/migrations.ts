@@ -801,7 +801,18 @@ async function v28(db: SQLiteDatabase): Promise<void> {
   }
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28];
+// v28 -> v29: restore fast-path presence checks must remain indexed even on
+// older databases with large audit/history tables. The other probed tables
+// already have a user-leading unique or lookup index from earlier migrations.
+async function v29(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    CREATE INDEX IF NOT EXISTS idx_categories_user_name ON categories(user_id, name);
+    CREATE INDEX IF NOT EXISTS idx_treat_history_user ON treat_history(user_id);
+    CREATE INDEX IF NOT EXISTS idx_milestone_stars_user ON milestone_stars(user_id);
+  `);
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

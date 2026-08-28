@@ -135,6 +135,35 @@ test('repairs the legacy challenge index when a prior migration already advanced
   );
 });
 
+test('adds indexes for bounded account-restore presence probes', async () => {
+  const db = {
+    getFirstAsync: jest.fn(async (sql: string) => {
+      if (sql === 'PRAGMA user_version') return { user_version: 28 };
+      if (sql.includes('COUNT(*) AS count')) return { count: 0 };
+      return null;
+    }),
+    getAllAsync: jest.fn(async (sql: string) => (
+      sql.startsWith('PRAGMA table_info(users)')
+        ? [{ name: 'id' }, { name: 'lifetime_stars' }, { name: 'current_tier_id' }]
+        : []
+    )),
+    runAsync: jest.fn().mockResolvedValue({}),
+    execAsync: jest.fn().mockResolvedValue(undefined),
+  };
+
+  await runMigrations(db as never);
+
+  expect(db.execAsync).toHaveBeenCalledWith(expect.stringContaining(
+    'CREATE INDEX IF NOT EXISTS idx_categories_user_name ON categories(user_id, name);',
+  ));
+  expect(db.execAsync).toHaveBeenCalledWith(expect.stringContaining(
+    'CREATE INDEX IF NOT EXISTS idx_treat_history_user ON treat_history(user_id);',
+  ));
+  expect(db.execAsync).toHaveBeenCalledWith(expect.stringContaining(
+    'CREATE INDEX IF NOT EXISTS idx_milestone_stars_user ON milestone_stars(user_id);',
+  ));
+});
+
 test('does not shift an active Challenge whose stored date is not the legacy creation date', async () => {
   const db = {
     getFirstAsync: jest.fn(async (sql: string) => {

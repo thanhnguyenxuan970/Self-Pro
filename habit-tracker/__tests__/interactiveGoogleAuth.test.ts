@@ -85,7 +85,7 @@ describe('interactive Google sign-in recovery', () => {
     mockRestoreUserDataIfNeeded.mockResolvedValue('empty');
   });
 
-  it('allows a fresh Google sign-in to retry a previously blocked cloud restore', async () => {
+  it('keeps ordinary interactive sign-in on the fast path while allowing blocked recovery', async () => {
     const auth = useAuth();
     const user = {
       sub: 'google-sub',
@@ -102,6 +102,26 @@ describe('interactive Google sign-in recovery', () => {
       user.sub,
       expect.any(Function),
       true,
+      undefined,
+      true,
     );
+  });
+
+  it('does not publish the Google identity when restore remains unavailable', async () => {
+    mockRestoreUserDataIfNeeded.mockResolvedValue('unavailable');
+    const auth = useAuth();
+    const user = {
+      sub: 'google-sub',
+      email: 'user@example.com',
+      name: 'Test User',
+      picture: 'https://example.com/photo.jpg',
+    };
+
+    await expect(auth.signInWithGoogle(user, 'google-id-token'))
+      .rejects.toThrow('Cloud data restore is unavailable');
+
+    expect(mockWriteGoogleUser).not.toHaveBeenCalled();
+    expect(mockSetState).not.toHaveBeenCalled();
+    expect(mockRestoreLifetimeStarsFromSupabase).not.toHaveBeenCalled();
   });
 });
