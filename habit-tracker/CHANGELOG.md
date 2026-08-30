@@ -2,12 +2,18 @@
 
 ## Unreleased
 
-- Timed-out offline account restores no longer strand the next Retry behind stale account/session queues; late restore work is fenced and the account remains fail-closed until the new retry completes.
+- Home, Rank, and the personal Friends summary star totals now use the Analytics Year KPI: positive TASK stars from the current calendar year, respecting the account activity boundary; the achieved rank tier and Friends race ladder remain lifetime-based.
 - Cold starts now re-probe an account-scoped blocked cloud restore after a transient offline failure, while uploads remain fail-closed and the manual Retry action keeps full reconciliation behavior.
 - Interactive Google sign-in now skips full backup reconciliation for unblocked populated local accounts, retries durable restore blocks without publishing an unsafe account, and uses cutoff-aware, indexed bounded local presence probes; explicit account-recovery Retry remains the fail-closed reconciliation path. CAS recovery compares the same account-cutoff-filtered view on both local and cloud snapshots while preserving retained pre-boundary audit rows.
 - Friends read RPCs now retry once after Supabase rejects an expired/invalid JWT, while mutations remain single-attempt to avoid duplicate writes; `PGRST301` is no longer mislabeled as a missing backend.
 - Supabase diagnostics now use the live `public.users.user_email` column and document the expected anonymous-RLS, backup-CAS, and CLI-credential boundaries without changing user data.
 - The Sky accent now uses a calmer cobalt blue across light and dark themes, with runtime contrast checks and emulator screenshots covering the selected accent and Analytics state.
+
+## 2.0.3.k - 2026-08-30
+
+- Fixed Google sign-in failing for accounts with enough stored data that the cloud backup restore exceeded its timeout: the restore's Supabase session lease and account-sync gate are now released on timeout instead of stranding the sign-in flow and every retry behind them.
+- Android native release metadata is 2.0.3.k (versionCode 78); the shared Expo/iOS version remains 2.0.3.
+- Validation: TypeScript, 82 Jest suites/769 tests/1 snapshot passed. Signed release AAB verification passed. AAB SHA-256: 7440385007CB17C282F79C5341283B1E6B4F5EE8456AD382336EFFCB3E4730B8.
 
 ## 2.0.3.i - 2026-08-28
 
