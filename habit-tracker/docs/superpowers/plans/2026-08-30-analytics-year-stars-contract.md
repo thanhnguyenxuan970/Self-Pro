@@ -40,7 +40,7 @@
 - [x] **Step 3: Add static migration assertions for the annual source filter, date bounds, account boundary, privacy, authenticated grants, and no lifetime ordering.**
 - [x] **Step 4: Run the focused tests and verify they fail for the missing annual RPC/model behavior.**
 
-Run from `C:\Users\Admin\Desktop\Self-Pro\habit-tracker`:
+Run from the application directory:
 
 ```powershell
 npx.cmd jest --runInBand __tests__/useLeaderboard.test.ts __tests__/rankDisplayConsistency.test.ts __tests__/friends.test.ts __tests__/analyticsYearLeaderboardMigration.test.ts __tests__/leaderboardCompatibility.test.ts
