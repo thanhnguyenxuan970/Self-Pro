@@ -85,14 +85,17 @@ export function runAccountSync(
   cancellationSignal?: AbortSignal,
 ): Promise<void> {
   const gate = getAccountSyncGate(accountKey);
+  const epoch = gate.epoch;
   if (gate.blocked) {
     return waitForGate
       ? waitForAccountGate(gate.resume, cancellationSignal)
-        .then(() => runAccountSync(accountKey, task, allowFailClosed, waitForGate, cancellationSignal))
+        .then(() => {
+          if (gate.epoch !== epoch) return;
+          return runAccountSync(accountKey, task, allowFailClosed, waitForGate, cancellationSignal);
+        })
       : Promise.resolve();
   }
   if (gate.failClosed && !allowFailClosed) return Promise.resolve();
-  const epoch = gate.epoch;
   const operation = gate.tail.then(async () => {
     if (gate.blocked || gate.epoch !== epoch) return;
     const assertActive: AssertSyncActive = () => {
@@ -650,10 +653,11 @@ let sessionOperationTail: Promise<void> = Promise.resolve();
 
 async function withSessionOperation<T>(
   operation: () => Promise<T>,
-  onReleaseAvailable?: (release: () => void) => void,
+  onReleaseAvailable?: (release: () => void, cancel: () => void) => void,
 ): Promise<T> {
   let acquired = false;
   let released = false;
+  let cancelled = false;
   const release = () => {
     // A queued operation cannot release its tail yet: doing so would let a
     // later caller swap Supabase's process-global session while the previous
@@ -662,13 +666,19 @@ async function withSessionOperation<T>(
     released = true;
     releaseTail();
   };
+  const cancel = () => {
+    if (cancelled) return;
+    cancelled = true;
+    if (acquired) release();
+  };
   let releaseTail!: () => void;
   const previous = sessionOperationTail;
   sessionOperationTail = new Promise<void>(resolve => { releaseTail = resolve; });
-  onReleaseAvailable?.(release);
+  onReleaseAvailable?.(release, cancel);
   await previous;
   acquired = true;
   try {
+    if (cancelled) throw new Error('Supabase session restore cancelled');
     return await operation();
   } finally {
     release();
@@ -729,6 +739,18 @@ export async function clearBackupRestoreBlocked(accountKey: string): Promise<voi
   await AsyncStorage.removeItem(backupRetryableKey(accountKey));
   await AsyncStorage.removeItem(backupBlockedKey(accountKey));
   getAccountSyncGate(accountKey).failClosed = false;
+}
+
+/**
+ * Abandon a timed-out, non-destructive restore without opening an upload
+ * window. The restore's active assertions fence any late SQLite work; future
+ * account operations start from a fresh queue tail instead of inheriting a
+ * request that the network stack failed to settle.
+ */
+function cancelAccountSync(accountKey: string): void {
+  const gate = getAccountSyncGate(accountKey);
+  gate.epoch += 1;
+  gate.tail = Promise.resolve();
 }
 
 async function isBackupRestoreBlocked(accountKey: string): Promise<boolean> {
@@ -1425,6 +1447,8 @@ export async function refreshSupabaseSessionForAccount(
 export type SupabaseSessionOptions = {
   /** Retry one read-style operation after Supabase rejects the cached JWT. */
   retryOnUnauthorized?: boolean;
+  /** Allow a timed-out restore to release its process-wide session lease. */
+  onCancelAvailable?: (cancel: () => void) => void;
 };
 
 export async function withSupabaseSession<T>(
@@ -1478,7 +1502,16 @@ export async function withSupabaseSession<T>(
       throw new Error('Supabase session changed during the protected operation');
     }
     return result;
-  }, release => { releaseSessionOperation = release; });
+  }, (release, cancel) => {
+    releaseSessionOperation = release;
+    options.onCancelAvailable?.(() => {
+      // A late GoTrue exchange can still mutate Supabase's process-wide
+      // session. Keep the lease until that exchange settles; a canceled
+      // restore will then fail its active assertion and release normally.
+      if (inFlightGoogleTokenSignIn?.isExecuting()) return;
+      cancel();
+    });
+  });
 }
 
 type UserDataRestoreResult = 'restored' | 'empty' | 'not_needed' | 'unavailable';
@@ -1708,7 +1741,36 @@ export async function restoreUserDataIfNeeded(
   let result: UserDataRestoreResult = 'unavailable';
   let keepBackupRestoreBlocked = false;
   let restoreTimedOut = false;
+  let restoreAttemptSuperseded = false;
+  let restoreDeadlineExceeded = false;
+  let cancelSessionOperation: (() => void) | undefined;
+  let restoreSettledNotified = false;
   const restoreAbortController = new AbortController();
+  const notifyRestoreSettled = () => {
+    if (restoreSettledNotified) return;
+    restoreSettledNotified = true;
+    onRestoreSettled?.();
+  };
+  const supersedeTimedOutRestore = async (): Promise<void> => {
+    if (restoreAttemptSuperseded) return;
+    restoreAttemptSuperseded = true;
+    restoreTimedOut = true;
+    restoreAbortController.abort();
+    // The stale operation will not be allowed to write this marker after the
+    // next Retry succeeds, so establish the durable fail-closed state here.
+    try {
+      await markBackupRestoreBlocked(accountKey, true);
+    } catch {
+      // markBackupRestoreBlocked already latches the in-process account gate
+      // fail-closed when storage itself is unavailable.
+    }
+    // Only detach the stale queue after the durable marker is in place. A
+    // background upload that starts during this handoff must still observe
+    // the block and remain a no-op.
+    cancelAccountSync(accountKey);
+    cancelSessionOperation?.();
+    notifyRestoreSettled();
+  };
   try {
     const restoreOperation = runAccountSync(userEmail, async (assertActive) => {
       const assertRestoreActive = () => {
@@ -2019,7 +2081,10 @@ export async function restoreUserDataIfNeeded(
           await writeBackupRevision(accountKey, envelope.revision);
           await AsyncStorage.removeItem(pendingLegacyRestoreKey);
           assertRestoreActive();
-        }, sessionActive, { retryOnUnauthorized: true });
+        }, sessionActive, {
+          retryOnUnauthorized: true,
+          onCancelAvailable: cancel => { cancelSessionOperation = cancel; },
+        });
         // Clear only after the complete restore, while the account gate is
         // still held. Queued uploads can proceed only after this point.
         if (!keepBackupRestoreBlocked) await clearBackupRestoreBlocked(accountKey);
@@ -2030,22 +2095,28 @@ export async function restoreUserDataIfNeeded(
         // marker check; re-mark before releasing the account gate.
         if (!cancelled) Sentry.captureException(error);
         const retryable = restoreTimedOut || (!cancelled && isTransientBackupRestoreError(error));
-        await markBackupRestoreBlocked(accountKey, retryable);
+        if (!restoreAttemptSuperseded) await markBackupRestoreBlocked(accountKey, retryable);
         throw error;
       }
     }, allowBlockedRetry, allowBlockedRetry, restoreAbortController.signal);
-    if (onRestoreSettled) {
-      void restoreOperation.then(onRestoreSettled, onRestoreSettled);
-    }
+    // Keep late timeout completions observed even when the caller did not
+    // supply a UI callback; otherwise a rejected stale restore can become an
+    // unhandled promise after this bounded function has already returned.
+    void restoreOperation.then(notifyRestoreSettled, notifyRestoreSettled);
     await withTimeout(restoreOperation, SESSION_RESTORE_TIMEOUT_MS, 'Cloud backup restore timed out');
   } catch (error) {
     result = 'unavailable';
+    if (error instanceof Error && error.message === 'Cloud backup restore timed out') {
+      restoreDeadlineExceeded = true;
+      await supersedeTimedOutRestore();
+    }
   } finally {
     // The SQLite write phase checks this guard after every awaited operation.
     // If the network call outlives the timeout, it can finish harmlessly but it
     // cannot enter the destructive restore transaction afterward.
     restoreTimedOut = true;
     restoreAbortController.abort();
+    if (restoreDeadlineExceeded) notifyRestoreSettled();
   }
   return result;
 }

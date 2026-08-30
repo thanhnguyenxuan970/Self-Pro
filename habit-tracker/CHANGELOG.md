@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Timed-out offline account restores no longer strand the next Retry behind stale account/session queues; late restore work is fenced and the account remains fail-closed until the new retry completes.
 - Cold starts now re-probe an account-scoped blocked cloud restore after a transient offline failure, while uploads remain fail-closed and the manual Retry action keeps full reconciliation behavior.
 - Interactive Google sign-in now skips full backup reconciliation for unblocked populated local accounts, retries durable restore blocks without publishing an unsafe account, and uses cutoff-aware, indexed bounded local presence probes; explicit account-recovery Retry remains the fail-closed reconciliation path. CAS recovery compares the same account-cutoff-filtered view on both local and cloud snapshots while preserving retained pre-boundary audit rows.
 - Friends read RPCs now retry once after Supabase rejects an expired/invalid JWT, while mutations remain single-attempt to avoid duplicate writes; `PGRST301` is no longer mislabeled as a missing backend.

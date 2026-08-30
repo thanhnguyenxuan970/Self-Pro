@@ -1160,6 +1160,93 @@ describe('restoreUserDataIfNeeded', () => {
     expect(mockRpc).toHaveBeenCalledWith('restore_my_data_backup_v2');
   });
 
+  it('does not strand a recovery retry behind a timed-out offline restore', async () => {
+    jest.useFakeTimers();
+    const blockedKey = 'habit_sync_backup_restore_blocked:user@example.com';
+    const retryableKey = 'habit_sync_backup_restore_retryable:user@example.com';
+    let restoreBlocked = false;
+    let restoreRetryable = false;
+    mockStorageGetItem.mockImplementation(async (key: string) => (
+      key === blockedKey ? (restoreBlocked ? '1' : null)
+        : key === retryableKey ? (restoreRetryable ? '1' : null)
+          : null
+    ));
+    mockStorageSetItem.mockImplementation(async (key: string, value: string) => {
+      if (key === blockedKey) restoreBlocked = value === '1';
+      if (key === retryableKey) restoreRetryable = value === '1';
+    });
+    mockStorageRemoveItem.mockImplementation(async (key: string) => {
+      if (key === blockedKey) restoreBlocked = false;
+      if (key === retryableKey) restoreRetryable = false;
+    });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    let releaseOfflineRestore!: (value: { data: unknown; error: unknown | null }) => void;
+    const offlineRestore = new Promise<{ data: unknown; error: unknown | null }>(resolve => {
+      releaseOfflineRestore = resolve;
+    });
+    let restoreCalls = 0;
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') {
+        restoreCalls += 1;
+        if (restoreCalls === 1) return offlineRestore;
+        return { data: { payload: null, revision: 2 }, error: null };
+      }
+      if (name === 'sync_lifetime_stars') return { data: 0, error: null };
+      return { data: null, error: null };
+    });
+
+    const settled = jest.fn();
+    const flushMicrotasks = async () => {
+      for (let index = 0; index < 64; index += 1) await Promise.resolve();
+    };
+
+    try {
+      const firstRestore = restoreUserDataIfNeeded(
+        1,
+        'user@example.com',
+        'google-sub',
+        undefined,
+        false,
+        settled,
+      );
+      await flushMicrotasks();
+      expect(restoreCalls).toBe(1);
+
+      jest.advanceTimersByTime(15_000);
+      await flushMicrotasks();
+      await expect(firstRestore).resolves.toBe('unavailable');
+      expect(settled).toHaveBeenCalledTimes(1);
+
+      const retry = restoreUserDataIfNeeded(
+        1,
+        'user@example.com',
+        'google-sub',
+        undefined,
+        true,
+        undefined,
+        true,
+      );
+      await flushMicrotasks();
+
+      expect(restoreCalls).toBe(2);
+      await expect(retry).resolves.toBe('empty');
+    } finally {
+      releaseOfflineRestore({ data: { payload: null, revision: 1 }, error: null });
+      await flushMicrotasks();
+      expect(restoreBlocked).toBe(false);
+      expect(restoreRetryable).toBe(false);
+      jest.useRealTimers();
+    }
+  });
+
   it('does not automatically probe a permanently blocked fresh account', async () => {
     const blockedKey = 'habit_sync_backup_restore_blocked:user@example.com';
     const retryableKey = 'habit_sync_backup_restore_retryable:user@example.com';
