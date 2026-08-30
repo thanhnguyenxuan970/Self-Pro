@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Badge } from './Badge';
 import { ACHIEVEMENTS, type Achievement } from '../config/achievements';
 import { TIER_COINS } from '../config/badgeTiers';
-import { computeAchievementStatus, type AchievementStats } from '../lib/achievements';
+import { achievementUnlockKey, computeAchievementStatus, type AchievementStats } from '../lib/achievements';
 import { useAllTimeStats } from '../queries/useProgress';
 import { useRankData } from '../queries/useRank';
 import { useAchievementActivityMetrics, useAchievementUnlocks, useChallengeDaysTotal, useWeeklyOverachieverCount } from '../queries/useAchievements';
@@ -59,7 +59,7 @@ export function BadgeUnlockCelebrationHost() {
 
   useEffect(() => {
     if (loading) return;
-    const earned = ACHIEVEMENTS.filter(item => computeAchievementStatus(item, stats).earned && !unlocks[item.id]);
+    const earned = ACHIEVEMENTS.filter(item => computeAchievementStatus(item, stats).earned && !unlocks[achievementUnlockKey(item.id)]);
     const announce = ready.current;
     ready.current = true;
     if (!earned.length) return;
@@ -68,7 +68,7 @@ export function BadgeUnlockCelebrationHost() {
       const result = await db.runAsync(
         `INSERT OR IGNORE INTO achievements (user_id, key, rarity, earned_at, source_type, source_id)
          VALUES (?, ?, 'common', date('now'), 'record', NULL)`,
-        [userId, item.id],
+        [userId, achievementUnlockKey(item.id)],
       );
       return result.changes > 0 ? item : null;
     })).then(created => {

@@ -4,7 +4,7 @@ import { getDb } from '../db/client';
 import { useGoogleUser } from '../hooks/authContext';
 import { getAccountActivityStartDate } from '../lib/accountActivityBoundary';
 import { dailyBonusStarsForPoints } from '../config/constants';
-import { getLocalDate, getWeekStart, getLocalDateOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
+import { getLocalDate, getMillisecondsUntilLocalMidnight, getWeekStart, getLocalDateOffset, getMonthOffset, getYearOffset } from '../utils/formatters';
 import { AnalyticsDashboard, AnalyticsRange, AnalyticsDaily, AnalyticsLog, analyticsDemo, buildAnalyticsDashboard } from '../analytics/dashboardModel';
 import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
@@ -12,6 +12,7 @@ import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { enqueuePendingActivityDeletes } from '../game/pendingActivityDeletes';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { syncCurrentUserToSupabase } from '../api/syncService';
+import { ANALYTICS_STAR_SOURCE, readAnalyticsYearStars } from '../analytics/yearStars';
 
 export type ActivityLogEntry = {
   id: number;
@@ -83,9 +84,9 @@ export function useAnalyticsDashboard(userId: number, range: AnalyticsRange) {
       const [daily, logs, activeDays] = await Promise.all([
         db.getAllAsync<AnalyticsDaily>(`SELECT local_date, total_points FROM daily_summary WHERE user_id = ? AND local_date >= ?`, [userId, queryStartDate]),
         db.getAllAsync<AnalyticsLog>(`
-          SELECT a.local_date, a.logged_at, a.points_earned, a.stars_delta, tt.name AS task_name
+          SELECT a.local_date, a.logged_at, a.points_earned, a.stars_delta, a.source, tt.name AS task_name
           FROM activity_log a LEFT JOIN task_types tt ON tt.id = a.task_type_id
-          WHERE a.user_id = ? AND a.source = 'TASK' AND a.local_date >= ?`, [userId, boundedLogsFromDate]),
+          WHERE a.user_id = ? AND a.source = ? AND a.local_date >= ?`, [userId, ANALYTICS_STAR_SOURCE, boundedLogsFromDate]),
         db.getAllAsync<{ local_date: string }>(`
           SELECT DISTINCT local_date FROM activity_log
           WHERE user_id = ? AND local_date >= ? AND source IN ('TASK', 'CHALLENGE')`, [userId, queryStartDate]),
@@ -355,20 +356,20 @@ export function useAllTimeStats(userId: number) {
   const googleUser = useGoogleUser();
   const activityStartDate = getAccountActivityStartDate(googleUser?.email);
   const queryStartDate = activityStartDate ?? '0000-01-01';
+  const analyticsToday = getLocalDate();
   return useQuery({
-    queryKey: ['progress', 'alltime', userId, activityStartDate],
+    // Keep the public hook name for caller compatibility, but make its star
+    // KPI roll over with Analytics Year instead of retaining a lifetime cache.
+    queryKey: ['progress', 'alltime', userId, activityStartDate, analyticsToday],
+    refetchInterval: () => getMillisecondsUntilLocalMidnight(),
     queryFn: async () => {
       const db = await getDb();
-      const [acts, stars, bestStreak, activeDays] = await Promise.all([
+      const [acts, yearStars, bestStreak, activeDays] = await Promise.all([
         db.getFirstAsync<{ total: number }>(
           `SELECT COUNT(*) AS total FROM activity_log WHERE user_id = ? AND local_date >= ? AND source = 'TASK'`,
           [userId, queryStartDate]
         ),
-        db.getFirstAsync<{ total: number }>(
-          `SELECT COALESCE(SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END), 0) AS total
-           FROM activity_log WHERE user_id = ? AND local_date >= ?`,
-          [userId, queryStartDate]
-        ),
+        readAnalyticsYearStars(db, userId, new Date(), activityStartDate),
         db.getFirstAsync<{ best: number }>(
           `SELECT COALESCE(MAX(streak_count), 0) AS best FROM daily_summary WHERE user_id = ? AND local_date >= ?`,
           [userId, queryStartDate]
@@ -380,7 +381,9 @@ export function useAllTimeStats(userId: number) {
       ]);
       return {
         totalActivities: acts?.total ?? 0,
-        totalStars: Math.floor(stars?.total ?? 0),
+        // `totalStars` is a legacy caller-facing name. Its contract is now
+        // exactly the Analytics Year TASK-star KPI used by Home and Rank.
+        totalStars: yearStars,
         bestStreak: bestStreak?.best ?? 0,
         activeDays: activeDays?.total ?? 0,
       };

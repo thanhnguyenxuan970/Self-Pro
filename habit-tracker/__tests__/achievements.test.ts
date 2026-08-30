@@ -1,5 +1,5 @@
 import { ACHIEVEMENTS, type Achievement } from '../src/config/achievements';
-import { computeAchievementStatus, type AchievementStats } from '../src/lib/achievements';
+import { achievementUnlockKey, computeAchievementStatus, type AchievementStats } from '../src/lib/achievements';
 
 const stats: AchievementStats = {
   totalActivities: 100,
@@ -41,4 +41,10 @@ describe('computeAchievementStatus', () => {
     const collector = ACHIEVEMENTS.find(a => a.id === 'collector')!;
     expect(computeAchievementStatus(collector, { ...stats, activityTypes: 4 })).toMatchObject({ earned: false, progress: 80 });
   });
+});
+
+test('scopes the annual Rizz unlock by calendar year while keeping other badges stable', () => {
+  expect(achievementUnlockKey('rizz', '2026-08-30')).toBe('rizz:2026');
+  expect(achievementUnlockKey('rizz', '2027-01-01')).toBe('rizz:2027');
+  expect(achievementUnlockKey('streak7', '2026-08-30')).toBe('streak7');
 });

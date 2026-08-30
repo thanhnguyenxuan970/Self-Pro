@@ -1,7 +1,9 @@
+import { sumAnalyticsStars, type AnalyticsStarRow } from './yearStars';
+
 export type AnalyticsRange = 'W' | 'M' | 'Y';
 
 export type AnalyticsDaily = { local_date: string; total_points: number };
-export type AnalyticsLog = { local_date: string; logged_at: number; points_earned: number; stars_delta: number; task_name: string | null };
+export type AnalyticsLog = AnalyticsStarRow & { logged_at: number; points_earned: number; task_name: string | null };
 export type AnalyticsBar = { label: string; current: number; previous: number };
 export type AnalyticsDashboard = {
   bars: AnalyticsBar[];
@@ -117,8 +119,8 @@ export function buildAnalyticsDashboard(
   const previousLogs = logs.filter(log => inWindow(log.local_date, previousStart, previousEnd));
   const points = sum(bars.map(bar => bar.current));
   const previousPoints = sum(bars.map(bar => bar.previous));
-  const stars = sum(currentLogs.map(log => Math.max(0, log.stars_delta)));
-  const previousStars = sum(previousLogs.map(log => Math.max(0, log.stars_delta)));
+  const stars = sumAnalyticsStars(currentLogs);
+  const previousStars = sumAnalyticsStars(previousLogs);
   // The volume/consistency contract is a day with at least one real activity,
   // not a day that happened to clear the 50-point reward threshold. Keep the
   // daily-summary fallback for older callers/tests; the SQLite query supplies

@@ -10,8 +10,9 @@ jest.mock('../src/api/syncService', () => ({
   withSupabaseSession: jest.fn(async (_email: string, _sub: string | undefined, operation: () => Promise<unknown>) => operation()),
 }));
 
-import { aggregateLifetimeStarsByPlayerId, buildRankedLeaderboard, capLeaderboardRows, hasRankGapBefore, initialsForName, mapRemoteLeaderboardRows, useLeaderboard } from '../src/queries/useLeaderboard';
+import { aggregateYearStarsByPlayerId, buildRankedLeaderboard, capLeaderboardRows, hasRankGapBefore, initialsForName, LeaderboardUnavailableError, mapRemoteLeaderboardRows, useLeaderboard } from '../src/queries/useLeaderboard';
 import { setQaSandboxNetworkBlocked } from '../src/qa/qaSandbox';
+import { getLocalDate } from '../src/utils/formatters';
 
 const mockSupabase = jest.requireMock('../src/api/supabase') as { supabase: { rpc: jest.Mock } };
 const mockSyncService = jest.requireMock('../src/api/syncService') as { withSupabaseSession: jest.Mock };
@@ -22,18 +23,18 @@ beforeEach(() => {
   mockSyncService.withSupabaseSession.mockImplementation(async (_email: string, _sub: string | undefined, operation: () => Promise<unknown>) => operation());
 });
 
-test('leaderboard reads each user lifetime_stars value without summing activity rows', () => {
-  const map = aggregateLifetimeStarsByPlayerId([
-    { player_id: 'player-a', lifetime_stars: 15 },
-    { player_id: 'player-b', lifetime_stars: 3 },
-    { player_id: 'player-zero', lifetime_stars: null },
+test('leaderboard reads each user year_stars value without summing activity rows', () => {
+  const map = aggregateYearStarsByPlayerId([
+    { player_id: 'player-a', year_stars: 15 },
+    { player_id: 'player-b', year_stars: 3 },
+    { player_id: 'player-zero', year_stars: null },
   ]);
   expect(map.get('player-a')).toBe(15);
   expect(map.get('player-b')).toBe(3);
   expect(map.get('player-zero')).toBe(0);
 });
 
-test('global sort is strictly by lifetime score descending — rank 1 is the highest score', () => {
+test('global sort is strictly by Analytics Year score descending — rank 1 is the highest score', () => {
   const map = new Map([
     ['player-low', 5],
     ['player-high', 100],
@@ -68,13 +69,13 @@ test('marks the current user and never fabricates a negative star count', () => 
   const result = buildRankedLeaderboard(map, 'player-me');
   const me = result.find(e => e.playerId === 'player-me')!;
   expect(me.isCurrentUser).toBe(true);
-  expect(me.lifetimeStars).toBe(0);
+  expect(me.yearStars).toBe(0);
 });
 
 test('maps server-ranked anonymous rows without recomputing global rank in the client', () => {
   const result = mapRemoteLeaderboardRows([
-    { player_id: 'public-top', lifetime_stars: 100, rank: 1, is_current_user: false },
-    { player_id: 'public-me', lifetime_stars: 4, rank: '87', is_current_user: true },
+    { player_id: 'public-top', year_stars: 100, rank: 1, is_current_user: false },
+    { player_id: 'public-me', year_stars: 4, rank: '87', is_current_user: true },
   ], 'Thanh', 'Player');
 
   expect(result.map(entry => entry.rank)).toEqual([1, 87]);
@@ -90,17 +91,17 @@ test('maps server-ranked anonymous rows without recomputing global rank in the c
 
 test('normalizes malformed remote rows without leaking identity or negative values', () => {
   const [entry] = mapRemoteLeaderboardRows([
-    { player_id: '', lifetime_stars: -8, rank: 0, is_current_user: false },
+    { player_id: '', year_stars: -8, rank: 0, is_current_user: false },
   ], '', 'Player');
 
   expect(entry.playerId).toBe('unknown');
   expect(entry.displayName).toBe('Player #unknown');
-  expect(entry.lifetimeStars).toBe(0);
+  expect(entry.yearStars).toBe(0);
   expect(entry.rank).toBe(1);
   expect(JSON.stringify(entry)).not.toContain('@');
 });
 
-test('establishes the authenticated Supabase session before loading global rows', async () => {
+test('establishes the authenticated Supabase session before loading Analytics Year global rows', async () => {
   mockSyncService.withSupabaseSession.mockImplementation(async (_email: string, _sub: string | undefined, operation: () => Promise<unknown>) => operation());
   mockSupabase.supabase.rpc.mockResolvedValue({ data: [], error: null });
 
@@ -110,23 +111,20 @@ test('establishes the authenticated Supabase session before loading global rows'
   await query.queryFn();
 
   expect(mockSyncService.withSupabaseSession).toHaveBeenCalledWith('me@example.com', undefined, expect.any(Function));
-  expect(mockSupabase.supabase.rpc).toHaveBeenCalledWith('get_global_leaderboard_v2', { p_limit: 50 });
+  expect(mockSupabase.supabase.rpc).toHaveBeenCalledWith('get_global_year_leaderboard_v1', { p_limit: 50 });
 });
 
-test('records this visit as a rank snapshot, best-effort, without blocking or failing the load', async () => {
+test('does not write lifetime snapshots while loading the Analytics Year board', async () => {
   mockSyncService.withSupabaseSession.mockImplementation(async (_email: string, _sub: string | undefined, operation: () => Promise<unknown>) => operation());
-  mockSupabase.supabase.rpc.mockImplementation((fn: string) =>
-    fn === 'record_leaderboard_snapshot'
-      ? Promise.reject(new Error('snapshot write failed'))
-      : Promise.resolve({ data: [], error: null }),
-  );
+  mockSupabase.supabase.rpc.mockResolvedValue({ data: [], error: null });
 
   const query = useLeaderboard('me@example.com', 'Thanh', 'Player') as unknown as {
     queryFn: () => Promise<unknown>;
   };
   await expect(query.queryFn()).resolves.toEqual([]);
 
-  expect(mockSupabase.supabase.rpc).toHaveBeenCalledWith('record_leaderboard_snapshot');
+  expect(mockSupabase.supabase.rpc).toHaveBeenCalledWith('get_global_year_leaderboard_v1', { p_limit: 50 });
+  expect(mockSupabase.supabase.rpc).not.toHaveBeenCalledWith('record_leaderboard_snapshot');
 });
 
 test('QA sandbox renders an in-memory board without restoring a session or calling Supabase', async () => {
@@ -135,14 +133,14 @@ test('QA sandbox renders an in-memory board without restoring a session or calli
     const query = useLeaderboard('qa-sandbox@local.habi', 'QA Sandbox', 'Player', 'en', 419) as unknown as {
       enabled: boolean;
       isUnavailable: boolean;
-      queryFn: () => Promise<Array<{ playerId: string; rank: number; lifetimeStars: number; isCurrentUser: boolean }>>;
+      queryFn: () => Promise<Array<{ playerId: string; rank: number; yearStars: number; isCurrentUser: boolean }>>;
     };
     const rows = await query.queryFn();
 
     expect(query.enabled).toBe(true);
     expect(query.isUnavailable).toBe(false);
     expect(rows).toHaveLength(21);
-    expect(rows.find(row => row.isCurrentUser)).toMatchObject({ playerId: 'qa-sandbox-local-v1', rank: 15, lifetimeStars: 419 });
+    expect(rows.find(row => row.isCurrentUser)).toMatchObject({ playerId: 'qa-sandbox-local-v1', rank: 15, yearStars: 419 });
     expect(mockSyncService.withSupabaseSession).not.toHaveBeenCalled();
     expect(mockSupabase.supabase.rpc).not.toHaveBeenCalled();
   } finally {
@@ -161,9 +159,30 @@ test('does not call the RPC when session restoration fails', async () => {
   expect(mockSupabase.supabase.rpc).not.toHaveBeenCalled();
 });
 
+test('classifies an undeployed annual RPC as unavailable instead of a network retry', async () => {
+  mockSupabase.supabase.rpc.mockResolvedValue({
+    data: null,
+    error: { code: 'PGRST202', message: 'Could not find the function public.get_global_year_leaderboard_v1' },
+  });
+
+  const query = useLeaderboard('me@example.com', 'Thanh', 'Player') as unknown as {
+    queryFn: () => Promise<unknown>;
+  };
+  await expect(query.queryFn()).rejects.toBeInstanceOf(LeaderboardUnavailableError);
+});
+
 test('disables the query when there is no signed-in email', () => {
   const query = useLeaderboard(null, null, 'Player') as unknown as { enabled: boolean };
   expect(query.enabled).toBe(false);
+});
+
+test('scopes the production board cache to identity and local calendar date', () => {
+  const query = useLeaderboard('me@example.com', 'Thanh', 'Player', 'en', 0, 'google-sub-1') as unknown as {
+    queryKey: readonly unknown[];
+  };
+  expect(query.queryKey).toEqual([
+    'leaderboard', 'google-sub-1', 'me@example.com', getLocalDate(), 'Thanh', 'Player', 'en', null,
+  ]);
 });
 
 test('query function returns no rows when no signed-in email is available', async () => {
@@ -190,11 +209,11 @@ test('exposes missing Supabase configuration separately from an empty remote res
 
 test('returns the caller rank neighbourhood alongside the top block, in rank order', () => {
   const result = mapRemoteLeaderboardRows([
-    { player_id: 'top-1', lifetime_stars: 900, rank: 1, is_current_user: false },
-    { player_id: 'top-2', lifetime_stars: 800, rank: 2, is_current_user: false },
-    { player_id: 'above', lifetime_stars: 62, rank: 119, is_current_user: false },
-    { player_id: 'me', lifetime_stars: 50, rank: 120, is_current_user: true },
-    { player_id: 'below', lifetime_stars: 44, rank: 121, is_current_user: false },
+    { player_id: 'top-1', year_stars: 900, rank: 1, is_current_user: false },
+    { player_id: 'top-2', year_stars: 800, rank: 2, is_current_user: false },
+    { player_id: 'above', year_stars: 62, rank: 119, is_current_user: false },
+    { player_id: 'me', year_stars: 50, rank: 120, is_current_user: true },
+    { player_id: 'below', year_stars: 44, rank: 121, is_current_user: false },
   ], 'Thanh', 'Player');
 
   expect(result.map(entry => entry.rank)).toEqual([1, 2, 119, 120, 121]);
@@ -203,9 +222,9 @@ test('returns the caller rank neighbourhood alongside the top block, in rank ord
 
 test('gap to next is measured only against the row exactly one rank above', () => {
   const result = mapRemoteLeaderboardRows([
-    { player_id: 'top-1', lifetime_stars: 900, rank: 1, is_current_user: false },
-    { player_id: 'above', lifetime_stars: 62, rank: 119, is_current_user: false },
-    { player_id: 'me', lifetime_stars: 50, rank: 120, is_current_user: true },
+    { player_id: 'top-1', year_stars: 900, rank: 1, is_current_user: false },
+    { player_id: 'above', year_stars: 62, rank: 119, is_current_user: false },
+    { player_id: 'me', year_stars: 50, rank: 120, is_current_user: true },
   ], 'Thanh', 'Player');
 
   // rank 1 has no one to catch
@@ -218,16 +237,16 @@ test('gap to next is measured only against the row exactly one rank above', () =
 
 test('a tie with the player above reports a zero gap, not a negative one', () => {
   const result = mapRemoteLeaderboardRows([
-    { player_id: 'above', lifetime_stars: 50, rank: 9, is_current_user: false },
-    { player_id: 'me', lifetime_stars: 50, rank: 10, is_current_user: true },
+    { player_id: 'above', year_stars: 50, rank: 9, is_current_user: false },
+    { player_id: 'me', year_stars: 50, rank: 10, is_current_user: true },
   ], 'Thanh', 'Player');
   expect(result[1].starsToNextRank).toBe(0);
 });
 
 test('rank gaps are flagged so the UI never draws distant rows as neighbours', () => {
   const [top, near] = mapRemoteLeaderboardRows([
-    { player_id: 'top-50', lifetime_stars: 500, rank: 50, is_current_user: false },
-    { player_id: 'me', lifetime_stars: 12, rank: 400, is_current_user: true },
+    { player_id: 'top-50', year_stars: 500, rank: 50, is_current_user: false },
+    { player_id: 'me', year_stars: 12, rank: 400, is_current_user: true },
   ], 'Thanh', 'Player');
 
   expect(hasRankGapBefore(top, undefined)).toBe(false);
@@ -236,8 +255,8 @@ test('rank gaps are flagged so the UI never draws distant rows as neighbours', (
 
 test('consecutive ranks across the top-block boundary are not flagged as a gap', () => {
   const [fifty, fiftyOne] = mapRemoteLeaderboardRows([
-    { player_id: 'top-50', lifetime_stars: 500, rank: 50, is_current_user: false },
-    { player_id: 'me', lifetime_stars: 480, rank: 51, is_current_user: true },
+    { player_id: 'top-50', year_stars: 500, rank: 50, is_current_user: false },
+    { player_id: 'me', year_stars: 480, rank: 51, is_current_user: true },
   ], 'Thanh', 'Player');
   expect(hasRankGapBefore(fiftyOne, fifty)).toBe(false);
 });
@@ -245,10 +264,10 @@ test('consecutive ranks across the top-block boundary are not flagged as a gap',
 test('the render cap keeps the neighbourhood instead of slicing it off', () => {
   const rows = [
     ...Array.from({ length: 50 }, (_, i) => ({
-      player_id: `top-${i + 1}`, lifetime_stars: 1000 - i, rank: i + 1, is_current_user: false,
+      player_id: `top-${i + 1}`, year_stars: 1000 - i, rank: i + 1, is_current_user: false,
     })),
     ...Array.from({ length: 11 }, (_, i) => ({
-      player_id: `near-${i}`, lifetime_stars: 60 - i, rank: 995 + i, is_current_user: i === 5,
+      player_id: `near-${i}`, year_stars: 60 - i, rank: 995 + i, is_current_user: i === 5,
     })),
   ];
   const capped = capLeaderboardRows(mapRemoteLeaderboardRows(rows, 'Thanh', 'Player'), 50);
@@ -261,12 +280,12 @@ test('the render cap keeps the neighbourhood instead of slicing it off', () => {
 test('the render cap drops distant out-of-contract rows', () => {
   const rows = [
     ...Array.from({ length: 50 }, (_, i) => ({
-      player_id: `top-${i + 1}`, lifetime_stars: 1000 - i, rank: i + 1, is_current_user: false,
+      player_id: `top-${i + 1}`, year_stars: 1000 - i, rank: i + 1, is_current_user: false,
     })),
-    { player_id: 'far-above', lifetime_stars: 90, rank: 990, is_current_user: false },
-    { player_id: 'near-above', lifetime_stars: 70, rank: 995, is_current_user: false },
-    { player_id: 'me', lifetime_stars: 60, rank: 1000, is_current_user: true },
-    { player_id: 'far-below', lifetime_stars: 1, rank: 1100, is_current_user: false },
+    { player_id: 'far-above', year_stars: 90, rank: 990, is_current_user: false },
+    { player_id: 'near-above', year_stars: 70, rank: 995, is_current_user: false },
+    { player_id: 'me', year_stars: 60, rank: 1000, is_current_user: true },
+    { player_id: 'far-below', year_stars: 1, rank: 1100, is_current_user: false },
   ];
   const capped = capLeaderboardRows(mapRemoteLeaderboardRows(rows, 'Thanh', 'Player'), 50);
 
@@ -289,11 +308,11 @@ test('initialsForName falls back to a single initial for a one-word name', () =>
 
 test('maps rank_delta_7d through as a signed integer, and null stays null rather than becoming a fabricated 0', () => {
   const result = mapRemoteLeaderboardRows([
-    { player_id: 'climbed', lifetime_stars: 10, rank: 1, is_current_user: false, rank_delta_7d: 12 },
-    { player_id: 'dropped', lifetime_stars: 10, rank: 2, is_current_user: false, rank_delta_7d: -4 },
-    { player_id: 'flat', lifetime_stars: 10, rank: 3, is_current_user: false, rank_delta_7d: 0 },
-    { player_id: 'no-history', lifetime_stars: 10, rank: 4, is_current_user: false, rank_delta_7d: null },
-    { player_id: 'legacy-server', lifetime_stars: 10, rank: 5, is_current_user: false },
+    { player_id: 'climbed', year_stars: 10, rank: 1, is_current_user: false, rank_delta_7d: 12 },
+    { player_id: 'dropped', year_stars: 10, rank: 2, is_current_user: false, rank_delta_7d: -4 },
+    { player_id: 'flat', year_stars: 10, rank: 3, is_current_user: false, rank_delta_7d: 0 },
+    { player_id: 'no-history', year_stars: 10, rank: 4, is_current_user: false, rank_delta_7d: null },
+    { player_id: 'legacy-server', year_stars: 10, rank: 5, is_current_user: false },
   ], 'Thanh', 'Player');
 
   expect(result.map(e => e.rankDelta7d)).toEqual([12, -4, 0, null, null]);

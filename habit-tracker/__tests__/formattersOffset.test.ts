@@ -8,6 +8,7 @@ import {
   getMonthOffset,
   getYearOffset,
   getLocalDateFor,
+  getMillisecondsUntilLocalMidnight,
 } from '../src/utils/formatters';
 
 // ── getLocalDateFor ─────────────────────────────────────────────────────────
@@ -29,6 +30,13 @@ describe('getLocalDateFor', () => {
     const result = getLocalDateFor(new Date('2026-03-05T12:00:00'));
     expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(result).toBe('2026-03-05');
+  });
+});
+
+describe('getMillisecondsUntilLocalMidnight', () => {
+  test('schedules the refresh just after the next local midnight', () => {
+    const justBeforeMidnight = new Date(2026, 7, 30, 23, 59, 59, 0);
+    expect(getMillisecondsUntilLocalMidnight(justBeforeMidnight)).toBe(2_000);
   });
 });
 

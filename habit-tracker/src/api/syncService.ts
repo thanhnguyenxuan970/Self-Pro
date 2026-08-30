@@ -1445,6 +1445,8 @@ export async function refreshSupabaseSessionForAccount(
 
 /** Run one protected Supabase operation while holding the owned session lease. */
 export type SupabaseSessionOptions = {
+  /** Force a fresh Google-backed session before a user-initiated recovery retry. */
+  forceRefresh?: boolean;
   /** Retry one read-style operation after Supabase rejects the cached JWT. */
   retryOnUnauthorized?: boolean;
   /** Allow a timed-out restore to release its process-wide session lease. */
@@ -1466,6 +1468,7 @@ export async function withSupabaseSession<T>(
       isActive,
       expectedGoogleSub,
       () => releaseSessionOperation,
+      options.forceRefresh === true,
     );
     let ownedSession = await getOwnedSupabaseSession(userEmail, expectedGoogleSub, isActive);
     let result: T;
@@ -2082,6 +2085,10 @@ export async function restoreUserDataIfNeeded(
           await AsyncStorage.removeItem(pendingLegacyRestoreKey);
           assertRestoreActive();
         }, sessionActive, {
+          // The App Retry button requests a full reconciliation. Automatic
+          // startup probes use the same blocked-retry gate but must keep the
+          // existing cached-session fast path.
+          forceRefresh: allowBlockedRetry && !retryBlockedAccountOnly,
           retryOnUnauthorized: true,
           onCancelAvailable: cancel => { cancelSessionOperation = cancel; },
         });

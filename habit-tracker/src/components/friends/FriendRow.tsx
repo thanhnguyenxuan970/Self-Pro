@@ -14,7 +14,7 @@ type FriendRowCopy = {
   overflowAria: string;
   dismissLabel: string;
   streakLine: (days: number) => string;
-  lifetimeLine: (stars: number) => string;
+  yearLine: (stars: number) => string;
 };
 
 type Props = {
@@ -30,7 +30,7 @@ type Props = {
 
 /**
  * One race-ladder row: rank numeral (repeats across a tie), avatar, name
- * (+YOU chip for self), streak (omitted at 0), lifetime stars. Tied rows
+ * (+YOU chip for self), streak (omitted at 0), Analytics Year stars. Tied rows
  * carry a decorative 3px rail on the card gutter that never shifts layout —
  * an absolutely-positioned overlay, mirroring the board's `inset box-shadow`
  * rather than a real border that would nudge tied rows' content sideways.
@@ -38,14 +38,14 @@ type Props = {
 export const FriendRow = React.memo(function FriendRow({ row, isLast, playerLabel, lang, colors, copy, onRemove, onBlock }: Props) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const tied = row.tiedCount > 1;
-  const starsLabel = `${formatStarCount(row.lifetimeStars, lang)} ★`;
+  const starsLabel = `${formatStarCount(row.yearStars, lang)} ★`;
   const a11yLabel = [
     `#${row.friendRank}`,
     `${row.displayName}${row.isCurrentUser ? ` (${copy.youChip})` : ''}`,
-    // Rounded, matching `starsLabel` above -- Supabase's `lifetime_stars` is
+    // Rounded, matching `starsLabel` above -- Supabase's `year_stars` is
     // a `real` column and can be fractional, and this a11y string is the
     // only other place that number reaches the user.
-    copy.lifetimeLine(Math.round(row.lifetimeStars)),
+    copy.yearLine(Math.round(row.yearStars)),
     row.effectiveStreak > 0 ? copy.streakLine(row.effectiveStreak) : null,
   ].filter(Boolean).join(', ');
 

@@ -21,7 +21,7 @@ export type FriendActionResult = {
 
 export type FriendSection = 'self' | 'accepted' | 'incoming' | 'outgoing';
 
-// Mirrors get_my_friend_dashboard()'s RETURNS TABLE shape (migration 031)
+// Mirrors get_my_year_friend_dashboard()'s RETURNS TABLE shape (migration 069)
 // exactly. player_id is users.leaderboard_public_id, never the auth uuid.
 export type RemoteFriendDashboardRow = {
   relationship_id: string | null;
@@ -29,7 +29,7 @@ export type RemoteFriendDashboardRow = {
   player_id: string | null;
   display_name: string | null;
   effective_streak: number | null;
-  lifetime_stars: number | null;
+  year_stars: number | null;
   friend_rank: number | null;
   is_current_user: boolean;
   created_at: string | null;
@@ -41,7 +41,7 @@ export type FriendLadderRow = {
   playerId: string;
   displayName: string;
   effectiveStreak: number;
-  lifetimeStars: number;
+  yearStars: number;
   friendRank: number;
   isCurrentUser: boolean;
   // Count of rows sharing this row's friendRank. >1 marks a tie group for
@@ -152,7 +152,7 @@ export function mapFriendDashboardRows(
       playerId: row.player_id ?? `unknown-${index}`,
       displayName: sanitizeDisplayName(row.display_name) ?? fallbackPlayerLabel,
       effectiveStreak: Math.max(0, Math.floor(Number(row.effective_streak) || 0)),
-      lifetimeStars: Math.max(0, Number(row.lifetime_stars) || 0),
+      yearStars: Math.max(0, Math.floor(Number(row.year_stars) || 0)),
       friendRank: Math.max(1, Number(row.friend_rank) || 1),
       isCurrentUser: row.is_current_user === true,
       tiedCount: rankCounts.get(row.friend_rank ?? 0) ?? 1,
@@ -209,7 +209,7 @@ export function buildFriendsSummary(ladder: FriendLadderRow[]): FriendsSummary |
 
   const catchRank = self.friendRank - 1;
   const catchRow = ladder.find(row => row.friendRank === catchRank);
-  const catchStars = catchRow ? Math.max(0, catchRow.lifetimeStars - self.lifetimeStars) : 0;
+  const catchStars = catchRow ? Math.max(0, catchRow.yearStars - self.yearStars) : 0;
 
   return tiedWithCount > 0
     ? { kind: 'tiedWithCatch', rank: self.friendRank, tiedWithCount, catchStars, catchRank }
@@ -263,6 +263,15 @@ export function formatRelativeAgo(fromMs: number, lang: AppLanguage, now: Date =
 /** Locale group separator for star counts — "1.240" vi, "1,240" en. */
 export function formatStarCount(n: number, lang: AppLanguage): string {
   return new Intl.NumberFormat(intlLocale(lang)).format(Math.round(n));
+}
+
+/**
+ * The personal KPI in the Friends summary follows the same Analytics Year
+ * source as Home and Rank. Missing data is zero; lifetime is never a visible
+ * fallback.
+ */
+export function friendSummaryStars(yearStars: number | null | undefined): number {
+  return Number.isFinite(yearStars) ? Math.max(0, Math.floor(yearStars as number)) : 0;
 }
 
 export type ResultBannerTone = 'success' | 'warning' | 'danger';

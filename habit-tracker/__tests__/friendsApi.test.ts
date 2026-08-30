@@ -43,6 +43,12 @@ test('friend dashboard rejects a malformed non-array RPC payload before the mapp
   await expect(getFriendDashboard('me@example.com', 'sub-1')).rejects.toThrow('Invalid Friends dashboard response');
 });
 
+test('friend dashboard reads the server-authoritative Analytics Year RPC', async () => {
+  mockSupabase.supabase.rpc.mockResolvedValue({ data: [], error: null });
+  await expect(getFriendDashboard('me@example.com', 'sub-1')).resolves.toEqual([]);
+  expect(mockSupabase.supabase.rpc).toHaveBeenCalledWith('get_my_year_friend_dashboard');
+});
+
 test('friend dashboard rejects a null success payload instead of treating it as an empty list', async () => {
   mockSupabase.supabase.rpc.mockResolvedValue({ data: null, error: null });
   await expect(getFriendDashboard('me@example.com', 'sub-1')).rejects.toThrow('Invalid Friends dashboard response');

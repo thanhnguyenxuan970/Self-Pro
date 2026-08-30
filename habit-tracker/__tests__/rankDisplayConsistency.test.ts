@@ -1,10 +1,18 @@
 import { displayStarsForRankRow } from '../src/lib/rankDisplay';
 
-test('uses the Home local total for the current user when the leaderboard row is stale', () => {
-  expect(displayStarsForRankRow({ isCurrentUser: true, lifetimeStars: 999 }, 401)).toBe(401);
+test('uses the server Analytics Year total for the current user when a row exists', () => {
+  expect(displayStarsForRankRow({ isCurrentUser: true, yearStars: 999 }, 401)).toBe(999);
 });
 
-test('keeps other leaderboard rows on their server totals', () => {
-  expect(displayStarsForRankRow({ isCurrentUser: false, lifetimeStars: 999 }, 401)).toBe(999);
-  expect(displayStarsForRankRow({ isCurrentUser: false, lifetimeStars: 999.6 }, 401)).toBe(999.6);
+test('uses the local Analytics Year total only when the server row is missing', () => {
+  expect(displayStarsForRankRow({ isCurrentUser: true, yearStars: null }, 401)).toBe(401);
+});
+
+test('keeps every other leaderboard row on its server Analytics Year total', () => {
+  expect(displayStarsForRankRow({ isCurrentUser: false, yearStars: 999 }, 401)).toBe(999);
+  expect(displayStarsForRankRow({ isCurrentUser: false, yearStars: 999.6 }, 401)).toBe(999);
+});
+
+test('does not copy the caller score into a rival row when its server score is missing', () => {
+  expect(displayStarsForRankRow({ isCurrentUser: false, yearStars: null }, 401)).toBe(0);
 });

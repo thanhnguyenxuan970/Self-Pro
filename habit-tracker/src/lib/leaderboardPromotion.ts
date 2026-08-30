@@ -1,6 +1,6 @@
 /**
  * Pure policy + math for the Rank Board's "promotion" animation: when the
- * caller's own lifetime stars climb between two leaderboard fetches while
+ * caller's own Analytics Year stars climb between two leaderboard fetches while
  * the screen stays mounted, their row counts up from the old total and the
  * rows it temporarily passes visually yield until the count catches them.
  *

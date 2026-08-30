@@ -94,7 +94,7 @@ export function RankBoardTop15({ rows, lbLoading, lbError, lbUnavailable, isZero
 
   const youIndex = rows.findIndex(r => r.isCurrentUser);
   const promoRange = passedRowRange(youIndex, climbed, rows.length);
-  const pending = countPending(promoRange, displayStars, i => rows[i]?.lifetimeStars ?? 0);
+  const pending = countPending(promoRange, displayStars, i => rows[i]?.yearStars ?? 0);
   const promoted = pending === 0;
 
   useEffect(() => {
@@ -102,7 +102,7 @@ export function RankBoardTop15({ rows, lbLoading, lbError, lbUnavailable, isZero
       const anim = getRowAnim(row.playerId);
       const target = row.isCurrentUser
         ? pending * pitch.normal
-        : (isRowStillAhead(i, promoRange, displayStars, row.lifetimeStars) ? -pitch.you : 0);
+        : (isRowStillAhead(i, promoRange, displayStars, row.yearStars) ? -pitch.you : 0);
       Animated.timing(anim, {
         toValue: target,
         duration: reduceMotion ? 0 : (row.isCurrentUser ? 820 : 760),
@@ -129,7 +129,7 @@ export function RankBoardTop15({ rows, lbLoading, lbError, lbUnavailable, isZero
   if (lbUnavailable || lbError) {
     return (
       <View style={styles.noteWrap}>
-        <Text style={styles.note}>{t.leaderboardNoSync}</Text>
+        <Text style={styles.note}>{lbUnavailable ? t.leaderboardUnavailable : t.leaderboardNoSync}</Text>
         {lbError && !lbUnavailable && (
           <TouchableOpacity
             style={styles.retryBtn}
@@ -206,7 +206,7 @@ export function RankBoardTop15({ rows, lbLoading, lbError, lbUnavailable, isZero
           {champion.isCurrentUser && (
             <View style={styles.youChip}><Text style={styles.youChipText}>{t.friendsYouChip}</Text></View>
           )}
-          <Text style={styles.champStars} numberOfLines={1}>{Math.round(champion.lifetimeStars)} ★</Text>
+          <Text style={styles.champStars} numberOfLines={1}>{Math.round(champion.yearStars)} ★</Text>
         </View>
       </View>
 
@@ -248,7 +248,7 @@ export function RankBoardTop15({ rows, lbLoading, lbError, lbUnavailable, isZero
           const moveLabel = delta == null || delta === 0 ? '—' : delta > 0 ? `▲ ${delta}` : `▼ ${Math.abs(delta)}`;
           const moveColor = delta == null || delta === 0 ? colors.muted : delta > 0 ? colors.successText : colors.dangerText;
           const rankLabel = row.rank > 0 ? `#${row.rank}` : '—';
-          const a11yLabel = `${rankLabel} ${name}${row.isCurrentUser ? ` (${t.leaderboardYou})` : ''}, ${Math.round(row.lifetimeStars)} ★, ${t.leaderboardMoveA11y(delta)}`;
+          const a11yLabel = `${rankLabel} ${name}${row.isCurrentUser ? ` (${t.leaderboardYou})` : ''}, ${t.friendsYearLine(Math.round(row.yearStars))}, ${t.leaderboardMoveA11y(delta)}`;
 
           return (
             <Animated.View
@@ -316,7 +316,7 @@ export function RankBoardTop15({ rows, lbLoading, lbError, lbUnavailable, isZero
                 <Text style={[styles.rowMove, { color: moveColor }]} numberOfLines={1}>{moveLabel}</Text>
               )}
               <Text style={[styles.rowVal, row.isCurrentUser && styles.rowValMe]} numberOfLines={1}>
-                {Math.round(row.isCurrentUser ? displayStars : row.lifetimeStars)}
+                {Math.round(row.isCurrentUser ? displayStars : row.yearStars)}
               </Text>
             </Animated.View>
           );

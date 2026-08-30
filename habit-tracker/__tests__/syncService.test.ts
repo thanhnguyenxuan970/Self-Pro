@@ -271,6 +271,9 @@ describe('restoreUserDataIfNeeded', () => {
         ? { data: { payload, revision: 48 }, error: null }
         : { data: null, error: null }
     ));
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: {} });
+    mockGetTokens.mockResolvedValue({ idToken: 'fresh-google-id-token' });
+    mockSignInWithIdToken.mockResolvedValue(successfulTokenResponse());
     type ExistingSnapshotTestDb = {
       getFirstAsync: jest.Mock;
       getAllAsync: jest.Mock;
@@ -1067,6 +1070,54 @@ describe('restoreUserDataIfNeeded', () => {
 
     expect(mockRpc).toHaveBeenCalledWith('restore_my_data_backup_v2');
     expect(restoreCalls).toBe(2);
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes a cached Supabase session when an explicit recovery retry follows a transient failure', async () => {
+    let sessionRefreshed = false;
+    mockGetSession.mockImplementation(async () => ({
+      data: {
+        session: {
+          ...freshSession('user@example.com'),
+          access_token: sessionRefreshed ? 'refreshed-user-token' : 'cached-user-token',
+        },
+      },
+      error: null,
+    }));
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'restore_my_data_backup_v2') {
+        return sessionRefreshed
+          ? { data: { payload: null, revision: 2 }, error: null }
+          : { data: null, error: { message: 'temporary connection failure' } };
+      }
+      if (name === 'sync_lifetime_stars') return { data: 0, error: null };
+      return { data: null, error: null };
+    });
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => sql.includes('COUNT(*)') ? { count: 0 } : null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+      withExclusiveTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(
+      restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub'),
+    ).resolves.toBe('unavailable');
+
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: {} });
+    mockGetTokens.mockResolvedValue({ idToken: 'fresh-google-id-token' });
+    mockSignInWithIdToken.mockImplementation(async () => {
+      sessionRefreshed = true;
+      const session = { ...freshSession('user@example.com'), access_token: 'refreshed-user-token' };
+      return { data: { user: session.user, session }, error: null };
+    });
+
+    await expect(
+      restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub', undefined, true),
+    ).resolves.toBe('empty');
+
     expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
   });
 

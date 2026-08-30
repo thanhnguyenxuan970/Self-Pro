@@ -15,6 +15,13 @@ export function getLocalDate(): string {
   return toYMD(new Date());
 }
 
+/** Delay used by date-scoped queries to refresh once the device reaches local midnight. */
+export function getMillisecondsUntilLocalMidnight(now: Date = new Date()): number {
+  const next = new Date(now);
+  next.setHours(24, 0, 1, 0);
+  return Math.max(1_000, next.getTime() - now.getTime());
+}
+
 /** Format any Date as YYYY-MM-DD using device local timezone (same logic as getLocalDate) */
 export function getLocalDateFor(date: Date): string {
   return toYMD(date);

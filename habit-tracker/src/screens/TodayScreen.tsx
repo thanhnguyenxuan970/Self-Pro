@@ -368,7 +368,7 @@ export function TodayScreen({ qaBannerVisible = false }: { qaBannerVisible?: boo
   const rankDisplayName = currentTier ? (t.rankNameMap[rankName] ?? rankName) : t.noRankTitle;
   const rankEmoji = currentTier ? (RANK_EMOJI[currentTier.tier_order] ?? '⭐') : '⭐';
   const percentile = tierPercentile(currentTier?.tier_order ?? 1);
-  const lifetimeStars = rankData?.currentStars ?? 0;
+  const yearStars = rankData?.currentStars ?? 0;
   const newsViewerKey = getNewsViewerKey(googleUser?.sub);
   const { unreadCount: unreadNewsCount } = useNewsFeed(newsViewerKey);
 
@@ -643,7 +643,7 @@ export function TodayScreen({ qaBannerVisible = false }: { qaBannerVisible?: boo
         contentContainerStyle={{ paddingBottom: 28 + bottomInset }}
       >
         {boostPhase === 'available' ? boostExperience : null}
-        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} lifetimeStars={lifetimeStars} rankName={rankDisplayName} streakRef={streakTutorialRef} streakOnLayout={activeKey === 'streak' ? refreshTarget : undefined} scoringGuideVisible={showScoringGuide} onScoringGuideClose={closeScoringGuide} boostVisual={boostVisual} />
+        <HomeHeatmap days={heatmapDays} streak={streak} goal={DAILY_BONUS_THRESHOLD} colors={colors} todayPoints={dailyPoints} rankEmoji={rankEmoji} yearStars={yearStars} rankName={rankDisplayName} streakRef={streakTutorialRef} streakOnLayout={activeKey === 'streak' ? refreshTarget : undefined} scoringGuideVisible={showScoringGuide} onScoringGuideClose={closeScoringGuide} boostVisual={boostVisual} />
         {boostPhase !== 'available' ? boostExperience : null}
 
         {!backfillNudgeDismissed && <HomeBackfillNudge

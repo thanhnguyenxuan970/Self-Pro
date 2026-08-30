@@ -4,11 +4,29 @@ import { buildQaSandboxLeaderboard, isQaSandboxActive } from '../qa/qaSandbox';
 import { generatePlayerName } from '../config/playerNames';
 import type { AppLanguage } from '../config/i18n';
 import { withSupabaseSession } from '../api/syncService';
+import { getLocalDate, getMillisecondsUntilLocalMidnight } from '../utils/formatters';
+
+export class LeaderboardUnavailableError extends Error {
+  constructor(cause?: unknown) {
+    super('The Analytics Year leaderboard is not available yet.');
+    this.name = 'LeaderboardUnavailableError';
+    if (cause !== undefined) this.cause = cause;
+  }
+}
+
+function isMissingAnnualLeaderboardRpc(error: unknown): boolean {
+  const candidate = error as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown } | null;
+  const text = [candidate?.message, candidate?.details, candidate?.hint]
+    .filter(value => typeof value === 'string')
+    .join(' ');
+  return candidate?.code === 'PGRST202'
+    || (/get_global_year_leaderboard_v1/i.test(text) && /function|rpc|could not find/i.test(text));
+}
 
 export type LeaderboardEntry = {
   playerId: string;
   displayName: string;
-  lifetimeStars: number;
+  yearStars: number;
   rank: number;
   isCurrentUser: boolean;
   /**
@@ -27,18 +45,17 @@ export type LeaderboardEntry = {
   currentStreak: number;
   /**
    * Rank positions climbed (positive) or dropped (negative) over the last
-   * ~7 days, from `public.leaderboard_snapshots` (migration 045). `null`
-   * means no snapshot old enough exists yet for this player — a brand-new
-   * row, a returning player, or the local (offline) leaderboard path, which
-   * has no history at all. Never coerced to 0: a missing comparison point is
-   * not the same fact as "no change".
+   * ~7 days. The annual RPC currently returns `null` because the existing
+   * snapshot table is lifetime-based and cannot describe annual movement;
+   * the local fallback also has no history. Never coerced to 0: a missing
+   * comparison point is not the same fact as "no change".
    */
   rankDelta7d: number | null;
 };
 
 /**
- * Rows above and below the caller returned by `get_global_leaderboard_v2`
- * (migration 026). Mirrored here for tests and for the UI's gap detection;
+ * Rows above and below the caller returned by `get_global_year_leaderboard_v1`
+ * (migration 069). Mirrored here for tests and for the UI's gap detection;
  * the server is the authority and clamps this itself.
  */
 export const LEADERBOARD_TOP_LIMIT = 50;
@@ -58,7 +75,7 @@ function annotateStarsToNextRank(
     const adjacent = above && above.rank === entry.rank - 1;
     return {
       ...entry,
-      starsToNextRank: adjacent ? Math.max(0, above.lifetimeStars - entry.lifetimeStars) : null,
+      starsToNextRank: adjacent ? Math.max(0, above.yearStars - entry.yearStars) : null,
     };
   });
 }
@@ -120,19 +137,24 @@ export function hasRankGapBefore(entry: LeaderboardEntry, previous: LeaderboardE
 
 export type RemoteLeaderboardRow = {
   player_id: string;
-  lifetime_stars: number | null;
+  year_stars: number | null;
   rank: number | string;
   is_current_user: boolean;
-  /** Absent on responses from a server still on migration 026 or earlier. */
+  /** Optional for local/fixture callers; annual RPC 069 returns this field. */
   current_streak?: number | null;
-  /** Absent on responses from a server still on migration 044 or earlier. */
+  /** Null until annual rank-history snapshots exist. */
   rank_delta_7d?: number | null;
 };
 
-export function aggregateLifetimeStarsByPlayerId(rows: { player_id: string; lifetime_stars: number | null }[]): Map<string, number> {
+function normalizeYearStars(value: unknown): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : 0;
+}
+
+export function aggregateYearStarsByPlayerId(rows: { player_id: string; year_stars: number | null }[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const row of rows) {
-    map.set(row.player_id, row.lifetime_stars ?? 0);
+    map.set(row.player_id, normalizeYearStars(row.year_stars));
   }
   return map;
 }
@@ -146,7 +168,7 @@ function buildLeaderboardEntries(
     entries.push({
       playerId,
       displayName: playerId,
-      lifetimeStars: Math.max(0, stars),
+      yearStars: normalizeYearStars(stars),
       isCurrentUser: playerId === currentPlayerId,
       // This local path only ever sees a stars map; streak is a server-only
       // field, so report 0 rather than inventing one.
@@ -159,15 +181,15 @@ function buildLeaderboardEntries(
 }
 
 /**
- * Sorts strictly by lifetime score descending (rank 1 = highest); ties break
- * on player id ascending for a stable, deterministic local result.
+ * Sorts strictly by Analytics Year score descending (rank 1 = highest); ties
+ * break on player id ascending for a stable, deterministic local result.
  */
 export function buildRankedLeaderboard(
   starsByPlayerId: Map<string, number>,
   currentPlayerId: string | null,
 ): LeaderboardEntry[] {
   const entries = buildLeaderboardEntries(starsByPlayerId, currentPlayerId);
-  entries.sort((a, b) => b.lifetimeStars - a.lifetimeStars || a.playerId.localeCompare(b.playerId));
+  entries.sort((a, b) => b.yearStars - a.yearStars || a.playerId.localeCompare(b.playerId));
   return annotateStarsToNextRank(entries.map((e, i) => ({ ...e, rank: i + 1 })));
 }
 
@@ -194,10 +216,10 @@ export function mapRemoteLeaderboardRows(
       return {
         playerId,
         displayName: isCurrentUser ? (currentUserName?.trim() || playerLabel) : publicPlayerName(playerId, playerLabel, lang),
-        lifetimeStars: Math.max(0, Number(row.lifetime_stars) || 0),
+        yearStars: normalizeYearStars(row.year_stars),
         rank: Math.max(1, Number(row.rank) || 1),
         isCurrentUser,
-        // Tolerate a server still on 026: a missing column means "unknown",
+        // Keep fixture/defensive inputs safe: a missing streak means "unknown",
         // and an unknown streak must render as no signal, never a fake one.
         currentStreak: Math.max(0, Math.floor(Number(row.current_streak) || 0)),
         // Explicit null check, not `Number(x) || 0` — that idiom would turn a
@@ -210,11 +232,13 @@ export function mapRemoteLeaderboardRows(
 }
 
 /**
- * Global lifetime leaderboard — every player, sorted strictly by lifetime
- * score descending (rank 1 = highest). No week filter, no tier band: this is
+ * Global Analytics Year leaderboard — every player, sorted strictly by the
+ * current calendar year's TASK-star score descending (rank 1 = highest).
+ * No week filter, no tier band: this is
  * the single unified ranking, visible to everyone regardless of their own tier.
  * Ties break on the private server-side email key; the client only receives
- * the server-assigned public player id.
+ * the server-assigned public player id. Annual rank movement is intentionally
+ * null until annual snapshots exist.
  *
  * The RPC returns the top 50 *plus* the caller's rank neighbourhood (±5), so
  * the returned list can contain a discontinuity — use `hasRankGapBefore` when
@@ -229,12 +253,14 @@ export function useLeaderboard(
   currentUserGoogleSub: string | null = null,
 ) {
   const qaSandboxActive = isQaSandboxActive();
+  const today = getLocalDate();
   const query = useQuery({
     // `lang` is part of the key because generated names are language-specific;
     // switching language must re-derive them rather than serve stale copy.
-    queryKey: ['leaderboard', currentUserEmail, currentUserName, playerLabel, lang, qaSandboxActive ? Math.round(currentStars) : null],
+    queryKey: ['leaderboard', currentUserGoogleSub, currentUserEmail, today, currentUserName, playerLabel, lang, qaSandboxActive ? Math.round(currentStars) : null],
     enabled: !!currentUserEmail && (qaSandboxActive || !!supabase),
     staleTime: 60_000,
+    refetchInterval: () => getMillisecondsUntilLocalMidnight(),
     retry: false,
     queryFn: async (): Promise<LeaderboardEntry[]> => {
       if (qaSandboxActive) {
@@ -251,13 +277,17 @@ export function useLeaderboard(
       if (!supabase || !currentUserEmail) return [];
 
       return withSupabaseSession(currentUserEmail, currentUserGoogleSub ?? undefined, async () => {
-        // Best-effort: record this instant's rank so a visit ~7 days from now
-        // can show movement. Await it inside the session lease so the write
-        // cannot outlive the account that owns the token.
-        await Promise.resolve(supabase!.rpc('record_leaderboard_snapshot')).catch(() => {});
-
-        const { data, error } = await supabase!.rpc('get_global_leaderboard_v2', { p_limit: LEADERBOARD_TOP_LIMIT });
-        if (error) throw error;
+        // The annual RPC is server-authoritative for every player. Do not
+        // fall back to the lifetime RPC: that would make the signed-in row
+        // disagree with the board's ranking and recreate the original bug.
+        const { data, error } = await supabase!.rpc('get_global_year_leaderboard_v1', { p_limit: LEADERBOARD_TOP_LIMIT });
+        if (error) {
+          // Migration 069 may not be deployed on every environment yet. Keep
+          // that rollout state distinct from a transient connection failure so
+          // the UI does not offer an endless, futile network retry.
+          if (isMissingAnnualLeaderboardRpc(error)) throw new LeaderboardUnavailableError(error);
+          throw error;
+        }
         return mapRemoteLeaderboardRows((data ?? []) as RemoteLeaderboardRow[], currentUserName, playerLabel, lang);
       });
     },
@@ -266,5 +296,8 @@ export function useLeaderboard(
   // A production build without the public Supabase variables disables the
   // query entirely. Keep that state explicit so the UI cannot mistake a
   // missing backend configuration for a genuinely empty global board.
-  return { ...query, isUnavailable: !qaSandboxActive && !supabase };
+  return {
+    ...query,
+    isUnavailable: !qaSandboxActive && (!supabase || query.error instanceof LeaderboardUnavailableError),
+  };
 }

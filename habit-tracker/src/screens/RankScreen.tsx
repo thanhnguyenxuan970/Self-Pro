@@ -104,7 +104,7 @@ export function RankScreen({ qaBannerVisible = false }: { qaBannerVisible?: bool
   const currentUserEntry: LBEntry = useMemo(() => ({
     playerId: googleUser?.sub ?? 'current-user',
     displayName: googleUser?.name ?? t.leaderboardYou,
-    lifetimeStars: data?.currentStars ?? 0,
+    yearStars: data?.currentStars ?? 0,
     // Until the authenticated server response arrives, the local database
     // does not know this user's global rank. Do not present a fabricated #1.
     rank: 0,
@@ -114,13 +114,12 @@ export function RankScreen({ qaBannerVisible = false }: { qaBannerVisible?: bool
     rankDelta7d: null,
   }), [googleUser?.sub, googleUser?.name, data?.currentStars, t.leaderboardYou]);
 
-  // The Home heatmap and rank hero both read the local, cutoff-filtered total
-  // from useRankData. Keep the current user's leaderboard row on that same
-  // value while retaining the server-provided rank and other players' stars.
+  // The server annual value is used for every real row. The helper only falls
+  // back to the same local Analytics Year value when a row has no star field.
   const leaderboardForDisplay = useMemo(
     () => leaderboard.map(entry => ({
       ...entry,
-      lifetimeStars: displayStarsForRankRow(entry, data?.currentStars),
+      yearStars: displayStarsForRankRow(entry, data?.currentStars),
     })),
     [leaderboard, data?.currentStars],
   );
@@ -135,7 +134,7 @@ export function RankScreen({ qaBannerVisible = false }: { qaBannerVisible?: bool
   );
   // Zero-star readers never see a competitive board, they see a CTA to log
   // their first activity — independent of whether other players are ranked.
-  const isZero = myLeaderboardEntry.lifetimeStars <= 0;
+  const isZero = myLeaderboardEntry.yearStars <= 0;
   const boardRows = useMemo(
     () => boardRowsWithCurrentUserFallback(top15, currentUserEntry, isZero),
     [top15, currentUserEntry, isZero],
@@ -173,7 +172,7 @@ export function RankScreen({ qaBannerVisible = false }: { qaBannerVisible?: bool
   // The sticky bar can be eligible before the real entry has loaded (it only
   // waits on `data`, a different query than the leaderboard) — fall back to
   // the same locally-known total the rest of the screen already trusts.
-  const stickyStarsDisplay = realMyEntry ? animatedStars : myLeaderboardEntry.lifetimeStars;
+  const stickyStarsDisplay = realMyEntry ? animatedStars : myLeaderboardEntry.yearStars;
 
   function checkSticky() {
     const rowNode = youRowRef.current;
@@ -321,6 +320,7 @@ export function RankScreen({ qaBannerVisible = false }: { qaBannerVisible?: bool
     const rankLabel = t.rankNameMap[cfg.name] ?? cfg.name;
     const nextRankLabel = nextCfg ? (t.rankNameMap[nextCfg.name] ?? nextCfg.name) : (t.rankNameMap[nextTier?.rank_name ?? ''] ?? nextTier?.rank_name ?? '');
     const unlockedRankCount = RANKS.filter(rank => rank.tier < currentTierOrder).length;
+    const hasReachedRank = currentTierOrder > 0 || currentStars >= firstTierStars;
 
     return (
       <View style={styles.globalWrap} ref={viewportRef}>
@@ -330,7 +330,7 @@ export function RankScreen({ qaBannerVisible = false }: { qaBannerVisible?: bool
         onScroll={handleGlobalScroll}
         scrollEventThrottle={16}
       >
-        {currentStars >= firstTierStars ? (
+        {hasReachedRank ? (
           <View style={styles.rankhero}>
             <View style={[styles.rankheroGlow, { backgroundColor: cfg.glow ?? cfg.color }]} importantForAccessibility="no" />
             <RankMascot ref={mascotRef} tier={(currentTier?.tier_order ?? 1) - 1} size={100} loop reduceMotion={reduceMotion} ambient />
@@ -503,6 +503,7 @@ export function RankScreen({ qaBannerVisible = false }: { qaBannerVisible?: bool
           active={segment === 'friends'}
           currentUserEmail={currentUserEmail}
           accountSub={accountSub}
+          yearStars={data?.currentStars ?? null}
           colors={colors}
           t={t}
           lang={lang}

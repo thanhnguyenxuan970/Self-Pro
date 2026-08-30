@@ -5,6 +5,7 @@ const migration022 = readFileSync(`${migrationRoot}/022_redact_leaderboard_email
 const migration023 = readFileSync(`${migrationRoot}/023_leaderboard_compatibility.sql`, 'utf8');
 const migration024 = readFileSync(`${migrationRoot}/024_preserve_legacy_leaderboard_identity.sql`, 'utf8');
 const migration027 = readFileSync(`${migrationRoot}/027_provision_leaderboard_profiles.sql`, 'utf8');
+const migration069 = readFileSync(`${migrationRoot}/069_analytics_year_social_leaderboards.sql`, 'utf8');
 
 test('privacy migration keeps the legacy leaderboard RPC shape', () => {
   expect(migration022).toContain('RETURNS TABLE (user_email text, lifetime_stars real, rank bigint)');
@@ -81,4 +82,13 @@ test('streak signal never emits a negative streak', () => {
 test('streak signal keeps execute restricted to authenticated', () => {
   expect(migration028).toContain('REVOKE ALL ON FUNCTION public.get_global_leaderboard_v2(integer) FROM PUBLIC, anon, authenticated;');
   expect(migration028).toContain('GRANT EXECUTE ON FUNCTION public.get_global_leaderboard_v2(integer) TO authenticated;');
+});
+
+test('annual social RPCs are additive and do not replace the lifetime contract', () => {
+  expect(migration026).toContain('get_global_leaderboard_v2');
+  expect(migration026).toContain('lifetime_stars');
+  expect(migration069).toContain('get_global_year_leaderboard_v1');
+  expect(migration069).toContain('get_my_year_friend_dashboard');
+  expect(migration069).toContain("source = 'TASK'");
+  expect(migration069).toContain('activity_start_date');
 });

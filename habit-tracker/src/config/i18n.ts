@@ -154,7 +154,7 @@ const vi = {
   activities: 'Hoạt động',
   currentStreak: 'Chuỗi hiện tại',
   toNextRank: 'Hạng tiếp theo',
-  totalStars: 'Tổng sao',
+  totalStars: 'Sao năm nay',
   bestStreak: 'Chuỗi dài nhất',
   weeklyActiveDays: 'Ngày hoạt động tuần này',
   topHabits: 'Thói quen nổi bật',
@@ -475,7 +475,7 @@ const vi = {
   achChallenge30: 'Kiên trì 30 ngày',
   achChallenge30Desc: 'Hoàn thành tổng cộng 30 ngày qua các thử thách.',
   achRizz: 'Hồng tâm',
-  achRizzDesc: 'Kiếm tổng cộng 50 sao.',
+  achRizzDesc: 'Kiếm 50 sao trong năm nay.',
   achChallenge66: 'Bậc thầy 66 ngày',
   achChallenge66Desc: 'Hoàn thành tổng cộng 66 ngày qua các thử thách.',
   achStreak100: '100 lần ghi nhận',
@@ -506,8 +506,8 @@ const vi = {
   rankInfoPoint1Sub: 'Hoàn thành mỗi hoạt động, bạn nhận được 1 sao.',
   rankInfoPoint2Title: 'Đủ sao → lên hạng',
   rankInfoPoint2Sub: (n: number) => `Có ${n} hạng — càng nhiều sao, hạng càng cao.`,
-  rankInfoPoint3Title: 'Tích lũy sao trọn đời',
-  rankInfoPoint3Sub: 'Tổng sao không đặt lại — mọi cột mốc đã đạt đều được giữ lại.',
+  rankInfoPoint3Title: 'Sao Analytics năm nay',
+  rankInfoPoint3Sub: 'Tổng sao hiển thị đặt lại mỗi năm; các hạng đã mở khóa vẫn được giữ lại.',
   rankInfoTiersHeading: (n: number) => `Thang bậc · ${n} hạng`,
   newsTitle: 'Có gì mới',
   newsUnreadCount: (n: number) => n === 0 ? 'Tất cả đã đọc' : `${n} tin chưa đọc`,
@@ -560,7 +560,7 @@ const vi = {
   tutStep4Title: '📊 Xem tiến bộ',
   tutStep4Body: 'Xem biểu đồ và lịch sử của bạn.',
   tutStep5Title: '🏆 Leo hạng',
-  tutStep5Body: 'Cùng cộng đồng thi đua — bảng xếp hạng dùng tổng sao trọn đời.',
+  tutStep5Body: 'Cùng cộng đồng thi đua — bảng xếp hạng dùng sao năm nay.',
   // AddActivitySheet
   addActivityTitle: 'Thêm hoạt động',
   addActivityNameLabel: 'Tên hoạt động',
@@ -614,7 +614,7 @@ const vi = {
   calendarActive: 'Có hoạt động',
   calendarBackfill: 'Ghi bù',
   calendarToday: 'Hôm nay',
-  calendarTotalStars: 'Tổng sao',
+  calendarTotalStars: 'Sao tháng này',
   calendarActiveDays: 'Ngày hoạt động',
   calendarBest: 'Ngày cao nhất',
   rewardStarsReceived: 'sao vừa nhận',
@@ -694,14 +694,15 @@ const vi = {
   durationCustom: '1h+',
   durationEditValue: (label: string) => `Nhập giá trị ${label}`,
 
-  // Leaderboard (global, lifetime — no weekly reset)
+  // Leaderboard (global, Analytics Year — resets with the calendar year)
   leaderboardYou: 'Bạn',
   leaderboardPlayer: 'Người chơi',
   leaderboardEmpty: 'Chưa có ai trên bảng xếp hạng — hãy là người đầu tiên!',
   leaderboardNoSync: 'Kết nối mạng để xem bảng xếp hạng',
+  leaderboardUnavailable: 'Bảng xếp hạng năm chưa sẵn sàng trên máy chủ.',
   leaderboardPending: 'Đang đồng bộ bảng xếp hạng — sao của bạn đã được lưu.',
   leaderboardRetry: 'Thử lại',
-  leaderboardChampion: 'QUÁN QUÂN MỌI THỜI ĐIỂM',
+  leaderboardChampion: 'QUÁN QUÂN NĂM NAY',
   leaderboardBoardLabel: (count: number) => `BẢNG XẾP HẠNG · ${count} NGƯỜI`,
   leaderboardStarsHeader: 'SAO',
   leaderboardJumpToRow: 'Về dòng của bạn',
@@ -726,10 +727,10 @@ const vi = {
   friendsLeadingSolo: 'Bạn đang dẫn đầu',
   friendsTiedAt: (rank: number, n: number) => `Đồng hạng #${rank} với ${n} người khác`,
   friendsCatchTarget: (stars: number, rank: number) => `${stars} ★ để bắt kịp hạng #${rank}`,
-  // Accepts a raw number (a11y label composition) or an already
-  // locale-formatted string (visual stats line, via formatStarCount) —
-  // both stringify correctly through the template.
+  // Accepts a raw number for the lifetime ladder-row a11y label or an
+  // already locale-formatted fallback summary value.
   friendsLifetimeLine: (stars: number | string) => `${stars} ★ tích luỹ`,
+  friendsYearLine: (stars: number | string) => `${stars} ★ năm nay`,
   // Ladder-row streak, distinct from leaderboardStreakDays' longer "liên
   // tiếp" phrasing — the race ladder's own rows use the shorter fire-emoji
   // form the board shows on every friend row.
@@ -810,15 +811,15 @@ const vi = {
 
   // Friends — empty/loading/error/offline
   friendsEmptyHeadline: 'Đường đua đang trống',
-  friendsEmptyBody: 'Thêm bạn bằng mã 6 ký tự để so sánh sao tích luỹ và chuỗi ngày.',
-  friendsPrivacyLine: 'Bạn bè chỉ thấy chuỗi ngày và sao tích luỹ của bạn.',
+  friendsEmptyBody: 'Thêm bạn bằng mã 6 ký tự để so sánh sao năm nay và chuỗi ngày.',
+  friendsPrivacyLine: 'Bạn bè chỉ thấy chuỗi ngày và sao năm nay của bạn.',
   friendsLoadingAnnounce: 'Đang tải bảng đua',
   friendsStaleBanner: (time: string) => `Đang xem dữ liệu đã lưu · cập nhật ${time}`,
   friendsRetry: 'Thử lại',
   friendsErrorHeadline: 'Không tải được bạn bè',
   friendsErrorBody: 'Đây là lỗi kết nối, không phải danh sách trống. Dữ liệu bạn bè của bạn vẫn còn.',
   friendsUnavailableHeadline: 'Bạn bè tạm thời không khả dụng',
-  friendsUnavailableBody: 'Ứng dụng cần được cập nhật để dùng tính năng này. Xếp hạng toàn cầu vẫn hoạt động.',
+  friendsUnavailableBody: 'Chưa tải được dữ liệu bảng đua năm nay. Dữ liệu tài khoản của bạn vẫn được giữ nguyên.',
   friendsViewGlobal: 'Xem bảng toàn cầu',
 
   // Friends — blocked accounts (Settings)
@@ -1100,7 +1101,7 @@ const en: typeof vi = {
   activities: 'Activities',
   currentStreak: 'Current streak',
   toNextRank: 'To next rank',
-  totalStars: 'Total stars',
+  totalStars: 'Stars this year',
   bestStreak: 'Best streak',
   weeklyActiveDays: 'Days this week',
   topHabits: 'Top habits',
@@ -1419,7 +1420,7 @@ const en: typeof vi = {
   achChallenge30: '30-Day Grind',
   achChallenge30Desc: 'Complete 30 days across your challenges.',
   achRizz: 'Bullseye',
-  achRizzDesc: 'Earn 50 stars in total.',
+  achRizzDesc: 'Earn 50 stars this year.',
   achChallenge66: '66-Day Mastery',
   achChallenge66Desc: 'Complete 66 days across your challenges.',
   achStreak100: '100 Logs',
@@ -1450,8 +1451,8 @@ const en: typeof vi = {
   rankInfoPoint1Sub: 'Completing an activity earns you a star.',
   rankInfoPoint2Title: 'Enough stars → rank up',
   rankInfoPoint2Sub: (n) => `There are ${n} ranks — more stars, higher rank.`,
-  rankInfoPoint3Title: 'Lifetime star accumulation',
-  rankInfoPoint3Sub: 'Your total never resets — every earned milestone stays unlocked.',
+  rankInfoPoint3Title: 'Analytics Year stars',
+  rankInfoPoint3Sub: 'The displayed total resets each year; ranks you have unlocked stay unlocked.',
   rankInfoTiersHeading: (n) => `Ranks · ${n} tiers`,
   newsTitle: "What's New",
   newsUnreadCount: (n: number) => n === 0 ? 'All caught up' : `${n} unread update${n === 1 ? '' : 's'}`,
@@ -1504,7 +1505,7 @@ const en: typeof vi = {
   tutStep4Title: '📊 Track progress',
   tutStep4Body: 'View your charts & activity history.',
   tutStep5Title: '🏆 Climb the leaderboard',
-  tutStep5Body: 'Compete globally — the leaderboard uses your lifetime stars.',
+  tutStep5Body: 'Compete globally — the leaderboard uses your stars this year.',
   // AddActivitySheet
   addActivityTitle: 'Add Activity',
   addActivityNameLabel: 'Activity name',
@@ -1558,7 +1559,7 @@ const en: typeof vi = {
   calendarActive: 'Active day',
   calendarBackfill: 'Backfill',
   calendarToday: 'Today',
-  calendarTotalStars: 'Total stars',
+  calendarTotalStars: 'Stars this month',
   calendarActiveDays: 'Active days',
   calendarBest: 'Best day',
   rewardStarsReceived: 'stars just earned',
@@ -1638,14 +1639,15 @@ const en: typeof vi = {
   durationCustom: '1h+',
   durationEditValue: (label: string) => `Type the ${label} value`,
 
-  // Leaderboard (global, lifetime — no weekly reset)
+  // Leaderboard (global, Analytics Year — resets with the calendar year)
   leaderboardYou: 'You',
   leaderboardPlayer: 'Player',
   leaderboardEmpty: 'No one on the leaderboard yet — be the first!',
   leaderboardNoSync: 'Connect to the internet to view the leaderboard',
+  leaderboardUnavailable: 'The Analytics Year leaderboard is not available on the server yet.',
   leaderboardPending: 'Leaderboard is syncing — your stars are saved.',
   leaderboardRetry: 'Retry',
-  leaderboardChampion: 'ALL-TIME CHAMPION',
+  leaderboardChampion: 'YEAR CHAMPION',
   leaderboardBoardLabel: (count: number) => `LEADERBOARD · ${count} PEOPLE`,
   leaderboardStarsHeader: 'STARS',
   leaderboardJumpToRow: 'Jump to your row',
@@ -1671,6 +1673,7 @@ const en: typeof vi = {
   friendsTiedAt: (rank: number, n: number) => `Tied at #${rank} with ${n} other${n === 1 ? '' : 's'}`,
   friendsCatchTarget: (stars: number, rank: number) => `${stars} ★ to catch rank #${rank}`,
   friendsLifetimeLine: (stars: number | string) => `${stars} ★ lifetime`,
+  friendsYearLine: (stars: number | string) => `${stars} ★ this year`,
   friendsStreakLine: (days: number) => `🔥 ${days} days`,
   friendsAddFriendCta: '+ Add friend',
   friendsAddFriendAria: 'Add friend',
@@ -1748,15 +1751,15 @@ const en: typeof vi = {
 
   // Friends — empty/loading/error/offline
   friendsEmptyHeadline: 'The ladder is empty',
-  friendsEmptyBody: 'Add a friend with a 6-character code to compare lifetime stars and streaks.',
-  friendsPrivacyLine: 'Friends only ever see your streak and lifetime stars.',
+  friendsEmptyBody: "Add a friend with a 6-character code to compare this year's stars and streaks.",
+  friendsPrivacyLine: "Friends only ever see your streak and this year's stars.",
   friendsLoadingAnnounce: 'Loading race ladder',
   friendsStaleBanner: (time: string) => `Showing saved data · updated ${time}`,
   friendsRetry: 'Retry',
   friendsErrorHeadline: "Couldn't load friends",
   friendsErrorBody: 'This is a connection error, not an empty list. Your friends are still there.',
   friendsUnavailableHeadline: 'Friends temporarily unavailable',
-  friendsUnavailableBody: 'The app needs an update for this feature. The global leaderboard still works.',
+  friendsUnavailableBody: "This year's race data isn't available yet. Your account data is still safe.",
   friendsViewGlobal: 'View global board',
 
   // Friends — blocked accounts (Settings)

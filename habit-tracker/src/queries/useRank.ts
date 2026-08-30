@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { getDb } from '../db/client';
 import { useGoogleUser } from '../hooks/authContext';
 import { getAccountActivityStartDate } from '../lib/accountActivityBoundary';
+import { readAnalyticsYearStars } from '../analytics/yearStars';
+import { getLocalDate, getMillisecondsUntilLocalMidnight } from '../utils/formatters';
 
 export type TierRow = {
   id: number;
@@ -17,37 +19,28 @@ export function visibleTierId(currentTierId: number | null, _currentStars: numbe
   return tiers.some(item => item.id === currentTierId) ? currentTierId : null;
 }
 
-/** Lifetime rank state — reads users.lifetime_stars/current_tier_id, not the
- * (weekly, now rank-unrelated) weekly_summary table. */
+/** Rank state uses the Analytics Year star KPI as its displayed star total.
+ * `current_tier_id` remains a lifetime high-water marker so a correction or a
+ * new calendar year cannot silently demote an already reached tier. */
 export function useRankData(userId: number) {
   const googleUser = useGoogleUser();
   const activityStartDate = getAccountActivityStartDate(googleUser?.email);
+  const today = getLocalDate();
   return useQuery({
-    queryKey: ['rank', userId, activityStartDate],
+    queryKey: ['rank', userId, today, activityStartDate],
+    refetchInterval: () => getMillisecondsUntilLocalMidnight(),
     queryFn: async () => {
       const db = await getDb();
 
-      const user = await db.getFirstAsync<{ lifetime_stars: number; current_tier_id: number | null }>(
-        `SELECT lifetime_stars, current_tier_id FROM users WHERE id = ?`,
+      const user = await db.getFirstAsync<{ current_tier_id: number | null }>(
+        `SELECT current_tier_id FROM users WHERE id = ?`,
         [userId]
       );
       const tiers = await db.getAllAsync<TierRow>(
         `SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY tier_order`
       );
-      const filteredActivity = activityStartDate
-        ? await db.getFirstAsync<{ total: number | null }>(
-          `SELECT COALESCE(SUM(CASE WHEN stars_delta > 0 THEN stars_delta ELSE 0 END), 0) AS total
-             FROM activity_log
-            WHERE user_id = ? AND local_date >= ?`,
-          [userId, activityStartDate],
-        )
-        : null;
-      const currentStars = activityStartDate
-        ? Math.floor(Number(filteredActivity?.total) || 0)
-        : user?.lifetime_stars ?? 0;
-      const currentTierId = activityStartDate
-        ? [...tiers].reverse().find(tier => tier.stars_required <= currentStars)?.id ?? null
-        : visibleTierId(user?.current_tier_id ?? null, currentStars, tiers);
+      const currentStars = await readAnalyticsYearStars(db, userId, new Date(), activityStartDate);
+      const currentTierId = visibleTierId(user?.current_tier_id ?? null, currentStars, tiers);
       return {
         currentStars,
         currentTierId,

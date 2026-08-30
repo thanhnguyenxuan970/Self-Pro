@@ -15,8 +15,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Fixed
 - **Account activity boundary**: the confirmed thanguyenxuan account now starts counting real activity on 2026-07-06; earlier fake rows no longer inflate its heatmap, lifetime stars, rank, backup, restore, or sync.
-- **Rank/Home consistency**: the signed-in user's leaderboard stars now use the same cutoff-filtered lifetime total shown on Home while preserving the server-derived rank.
+- **Analytics Year star contract**: Home, Analytics, Rank, Global, Friends, Profile, Trophy, and Badge totals now use the same current-calendar-year positive TASK-star KPI; lifetime stars remain internal for tier/economy/recovery and are no longer a visible total.
 - **Offline-safe recovery**: a temporary cloud-restore outage no longer replaces an already-populated local account with the recovery screen; fresh databases remain fail-closed until restore succeeds.
+- **Recovery after reconnect**: the explicit account-recovery Retry now refreshes the Google-backed Supabase session before reconciling, so a stale in-memory session cannot keep returning the recovery screen after connectivity returns.
 - **Backup CAS reconciliation**: an existing local snapshot now adopts a newer cloud revision only when the payloads match; divergent snapshots keep sync blocked instead of issuing repeated stale-revision writes.
 - **Quiet backup contention**: expected multi-device revision mismatches now return a non-error CAS sentinel, so the client can run the same data-preserving reconciliation without recording normal contention as a Supabase `P0001`; legacy backup calls still fail closed.
 - **Theme contrast**: accent, loading, selection, and celebration states now use semantic contrast-safe tokens across light and dark modes.

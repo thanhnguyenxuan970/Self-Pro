@@ -7,7 +7,7 @@ import { useAllTimeStats } from '../queries/useProgress';
 import { useRankData } from '../queries/useRank';
 import { useAchievementActivityMetrics, useChallengeDaysTotal, useAchievementUnlocks, useRecordAchievementUnlock, useWeeklyOverachieverCount } from '../queries/useAchievements';
 import { ACHIEVEMENTS, FILTERS, matchesFilter, type AchievementFilter } from '../config/achievements';
-import { computeAchievementStatus, type AchievementStats } from '../lib/achievements';
+import { achievementUnlockKey, computeAchievementStatus, type AchievementStats } from '../lib/achievements';
 import { Badge } from '../components/Badge';
 import { BadgeDetailModal } from '../components/BadgeDetailModal';
 
@@ -54,7 +54,8 @@ export function TrophyShelfScreen() {
   useEffect(() => {
     if (isLoading) return;
     for (const item of items) {
-      if (item.earned && !unlocks[item.id]) recordUnlock.mutate(item.id);
+      const unlockKey = achievementUnlockKey(item.id);
+      if (item.earned && !unlocks[unlockKey]) recordUnlock.mutate(item.id);
     }
     // Only re-scan when the earned set or recorded set actually changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -135,7 +136,7 @@ export function TrophyShelfScreen() {
       <BadgeDetailModal
         visible={!!selected}
         achievement={selected}
-        earnedDate={selected ? unlocks[selected.id] : undefined}
+        earnedDate={selected ? unlocks[achievementUnlockKey(selected.id)] : undefined}
         onClose={() => setSelectedId(null)}
       />
     </SafeAreaView>

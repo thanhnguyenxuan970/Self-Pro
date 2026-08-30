@@ -90,7 +90,7 @@ function isRemoteFriendDashboardRow(value: unknown): value is RemoteFriendDashbo
     && isNullableString(row.player_id)
     && isNullableString(row.display_name)
     && (row.effective_streak === null || typeof row.effective_streak === 'number')
-    && (row.lifetime_stars === null || typeof row.lifetime_stars === 'number')
+    && (row.year_stars === null || typeof row.year_stars === 'number')
     && (row.friend_rank === null || typeof row.friend_rank === 'number')
     && typeof row.is_current_user === 'boolean'
     && isNullableString(row.created_at)
@@ -176,7 +176,7 @@ export async function getFriendDashboard(currentUserEmail: string, accountSub?: 
   const { data, error } = await withFriendSession(
     currentUserEmail,
     accountSub,
-    async () => supabase!.rpc('get_my_friend_dashboard'),
+    async () => supabase!.rpc('get_my_year_friend_dashboard'),
     { retryOnUnauthorized: true },
   );
   if (error) throw isMissingRpcError(error) ? new FriendsUnavailableError(error) : error;

@@ -60,7 +60,7 @@ export function isQaSandboxActive(): boolean {
 
 export type QaSandboxLeaderboardRow = {
   player_id: string;
-  lifetime_stars: number;
+  year_stars: number;
   rank: number;
   is_current_user: boolean;
   current_streak: number;
@@ -73,26 +73,26 @@ export type QaSandboxLeaderboardRow = {
  * exercise the board's champion, movement, highlighted-row, and scroll states.
  */
 const QA_SANDBOX_LEADERBOARD_RIVALS = [
-  { player_id: 'qa-rival-01', lifetime_stars: 980, current_streak: 41, rank_delta_7d: 4 },
-  { player_id: 'qa-rival-02', lifetime_stars: 860, current_streak: 29, rank_delta_7d: -2 },
-  { player_id: 'qa-rival-03', lifetime_stars: 780, current_streak: 24, rank_delta_7d: 0 },
-  { player_id: 'qa-rival-04', lifetime_stars: 710, current_streak: 19, rank_delta_7d: null },
-  { player_id: 'qa-rival-05', lifetime_stars: 670, current_streak: 17, rank_delta_7d: 3 },
-  { player_id: 'qa-rival-06', lifetime_stars: 625, current_streak: 16, rank_delta_7d: -1 },
-  { player_id: 'qa-rival-07', lifetime_stars: 590, current_streak: 14, rank_delta_7d: 2 },
-  { player_id: 'qa-rival-08', lifetime_stars: 560, current_streak: 13, rank_delta_7d: null },
-  { player_id: 'qa-rival-09', lifetime_stars: 530, current_streak: 11, rank_delta_7d: 1 },
-  { player_id: 'qa-rival-10', lifetime_stars: 500, current_streak: 10, rank_delta_7d: -3 },
-  { player_id: 'qa-rival-11', lifetime_stars: 480, current_streak: 9, rank_delta_7d: 0 },
-  { player_id: 'qa-rival-12', lifetime_stars: 455, current_streak: 8, rank_delta_7d: null },
-  { player_id: 'qa-rival-13', lifetime_stars: 440, current_streak: 7, rank_delta_7d: 2 },
-  { player_id: 'qa-rival-14', lifetime_stars: 430, current_streak: 6, rank_delta_7d: -1 },
-  { player_id: 'qa-rival-15', lifetime_stars: 410, current_streak: 5, rank_delta_7d: 1 },
-  { player_id: 'qa-rival-16', lifetime_stars: 395, current_streak: 4, rank_delta_7d: null },
-  { player_id: 'qa-rival-17', lifetime_stars: 380, current_streak: 3, rank_delta_7d: 0 },
-  { player_id: 'qa-rival-18', lifetime_stars: 365, current_streak: 2, rank_delta_7d: -2 },
-  { player_id: 'qa-rival-19', lifetime_stars: 345, current_streak: 2, rank_delta_7d: 1 },
-  { player_id: 'qa-rival-20', lifetime_stars: 320, current_streak: 1, rank_delta_7d: null },
+  { player_id: 'qa-rival-01', year_stars: 980, current_streak: 41, rank_delta_7d: 4 },
+  { player_id: 'qa-rival-02', year_stars: 860, current_streak: 29, rank_delta_7d: -2 },
+  { player_id: 'qa-rival-03', year_stars: 780, current_streak: 24, rank_delta_7d: 0 },
+  { player_id: 'qa-rival-04', year_stars: 710, current_streak: 19, rank_delta_7d: null },
+  { player_id: 'qa-rival-05', year_stars: 670, current_streak: 17, rank_delta_7d: 3 },
+  { player_id: 'qa-rival-06', year_stars: 625, current_streak: 16, rank_delta_7d: -1 },
+  { player_id: 'qa-rival-07', year_stars: 590, current_streak: 14, rank_delta_7d: 2 },
+  { player_id: 'qa-rival-08', year_stars: 560, current_streak: 13, rank_delta_7d: null },
+  { player_id: 'qa-rival-09', year_stars: 530, current_streak: 11, rank_delta_7d: 1 },
+  { player_id: 'qa-rival-10', year_stars: 500, current_streak: 10, rank_delta_7d: -3 },
+  { player_id: 'qa-rival-11', year_stars: 480, current_streak: 9, rank_delta_7d: 0 },
+  { player_id: 'qa-rival-12', year_stars: 455, current_streak: 8, rank_delta_7d: null },
+  { player_id: 'qa-rival-13', year_stars: 440, current_streak: 7, rank_delta_7d: 2 },
+  { player_id: 'qa-rival-14', year_stars: 430, current_streak: 6, rank_delta_7d: -1 },
+  { player_id: 'qa-rival-15', year_stars: 410, current_streak: 5, rank_delta_7d: 1 },
+  { player_id: 'qa-rival-16', year_stars: 395, current_streak: 4, rank_delta_7d: null },
+  { player_id: 'qa-rival-17', year_stars: 380, current_streak: 3, rank_delta_7d: 0 },
+  { player_id: 'qa-rival-18', year_stars: 365, current_streak: 2, rank_delta_7d: -2 },
+  { player_id: 'qa-rival-19', year_stars: 345, current_streak: 2, rank_delta_7d: 1 },
+  { player_id: 'qa-rival-20', year_stars: 320, current_streak: 1, rank_delta_7d: null },
 ] as const;
 
 /** Builds a stable, non-persistent board around the sandbox's local total. */
@@ -100,11 +100,11 @@ export function buildQaSandboxLeaderboard(currentStars: number): QaSandboxLeader
   const safeCurrentStars = Number.isFinite(currentStars) ? Math.max(0, Math.round(currentStars)) : 0;
   const rows = [
     ...QA_SANDBOX_LEADERBOARD_RIVALS,
-    { player_id: QA_SANDBOX_SUB, lifetime_stars: safeCurrentStars, current_streak: 13, rank_delta_7d: 3 },
+    { player_id: QA_SANDBOX_SUB, year_stars: safeCurrentStars, current_streak: 13, rank_delta_7d: 3 },
   ];
 
   return [...rows]
-    .sort((a, b) => b.lifetime_stars - a.lifetime_stars || a.player_id.localeCompare(b.player_id))
+    .sort((a, b) => b.year_stars - a.year_stars || a.player_id.localeCompare(b.player_id))
     .map((row, index) => ({
       ...row,
       rank: index + 1,

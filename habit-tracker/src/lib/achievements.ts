@@ -1,4 +1,10 @@
 import type { Achievement } from '../config/achievements';
+import { getLocalDate } from '../utils/formatters';
+
+/** Rizz measures the current Analytics Year, so each calendar year gets its own record. */
+export function achievementUnlockKey(achievementId: string, localDate: string = getLocalDate()): string {
+  return achievementId === 'rizz' ? `${achievementId}:${localDate.slice(0, 4)}` : achievementId;
+}
 
 export interface AchievementStats {
   totalActivities: number;

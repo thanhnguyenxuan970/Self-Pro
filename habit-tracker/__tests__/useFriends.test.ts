@@ -34,6 +34,7 @@ import {
   useRotateFriendCode,
 } from '../src/queries/useFriends';
 import * as friendsApi from '../src/api/friendsApi';
+import { getLocalDate } from '../src/utils/formatters';
 
 type QueryLike = { enabled: boolean; queryFn: () => Promise<unknown> };
 type MutationLike<TData, TVars> = { onSuccess: (data: TData, variables: TVars, context: undefined, meta: never) => void };
@@ -45,9 +46,14 @@ beforeEach(() => {
 });
 
 test('friendKeys are stable and keyed on account sub, not email', () => {
-  expect(friendKeys.dashboard('sub-1', 'Player')).toEqual(['friends', 'sub-1', 'dashboard', 'Player']);
+  expect(friendKeys.dashboard('sub-1', 'Player', '2026-08-30')).toEqual(['friends', 'sub-1', 'dashboard', '2026-08-30', 'Player']);
   expect(friendKeys.pendingCount('sub-1')).toEqual(['friends', 'sub-1', 'pending-count']);
   expect(friendKeys.code('sub-1')).toEqual(['friends', 'sub-1', 'code']);
+});
+
+test('friend dashboard cache is scoped to the local calendar date', () => {
+  const hook = useFriendDashboard('me@example.com', 'sub-1', 'Player', true) as unknown as { queryKey: readonly unknown[] };
+  expect(hook.queryKey).toEqual(['friends', 'sub-1', 'dashboard', getLocalDate(), 'Player']);
 });
 
 test('useFriendPendingCount is disabled without an authenticated email or account sub', () => {
@@ -66,7 +72,7 @@ test('useFriendDashboard stays disabled until the Friends segment is active, ind
 
 test('useFriendDashboard queryFn maps raw rows through mapFriendDashboardRows', async () => {
   jest.mocked(friendsApi.getFriendDashboard).mockResolvedValue([
-    { relationship_id: null, section: 'self', player_id: 'me', display_name: 'Minh', effective_streak: 3, lifetime_stars: 10, friend_rank: 1, is_current_user: true, created_at: null, expires_at: null },
+    { relationship_id: null, section: 'self', player_id: 'me', display_name: 'Minh', effective_streak: 3, year_stars: 10, friend_rank: 1, is_current_user: true, created_at: null, expires_at: null },
   ]);
   const hook = useFriendDashboard('me@example.com', 'sub-1', 'Player', true) as unknown as QueryLike;
   const result = await hook.queryFn() as { ladder: { displayName: string }[] };

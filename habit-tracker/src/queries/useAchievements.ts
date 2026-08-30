@@ -2,9 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../db/client';
 import { useGoogleUser } from '../hooks/authContext';
 import { getAccountActivityStartDate } from '../lib/accountActivityBoundary';
-import { getLocalDate } from '../utils/formatters';
+import { getLocalDate, getMillisecondsUntilLocalMidnight } from '../utils/formatters';
 import { challengeDate } from '../lib/challenge';
 import { weekWindows, weekSessionsDone } from '../lib/challengeWeekly';
+import { achievementUnlockKey } from '../lib/achievements';
 
 /** Total days completed across all challenges (active + past), all-time. */
 export function useChallengeDaysTotal(userId: number) {
@@ -84,8 +85,10 @@ export function useAchievementActivityMetrics(userId: number) {
 
 /** Map of achievementId -> date first recorded as unlocked (YYYY-MM-DD). */
 export function useAchievementUnlocks(userId: number) {
+  const year = getLocalDate().slice(0, 4);
   return useQuery({
-    queryKey: ['achievements', 'unlocks', userId],
+    queryKey: ['achievements', 'unlocks', userId, year],
+    refetchInterval: () => getMillisecondsUntilLocalMidnight(),
     queryFn: async () => {
       const db = await getDb();
       const rows = await db.getAllAsync<{ key: string; earned_at: string }>(
@@ -103,10 +106,11 @@ export function useRecordAchievementUnlock(userId: number) {
   return useMutation({
     mutationFn: async (achievementId: string) => {
       const db = await getDb();
+      const unlockKey = achievementUnlockKey(achievementId);
       await db.runAsync(
         `INSERT OR IGNORE INTO achievements (user_id, key, rarity, earned_at, source_type, source_id)
          VALUES (?, ?, 'common', ?, 'record', NULL)`,
-        [userId, achievementId, getLocalDate()]
+        [userId, unlockKey, getLocalDate()]
       );
     },
     onSuccess: () => {

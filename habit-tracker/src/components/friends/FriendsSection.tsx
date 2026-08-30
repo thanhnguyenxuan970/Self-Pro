@@ -8,6 +8,7 @@ import {
   formatAbsoluteDateTime,
   formatRelativeAgo,
   formatStarCount,
+  friendSummaryStars,
   type FriendIncomingRow,
   type FriendLadderRow,
   type FriendMutationStatus,
@@ -33,6 +34,7 @@ type Props = {
   active: boolean;
   currentUserEmail: string | null;
   accountSub: string;
+  yearStars: number | null;
   colors: AppColors;
   t: Strings;
   lang: AppLanguage;
@@ -41,7 +43,7 @@ type Props = {
   addFriendTriggerRef: React.RefObject<View | null>;
 };
 
-export function FriendsSection({ active, currentUserEmail, accountSub, colors, t, lang, onOpenAddFriend, onViewGlobal, addFriendTriggerRef }: Props) {
+export function FriendsSection({ active, currentUserEmail, accountSub, yearStars, colors, t, lang, onOpenAddFriend, onViewGlobal, addFriendTriggerRef }: Props) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const dashboard = useFriendDashboard(currentUserEmail, accountSub, t.leaderboardPlayer, active);
   const respondMutation = useRespondToFriendRequest(currentUserEmail, accountSub);
@@ -64,7 +66,7 @@ export function FriendsSection({ active, currentUserEmail, accountSub, colors, t
   const friendRowCopy = useMemo(() => ({
     youChip: t.friendsYouChip, removeMenuItem: t.friendsRemoveMenuItem, blockMenuItemShort: t.friendsBlockMenuItemShort,
     overflowAria: t.friendsOverflowAria, dismissLabel: t.friendsConfirmDismiss,
-    streakLine: t.friendsStreakLine, lifetimeLine: t.friendsLifetimeLine,
+    streakLine: t.friendsStreakLine, yearLine: t.friendsYearLine,
   }), [t]);
 
   // `mutation.isPending` only reflects in a *later* render, so a fast
@@ -136,7 +138,7 @@ export function FriendsSection({ active, currentUserEmail, accountSub, colors, t
               <StaleBanner t={t} styles={styles} updatedAt={dashboard.dataUpdatedAt} lang={lang} onRetry={() => dashboard.refetch()} />
             )}
             <CompetitionSummary
-              colors={colors} t={t} lang={lang} styles={styles}
+              colors={colors} t={t} lang={lang} styles={styles} yearStars={yearStars}
               ladder={data.ladder} summary={summary} selfOnly={selfOnly}
               onOpenAddFriend={onOpenAddFriend} triggerRef={addFriendTriggerRef}
             />
@@ -243,8 +245,9 @@ export function FriendsSection({ active, currentUserEmail, accountSub, colors, t
   );
 }
 
-function CompetitionSummary({ colors, t, lang, styles, ladder, summary, selfOnly, onOpenAddFriend, triggerRef }: {
+function CompetitionSummary({ colors, t, lang, styles, yearStars, ladder, summary, selfOnly, onOpenAddFriend, triggerRef }: {
   colors: AppColors; t: Strings; lang: AppLanguage; styles: ReturnType<typeof makeStyles>;
+  yearStars: number | null;
   ladder: FriendLadderRow[]; summary: ReturnType<typeof buildFriendsSummary>; selfOnly: boolean;
   onOpenAddFriend: () => void; triggerRef: React.RefObject<View | null>;
 }) {
@@ -258,8 +261,12 @@ function CompetitionSummary({ colors, t, lang, styles, ladder, summary, selfOnly
     else if (summary.kind === 'catch') summaryLine = t.friendsCatchTarget(summary.catchStars, summary.catchRank);
     else summaryLine = `${t.friendsTiedAt(summary.rank, summary.tiedWithCount)} · ${t.friendsCatchTarget(summary.catchStars, summary.catchRank)}`;
   }
+  // The card, race rank, catch gap, and every ladder row use the same annual
+  // server KPI. The local value is used only if the server did not return the
+  // caller row at all; once it exists, never let a stale local value diverge.
+  const summaryStars = self ? friendSummaryStars(self.yearStars) : friendSummaryStars(yearStars);
   const statsLine = self
-    ? [t.friendsLifetimeLine(formatStarCount(self.lifetimeStars, lang)), self.effectiveStreak > 0 ? t.friendsStreakLine(self.effectiveStreak) : null]
+    ? [t.friendsYearLine(formatStarCount(summaryStars, lang)), self.effectiveStreak > 0 ? t.friendsStreakLine(self.effectiveStreak) : null]
         .filter(Boolean).join(' · ')
     : null;
 
@@ -351,7 +358,7 @@ function StaleBanner({ t, styles, updatedAt, lang, onRetry }: { t: Strings; styl
     <View style={styles.staleBanner}>
       <View style={styles.staleDot} importantForAccessibility="no" />
       <Text style={styles.staleText}>{t.friendsStaleBanner(formatRelativeAgo(updatedAt, lang))}</Text>
-      <TouchableOpacity onPress={onRetry} accessibilityRole="button" accessibilityLabel={t.friendsRetry}>
+      <TouchableOpacity style={styles.staleRetryButton} onPress={onRetry} accessibilityRole="button" accessibilityLabel={t.friendsRetry}>
         <Text style={styles.staleRetry}>{t.friendsRetry}</Text>
       </TouchableOpacity>
     </View>
@@ -438,6 +445,7 @@ function makeStyles(C: AppColors) {
     },
     staleDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.starGold },
     staleText: { flex: 1, minWidth: 0, fontSize: 12.5, fontFamily: FontFamily.semiBold, color: C.ink2 },
+    staleRetryButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     staleRetry: { fontSize: 12.5, fontFamily: FontFamily.bold, color: C.primaryText },
   });
 }

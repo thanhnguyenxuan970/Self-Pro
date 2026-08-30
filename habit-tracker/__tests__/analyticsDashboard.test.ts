@@ -45,8 +45,8 @@ describe('buildAnalyticsDashboard', () => {
     const result = buildAnalyticsDashboard(
       [{ local_date: '2026-07-28', total_points: 10 }],
       [
-        { local_date: '2026-07-28', logged_at: new Date(2026, 6, 28, 9).getTime(), points_earned: 10, stars_delta: 1, task_name: 'Read' },
-        { local_date: '2026-07-27', logged_at: new Date(2026, 6, 27, 9).getTime(), points_earned: 5, stars_delta: 1, task_name: 'Walk' },
+        { local_date: '2026-07-28', logged_at: new Date(2026, 6, 28, 9).getTime(), points_earned: 10, stars_delta: 1, source: 'TASK', task_name: 'Read' },
+        { local_date: '2026-07-27', logged_at: new Date(2026, 6, 27, 9).getTime(), points_earned: 5, stars_delta: 1, source: 'TASK', task_name: 'Walk' },
       ],
       'W',
       new Date(2026, 6, 28),
@@ -131,7 +131,7 @@ describe('buildAnalyticsDashboard', () => {
     const today = new Date(2026, 6, 28);
     const result = buildAnalyticsDashboard(
       [{ local_date: '2026-07-28', total_points: 60 }, { local_date: '2026-07-21', total_points: 40 }],
-      [{ local_date: '2026-07-28', logged_at: new Date(2026, 6, 28, 20).getTime(), points_earned: 60, stars_delta: 3, task_name: 'Gym' }],
+      [{ local_date: '2026-07-28', logged_at: new Date(2026, 6, 28, 20).getTime(), points_earned: 60, stars_delta: 3, source: 'TASK', task_name: 'Gym' }],
       'W', today,
     );
     expect(result.bars).toHaveLength(7);
@@ -147,9 +147,9 @@ describe('buildAnalyticsDashboard', () => {
     const result = buildAnalyticsDashboard(
       [],
       [
-        { local_date: '2026-07-28', logged_at: new Date(2026, 6, 28, 9).getTime(), points_earned: 10, stars_delta: 1, task_name: 'Read' },
-        { local_date: '2026-07-28', logged_at: new Date(2026, 6, 28, 10).getTime(), points_earned: 20, stars_delta: 1, task_name: 'Gym' },
-        { local_date: '2026-07-27', logged_at: new Date(2026, 6, 27, 9).getTime(), points_earned: 5, stars_delta: 1, task_name: 'Read' },
+        { local_date: '2026-07-28', logged_at: new Date(2026, 6, 28, 9).getTime(), points_earned: 10, stars_delta: 1, source: 'TASK', task_name: 'Read' },
+        { local_date: '2026-07-28', logged_at: new Date(2026, 6, 28, 10).getTime(), points_earned: 20, stars_delta: 1, source: 'TASK', task_name: 'Gym' },
+        { local_date: '2026-07-27', logged_at: new Date(2026, 6, 27, 9).getTime(), points_earned: 5, stars_delta: 1, source: 'TASK', task_name: 'Read' },
       ],
       'W', today,
     );

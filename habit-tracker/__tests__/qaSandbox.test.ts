@@ -50,7 +50,7 @@ describe('QA sandbox identity and fixture contract', () => {
     expect(first.map(row => row.rank)).toEqual(first.map((_, index) => index + 1));
     expect(current).toMatchObject({
       player_id: 'qa-sandbox-local-v1',
-      lifetime_stars: 419,
+      year_stars: 419,
       rank: 15,
       is_current_user: true,
     });

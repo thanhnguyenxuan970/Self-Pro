@@ -19,13 +19,14 @@ import { mapFriendDashboardRows } from '../lib/friends';
 import { supabase } from '../api/supabase';
 import { refreshSupabaseSessionForAccount } from '../api/syncService';
 import { isQaSandboxActive } from '../qa/qaSandbox';
+import { getLocalDate, getMillisecondsUntilLocalMidnight } from '../utils/formatters';
 
 // Keyed by the stable Google `sub`, never email alone, so switching accounts
 // on the same device can never serve one account's cached social data to
 // another.
 export const friendKeys = {
   all: (accountSub: string) => ['friends', accountSub] as const,
-  dashboard: (accountSub: string, fallbackPlayerLabel: string) => ['friends', accountSub, 'dashboard', fallbackPlayerLabel] as const,
+  dashboard: (accountSub: string, fallbackPlayerLabel: string, today: string) => ['friends', accountSub, 'dashboard', today, fallbackPlayerLabel] as const,
   code: (accountSub: string) => ['friends', accountSub, 'code'] as const,
   pendingCount: (accountSub: string) => ['friends', accountSub, 'pending-count'] as const,
   blockedAccounts: (accountSub: string) => ['friends', accountSub, 'blocked-accounts'] as const,
@@ -58,10 +59,12 @@ export function useFriendPendingCount(currentUserEmail: string | null, accountSu
  * just because Rank mounted on the Global segment.
  */
 export function useFriendDashboard(currentUserEmail: string | null, accountSub: string | null, fallbackPlayerLabel: string, enabled: boolean) {
+  const today = getLocalDate();
   const query = useQuery({
-    queryKey: friendKeys.dashboard(accountSub ?? 'anon', fallbackPlayerLabel),
+    queryKey: friendKeys.dashboard(accountSub ?? 'anon', fallbackPlayerLabel, today),
     enabled: enabled && !isQaSandboxActive() && !!supabase && !!currentUserEmail && !!accountSub,
     staleTime: 30_000,
+    refetchInterval: () => getMillisecondsUntilLocalMidnight(),
     retry: false,
     queryFn: async () => mapFriendDashboardRows(await getFriendDashboard(currentUserEmail!, accountSub!), fallbackPlayerLabel),
   });

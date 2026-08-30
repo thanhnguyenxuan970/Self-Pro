@@ -3,6 +3,7 @@ import {
   buildFriendsSummary,
   daysAgo,
   daysUntil,
+  friendSummaryStars,
   filterFriendCodeInput,
   formatRelativeAgo,
   formatStarCount,
@@ -48,7 +49,7 @@ function row(overrides: Partial<RemoteFriendDashboardRow>): RemoteFriendDashboar
     player_id: 'p',
     display_name: 'Name',
     effective_streak: 0,
-    lifetime_stars: 0,
+    year_stars: 0,
     friend_rank: 1,
     is_current_user: false,
     created_at: null,
@@ -62,9 +63,9 @@ test('mapFriendDashboardRows re-sorts self+accepted by dense rank even though th
   // before accepted=4) wins over friend_rank, so raw row order puts self
   // first regardless of where they actually rank.
   const rows: RemoteFriendDashboardRow[] = [
-    row({ section: 'self', player_id: 'me', friend_rank: 2, lifetime_stars: 100, is_current_user: true }),
-    row({ section: 'accepted', player_id: 'top', friend_rank: 1, lifetime_stars: 240 }),
-    row({ section: 'accepted', player_id: 'bottom', friend_rank: 3, lifetime_stars: 10 }),
+    row({ section: 'self', player_id: 'me', friend_rank: 2, year_stars: 100, is_current_user: true }),
+    row({ section: 'accepted', player_id: 'top', friend_rank: 1, year_stars: 240 }),
+    row({ section: 'accepted', player_id: 'bottom', friend_rank: 3, year_stars: 10 }),
   ];
   const { ladder } = mapFriendDashboardRows(rows, 'Player');
   expect(ladder.map(r => r.playerId)).toEqual(['top', 'me', 'bottom']);
@@ -73,8 +74,8 @@ test('mapFriendDashboardRows re-sorts self+accepted by dense rank even though th
 
 test('mapFriendDashboardRows never collides two null player_id rows onto the same key — playerId doubles as the FlatList key', () => {
   const rows: RemoteFriendDashboardRow[] = [
-    row({ section: 'accepted', player_id: null, friend_rank: 1, lifetime_stars: 50 }),
-    row({ section: 'accepted', player_id: null, friend_rank: 2, lifetime_stars: 20 }),
+    row({ section: 'accepted', player_id: null, friend_rank: 1, year_stars: 50 }),
+    row({ section: 'accepted', player_id: null, friend_rank: 2, year_stars: 20 }),
   ];
   const { ladder } = mapFriendDashboardRows(rows, 'Player');
   const ids = ladder.map(r => r.playerId);
@@ -83,9 +84,9 @@ test('mapFriendDashboardRows never collides two null player_id rows onto the sam
 
 test('mapFriendDashboardRows computes tiedCount per rank and preserves the tie in the rank numeral', () => {
   const rows: RemoteFriendDashboardRow[] = [
-    row({ section: 'accepted', player_id: 'a', friend_rank: 1, lifetime_stars: 1240 }),
-    row({ section: 'accepted', player_id: 'b', friend_rank: 1, lifetime_stars: 1240 }),
-    row({ section: 'self', player_id: 'me', friend_rank: 2, lifetime_stars: 900, is_current_user: true }),
+    row({ section: 'accepted', player_id: 'a', friend_rank: 1, year_stars: 1240 }),
+    row({ section: 'accepted', player_id: 'b', friend_rank: 1, year_stars: 1240 }),
+    row({ section: 'self', player_id: 'me', friend_rank: 2, year_stars: 900, is_current_user: true }),
   ];
   const { ladder } = mapFriendDashboardRows(rows, 'Player');
   expect(ladder.filter(r => r.friendRank === 1).every(r => r.tiedCount === 2)).toBe(true);
@@ -118,33 +119,33 @@ test('mapFriendDashboardRows maps incoming rows with the requester identity inta
 
 test('buildFriendsSummary: solo leader at #1 with no tie and no catch target', () => {
   const { ladder } = mapFriendDashboardRows([
-    row({ section: 'self', player_id: 'me', friend_rank: 1, lifetime_stars: 500, is_current_user: true }),
-    row({ section: 'accepted', player_id: 'other', friend_rank: 2, lifetime_stars: 100 }),
+    row({ section: 'self', player_id: 'me', friend_rank: 1, year_stars: 500, is_current_user: true }),
+    row({ section: 'accepted', player_id: 'other', friend_rank: 2, year_stars: 100 }),
   ], 'Player');
   expect(buildFriendsSummary(ladder)).toEqual({ kind: 'leadingSolo' });
 });
 
 test('buildFriendsSummary: tied at #1 never claims solo leadership', () => {
   const { ladder } = mapFriendDashboardRows([
-    row({ section: 'self', player_id: 'me', friend_rank: 1, lifetime_stars: 500, is_current_user: true }),
-    row({ section: 'accepted', player_id: 'other', friend_rank: 1, lifetime_stars: 500 }),
+    row({ section: 'self', player_id: 'me', friend_rank: 1, year_stars: 500, is_current_user: true }),
+    row({ section: 'accepted', player_id: 'other', friend_rank: 1, year_stars: 500 }),
   ], 'Player');
   expect(buildFriendsSummary(ladder)).toEqual({ kind: 'tied', rank: 1, tiedWithCount: 1 });
 });
 
 test('buildFriendsSummary: below #1 computes the exact star gap to rank-1, never "overtake"', () => {
   const { ladder } = mapFriendDashboardRows([
-    row({ section: 'accepted', player_id: 'top', friend_rank: 1, lifetime_stars: 1240 }),
-    row({ section: 'self', player_id: 'me', friend_rank: 2, lifetime_stars: 1100, is_current_user: true }),
+    row({ section: 'accepted', player_id: 'top', friend_rank: 1, year_stars: 1240 }),
+    row({ section: 'self', player_id: 'me', friend_rank: 2, year_stars: 1100, is_current_user: true }),
   ], 'Player');
   expect(buildFriendsSummary(ladder)).toEqual({ kind: 'catch', rank: 2, catchStars: 140, catchRank: 1 });
 });
 
 test('buildFriendsSummary: tie below #1 carries both the tie and the catch target', () => {
   const { ladder } = mapFriendDashboardRows([
-    row({ section: 'accepted', player_id: 'top', friend_rank: 1, lifetime_stars: 1240 }),
-    row({ section: 'self', player_id: 'me', friend_rank: 2, lifetime_stars: 900, is_current_user: true }),
-    row({ section: 'accepted', player_id: 'tied', friend_rank: 2, lifetime_stars: 900 }),
+    row({ section: 'accepted', player_id: 'top', friend_rank: 1, year_stars: 1240 }),
+    row({ section: 'self', player_id: 'me', friend_rank: 2, year_stars: 900, is_current_user: true }),
+    row({ section: 'accepted', player_id: 'tied', friend_rank: 2, year_stars: 900 }),
   ], 'Player');
   expect(buildFriendsSummary(ladder)).toEqual({ kind: 'tiedWithCatch', rank: 2, tiedWithCount: 1, catchStars: 340, catchRank: 1 });
 });
@@ -165,6 +166,13 @@ test('daysAgo and daysUntil clamp at 0 and never go negative', () => {
 test('formatStarCount uses the locale group separator', () => {
   expect(formatStarCount(1240, 'vi')).toBe('1.240');
   expect(formatStarCount(1240, 'en')).toBe('1,240');
+});
+
+test('friend summary uses only the Analytics Year stars', () => {
+  expect(friendSummaryStars(417)).toBe(417);
+  expect(friendSummaryStars(null)).toBe(0);
+  expect(friendSummaryStars(undefined)).toBe(0);
+  expect(friendSummaryStars(-2)).toBe(0);
 });
 
 test('resultBannerTone: ACCEPTED and FORBIDDEN never get an inline banner', () => {
