@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Added migration 070 to restore `authenticated` execution of the `analytics_year_date(text)` helper used by the `activity_log` expression index, preventing `42501`/403 activity uploads while keeping direct `PUBLIC`/`anon` execution denied; the migration is source-only until explicitly deployed and authenticated Supabase E2E is still pending.
+- Added migration 070 to restore `authenticated` execution of the `analytics_year_date(text)` helper used by the `activity_log` expression index, preventing `42501`/403 activity uploads while keeping direct `PUBLIC`/`anon` execution denied; the migration is applied to the linked Supabase project, while authenticated activity-log smoke verification remains pending.
 - Home, Rank, and the personal Friends summary star totals now use the Analytics Year KPI: positive TASK stars from the current calendar year, respecting the account activity boundary; the achieved rank tier and Friends race ladder remain lifetime-based.
 - Cold starts now re-probe an account-scoped blocked cloud restore after a transient offline failure, while uploads remain fail-closed and the manual Retry action keeps full reconciliation behavior.
 - Interactive Google sign-in now skips full backup reconciliation for unblocked populated local accounts, retries durable restore blocks without publishing an unsafe account, and uses cutoff-aware, indexed bounded local presence probes; explicit account-recovery Retry remains the fail-closed reconciliation path. CAS recovery compares the same account-cutoff-filtered view on both local and cloud snapshots while preserving retained pre-boundary audit rows.
