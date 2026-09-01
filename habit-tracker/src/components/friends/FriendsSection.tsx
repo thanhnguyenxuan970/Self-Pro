@@ -398,7 +398,8 @@ function makeStyles(C: AppColors) {
     summaryStats: { fontSize: 12, fontFamily: FontFamily.regular, color: C.muted, marginTop: 4 },
     addFriendCta: {
       flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0,
-      backgroundColor: C.primary, borderRadius: Radii.pill, paddingHorizontal: 16, paddingVertical: 13,
+      backgroundColor: C.primary, borderRadius: Radii.pill, minHeight: 44,
+      paddingHorizontal: 16, paddingVertical: 13,
     },
     addFriendCtaText: { fontSize: 14, fontFamily: FontFamily.bold, color: C.onAccent },
 
