@@ -9,6 +9,7 @@ import {
   formatRelativeAgo,
   formatStarCount,
   friendSummaryStars,
+  withCurrentUserAnalyticsYearStars,
   type FriendIncomingRow,
   type FriendLadderRow,
   type FriendMutationStatus,
@@ -69,6 +70,16 @@ export function FriendsSection({ active, currentUserEmail, accountSub, yearStars
     streakLine: t.friendsStreakLine, yearLine: t.friendsYearLine,
   }), [t]);
 
+  const data = dashboard.data ?? { ladder: [], incoming: [], outgoing: [] };
+  const displayLadder = useMemo(
+    () => withCurrentUserAnalyticsYearStars(data.ladder, yearStars),
+    [data.ladder, yearStars],
+  );
+  const summary = buildFriendsSummary(displayLadder);
+  const selfOnly = displayLadder.length <= 1;
+  const busyRespond = respondMutation.isPending ? respondMutation.variables : undefined;
+  const busyCancelId = cancelMutation.isPending ? cancelMutation.variables : undefined;
+
   // `mutation.isPending` only reflects in a *later* render, so a fast
   // double-tap can fire mutateAsync twice before React ever disables the
   // control. This synchronous check closes that window; the server's pair
@@ -108,21 +119,15 @@ export function FriendsSection({ active, currentUserEmail, accountSub, yearStars
       : <ErrorPanel t={t} styles={styles} onRetry={() => dashboard.refetch()} />;
   }
 
-  const data = dashboard.data ?? { ladder: [], incoming: [], outgoing: [] };
-  const summary = buildFriendsSummary(data.ladder);
-  const selfOnly = data.ladder.length <= 1;
-  const busyRespond = respondMutation.isPending ? respondMutation.variables : undefined;
-  const busyCancelId = cancelMutation.isPending ? cancelMutation.variables : undefined;
-
   return (
     <>
       <FlatList
-        data={selfOnly ? [] : data.ladder}
+        data={selfOnly ? [] : displayLadder}
         keyExtractor={row => row.playerId}
         renderItem={({ item, index }) => (
           <FriendRow
             row={item}
-            isLast={index === data.ladder.length - 1}
+            isLast={index === displayLadder.length - 1}
             playerLabel={t.leaderboardPlayer}
             lang={lang}
             colors={colors}
@@ -139,7 +144,7 @@ export function FriendsSection({ active, currentUserEmail, accountSub, yearStars
             )}
             <CompetitionSummary
               colors={colors} t={t} lang={lang} styles={styles} yearStars={yearStars}
-              ladder={data.ladder} summary={summary} selfOnly={selfOnly}
+              ladder={displayLadder} summary={summary} selfOnly={selfOnly}
               onOpenAddFriend={onOpenAddFriend} triggerRef={addFriendTriggerRef}
             />
             {data.incoming.length > 0 && (
@@ -162,7 +167,7 @@ export function FriendsSection({ active, currentUserEmail, accountSub, yearStars
                 </View>
               </View>
             )}
-            {!selfOnly && <Text style={[styles.eyebrow, styles.ladderEyebrow]}>{t.friendsLadderSection(data.ladder.length)}</Text>}
+            {!selfOnly && <Text style={[styles.eyebrow, styles.ladderEyebrow]}>{t.friendsLadderSection(displayLadder.length)}</Text>}
             {!selfOnly && <View style={styles.ladderCardTop} />}
           </>
         }
@@ -261,9 +266,9 @@ function CompetitionSummary({ colors, t, lang, styles, yearStars, ladder, summar
     else if (summary.kind === 'catch') summaryLine = t.friendsCatchTarget(summary.catchStars, summary.catchRank);
     else summaryLine = `${t.friendsTiedAt(summary.rank, summary.tiedWithCount)} · ${t.friendsCatchTarget(summary.catchStars, summary.catchRank)}`;
   }
-  // The card, race rank, catch gap, and every ladder row use the same annual
-  // server KPI. The local value is used only if the server did not return the
-  // caller row at all; once it exists, never let a stale local value diverge.
+  // The signed-in row uses the local Analytics Year KPI shared with Home and
+  // Rank; rival rows retain their own annual server totals. Rank metadata and
+  // the server ladder ordering stay untouched by this display correction.
   const summaryStars = self ? friendSummaryStars(self.yearStars) : friendSummaryStars(yearStars);
   const statsLine = self
     ? [t.friendsYearLine(formatStarCount(summaryStars, lang)), self.effectiveStreak > 0 ? t.friendsStreakLine(self.effectiveStreak) : null]
@@ -398,7 +403,8 @@ function makeStyles(C: AppColors) {
     summaryStats: { fontSize: 12, fontFamily: FontFamily.regular, color: C.muted, marginTop: 4 },
     addFriendCta: {
       flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0,
-      backgroundColor: C.primary, borderRadius: Radii.pill, paddingHorizontal: 16, paddingVertical: 13,
+      backgroundColor: C.primary, borderRadius: Radii.pill, minHeight: 44,
+      paddingHorizontal: 16, paddingVertical: 13,
     },
     addFriendCtaText: { fontSize: 14, fontFamily: FontFamily.bold, color: C.onAccent },
 

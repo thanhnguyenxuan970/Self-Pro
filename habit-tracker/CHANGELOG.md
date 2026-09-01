@@ -10,6 +10,12 @@
 - Supabase diagnostics now use the live `public.users.user_email` column and document the expected anonymous-RLS, backup-CAS, and CLI-credential boundaries without changing user data.
 - The Sky accent now uses a calmer cobalt blue across light and dark themes, with runtime contrast checks and emulator screenshots covering the selected accent and Analytics state.
 
+## 2.0.3.l - 2026-09-01
+
+- Fixed visible signed-in star totals in Rank/Global and Friends to use the local Analytics Year KPI shared with Home and Analytics; rival rows retain their own server-provided annual totals, while server rank metadata/order and cloud activity remain unchanged.
+- Android native release metadata is 2.0.3.l (versionCode 79); the shared Expo/iOS version remains 2.0.3.
+- Validation: TypeScript, 84 Jest suites/788 tests/1 snapshot, and 3 repeated focused star-consistency runs (31 tests each) passed. Data-preserving `adb install -r` plus emulator `emulator-5554` Home/Rank/Friends checks showed 356 local stars and 177 rival stars; cold relaunch stress kept the app alive with no app errors. Signed release AAB verification passed. AAB SHA-256: EF3A070F8FB33C255A2684BC415CA9307A6BCE912A86D32E3AB3F2E2C05126E0.
+
 ## 2.0.3.k - 2026-08-30
 
 - Fixed Google sign-in failing for accounts with enough stored data that the cloud backup restore exceeded its timeout: the restore's Supabase session lease and account-sync gate are now released on timeout instead of stranding the sign-in flow and every retry behind them.

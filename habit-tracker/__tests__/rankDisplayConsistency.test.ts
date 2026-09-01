@@ -1,11 +1,11 @@
 import { displayStarsForRankRow } from '../src/lib/rankDisplay';
 
-test('uses the server Analytics Year total for the current user when a row exists', () => {
-  expect(displayStarsForRankRow({ isCurrentUser: true, yearStars: 999 }, 401)).toBe(999);
+test('uses the local Analytics Year total for the current user when a row exists', () => {
+  expect(displayStarsForRankRow({ isCurrentUser: true, yearStars: 999 }, 401)).toBe(401);
 });
 
-test('uses the local Analytics Year total only when the server row is missing', () => {
-  expect(displayStarsForRankRow({ isCurrentUser: true, yearStars: null }, 401)).toBe(401);
+test('fails closed to zero when the current user local Analytics Year total is missing', () => {
+  expect(displayStarsForRankRow({ isCurrentUser: true, yearStars: 999 }, null)).toBe(0);
 });
 
 test('keeps every other leaderboard row on its server Analytics Year total', () => {

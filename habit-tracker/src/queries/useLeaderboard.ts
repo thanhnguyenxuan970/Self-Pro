@@ -277,9 +277,10 @@ export function useLeaderboard(
       if (!supabase || !currentUserEmail) return [];
 
       return withSupabaseSession(currentUserEmail, currentUserGoogleSub ?? undefined, async () => {
-        // The annual RPC is server-authoritative for every player. Do not
-        // fall back to the lifetime RPC: that would make the signed-in row
-        // disagree with the board's ranking and recreate the original bug.
+        // The annual RPC supplies each rival's score and all rank metadata.
+        // RankScreen overlays only the signed-in row with the local Analytics
+        // Year KPI so visible personal totals match Home and Analytics.
+        // Never fall back to the lifetime RPC.
         const { data, error } = await supabase!.rpc('get_global_year_leaderboard_v1', { p_limit: LEADERBOARD_TOP_LIMIT });
         if (error) {
           // Migration 069 may not be deployed on every environment yet. Keep
