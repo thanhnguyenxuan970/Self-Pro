@@ -1,4 +1,5 @@
 import { buildHeatmapWeeks, heatmapLevel, heatmapShades } from '../src/utils/heatmap';
+import { getHomeHeatmapLayout } from '../src/utils/homeHeatmapLayout';
 import { ACCENTS, AccentKey } from '../src/config/accents';
 import { getColors } from '../src/config/theme';
 import { getTranslations } from '../src/config/i18n';
@@ -15,6 +16,15 @@ test('maps stars to the five heatmap levels and pads Monday-based weeks', () => 
   expect(weeks.every(week => week.length === 7)).toBe(true);
   expect(weeks.flat().find(cell => cell.date === '2026-07-10')?.level).toBe(4);
   expect(weeks.flat().find(cell => cell.date === '2026-07-01')?.month).toBe('Jul');
+});
+
+test('keeps the visual heatmap pitch compact so the dense grid preserves its geometry', () => {
+  const layout = getHomeHeatmapLayout(411);
+
+  expect(layout.cellSize).toBe(14);
+  expect(layout.cellGap).toBe(4);
+  expect(layout.cellPitch).toBe(18);
+  expect(layout.cellPitch).toBeLessThan(44);
 });
 
 test('steps the single accessible heatmap control without leaving the available date range', () => {
