@@ -6,6 +6,7 @@ import { AppColors, FontFamily, Radii, Shadows, Spacing } from '../config/theme'
 import { useLanguage, useTranslations } from '../hooks/useSettings';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { HeatmapDay, buildHeatmapWeeks, heatmapShades, stepHeatmapAccessibilityDate } from '../utils/heatmap';
+import { getHomeHeatmapLayout, type HomeHeatmapLayout } from '../utils/homeHeatmapLayout';
 import { formatDayDetailDate } from '../utils/formatters';
 import { dailyBonusGoal } from '../config/constants';
 import { boostPalette, formatCountdown, secsRemaining, type BoostPalette, type BoostPhase } from '../game/boost';
@@ -19,50 +20,6 @@ type Props = {
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const HEATMAP_ANIMATE_WEEKS = 16;
-const HEATMAP_CELL_SIZE = 14;
-const HEATMAP_CELL_GAP = 4;
-const HEATMAP_TOUCH_TARGET_SIZE = 44;
-const HOME_REFERENCE_WIDTH = 411;
-const HOME_MIN_LAYOUT_SCALE = 0.82;
-
-type HeatmapLayout = {
-  compactHeader: boolean;
-  cardMarginHorizontal: number;
-  cardPaddingHorizontal: number;
-  cellSize: number;
-  cellGap: number;
-  touchTargetSize: number;
-  totalSize: number;
-  totalLineHeight: number;
-  totalLabelSize: number;
-  totalLabelLineHeight: number;
-  totalLabelMaxWidth: number;
-  yearSize: number;
-  rewardPaddingHorizontal: number;
-  rewardPaddingVertical: number;
-  rewardSize: number;
-};
-
-function getHeatmapLayout(width: number): HeatmapLayout {
-  const scale = Math.max(HOME_MIN_LAYOUT_SCALE, Math.min(1, width / HOME_REFERENCE_WIDTH));
-  return {
-    compactHeader: width < 360,
-    cardMarginHorizontal: Math.round(Spacing.lg * scale),
-    cardPaddingHorizontal: Math.round(24 * scale),
-    cellSize: Math.max(12, Math.round(HEATMAP_CELL_SIZE * scale)),
-    cellGap: Math.max(3, Math.round(HEATMAP_CELL_GAP * scale)),
-    touchTargetSize: HEATMAP_TOUCH_TARGET_SIZE,
-    totalSize: Math.max(38, Math.round(48 * scale)),
-    totalLineHeight: Math.max(46, Math.round(56 * scale)),
-    totalLabelSize: Math.max(12, Math.round(16 * scale)),
-    totalLabelLineHeight: Math.max(16, Math.round(20 * scale)),
-    totalLabelMaxWidth: Math.max(92, Math.round(128 * scale)),
-    yearSize: Math.max(13, Math.round(16 * scale)),
-    rewardPaddingHorizontal: Math.max(12, Math.round(14 * scale)),
-    rewardPaddingVertical: Math.max(7, Math.round(8 * scale)),
-    rewardSize: Math.max(14, Math.round(15 * scale)),
-  };
-}
 
 // Entry-animated progress ring: the primary arc sweeps from empty up to its
 // current fraction on mount and every time Home regains focus. Reduce-motion
@@ -199,6 +156,7 @@ const AnimatedWeeks = React.memo(function AnimatedWeeks({ weeks, styles, shades,
           <TouchableOpacity
             key={cell.date}
             style={styles.cellTouchTarget}
+            hitSlop={1}
             activeOpacity={0.7}
             onPress={() => onSelect(cell.date)}
             accessibilityRole="button"
@@ -236,8 +194,8 @@ export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal,
   useFocusEffect(useCallback(() => { setAnimKey(k => k + 1); }, []));
   const weeks = useMemo(() => buildHeatmapWeeks(days), [days]);
   const activeDays = days.filter(day => day.total_points > 0).length;
-  const layout = useMemo(() => getHeatmapLayout(width), [width]);
-  const heatmapColumnPitch = layout.touchTargetSize;
+  const layout = useMemo(() => getHomeHeatmapLayout(width), [width]);
+  const heatmapColumnPitch = layout.cellPitch;
   const styles = useMemo(() => makeStyles(colors, layout), [colors, layout]);
   const boostActive = boostVisual?.phase === 'active' || boostVisual?.phase === 'expiring';
   const boost = boostActive ? boostVisual : null;
@@ -419,14 +377,14 @@ export const HomeHeatmap = React.memo(function HomeHeatmap({ days, streak, goal,
   </>;
 });
 
-function makeStyles(C: AppColors, L: HeatmapLayout) {
+function makeStyles(C: AppColors, L: HomeHeatmapLayout) {
   return StyleSheet.create({
     card: { marginHorizontal: L.cardMarginHorizontal, marginTop: 22, paddingHorizontal: L.cardPaddingHorizontal, paddingTop: 24, paddingBottom: 16, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.xxl, overflow: 'hidden', ...Shadows.light }, boostGlow: { position: 'absolute', width: 230, height: 230, top: -8, right: -8 },
     urgentBanner: { marginHorizontal: Spacing.lg, marginTop: 8, minHeight: 44, borderRadius: Radii.md, paddingHorizontal: Spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm }, urgentBannerText: { color: C.white, fontSize: 12.5, fontFamily: FontFamily.extraBold, flex: 1 }, urgentBannerTime: { color: C.white, fontSize: 15, fontFamily: FontFamily.extraBold, fontVariant: ['tabular-nums'] },
     header: { flexDirection: L.compactHeader ? 'column' : 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }, headerTitle: { flex: 1, minWidth: 0 }, headerActions: { alignItems: 'flex-end', alignSelf: L.compactHeader ? 'stretch' : 'auto', marginTop: L.compactHeader ? 4 : 0 }, yearWrap: { alignItems: 'flex-end', gap: 2 }, yearText: { color: C.primaryText, fontSize: L.yearSize, fontFamily: FontFamily.extraBold }, legendButton: { width: 24, height: 24, borderRadius: 12, borderWidth: 1, borderColor: C.muted, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }, legendButtonText: { color: C.inkDark, fontSize: 13, lineHeight: 16, fontFamily: FontFamily.extraBold },
     totalRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }, total: { color: C.inkDark, fontSize: L.totalSize, lineHeight: L.totalLineHeight, letterSpacing: -2.5, fontFamily: FontFamily.extraBold }, totalLabel: { maxWidth: L.totalLabelMaxWidth, color: C.muted, fontSize: L.totalLabelSize, lineHeight: L.totalLabelLineHeight, fontFamily: FontFamily.bold },
     rewardRow: { flexDirection: 'column', alignItems: 'flex-start', gap: 10, marginBottom: 14 }, rewardPill: { maxWidth: '100%', flexShrink: 1, backgroundColor: C.surface2, borderRadius: Radii.pill, paddingHorizontal: L.rewardPaddingHorizontal, paddingVertical: L.rewardPaddingVertical }, rewardText: { flexShrink: 1, color: C.inkDark, fontSize: L.rewardSize, fontFamily: FontFamily.bold }, boostBadge: { position: 'relative', overflow: 'hidden', borderRadius: Radii.pill, paddingHorizontal: 10, paddingVertical: 5 }, boostBadgeText: { fontSize: 12, fontFamily: FontFamily.extraBold, letterSpacing: 0.3 }, badgeSweep: { position: 'absolute', top: 0, bottom: 0, width: 24, transform: [{ skewX: '-18deg' }] },
-    gridRow: { flexDirection: 'row' }, rail: { width: 24, marginTop: 24, gap: 0 }, dayLabel: { height: L.touchTargetSize, color: C.faint, fontSize: 11, lineHeight: L.touchTargetSize, fontFamily: FontFamily.semiBold }, months: { height: 20, position: 'relative' }, month: { position: 'absolute', width: 36, color: C.faint, fontSize: 11, lineHeight: 14, fontFamily: FontFamily.semiBold }, weeks: { gap: 4 }, weeksRow: { flexDirection: 'row', gap: 0 }, week: { gap: 0 }, cellTouchTarget: { width: L.touchTargetSize, height: L.touchTargetSize, alignItems: 'center', justifyContent: 'center' }, cell: { width: L.cellSize, height: L.cellSize, borderRadius: 4, overflow: 'hidden' }, emptyCell: {}, todayCell: { borderWidth: 1.6, borderStyle: 'solid', borderColor: C.primaryPress },
+    gridRow: { flexDirection: 'row' }, rail: { width: 24, marginTop: 24, gap: L.cellGap }, dayLabel: { height: 17, color: C.faint, fontSize: 11, lineHeight: 17, fontFamily: FontFamily.semiBold }, months: { height: 20, position: 'relative' }, month: { position: 'absolute', width: 36, color: C.faint, fontSize: 11, lineHeight: 14, fontFamily: FontFamily.semiBold }, weeks: { gap: L.cellGap }, weeksRow: { flexDirection: 'row', gap: 0 }, week: { gap: 0 }, cellTouchTarget: { width: L.cellPitch, height: L.cellPitch, alignItems: 'flex-start', justifyContent: 'flex-start' }, cell: { width: L.cellSize, height: L.cellSize, borderRadius: 4, overflow: 'hidden' }, emptyCell: {}, todayCell: { borderWidth: 1.6, borderStyle: 'solid', borderColor: C.primaryPress },
     legend: { marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }, legendLabel: { color: C.faint, fontSize: 13, fontFamily: FontFamily.medium }, legendCell: { width: L.cellSize, height: L.cellSize, borderRadius: 4 },
     today: { borderTopWidth: 1, borderTopColor: C.line, marginTop: 8, paddingTop: 12, flexDirection: 'row', alignItems: 'center', gap: 16 }, todayCopy: { flex: 1, minWidth: 0 }, todayValueRow: { flexDirection: 'row', alignItems: 'center', gap: 7 }, todayLabel: { color: C.ink2, fontSize: 15, lineHeight: 20, fontFamily: FontFamily.extraBold, marginTop: 1 }, todayValue: { color: C.inkDark, fontSize: 24, fontFamily: FontFamily.extraBold }, todayRate: { borderWidth: 1, borderRadius: Radii.pill, paddingHorizontal: 6, paddingVertical: 2 }, todayRateText: { fontSize: 10.5, fontFamily: FontFamily.extraBold }, countdownPill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: Radii.pill, paddingHorizontal: 12, paddingVertical: 6 }, countdownIcon: { fontSize: 12, lineHeight: 16 }, countdown: { fontSize: 16, fontFamily: FontFamily.extraBold, letterSpacing: 0.25, fontVariant: ['tabular-nums'] },
     modal: { flex: 1, justifyContent: 'flex-end' }, legendModal: { flex: 1, justifyContent: 'center', padding: Spacing.lg }, backdrop: { ...StyleSheet.absoluteFill, backgroundColor: C.scrim }, sheet: { alignSelf: 'center', width: '100%', maxWidth: 480, overflow: 'hidden', backgroundColor: C.surface, borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl, paddingTop: 12, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg, gap: Spacing.sm }, legendSheet: { alignSelf: 'center', width: '100%', maxWidth: 480, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.xl, padding: Spacing.lg, ...Shadows.medium }, scoringSheetContainer: { alignSelf: 'center', width: '100%', maxWidth: 480, maxHeight: '90%', overflow: 'hidden', backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: Radii.xl, ...Shadows.medium }, scoringSheet: { flexShrink: 1 }, scoringSheetContent: { padding: Spacing.lg }, legendTitle: { flex: 1, color: C.inkDark, fontSize: 20, lineHeight: 26, fontFamily: FontFamily.extraBold }, legendSubtitle: { color: C.muted, fontSize: 13, lineHeight: 17, fontFamily: FontFamily.regular, marginTop: 2 }, legendDivider: { height: 1, backgroundColor: C.line, marginVertical: Spacing.md }, legendItem: { minHeight: 48, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: C.line, gap: Spacing.sm }, legendItemLast: { borderBottomWidth: 0 }, scoringSubtitle: { color: C.muted, fontSize: 13, lineHeight: 17, fontFamily: FontFamily.regular, marginTop: -Spacing.sm }, scoringSection: { color: C.primaryText, fontSize: 12, letterSpacing: .4, fontFamily: FontFamily.extraBold, marginTop: Spacing.sm }, scoringDivider: { height: StyleSheet.hairlineWidth, backgroundColor: C.line }, scoringNumber: { width: 26, height: 26, borderRadius: 13, overflow: 'hidden', textAlign: 'center', color: C.onAccent, backgroundColor: C.primary, fontSize: 14, lineHeight: 26, fontFamily: FontFamily.extraBold }, starBadge: { width: 26, height: 26, borderRadius: 13, overflow: 'hidden', textAlign: 'center', color: C.onAccent, backgroundColor: C.primary, fontSize: 14, lineHeight: 26, fontFamily: FontFamily.extraBold }, scoringCopy: { flex: 1 }, scoringExample: { color: C.muted, fontSize: 13, lineHeight: 17, fontFamily: FontFamily.regular, marginTop: 1 }, legendItemColor: { width: 30, height: 30, borderRadius: Radii.sm }, emptyLegendCell: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.line2 }, legendRange: { color: C.inkDark, fontSize: 15, fontFamily: FontFamily.extraBold }, legendUnit: { color: C.muted, fontSize: 13, fontFamily: FontFamily.medium, marginLeft: -4 }, legendHint: { flex: 1, color: C.faint, fontSize: 12, textAlign: 'right', fontFamily: FontFamily.medium }, legendGridTitle: { color: C.faint, fontSize: 11, lineHeight: 14, fontFamily: FontFamily.extraBold }, legendSample: { flexDirection: 'row', gap: 8, marginTop: Spacing.sm }, legendSampleCell: { width: 34, height: 34, borderRadius: Radii.sm }, legendItemText: { flex: 1, color: C.inkDark, fontSize: 15, fontFamily: FontFamily.extraBold }, legendCloseButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }, legendCloseGlyph: { color: C.muted, fontSize: 22, lineHeight: 24, fontFamily: FontFamily.regular }, rewardGlow: { position: 'absolute', top: 0, left: 0, right: 0 }, grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: C.line2 }, sheetHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md }, sheetTitleCopy: { flex: 1, minHeight: 44, justifyContent: 'center' }, sheetDate: { color: C.inkDark, fontSize: 17, lineHeight: 24, fontFamily: FontFamily.bold, marginTop: 3 }, closeButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }, closeGlyph: { color: C.muted, fontSize: 28, lineHeight: 28, fontFamily: FontFamily.regular }, rewardCopy: { alignItems: 'center', paddingVertical: Spacing.xs }, rewardStars: { fontSize: 50, lineHeight: 54, fontFamily: FontFamily.extraBold, letterSpacing: -2 }, rewardSubtitle: { color: C.muted, fontSize: 14, fontFamily: FontFamily.bold, marginTop: 2 }, pointsCard: { minHeight: 70, borderWidth: 1, borderColor: C.line, borderRadius: Radii.md, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.md }, pointsValue: { color: C.inkDark, fontSize: 24, fontFamily: FontFamily.extraBold, letterSpacing: -.7 }, pointsGoal: { color: C.muted, fontSize:14, fontFamily: FontFamily.bold }, pointsLabel: { color: C.muted, fontSize: 11, fontFamily: FontFamily.extraBold, marginTop: 2 }, dismissButton: { minHeight: 52, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.lg }, dismissButtonText: { color: C.onAccent, fontSize: 16, fontFamily: FontFamily.extraBold }, // rewardCta uses the selected primary fill, so its label follows the selected accent's readable onAccent token

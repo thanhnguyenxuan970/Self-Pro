@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **Responsive onboarding and calendar surfaces**: tutorial coachmarks now size and reposition for narrow screens, enlarged font scales, safe-area insets, and the bottom tab bar; task/streak steps auto-scroll to and re-measure their live targets. Calendar's seven-column grid, month navigation, legend, and summary cards now use bounded flex layouts with responsive spacing and typography while preserving the phone-first portrait navigation.
 
 ### Fixed
+- **Home heatmap density**: restored the compact visual cell pitch while keeping per-day detail taps and accessibility labels, so the touch-target sizing no longer expands the 53-week grid.
 - **Account activity boundary**: the confirmed thanguyenxuan account now starts counting real activity on 2026-07-06; earlier fake rows no longer inflate its heatmap, lifetime stars, rank, backup, restore, or sync.
 - **Analytics Year star contract**: Home, Analytics, Rank, Global, Friends, Profile, Trophy, and Badge totals now use the same current-calendar-year positive TASK-star KPI; lifetime stars remain internal for tier/economy/recovery and are no longer a visible total.
 - **Offline-safe recovery**: a temporary cloud-restore outage no longer replaces an already-populated local account with the recovery screen; fresh databases remain fail-closed until restore succeeds.
