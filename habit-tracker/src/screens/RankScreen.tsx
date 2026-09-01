@@ -114,8 +114,9 @@ export function RankScreen({ qaBannerVisible = false }: { qaBannerVisible?: bool
     rankDelta7d: null,
   }), [googleUser?.sub, googleUser?.name, data?.currentStars, t.leaderboardYou]);
 
-  // The server annual value is used for every real row. The helper only falls
-  // back to the same local Analytics Year value when a row has no star field.
+  // Rival rows stay on their server annual totals. Only the signed-in row's
+  // visible star field follows the local Analytics Year KPI shared with Home
+  // and Analytics; rank metadata remains server-derived.
   const leaderboardForDisplay = useMemo(
     () => leaderboard.map(entry => ({
       ...entry,

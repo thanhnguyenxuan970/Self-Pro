@@ -274,6 +274,19 @@ export function friendSummaryStars(yearStars: number | null | undefined): number
   return Number.isFinite(yearStars) ? Math.max(0, Math.floor(yearStars as number)) : 0;
 }
 
+/**
+ * Replaces only the signed-in Friends row with the local Analytics Year KPI.
+ * Rival rows keep their own server-provided annual totals, and the input is
+ * left untouched so server rank metadata remains separate from display copy.
+ */
+export function withCurrentUserAnalyticsYearStars(
+  ladder: FriendLadderRow[],
+  localYearStars: number | null | undefined,
+): FriendLadderRow[] {
+  const currentStars = friendSummaryStars(localYearStars);
+  return ladder.map(row => row.isCurrentUser ? { ...row, yearStars: currentStars } : row);
+}
+
 export type ResultBannerTone = 'success' | 'warning' | 'danger';
 
 /**

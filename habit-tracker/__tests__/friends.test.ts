@@ -12,6 +12,7 @@ import {
   mapFriendDashboardRows,
   resultBannerTone,
   sanitizeDisplayName,
+  withCurrentUserAnalyticsYearStars,
   type RemoteFriendDashboardRow,
 } from '../src/lib/friends';
 
@@ -173,6 +174,18 @@ test('friend summary uses only the Analytics Year stars', () => {
   expect(friendSummaryStars(null)).toBe(0);
   expect(friendSummaryStars(undefined)).toBe(0);
   expect(friendSummaryStars(-2)).toBe(0);
+});
+
+test('current Friends row follows local Analytics Year while rivals retain their own server totals', () => {
+  const { ladder } = mapFriendDashboardRows([
+    row({ section: 'self', player_id: 'me', friend_rank: 1, year_stars: 699, is_current_user: true }),
+    row({ section: 'accepted', player_id: 'rival', friend_rank: 2, year_stars: 177 }),
+  ], 'Player');
+
+  const displayed = withCurrentUserAnalyticsYearStars(ladder, 356);
+
+  expect(displayed.map(item => item.yearStars)).toEqual([356, 177]);
+  expect(ladder.find(item => item.isCurrentUser)?.yearStars).toBe(699);
 });
 
 test('resultBannerTone: ACCEPTED and FORBIDDEN never get an inline banner', () => {
