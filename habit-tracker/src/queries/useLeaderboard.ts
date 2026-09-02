@@ -4,6 +4,7 @@ import { buildQaSandboxLeaderboard, isQaSandboxActive } from '../qa/qaSandbox';
 import { generatePlayerName } from '../config/playerNames';
 import type { AppLanguage } from '../config/i18n';
 import { withSupabaseSession } from '../api/syncService';
+import { normalizeAnalyticsYearStars } from '../analytics/yearStars';
 import { getLocalDate, getMillisecondsUntilLocalMidnight } from '../utils/formatters';
 
 export class LeaderboardUnavailableError extends Error {
@@ -146,15 +147,10 @@ export type RemoteLeaderboardRow = {
   rank_delta_7d?: number | null;
 };
 
-function normalizeYearStars(value: unknown): number {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : 0;
-}
-
 export function aggregateYearStarsByPlayerId(rows: { player_id: string; year_stars: number | null }[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const row of rows) {
-    map.set(row.player_id, normalizeYearStars(row.year_stars));
+    map.set(row.player_id, normalizeAnalyticsYearStars(row.year_stars));
   }
   return map;
 }
@@ -168,7 +164,7 @@ function buildLeaderboardEntries(
     entries.push({
       playerId,
       displayName: playerId,
-      yearStars: normalizeYearStars(stars),
+      yearStars: normalizeAnalyticsYearStars(stars),
       isCurrentUser: playerId === currentPlayerId,
       // This local path only ever sees a stars map; streak is a server-only
       // field, so report 0 rather than inventing one.
@@ -216,7 +212,7 @@ export function mapRemoteLeaderboardRows(
       return {
         playerId,
         displayName: isCurrentUser ? (currentUserName?.trim() || playerLabel) : publicPlayerName(playerId, playerLabel, lang),
-        yearStars: normalizeYearStars(row.year_stars),
+        yearStars: normalizeAnalyticsYearStars(row.year_stars),
         rank: Math.max(1, Number(row.rank) || 1),
         isCurrentUser,
         // Keep fixture/defensive inputs safe: a missing streak means "unknown",

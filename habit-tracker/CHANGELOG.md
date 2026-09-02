@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Centralized Analytics Year star-total normalization across local reads, leaderboard mapping, Rank, and Friends display paths; behavior is unchanged.
 - Added migration 070 to restore `authenticated` execution of the `analytics_year_date(text)` helper used by the `activity_log` expression index, preventing `42501`/403 activity uploads while keeping direct `PUBLIC`/`anon` execution denied; the migration is applied to the linked Supabase project, and authenticated activity-log verification now passes 12/12 insert-read-delete cycles plus a re-login absence check, with anonymous reads denied.
 - Home, Rank, and the personal Friends summary star totals now use the Analytics Year KPI: positive TASK stars from the current calendar year, respecting the account activity boundary; the achieved rank tier and Friends race ladder remain lifetime-based.
 - Cold starts now re-probe an account-scoped blocked cloud restore after a transient offline failure, while uploads remain fail-closed and the manual Retry action keeps full reconciliation behavior.

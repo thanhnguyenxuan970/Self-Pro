@@ -1,4 +1,5 @@
 import type { AppLanguage } from '../config/i18n';
+import { normalizeAnalyticsYearStars } from '../analytics/yearStars';
 
 export type FriendMutationStatus =
   | 'PENDING'
@@ -271,7 +272,9 @@ export function formatStarCount(n: number, lang: AppLanguage): string {
  * fallback.
  */
 export function friendSummaryStars(yearStars: number | null | undefined): number {
-  return Number.isFinite(yearStars) ? Math.max(0, Math.floor(yearStars as number)) : 0;
+  return typeof yearStars === 'number' && Number.isFinite(yearStars)
+    ? normalizeAnalyticsYearStars(yearStars)
+    : 0;
 }
 
 /**

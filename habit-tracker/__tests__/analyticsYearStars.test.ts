@@ -1,5 +1,6 @@
 import {
   getAnalyticsYearWindow,
+  normalizeAnalyticsYearStars,
   readAnalyticsYearStars,
   sumAnalyticsStars,
   type AnalyticsStarsDb,
@@ -14,6 +15,13 @@ describe('Analytics Year star anchor', () => {
       { local_date: '2026-01-04', stars_delta: 7, source: 'DAILY_BONUS' },
       { local_date: '2026-01-05', stars_delta: 99 },
     ])).toBe(4);
+  });
+
+  it('normalizes annual star totals consistently across display consumers', () => {
+    expect(normalizeAnalyticsYearStars(12.9)).toBe(12);
+    expect(normalizeAnalyticsYearStars('7.9')).toBe(7);
+    expect(normalizeAnalyticsYearStars(-3)).toBe(0);
+    expect(normalizeAnalyticsYearStars(Number.NaN)).toBe(0);
   });
 
   it('uses the current calendar year and respects an account activity boundary', () => {
