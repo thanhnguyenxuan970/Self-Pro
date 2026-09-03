@@ -153,7 +153,7 @@ export function mapFriendDashboardRows(
       playerId: row.player_id ?? `unknown-${index}`,
       displayName: sanitizeDisplayName(row.display_name) ?? fallbackPlayerLabel,
       effectiveStreak: Math.max(0, Math.floor(Number(row.effective_streak) || 0)),
-      yearStars: Math.max(0, Math.floor(Number(row.year_stars) || 0)),
+      yearStars: normalizeAnalyticsYearStars(row.year_stars),
       friendRank: Math.max(1, Number(row.friend_rank) || 1),
       isCurrentUser: row.is_current_user === true,
       tiedCount: rankCounts.get(row.friend_rank ?? 0) ?? 1,

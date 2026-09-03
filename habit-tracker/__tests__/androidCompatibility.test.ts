@@ -7,9 +7,17 @@ const read = (relativePath: string) => readFileSync(`${process.cwd()}/${relative
 describe('Android adaptive release contract', () => {
   test('does not ship app-owned portrait or legacy window restrictions', () => {
     const appConfig = JSON.parse(read('app.json')) as {
-      expo?: { orientation?: string; android?: { versionCode?: number } };
+      expo?: {
+        orientation?: string;
+        ios?: { infoPlist?: { UISupportedInterfaceOrientations?: string[] } };
+        android?: { versionCode?: number };
+      };
     };
-    expect(appConfig.expo?.orientation).toBe('default');
+    expect(appConfig.expo?.orientation).toBeUndefined();
+    expect(appConfig.expo?.ios?.infoPlist?.UISupportedInterfaceOrientations).toEqual([
+      'UIInterfaceOrientationPortrait',
+      'UIInterfaceOrientationPortraitUpsideDown',
+    ]);
 
     const buildGradle = read('android/app/build.gradle');
     const buildVersionCode = buildGradle.match(/versionCode\s+(\d+)/)?.[1];
