@@ -100,6 +100,13 @@ test('mapFriendDashboardRows falls back a blank display name to the player label
   expect(ladder[0].displayName).toBe('Player');
 });
 
+test('mapFriendDashboardRows treats non-finite annual star totals as zero', () => {
+  const { ladder } = mapFriendDashboardRows([
+    row({ section: 'accepted', year_stars: Number.POSITIVE_INFINITY }),
+  ], 'Player');
+  expect(ladder[0].yearStars).toBe(0);
+});
+
 test('mapFriendDashboardRows numbers outgoing rows by position and never carries a name', () => {
   const rows: RemoteFriendDashboardRow[] = [
     row({ section: 'outgoing', relationship_id: 'r1', player_id: null, display_name: null, created_at: '2026-08-01T00:00:00Z', expires_at: '2026-08-31T00:00:00Z' }),

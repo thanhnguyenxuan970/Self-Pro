@@ -1,4 +1,5 @@
 import type { AppLanguage } from '../config/i18n';
+import { normalizeAnalyticsYearStars } from '../analytics/yearStars';
 
 export type FriendMutationStatus =
   | 'PENDING'
@@ -152,7 +153,7 @@ export function mapFriendDashboardRows(
       playerId: row.player_id ?? `unknown-${index}`,
       displayName: sanitizeDisplayName(row.display_name) ?? fallbackPlayerLabel,
       effectiveStreak: Math.max(0, Math.floor(Number(row.effective_streak) || 0)),
-      yearStars: Math.max(0, Math.floor(Number(row.year_stars) || 0)),
+      yearStars: normalizeAnalyticsYearStars(row.year_stars),
       friendRank: Math.max(1, Number(row.friend_rank) || 1),
       isCurrentUser: row.is_current_user === true,
       tiedCount: rankCounts.get(row.friend_rank ?? 0) ?? 1,
@@ -271,7 +272,9 @@ export function formatStarCount(n: number, lang: AppLanguage): string {
  * fallback.
  */
 export function friendSummaryStars(yearStars: number | null | undefined): number {
-  return Number.isFinite(yearStars) ? Math.max(0, Math.floor(yearStars as number)) : 0;
+  return typeof yearStars === 'number' && Number.isFinite(yearStars)
+    ? normalizeAnalyticsYearStars(yearStars)
+    : 0;
 }
 
 /**

@@ -14,7 +14,14 @@ import expo.modules.ReactActivityDelegateWrapper
 class MainActivity : ReactActivity() {
   private val appBackPressedCallback = object : OnBackPressedCallback(true) {
     override fun handleOnBackPressed() {
-      onBackPressed()
+      if (!reactActivityDelegate.onBackPressed()) {
+        isEnabled = false
+        try {
+          invokeDefaultOnBackPressed()
+        } finally {
+          isEnabled = true
+        }
+      }
     }
   }
 
@@ -25,18 +32,6 @@ class MainActivity : ReactActivity() {
     setTheme(R.style.AppTheme);
     super.onCreate(null)
     onBackPressedDispatcher.addCallback(this, appBackPressedCallback)
-  }
-
-  @Deprecated("Use OnBackPressedDispatcher for Android back navigation")
-  override fun onBackPressed() {
-    if (!reactActivityDelegate.onBackPressed()) {
-      appBackPressedCallback.isEnabled = false
-      try {
-        invokeDefaultOnBackPressed()
-      } finally {
-        appBackPressedCallback.isEnabled = true
-      }
-    }
   }
 
   /**
@@ -63,7 +58,6 @@ class MainActivity : ReactActivity() {
   /**
     * Align the back button behavior with Android S
     * where moving root activities to background instead of finishing activities.
-    * @see <a href="https://developer.android.com/reference/android/app/Activity#onBackPressed()">onBackPressed</a>
     */
   override fun invokeDefaultOnBackPressed() {
       if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {

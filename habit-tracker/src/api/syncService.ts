@@ -1729,9 +1729,25 @@ export async function restoreUserDataIfNeeded(
   allowBlockedRetry = false,
   onRestoreSettled?: () => void,
   retryBlockedAccountOnly = false,
+  // Opt-in, short classification of why 'unavailable' was returned. Never a
+  // raw error message — matches this project's short-validated-code-only
+  // diagnostics convention (see SignInScreen's native Google error handling).
+  onFailureReasonRaw?: (reason: string) => void,
 ): Promise<UserDataRestoreResult> {
+  // A timed-out restore can still be mid-flight when its abort signal
+  // surfaces as a second, differently-classified failure (timeout, then a
+  // transient abort error from the superseded background attempt). Callers
+  // may treat this as fire-once (state updates, metrics), so only the first
+  // classification for a given call is ever delivered.
+  let failureReasonReported = false;
+  const onFailureReason = onFailureReasonRaw && ((reason: string) => {
+    if (failureReasonReported) return;
+    failureReasonReported = true;
+    onFailureReasonRaw(reason);
+  });
   if (isQaSandboxActive() || !supabase) {
     onRestoreSettled?.();
+    onFailureReason?.('RESTORE_NO_CLIENT');
     return 'unavailable';
   }
 
@@ -1995,6 +2011,7 @@ export async function restoreUserDataIfNeeded(
           && await isBackupRestoreBlocked(accountKey);
         assertRestoreActive();
         if (restoreIsBlocked) {
+          onFailureReason?.('RESTORE_BLOCKED');
           result = 'unavailable';
           return;
         }
@@ -2065,6 +2082,7 @@ export async function restoreUserDataIfNeeded(
                   assertRestoreActive();
                   keepBackupRestoreBlocked = true;
                   await markBackupRestoreBlocked(accountKey);
+                  onFailureReason?.('RESTORE_DIVERGED');
                 }
                 result = keepBackupRestoreBlocked ? 'unavailable' : 'not_needed';
                 return;
@@ -2103,6 +2121,7 @@ export async function restoreUserDataIfNeeded(
         if (!cancelled) Sentry.captureException(error);
         const retryable = restoreTimedOut || (!cancelled && isTransientBackupRestoreError(error));
         if (!restoreAttemptSuperseded) await markBackupRestoreBlocked(accountKey, retryable);
+        if (!cancelled) onFailureReason?.(retryable ? 'RESTORE_TRANSIENT' : 'RESTORE_ERROR');
         throw error;
       }
     }, allowBlockedRetry, allowBlockedRetry, restoreAbortController.signal);
@@ -2115,6 +2134,7 @@ export async function restoreUserDataIfNeeded(
     result = 'unavailable';
     if (error instanceof Error && error.message === 'Cloud backup restore timed out') {
       restoreDeadlineExceeded = true;
+      onFailureReason?.('RESTORE_TIMEOUT');
       await supersedeTimedOutRestore();
     }
   } finally {

@@ -543,6 +543,7 @@ export function useAuth() {
       // fresh/seeded account never gets stranded outside App.tsx's Retry UI.
       // The final flag keeps ordinary populated sign-ins on the fast path;
       // App.tsx's explicit recovery Retry still opts into full reconciliation.
+      let restoreFailureReason: string | undefined;
       const restoreResult = await syncService.restoreUserDataIfNeeded(
         result.id,
         user.email,
@@ -551,9 +552,17 @@ export function useAuth() {
         true,
         undefined,
         true,
+        reason => { restoreFailureReason = reason; },
       );
       if (restoreResult === 'unavailable') {
-        throw new Error('Cloud data restore is unavailable; sign-in remains blocked for safety');
+        // The reason is a short, pre-validated code (never raw error text) so
+        // SignInScreen's existing opt-in diagnostics can surface it safely —
+        // otherwise this failure is invisible in release builds (no Sentry
+        // DSN is configured yet).
+        throw Object.assign(
+          new Error('Cloud data restore is unavailable; sign-in remains blocked for safety'),
+          restoreFailureReason ? { code: restoreFailureReason } : {},
+        );
       }
       // Restore the server-derived lifetime total after the full snapshot so a
       // current server balance still wins over a stale backup snapshot.

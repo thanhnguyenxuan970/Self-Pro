@@ -11,6 +11,12 @@ export type AnalyticsStarRow = {
 
 export type AnalyticsStarsDb = Pick<SQLiteDatabase, 'getFirstAsync'>;
 
+/** Normalizes an annual star total for display and rank comparisons. */
+export function normalizeAnalyticsYearStars(value: unknown): number {
+  const stars = Number(value);
+  return Number.isFinite(stars) ? Math.max(0, Math.floor(stars)) : 0;
+}
+
 function dateKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
@@ -51,6 +57,5 @@ export async function readAnalyticsYearStars(
         AND local_date >= ? AND local_date <= ?`,
     [userId, ANALYTICS_STAR_SOURCE, start, end],
   );
-  const total = Number(row?.total);
-  return Number.isFinite(total) ? Math.floor(Math.max(0, total)) : 0;
+  return normalizeAnalyticsYearStars(row?.total);
 }

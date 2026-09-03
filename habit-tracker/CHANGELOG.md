@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 2.0.3.m - 2026-09-03
+
+- Fixed interactive Google sign-in getting stuck behind a generic, undiagnosable "sign-in remains blocked for safety" error: a failed cloud-data restore now carries a short, pre-validated reason code (e.g. blocked/diverged/timed-out/transient) that the existing opt-in `EXPO_PUBLIC_GOOGLE_AUTH_DIAGNOSTICS` alert can surface, instead of the failure being visible only to a Sentry integration that has no DSN configured yet. The reason callback is guaranteed to fire at most once per sign-in attempt even when a timeout races a later abort-triggered failure.
+- Centralized Analytics Year star-total normalization across local reads, leaderboard mapping, Rank, and Friends display paths; behavior is unchanged.
 - Added migration 070 to restore `authenticated` execution of the `analytics_year_date(text)` helper used by the `activity_log` expression index, preventing `42501`/403 activity uploads while keeping direct `PUBLIC`/`anon` execution denied; the migration is applied to the linked Supabase project, and authenticated activity-log verification now passes 12/12 insert-read-delete cycles plus a re-login absence check, with anonymous reads denied.
 - Home, Rank, and the personal Friends summary star totals now use the Analytics Year KPI: positive TASK stars from the current calendar year, respecting the account activity boundary; the achieved rank tier and Friends race ladder remain lifetime-based.
 - Cold starts now re-probe an account-scoped blocked cloud restore after a transient offline failure, while uploads remain fail-closed and the manual Retry action keeps full reconciliation behavior.
@@ -9,6 +13,8 @@
 - Friends read RPCs now retry once after Supabase rejects an expired/invalid JWT, while mutations remain single-attempt to avoid duplicate writes; `PGRST301` is no longer mislabeled as a missing backend.
 - Supabase diagnostics now use the live `public.users.user_email` column and document the expected anonymous-RLS, backup-CAS, and CLI-credential boundaries without changing user data.
 - The Sky accent now uses a calmer cobalt blue across light and dark themes, with runtime contrast checks and emulator screenshots covering the selected accent and Analytics state.
+- Android native release metadata is 2.0.3.m (versionCode 81); the shared Expo/iOS version remains 2.0.3.
+- Validation: TypeScript and 85 Jest suites/792 tests/1 snapshot passed; a stress-test pass over the sign-in/restore path found one real double-invocation risk in the new diagnostics callback, fixed with a one-shot guard and re-verified green. Live-verified on an x86_64 emulator: fresh install, sign-out/sign-in with intact local data, and sign-in immediately after an uninstall+reinstall (forcing a full cloud restore) all completed sign-in successfully. Signed release AAB built.
 
 ## 2.0.3.l - 2026-09-01
 

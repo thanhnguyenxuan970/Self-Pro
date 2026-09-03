@@ -11,9 +11,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 - Removed user photo selection from Challenge Detail and share-card creation; existing challenge photos remain display-only.
+- **Signed-in social star consistency**: the current user's visible Global and Friends totals now follow the local Analytics Year KPI used by Analytics/Home when the social payload contains additional historical or other-device rows; rival rows retain their own server-provided annual totals, rank metadata remains server-derived, and no cloud rows are deleted.
 - **Responsive onboarding and calendar surfaces**: tutorial coachmarks now size and reposition for narrow screens, enlarged font scales, safe-area insets, and the bottom tab bar; task/streak steps auto-scroll to and re-measure their live targets. Calendar's seven-column grid, month navigation, legend, and summary cards now use bounded flex layouts with responsive spacing and typography while preserving the phone-first portrait navigation.
 
 ### Fixed
+- **Android adaptive release compatibility**: removed app-owned portrait and legacy system-bar restrictions, enabled predictive back dispatch, and migrated `MainActivity` away from deprecated back handling; release metadata is 2.0.3.l (versionCode 80), while iOS remains explicitly portrait-only. A signed AAB and API 34 release stress loops passed; API 35/36, tablet/foldable, Play re-scan, and R8 obfuscation remain pending.
 - **Home heatmap density**: restored the compact visual cell pitch while keeping per-day detail taps and accessibility labels, so the touch-target sizing no longer expands the 53-week grid.
 - **Account activity boundary**: the confirmed thanguyenxuan account now starts counting real activity on 2026-07-06; earlier fake rows no longer inflate its heatmap, lifetime stars, rank, backup, restore, or sync.
 - **Analytics Year star contract**: Home, Analytics, Rank, Global, Friends, Profile, Trophy, and Badge totals now use the same current-calendar-year positive TASK-star KPI; lifetime stars remain internal for tier/economy/recovery and are no longer a visible total.

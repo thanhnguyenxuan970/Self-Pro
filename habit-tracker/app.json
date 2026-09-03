@@ -4,11 +4,16 @@
     "slug": "habit-tracker",
     "version": "2.0.3",
     "scheme": "habittracker",
-    "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +22,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "versionCode": 79,
+      "versionCode": 81,
       "predictiveBackGestureEnabled": true,
       "allowBackup": false,
       "blockedPermissions": [
