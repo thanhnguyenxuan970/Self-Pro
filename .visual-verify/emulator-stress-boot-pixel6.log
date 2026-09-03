@@ -1,0 +1,144 @@
+INFO         | Android emulator version 36.6.11.0 (build_id 15507667) (CL:N/A)
+INFO         | Graphics backend: gfxstream
+INFO         | Found systemPath C:\Users\Admin\AppData\Local\Android\Sdk\system-images\android-34\google_apis\x86_64\
+INFO         | Feature 'IntelPerformanceMonitoringUnit' (49) is overridden to 'disabled'
+INFO         | Feature 'GuestAngle' (102) is overridden to 'disabled'
+INFO         | Feature 'AndroidVirtualizationFramework' (103) is overridden to 'disabled'
+INFO         | Feature 'WindowsHypervisorPlatform' (14) is overridden to 'enabled'
+INFO         | Feature 'QuickbootFileBacked' (17) is overridden to 'disabled'
+INFO         | Increasing RAM size to 2560MB
+INFO         | IPv4 server found: 8.8.8.8
+INFO         | Ignore IPv6 address: 50f7:f7f0:f801:0:50f7:f7f0:f801:0
+INFO         | Ignore IPv6 address: 50f7:f7f0:f801:0:50f7:f7f0:f801:0
+INFO         | Ignore IPv6 address: 3001:f8f0:f801:0:50f7:f7f0:f801:0
+INFO         | Ignore IPv6 address: 3001:f8f0:f801:0:50f7:f7f0:f801:0
+INFO         | Ignore IPv6 address: 3001:f8f0:f801:0:50f7:f7f0:f801:0
+INFO         | Ignore IPv6 address: 5807:f8f0:f801:0:50f7:f7f0:f801:0
+INFO         | Ignore IPv6 address: 5807:f8f0:f801:0:50f7:f7f0:f801:0
+INFO         | Ignore IPv6 address: 5807:f8f0:f801:0:50f7:f7f0:f801:0
+INFO         | Ignore IPv6 address: d00c:f8f0:f801:0:50f7:f7f0:f801:0
+INFO         | Ignore IPv6 address: d00c:f8f0:f801:0:50f7:f7f0:f801:0
+INFO         | Ignore IPv6 address: d00c:f8f0:f801:0:50f7:f7f0:f801:0
+ERROR        | gpuChoiceBasedOnGpuOptions: Selected GPU option 'swiftshader_indirect' is not valid, switching to 'auto' mode.
+INFO         | emuglConfig_get_vulkan_hardware_gpu_support_info: Found physical GPU 'NVIDIA GeForce RTX 3060', type: VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, apiVersion: 1.4.341, driverVersion: 610.74
+
+INFO         | emuglConfig_init: vulkan_mode_selected:host gles_mode_selected:host
+INFO         | Checking system compatibility:
+INFO         |   Checking: hasCompatibleHypervisor
+INFO         |      Ok: Hypervisor compatibility to run avd: `Pixel_6` are met
+INFO         |   Checking: hasSufficientSystem
+INFO         |      Ok: System requirements to run avd: `Pixel_6` are met
+INFO         |   Checking: hasSufficientHwGpu
+INFO         |      Ok: Hardware GPU requirements to run avd: `Pixel_6` are passed
+INFO         |   Checking: hasSufficientDiskSpace
+INFO         |      Ok: Disk space requirements to run avd: `Pixel_6` are met
+INFO         | Critical: Failed to load opengl32sw (The specified module could not be found.) (:0, )
+INFO         | Warning: Software OpenGL failed. Falling back to system OpenGL. (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_default_environment_selected() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_none_selected() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_custom_image_selected() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_custom_video_selected() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_custom_360_image_selected() (:0, )
+INFO         | Storing crashdata in: C:\Users\Admin\AppData\Local\Temp\\AndroidEmulator\emu-crash-36.6.11.db, detection is enabled for process: 12072
+INFO         | Crash reports will be automatically uploaded to: https://clients2.google.com/cr/report
+INFO         | Initializing gfxstream backend
+INFO         | startOpenglesRendererImpl: gpu info
+INFO         | GPU #1
+  Make: 10de
+  Model: NVIDIA GeForce RTX 3060
+  Device ID: 2487
+
+INFO         | Disabling implicit Vulkan layers to avoid compatibility issues. Set VK_LOADER_LAYERS_DISABLE manually to disable this behavior.
+INFO         | SharedLibrary::open for [C:\Users\Admin\AppData\Local\Android\Sdk\emulator\qemu\windows-x86_64\lib64\vulkan\vulkan-1.dll]
+INFO         | SharedLibrary::open for [C:\Users\Admin\AppData\Local\Android\Sdk\emulator\lib64\vulkan\vulkan-1.dll]
+INFO         | Added library: C:\Users\Admin\AppData\Local\Android\Sdk\emulator\lib64\vulkan\vulkan-1.dll
+INFO         | Selecting Vulkan device: NVIDIA GeForce RTX 3060, Version: 1.4.341
+INFO         | Using Vulkan externalMemoryMode: OpaqueWin32 for VkEmulation
+INFO         | Initializing VkEmulation features:
+INFO         |     glInteropSupported: true
+INFO         |     useDeferredCommands: true
+INFO         |     createResourceWithRequirements: true
+INFO         |     useVulkanComposition: false
+INFO         |     useVulkanNativeSwapchain: false
+INFO         |     enable guestRenderDoc: false
+INFO         |     ASTC LDR emulation mode: Gpu
+INFO         |     enable ETC2 emulation: true
+INFO         |     enable Ycbcr emulation: false
+INFO         |     guestVulkanOnly: false
+INFO         |     useDedicatedAllocations: false
+INFO         |     guestVulkanMaxApiVersion: 1.3.0
+INFO         |     enableProtectedMemoryEmulation: false
+INFO         | Graphics Adapter Vendor Google (NVIDIA Corporation)
+INFO         | Graphics Adapter Android Emulator OpenGL ES Translator (NVIDIA GeForce RTX 3060/PCIe/SSE2)
+INFO         | Graphics API Version OpenGL ES 3.0 (4.5.0 NVIDIA 610.74)
+INFO         | Graphics API Extensions GL_OES_EGL_sync GL_OES_EGL_image GL_OES_EGL_image_external GL_OES_depth24 GL_OES_depth32 GL_OES_element_index_uint GL_OES_texture_float GL_OES_texture_float_linear GL_OES_compressed_paletted_texture GL_OES_compressed_ETC1_RGB8_texture GL_OES_depth_texture GL_OES_texture_half_float GL_OES_texture_half_float_linear GL_OES_packed_depth_stencil GL_OES_vertex_half_float GL_OES_texture_npot GL_OES_rgb8_rgba8 GL_OVR_multiview2 GL_EXT_multiview_texture_multisample GL_EXT_color_buffer_float GL_EXT_color_buffer_half_float GL_EXT_texture_format_BGRA8888 GL_APPLE_texture_format_BGRA8888 GL_EXT_texture_buffer 
+INFO         | Graphics Device Extensions N/A
+INFO         | Disabling sparse binding feature support
+INFO         | Sending adb public key [QAAAAM1GiUv76dM0xhIF9NoYVFO26pv6PIPAtFlO7A4FkqYAKvoSr9iRdztBYs9qYuHbeeQ7DetFXiO7VlaPiQHi19wdrIEknmzsoLfulEROEN3EVQamoMSVXIZf9IhhJ9xaFK5Nyt3bX1uL1EEQL+sal5i1LBKpBKsxHCkflnchz51jdvO4fjwTPyKJSfBpCt98AE8/Yja8aOgIaEppXpTzMH2jjKF09l1elU0bi9tTv4t3RhB8rQluEy2f6ROm10zLt/aEPkIbx8GpqFRjP4bXv8EfEl2JdCk0EsWPVZSmv9BR3fvaH+elHoSaDIPoHFmy/NpIXoyUA2fjqXfkAgfzGyHHFpqkQpDH+pzLv8Nem2UhVAH1wFh9oJkstuYGF7OJiCdxbelQvyUb3mZUWAojZx8vdW+BBaka/zV8r430StF6Lrt4dlCETpfYwl5iLxbb+Jy00blySKcPS53wEDn3bGQA6wVWMXZ7FrHmXCFm8qeSayVl4hYGNvubrg4FRCTjH4UQDijOSNaxQEo7RKmu1dVa9QfyV66DTRIIOgSfsRbc9LxlCQmSpj+k/msUtbg+bpbePVJ9NnE3rdSzGER9PbfAKMaJfHurN5HgygkTc/wGWFjBTdP0MGzv/RsGADXS5mRPfeOTKdVTyCo7/IVO9+vCD6AEsq9sKf2V4RyhbHnH0lrGlgEAAQA= @unknown]
+INFO         | Userspace boot properties:
+INFO         |   androidboot.boot_devices=pci0000:00/0000:00:03.0 pci0000:00/0000:00:06.0
+INFO         |   androidboot.dalvik.vm.heapsize=576m
+INFO         |   androidboot.debug.hwui.renderer=skiagl
+INFO         |   androidboot.debug.sf.nobootanimation=1
+INFO         |   androidboot.hardware=ranchu
+INFO         |   androidboot.hardware.gltransport=pipe
+INFO         |   androidboot.hardware.vulkan=ranchu
+INFO         |   androidboot.logcat=*:V
+INFO         |   androidboot.opengles.version=196609
+INFO         |   androidboot.qemu=1
+INFO         |   androidboot.qemu.adb.pubkey=QAAAAM1GiUv76dM0xhIF9NoYVFO26pv6PIPAtFlO7A4FkqYAKvoSr9iRdztBYs9qYuHbeeQ7DetFXiO7VlaPiQHi19wdrIEknmzsoLfulEROEN3EVQamoMSVXIZf9IhhJ9xaFK5Nyt3bX1uL1EEQL+sal5i1LBKpBKsxHCkflnchz51jdvO4fjwTPyKJSfBpCt98AE8/Yja8aOgIaEppXpTzMH2jjKF09l1elU0bi9tTv4t3RhB8rQluEy2f6ROm10zLt/aEPkIbx8GpqFRjP4bXv8EfEl2JdCk0EsWPVZSmv9BR3fvaH+elHoSaDIPoHFmy/NpIXoyUA2fjqXfkAgfzGyHHFpqkQpDH+pzLv8Nem2UhVAH1wFh9oJkstuYGF7OJiCdxbelQvyUb3mZUWAojZx8vdW+BBaka/zV8r430StF6Lrt4dlCETpfYwl5iLxbb+Jy00blySKcPS53wEDn3bGQA6wVWMXZ7FrHmXCFm8qeSayVl4hYGNvubrg4FRCTjH4UQDijOSNaxQEo7RKmu1dVa9QfyV66DTRIIOgSfsRbc9LxlCQmSpj+k/msUtbg+bpbePVJ9NnE3rdSzGER9PbfAKMaJfHurN5HgygkTc/wGWFjBTdP0MGzv/RsGADXS5mRPfeOTKdVTyCo7/IVO9+vCD6AEsq9sKf2V4RyhbHnH0lrGlgEAAQA= @unknown
+INFO         |   androidboot.qemu.avd_name=Pixel_6
+INFO         |   androidboot.qemu.camera_hq_edge_processing=0
+INFO         |   androidboot.qemu.camera_protocol_ver=1
+INFO         |   androidboot.qemu.cpuvulkan.version=4206592
+INFO         |   androidboot.qemu.gltransport.drawFlushInterval=800
+INFO         |   androidboot.qemu.gltransport.name=pipe
+INFO         |   androidboot.qemu.hwcodec.avcdec=2
+INFO         |   androidboot.qemu.hwcodec.hevcdec=2
+INFO         |   androidboot.qemu.hwcodec.vpxdec=2
+INFO         |   androidboot.qemu.settings.system.screen_off_timeout=2147483647
+INFO         |   androidboot.qemu.skin=pixel_6
+INFO         |   androidboot.qemu.virtiowifi=1
+INFO         |   androidboot.qemu.vsync=60
+INFO         |   androidboot.serialno=EMULATOR36X6X11X0
+INFO         |   androidboot.vbmeta.digest=451e57ed688ff746d2c636d52169ade253e2bc5bb30a5c3ff23679ca15d3bcd3
+INFO         |   androidboot.vbmeta.hash_alg=sha256
+INFO         |   androidboot.vbmeta.size=6656
+INFO         |   androidboot.veritymode=enforcing
+WHPX on Windows 10.0.26200 detected.
+Windows Hypervisor Platform accelerator is operational
+INFO         | Monitoring duration of emulator setup.
+WARNING      | The emulator now requires a signed jwt token for gRPC access! Use the -grpc flag if you really want an open unprotected grpc port
+INFO         | Using security allow list from: C:\Users\Admin\AppData\Local\Android\Sdk\emulator\lib\emulator_access.json
+INFO         | The active JSON Web Key Sets can be found here: C:\Users\Admin\AppData\Local\Temp\avd\running\12072\jwks\bc2fcf8e-b638-447a-af73-ec338fc416c6\active.jwk
+INFO         | Scanning C:\Users\Admin\AppData\Local\Temp\avd\running\12072\jwks\bc2fcf8e-b638-447a-af73-ec338fc416c6 for jwk keys.
+INFO         | Started GRPC server at 127.0.0.1:8554, security: Local, auth: +token
+INFO         | Advertising in: C:\Users\Admin\AppData\Local\Temp\avd\running\pid_12072.ini
+INFO         | Successfully initialized netsim WiFi
+INFO         | Activated packet streamer for bluetooth emulation
+INFO         | Setting display: 0 configuration to: 1080x2400, dpi: 420x420 
+INFO         | setDisplayActiveConfig: id:0, 1080x2400
+WARNING      | getEnvironmentConfig: No environment config is provided
+INFO         | getEnvironmentConfig: Using default virtual scene mode for the environment.
+INFO         | getEnvironmentConfig: Using default configuration for mode mesh3d for the environment.
+INFO         | Initializing a scene with mode: mesh3d, argument: Toren1BD.obj
+INFO         | Checking system compatibility:
+INFO         |   Checking: hasCompatibleHypervisor
+INFO         |      Ok: Hypervisor compatibility to run avd: `Pixel_6` are met
+INFO         |   Checking: hasSufficientSystem
+INFO         |      Ok: System requirements to run avd: `Pixel_6` are met
+INFO         |   Checking: hasSufficientHwGpu
+INFO         |      Ok: Hardware GPU requirements to run avd: `Pixel_6` are passed
+INFO         |   Checking: hasSufficientDiskSpace
+INFO         |      Ok: Disk space requirements to run avd: `Pixel_6` are met
+INFO         | GPU Vendor=[Google (NVIDIA Corporation)]
+INFO         | GPU Renderer=[Android Emulator OpenGL ES Translator (NVIDIA GeForce RTX 3060/PCIe/SSE2)]
+INFO         | GPU Version=[OpenGL ES 3.0 (4.5.0 NVIDIA 610.74)]
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_rgbcSensorValueWidget_valueChanged() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_posture_valueChanged(int) (:0, )
+INFO         | Warning: QObject::connect: Cannot queue arguments of type 'std::vector<android::emulation::control::SnapshotInfo>'
+(Make sure 'std::vector<android::emulation::control::SnapshotInfo>' is registered using qRegisterMetaType().) (:0, )
+INFO         | AVD supportsNativeGLES=1, supportsGuestAngle=0
+INFO         | Platform does not support Guest Angle
+INFO         | Created extended window in 147.564ms
+INFO         | Boot completed in 23118 ms

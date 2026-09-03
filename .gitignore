@@ -23,6 +23,10 @@ AGENTS.override.md
 /.visual-verify/pre-auth-2abi-update.*
 /.visual-verify/release-h-google-signin-dialog.*
 
+# Rebuildable APK artifacts from QA runs (not source, bloats history)
+/.visual-verify/*.apk
+/.visual-verify/*.apk.idsig
+
 # JVM crash dumps
 hs_err_pid*.log
 replay_pid*.log
