@@ -184,7 +184,6 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle, onEnterQaSandbox }:
             </TouchableOpacity>
           )}
 
-          <Text style={styles.hint}>{t.signInHint}</Text>
         </Animated.View>
       </View>
     </SafeAreaView>
@@ -242,11 +241,5 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.primarySoft,
     },
     qaSandboxButtonText: { color: C.primaryText, fontFamily: FontFamily.semiBold, fontSize: 14, textAlign: 'center' },
-    hint: {
-      ...Typography.caption,
-      color: C.muted,
-      marginTop: Spacing.lg,
-      textAlign: 'center',
-    },
   });
 }
