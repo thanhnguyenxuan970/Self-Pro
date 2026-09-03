@@ -22,7 +22,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "versionCode": 80,
+      "versionCode": 81,
       "predictiveBackGestureEnabled": true,
       "allowBackup": false,
       "blockedPermissions": [
