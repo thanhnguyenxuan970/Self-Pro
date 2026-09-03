@@ -110,6 +110,7 @@ Use the `emulator` skill before any adb tap or swipe so coordinates are computed
 | `08006: could not receive data from client: Connection reset by peer` | The database client or network connection closed unexpectedly | Re-run the read-only query from a healthy authenticated connection; do not treat it as an app data-write failure |
 | `ReactHost ... Tried to access onWindowFocusChange while context is not ready` | Android cold start delivers a window-focus callback before the bridgeless JS context is initialized | Wait for the bundle to initialize; treat it as non-fatal only when no `FATAL EXCEPTION`, `ReactNativeJS` error, redbox, or bundle-load failure follows |
 | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` for `com.habitring.app` | The installed debug APK and the release APK have different signing certificates | Keep the debug install for data-preserving QA, or use a matching release-signed install; do not uninstall or clear app data unless reset is explicitly authorized |
+| `R8: java.lang.NullPointerException: Cannot invoke "com.android.tools.r8.internal.Y9.z()" because "<local3>" is null` during `:app:minifyReleaseWithR8` | The current Windows R8/JDK 17 release toolchain crashes while shrinking this app | Keep release minify/shrink disabled until the toolchain is isolated or upgraded; do not ship an unverified obfuscated artifact |
 
 ## Shared References
 

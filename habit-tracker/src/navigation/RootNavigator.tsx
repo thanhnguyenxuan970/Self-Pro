@@ -336,8 +336,6 @@ export function RootNavigator({
     <NavigationContainer>
       <StatusBar
         barStyle={isDark ? 'light-content' : 'dark-content'}
-        backgroundColor="transparent"
-        translucent
       />
       {googleUser !== null && isOnboarded ? (
         <AppStack googleUser={googleUser} onEnterQaSandbox={onEnterQaSandbox} onSignOut={onSignOut} onDeleteAccount={onDeleteAccount} />
