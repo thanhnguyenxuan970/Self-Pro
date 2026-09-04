@@ -2,10 +2,10 @@
 
 ## Unreleased
 
-## 2.0.3.n - 2026-09-04
+## 2.0.3.o - 2026-09-04
 
-- Raised the Android release metadata to version `2.0.3.n` (versionCode `82`) so Google Play accepts the replacement AAB after versionCode `81` was already used.
-- Validation: TypeScript, 86 Jest suites/797 tests/1 snapshot, `git diff --check`, and the signed release AAB passed. The AAB contains `com.habitring.app` version `2.0.3.n` (versionCode `82`); SHA-256: `DE2245F27E7C58EDF3F837E94CEEFCFFBD7F47038C76CB83C6A8CC932E1F01A6`.
+- Added contextual bug-report metadata and moved the feedback entry point to Profile and relevant error states; duplicate Settings feedback entry removed. Android native release metadata is `2.0.3.o` (versionCode `83`); the shared Expo/iOS version remains `2.0.3`.
+- Validation: TypeScript and 87 Jest suites/801 tests/1 snapshot passed; Android UI was verified in Vietnamese and English, including Settings without the duplicate feedback row and contextual feedback capture. The linked Supabase migration and Edge Functions still require deployment before production feedback metadata is stored.
 
 ## 2.0.3.m - 2026-09-03
 
