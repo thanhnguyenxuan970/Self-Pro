@@ -4,14 +4,19 @@ import {
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { Typography, Radii, Spacing, AppColors, FontFamily } from '../config/theme';
-import { useTheme, useTranslations } from '../hooks/useSettings';
+import { useLanguage, useTheme, useTranslations } from '../hooks/useSettings';
 import { useGoogleUser } from '../hooks/useAuth';
 import { submitFeedback } from '../api/feedbackService';
+import type { FeedbackContext } from '../api/feedbackService';
 import { FeedbackType, FEEDBACK_MAX_LENGTH, validateFeedbackMessage } from '../utils/feedbackLogic';
 import { AppButton } from '../components/AppButton';
 import { BottomSheetFrame } from '../components/BottomSheetFrame';
 
-interface Props { visible: boolean; onClose: () => void; }
+interface Props {
+  visible: boolean;
+  onClose: () => void;
+  context?: Omit<FeedbackContext, 'appLanguage'>;
+}
 
 // This sheet is the manual, user-initiated feedback form — it never offers
 // SURVEY_D0 as a selectable type (that's the auto-triggered SurveyD0Sheet).
@@ -23,10 +28,11 @@ const TYPES: { key: ManualFeedbackType; icon: string }[] = [
   { key: 'OTHER', icon: '💬' },
 ];
 
-export function FeedbackSheet({ visible, onClose }: Props) {
+export function FeedbackSheet({ visible, onClose, context }: Props) {
   const googleUser = useGoogleUser();
   const { colors } = useTheme();
   const t = useTranslations();
+  const [lang] = useLanguage();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [type, setType] = useState<ManualFeedbackType>('BUG');
@@ -61,6 +67,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
         type,
         message,
         userEmail: googleUser?.email ?? null,
+        context: { ...context, appLanguage: lang },
       });
       if (result === 'OK') {
         Toast.show({ type: 'success', text1: t.feedbackThanks, visibilityTime: 2500 });
@@ -87,6 +94,7 @@ export function FeedbackSheet({ visible, onClose }: Props) {
       <View style={styles.handle} />
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>{t.feedbackTitle}</Text>
+        <Text style={styles.contextNote}>{t.feedbackContextNote}</Text>
 
         <View style={styles.typeRow} accessibilityRole="radiogroup">
           {TYPES.map(({ key, icon }) => (
@@ -142,6 +150,7 @@ function makeStyles(C: AppColors) {
       borderRadius: Radii.pill, alignSelf: 'center', marginBottom: 10,
     },
     title: { ...Typography.bodyStrong, fontSize: 18, color: C.inkDark, marginBottom: Spacing.md },
+    contextNote: { ...Typography.caption, color: C.muted, marginTop: -8, marginBottom: Spacing.md },
     typeRow: { flexDirection: 'row', gap: 8, marginBottom: Spacing.md },
     typeChip: {
       flex: 1, minHeight: 44, justifyContent: 'center', paddingVertical: 10, borderRadius: Radii.md,

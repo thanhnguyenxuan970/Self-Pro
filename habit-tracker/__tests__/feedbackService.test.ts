@@ -45,6 +45,42 @@ test('invokes the feedback-submit Edge Function with the expected payload and re
         userEmail: 'a@b.com',
         type: 'BUG',
         message: 'The button is broken',
+        appVersion: '2.0.3',
+        platform: 'android',
+      }),
+    }),
+  );
+});
+
+test('includes screen, error context, and local diagnostics in a bug report', async () => {
+  mockSupabase.supabase.functions.invoke.mockResolvedValue({ data: { result: 'OK' }, error: null });
+
+  const result = await submitFeedback({
+    type: 'BUG',
+    message: 'The updates screen is empty',
+    userEmail: 'a@b.com',
+    context: {
+      appLanguage: 'vi',
+      screen: 'News',
+      route: 'News',
+      errorCode: 'NEWS_LOAD_FAILED',
+      errorNotice: 'Không tải được bản tin.',
+    },
+  });
+
+  expect(result).toBe('OK');
+  expect(mockSupabase.supabase.functions.invoke).toHaveBeenCalledWith(
+    'feedback-submit',
+    expect.objectContaining({
+      body: expect.objectContaining({
+        appVersion: '2.0.3',
+        platform: 'android',
+        appLanguage: 'vi',
+        localDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        screen: 'News',
+        route: 'News',
+        errorCode: 'NEWS_LOAD_FAILED',
+        errorNotice: 'Không tải được bản tin.',
       }),
     }),
   );

@@ -13,7 +13,9 @@
 //
 // Deploy: supabase functions deploy feedback-submit --no-verify-jwt
 //
-// Request body:  { type, message, userEmail, appVersion, device, osVersion, answers }
+// Request body:  { type, message, userEmail, appVersion, platform, device,
+// osVersion, deviceTimezone, deviceLocale, appLanguage, localDate, screen,
+// route, errorCode, errorNotice, answers }
 // Response body: { result: 'OK' | 'INVALID' | 'RATE_LIMITED' | 'FAILED' }
 // (always HTTP 200 for expected outcomes; non-200 only for genuine
 // misconfiguration/transport failure, which the client treats as FAILED)
@@ -58,10 +60,29 @@ type ParsedBody = {
   message: string;
   userEmail: string | null;
   appVersion: string | null;
+  platform: string | null;
   device: string | null;
   osVersion: string | null;
+  deviceTimezone: string | null;
+  deviceLocale: string | null;
+  appLanguage: string | null;
+  localDate: string | null;
+  screen: string | null;
+  route: string | null;
+  errorCode: string | null;
+  errorNotice: string | null;
   answers: Record<string, unknown> | null;
 };
+
+function textField(value: unknown, maxLength: number): string | null {
+  if (typeof value !== 'string') return null;
+  const valueTrimmed = value.trim();
+  return valueTrimmed ? valueTrimmed.slice(0, maxLength) : null;
+}
+
+function enumField(value: unknown, allowed: readonly string[]): string | null {
+  return typeof value === 'string' && allowed.includes(value) ? value : null;
+}
 
 async function parseBody(req: Request): Promise<ParsedBody | null> {
   try {
@@ -71,9 +92,18 @@ async function parseBody(req: Request): Promise<ParsedBody | null> {
       type: body.type,
       message: body.message,
       userEmail: typeof body.userEmail === 'string' ? body.userEmail : null,
-      appVersion: typeof body.appVersion === 'string' ? body.appVersion : null,
-      device: typeof body.device === 'string' ? body.device : null,
-      osVersion: typeof body.osVersion === 'string' ? body.osVersion : null,
+      appVersion: textField(body.appVersion, 32),
+      platform: enumField(body.platform, ['android', 'ios', 'web']),
+      device: textField(body.device, 128),
+      osVersion: textField(body.osVersion, 64),
+      deviceTimezone: textField(body.deviceTimezone, 64),
+      deviceLocale: textField(body.deviceLocale, 64),
+      appLanguage: enumField(body.appLanguage, ['vi', 'en']),
+      localDate: typeof body.localDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.localDate) ? body.localDate : null,
+      screen: textField(body.screen, 128),
+      route: textField(body.route, 128),
+      errorCode: textField(body.errorCode, 64),
+      errorNotice: textField(body.errorNotice, 256),
       answers: (body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers))
         ? body.answers as Record<string, unknown>
         : null,
@@ -143,8 +173,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
       type: parsed.type,
       message: trimmed,
       app_version: parsed.appVersion,
+      platform: parsed.platform,
       device: parsed.device,
       os_version: parsed.osVersion,
+      device_timezone: parsed.deviceTimezone,
+      device_locale: parsed.deviceLocale,
+      app_language: parsed.appLanguage,
+      local_date: parsed.localDate,
+      screen: parsed.screen,
+      route: parsed.route,
+      error_code: parsed.errorCode,
+      error_notice: parsed.errorNotice,
       ip_hash: ipHash,
       answers: parsed.answers,
     }),

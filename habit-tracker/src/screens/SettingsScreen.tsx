@@ -313,7 +313,11 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
 
         <Text style={styles.hint}>{t.deleteAccountNote}</Text>
       </ScrollView>
-      <FeedbackSheet visible={feedbackVisible} onClose={() => setFeedbackVisible(false)} />
+      <FeedbackSheet
+        visible={feedbackVisible}
+        onClose={() => setFeedbackVisible(false)}
+        context={{ screen: 'Settings', route: 'Settings' }}
+      />
       {Platform.OS === 'ios' && (
         <Modal visible={iosPickerIdx !== null} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={() => setIosPickerIdx(null)} statusBarTranslucent navigationBarTranslucent>
           <View style={styles.iosPickerBackdrop}>
