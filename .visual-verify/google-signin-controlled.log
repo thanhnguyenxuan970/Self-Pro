@@ -1,0 +1,929 @@
+--------- beginning of main
+08-29 23:26:23.991  1091  1091 D TaplEvents: TIS / TouchInteractionService.onInputEvent: MotionEvent { action=ACTION_DOWN, actionButton=0, id[0]=0, x[0]=541.0, y[0]=1406.0, toolType[0]=TOOL_TYPE_FINGER, buttonState=0, classification=NONE, metaState=0, flags=0x0, edgeFlags=0x0, pointerCount=1, historySize=0, eventTime=38717991, downTime=38717991, deviceId=-1, source=0x1002, displayId=0, eventId=-675667586 }
+08-29 23:26:23.992  1091  1091 D TaplEvents: TIS / TouchInteractionService.onInputEvent: MotionEvent { action=ACTION_UP, actionButton=0, id[0]=0, x[0]=541.0, y[0]=1406.0, toolType[0]=TOOL_TYPE_FINGER, buttonState=0, classification=NONE, metaState=0, flags=0x0, edgeFlags=0x0, pointerCount=1, historySize=0, eventTime=38717991, downTime=38717991, deviceId=-1, source=0x1002, displayId=0, eventId=-661223956 }
+08-29 23:26:24.000   421  4568 D audioserver: FGS Logger Transaction failed
+08-29 23:26:24.000   421  4568 D audioserver: -129
+08-29 23:26:24.002   421   521 D AudioFlinger: mixer(0x78fbff2b4930) throttle end: throttle time(35)
+--------- beginning of system
+08-29 23:26:24.005   550  1988 E Transition: Trying to add a ready-group twice: Display{#0 state=ON size=1080x2400 ROTATION_0}
+08-29 23:26:24.006   769   821 V WindowManagerShell: Transition requested: android.os.BinderProxy@6148f46 TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=39 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.habitring.app/.MainActivity } baseActivity=ComponentInfo{com.habitring.app/com.habitring.app.MainActivity} topActivity=ComponentInfo{com.habitring.app/com.google.android.gms.auth.api.signin.internal.SignInHubActivity} origActivity=null realActivity=ComponentInfo{com.habitring.app/com.habitring.app.MainActivity} numActivities=2 lastActiveTime=38718005 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@8c8507} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=ActivityInfo{6c6f634 com.google.android.gms.auth.api.signin.internal.SignInHubActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+08-29 23:26:24.007   550  1988 I ActivityTaskManager: START u0 {act=com.google.android.gms.auth.GOOGLE_SIGN_IN pkg=com.habitring.app cmp=com.habitring.app/com.google.android.gms.auth.api.signin.internal.SignInHubActivity (has extras)} with LAUNCH_MULTIPLE from uid 10194 (BAL_ALLOW_VISIBLE_WINDOW) result code=0
+08-29 23:26:24.007  9669  9669 W unknown:BridgelessReact: ReactHost{0}.onUserLeaveHint(activity)
+08-29 23:26:24.008  9669  9669 W unknown:BridgelessReact: ReactHost{0}.onHostPause(activity)
+08-29 23:26:24.008  9669  9669 W unknown:BridgelessReact: ReactHost{0}.ReactContext.onHostPause()
+08-29 23:26:24.014   425   425 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+08-29 23:26:24.017   550  2431 I ActivityTaskManager: START u0 {act=com.google.android.gms.auth.GOOGLE_SIGN_IN pkg=com.google.android.gms cmp=com.google.android.gms/.auth.api.signin.ui.SignInActivity (has extras)} with LAUNCH_MULTIPLE from uid 10194 (BAL_ALLOW_VISIBLE_WINDOW) result code=0
+08-29 23:26:24.020   550  2431 D CoreBackPreview: Window{a37582d u0 com.habitring.app/com.google.android.gms.auth.api.signin.internal.SignInHubActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@61452f3, mPriority=0, mIsAnimationCallback=false}
+08-29 23:26:24.059  9669  9702 E OpenGLRenderer: Unable to match the desired swap behavior.
+08-29 23:26:24.084   550  1988 D ActivityManager: quick sync unfreeze 9751 for 1
+08-29 23:26:24.089   550   580 D ActivityManager: sync unfroze 9751 com.google.android.gms.ui for 1
+08-29 23:26:24.101  1578  1578 D BoundBrokerSvc: onUnbind: Intent { act=com.google.android.gms.people.service.START dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsBoundBrokerService }
+08-29 23:26:24.110  9751  9751 I ContentCaptureHelper: Setting logging level to DEBUG
+08-29 23:26:24.110  9751  9751 D ContentCaptureManager: setFlushViewTreeAppearingEventDisabled(): setting to false
+08-29 23:26:24.110  9751  9751 D ContentCaptureManager: updateWindowAttributes(): window flags=8388610
+08-29 23:26:24.114  9751  9751 D MainContentCaptureSession: handleScheduleFlush(act:com.google.android.gms/.auth.api.signin.ui.SignInActivity [state=1 (WAITING_FOR_SERVER), disabled=false], reason=FORCE_FLUSH): not a timeout reason because mDirectServiceInterface is not ready yet
+08-29 23:26:24.115   550  2431 D CoreBackPreview: Window{a67f712 u0 com.google.android.gms/com.google.android.gms.auth.api.signin.ui.SignInActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@8540e0, mPriority=0, mIsAnimationCallback=false}
+08-29 23:26:24.130  9751  9760 W .android.gms.ui: Cleared Reference was only reachable from finalizer (only reported once)
+08-29 23:26:24.130  9751  9786 W OpenGLRenderer: Failed to choose config with EGL_SWAP_BEHAVIOR_PRESERVED, retrying without...
+08-29 23:26:24.131  9751  9786 W OpenGLRenderer: Failed to initialize 101010-2 format, error = EGL_SUCCESS
+08-29 23:26:24.161   421   521 D audioserver: FGS Logger Transaction failed
+08-29 23:26:24.161   421   521 D audioserver: -129
+08-29 23:26:24.163  9751  9786 E OpenGLRenderer: Unable to match the desired swap behavior.
+08-29 23:26:24.166   550   575 I ActivityTaskManager: Displayed com.google.android.gms/.auth.api.signin.ui.SignInActivity for user 0: +161ms
+08-29 23:26:24.166   769   821 V WindowManagerShell: onTransitionReady android.os.BinderProxy@6148f46: {id=36 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{1214dd6 u0 com.google.android.gms/.auth.api.signin.ui.SignInActivity)/@0x1f2dc5d sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1},{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{2fd6f7b u0 com.habitring.app/com.google.android.gms.auth.api.signin.internal.SignInHubActivity)/@0x7a59d2 sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1}]}
+08-29 23:26:24.166   550   575 V WindowManager: Sent Transition #36 createdAt=08-29 23:26:24.004 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=39 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.habitring.app/.MainActivity } baseActivity=ComponentInfo{com.habitring.app/com.habitring.app.MainActivity} topActivity=ComponentInfo{com.habitring.app/com.google.android.gms.auth.api.signin.internal.SignInHubActivity} origActivity=null realActivity=ComponentInfo{com.habitring.app/com.habitring.app.MainActivity} numActivities=2 lastActiveTime=38718005 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{a86b1a1 Task{b7cafc0 #39 type=standard A=10194:com.habitring.app}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=ActivityInfo{32e4bf8 com.google.android.gms.auth.api.signin.internal.SignInHubActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+08-29 23:26:24.166   550   575 V WindowManager:     startWCT=WindowContainerTransaction { changes = {} hops = [] errorCallbackToken=null taskFragmentOrganizer=null }
+08-29 23:26:24.166   550   575 V WindowManager:     info={id=36 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{1214dd6 u0 com.google.android.gms/.auth.api.signin.ui.SignInActivity)/@0xd47566a sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1},{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{2fd6f7b u0 com.habitring.app/com.google.android.gms.auth.api.signin.internal.SignInHubActivity)/@0x48a0c55 sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1}]}
+08-29 23:26:24.166   769   821 V WindowManagerShell: Playing animation for (#36)android.os.BinderProxy@6148f46@0
+08-29 23:26:24.166   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultMixedHandler@fa3d431
+08-29 23:26:24.166   769   821 V WindowManagerShell:  try handler com.android.wm.shell.keyguard.KeyguardTransitionHandler@24e7716
+08-29 23:26:24.166   769   821 V WindowManagerShell:  try handler com.android.wm.shell.activityembedding.ActivityEmbeddingController@4b59897
+08-29 23:26:24.166   769   821 V WindowManagerShell:  try handler com.android.wm.shell.recents.RecentsTransitionHandler@19a2a84
+08-29 23:26:24.166   769   821 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+08-29 23:26:24.166   769   821 V WindowManagerShell:  try handler com.android.wm.shell.pip.PipTransition@db0826d
+08-29 23:26:24.166   769   821 V WindowManagerShell:  try handler com.android.wm.shell.splitscreen.StageCoordinator@932eea2
+08-29 23:26:24.166   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.RemoteTransitionHandler@2b12733
+08-29 23:26:24.166   769   821 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=36 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{1214dd6 u0 com.google.android.gms/.auth.api.signin.ui.SignInActivity)/@0x1f2dc5d sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1},{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{2fd6f7b u0 com.habitring.app/com.google.android.gms.auth.api.signin.internal.SignInHubActivity)/@0x7a59d2 sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1}]}
+08-29 23:26:24.166   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@5d3337f, appThread = android.app.IApplicationThread$Stub$Proxy@7d7cf4c, debugName = LauncherToDream }}
+08-29 23:26:24.166   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@8d49b95, appThread = android.app.IApplicationThread$Stub$Proxy@42bd4aa, debugName = QuickstepLaunchHome }}
+08-29 23:26:24.166   769   821 V WindowManagerShell:  Delegate animation for #36 to null
+08-29 23:26:24.166   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:24.166   769   821 V WindowManagerShell: start default transition animation, info = {id=36 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{1214dd6 u0 com.google.android.gms/.auth.api.signin.ui.SignInActivity)/@0x1f2dc5d sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1},{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{2fd6f7b u0 com.habitring.app/com.google.android.gms.auth.api.signin.internal.SignInHubActivity)/@0x7a59d2 sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1}]}
+08-29 23:26:24.167   769   821 V WindowManagerShell: loadAnimation: anim=null animAttr=0x4 type=OPEN isEntrance=true
+08-29 23:26:24.167   769   821 V WindowManagerShell: loadAnimation: anim=null animAttr=0x4 type=OPEN isEntrance=true
+08-29 23:26:24.167   769   821 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#36)android.os.BinderProxy@6148f46@0
+08-29 23:26:24.169   550   575 V WindowManager: Finish Transition #36: created at 08-29 23:26:24.004 collect-started=0.008ms request-sent=1.687ms started=3.201ms ready=85.631ms sent=161.989ms finished=165.263ms
+08-29 23:26:24.170   769   821 V WindowManagerShell: Track 0 became idle
+08-29 23:26:24.170   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:24.170   769   821 V WindowManagerShell:  animated by com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:24.170   769   821 V WindowManagerShell: Track 0 became idle
+08-29 23:26:24.170   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:24.178   550   568 E Transition: Trying to add a ready-group twice: Display{#0 state=ON size=1080x2400 ROTATION_0}
+08-29 23:26:24.178   769   821 V WindowManagerShell: Transition requested: android.os.BinderProxy@305e159 TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=39 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.habitring.app/.MainActivity } baseActivity=ComponentInfo{com.habitring.app/com.habitring.app.MainActivity} topActivity=ComponentInfo{com.google.android.gms/com.google.android.gms.common.api.GoogleApiActivity} origActivity=null realActivity=ComponentInfo{com.habitring.app/com.habitring.app.MainActivity} numActivities=4 lastActiveTime=38718178 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@800411e} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 136 - 0, 0) topActivityInfo=ActivityInfo{7270dff com.google.android.gms.common.api.GoogleApiActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+08-29 23:26:24.179   550   568 I ActivityTaskManager: START u0 {cmp=com.google.android.gms/.common.api.GoogleApiActivity (has extras)} with LAUNCH_MULTIPLE from uid 10128 (BAL_ALLOW_VISIBLE_WINDOW) result code=0
+08-29 23:26:24.186   769   877 D EGL_emulation: app_time_stats: avg=1183.58ms min=15.26ms max=11684.46ms count=10
+08-29 23:26:24.189   550   568 I ActivityTaskManager: START u0 {act=com.google.android.gms.signin.action.SIGN_IN pkg=com.google.android.gms cmp=com.google.android.gms/.signin.activity.SignInActivity (has extras)} with LAUNCH_MULTIPLE from uid 10128 (BAL_ALLOW_VISIBLE_WINDOW) result code=0
+08-29 23:26:24.190  9751  9751 I ContentCaptureHelper: Setting logging level to DEBUG
+08-29 23:26:24.190  9751  9751 D ContentCaptureManager: setFlushViewTreeAppearingEventDisabled(): setting to false
+08-29 23:26:24.190  9751  9751 D ContentCaptureManager: updateWindowAttributes(): window flags=8454400
+08-29 23:26:24.192   550   568 I ImeTracker: com.google.android.gms:d8674cf8: onRequestHide at ORIGIN_SERVER_HIDE_INPUT reason HIDE_UNSPECIFIED_WINDOW
+08-29 23:26:24.192   550   568 I ImeTracker: com.google.android.gms:d8674cf8: onCancelled at PHASE_SERVER_SHOULD_HIDE
+08-29 23:26:24.192  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():3227 
+08-29 23:26:24.193  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2087 repeatCheckTimes = 0, unlocked = true
+08-29 23:26:24.193  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=com.google.android.gms fieldId=0 fieldName=null extras=null}, false)
+08-29 23:26:24.193  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.shouldHideHeaderOnInitialState():4008 ShouldHideHeaderOnInitialState = false
+08-29 23:26:24.193  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2087 repeatCheckTimes = 2, unlocked = true
+08-29 23:26:24.196  9751  9751 D MainContentCaptureSession: handleScheduleFlush(act:com.google.android.gms/.common.api.GoogleApiActivity [state=1 (WAITING_FOR_SERVER), disabled=false], reason=FORCE_FLUSH): not a timeout reason because mDirectServiceInterface is not ready yet
+08-29 23:26:24.198   550  1988 D CoreBackPreview: Window{34dbd4b u0 com.google.android.gms/com.google.android.gms.common.api.GoogleApiActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@d186672, mPriority=0, mIsAnimationCallback=false}
+08-29 23:26:24.217  9751  9786 E OpenGLRenderer: Unable to match the desired swap behavior.
+08-29 23:26:24.230   425   425 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+08-29 23:26:24.244  9751  9751 I ContentCaptureHelper: Setting logging level to DEBUG
+08-29 23:26:24.244  9751  9751 D ContentCaptureManager: setFlushViewTreeAppearingEventDisabled(): setting to false
+08-29 23:26:24.244  9751  9751 D ContentCaptureManager: updateWindowAttributes(): window flags=8388610
+08-29 23:26:24.248   550   568 D CoreBackPreview: Window{cfd101f u0 com.google.android.gms/com.google.android.gms.signin.activity.SignInActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@c6253b1, mPriority=0, mIsAnimationCallback=false}
+08-29 23:26:24.252  9751  9786 E OpenGLRenderer: Unable to match the desired swap behavior.
+08-29 23:26:24.254  9751  9796 E enyj    : *~*~*~ Previous channel {0} was not shutdown properly!!! ~*~*~*
+08-29 23:26:24.254  9751  9796 E enyj    :     Make sure to call shutdown()/shutdownNow() and wait until awaitTermination() returns true.
+08-29 23:26:24.254  9751  9796 E enyj    : java.lang.RuntimeException: ManagedChannel allocation site
+08-29 23:26:24.254  9751  9796 E enyj    : 	at enyi.<init>(:com.google.android.gms@231818047@23.18.18 (190800-535401451):3)
+08-29 23:26:24.254  9751  9796 E enyj    : 	at enyj.<init>(:com.google.android.gms@231818047@23.18.18 (190800-535401451):2)
+08-29 23:26:24.254  9751  9796 E enyj    : 	at enyh.a(:com.google.android.gms@231818047@23.18.18 (190800-535401451):21)
+08-29 23:26:24.254  9751  9796 E enyj    : 	at enqe.a(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+08-29 23:26:24.254  9751  9796 E enyj    : 	at abxw.H(:com.google.android.gms@231818047@23.18.18 (190800-535401451):22)
+08-29 23:26:24.254  9751  9796 E enyj    : 	at abxw.f(:com.google.android.gms@231818047@23.18.18 (190800-535401451):2)
+08-29 23:26:24.254  9751  9796 E enyj    : 	at cbgk.call(:com.google.android.gms@231818047@23.18.18 (190800-535401451):34)
+08-29 23:26:24.254  9751  9796 E enyj    : 	at java.util.concurrent.FutureTask.run(FutureTask.java:264)
+08-29 23:26:24.254  9751  9796 E enyj    : 	at aced.c(:com.google.android.gms@231818047@23.18.18 (190800-535401451):6)
+08-29 23:26:24.254  9751  9796 E enyj    : 	at aced.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):7)
+08-29 23:26:24.254  9751  9796 E enyj    : 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)
+08-29 23:26:24.254  9751  9796 E enyj    : 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:644)
+08-29 23:26:24.254  9751  9796 E enyj    : 	at acjn.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+08-29 23:26:24.254  9751  9796 E enyj    : 	at java.lang.Thread.run(Thread.java:1012)
+08-29 23:26:24.254   769   821 V WindowManagerShell: onTransitionReady android.os.BinderProxy@305e159: {id=37 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{62fcf3c u0 com.google.android.gms/.signin.activity.SignInActivity)/@0xaaa3a15 sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1},{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{408710d u0 com.google.android.gms/.common.api.GoogleApiActivity)/@0x96b512a sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1}]}
+08-29 23:26:24.255   769   821 V WindowManagerShell: Playing animation for (#37)android.os.BinderProxy@305e159@0
+08-29 23:26:24.255   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultMixedHandler@fa3d431
+08-29 23:26:24.255   769   821 V WindowManagerShell:  try handler com.android.wm.shell.keyguard.KeyguardTransitionHandler@24e7716
+08-29 23:26:24.255   769   821 V WindowManagerShell:  try handler com.android.wm.shell.activityembedding.ActivityEmbeddingController@4b59897
+08-29 23:26:24.255   769   821 V WindowManagerShell:  try handler com.android.wm.shell.recents.RecentsTransitionHandler@19a2a84
+08-29 23:26:24.255   550   575 I ActivityTaskManager: Displayed com.google.android.gms/.signin.activity.SignInActivity for user 0: +77ms
+08-29 23:26:24.255   769   821 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+08-29 23:26:24.255   769   821 V WindowManagerShell:  try handler com.android.wm.shell.pip.PipTransition@db0826d
+08-29 23:26:24.255   769   821 V WindowManagerShell:  try handler com.android.wm.shell.splitscreen.StageCoordinator@932eea2
+08-29 23:26:24.255   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.RemoteTransitionHandler@2b12733
+08-29 23:26:24.255   769   821 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=37 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{62fcf3c u0 com.google.android.gms/.signin.activity.SignInActivity)/@0xaaa3a15 sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1},{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{408710d u0 com.google.android.gms/.common.api.GoogleApiActivity)/@0x96b512a sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1}]}
+08-29 23:26:24.255   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@5d3337f, appThread = android.app.IApplicationThread$Stub$Proxy@7d7cf4c, debugName = LauncherToDream }}
+08-29 23:26:24.255   550   575 V WindowManager: Sent Transition #37 createdAt=08-29 23:26:24.176 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=39 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.habitring.app/.MainActivity } baseActivity=ComponentInfo{com.habitring.app/com.habitring.app.MainActivity} topActivity=ComponentInfo{com.google.android.gms/com.google.android.gms.common.api.GoogleApiActivity} origActivity=null realActivity=ComponentInfo{com.habitring.app/com.habitring.app.MainActivity} numActivities=4 lastActiveTime=38718178 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{a86b1a1 Task{b7cafc0 #39 type=standard A=10194:com.habitring.app}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 136 - 0, 0) topActivityInfo=ActivityInfo{49779ed com.google.android.gms.common.api.GoogleApiActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+08-29 23:26:24.255   550   575 V WindowManager:     startWCT=WindowContainerTransaction { changes = {} hops = [] errorCallbackToken=null taskFragmentOrganizer=null }
+08-29 23:26:24.256   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@8d49b95, appThread = android.app.IApplicationThread$Stub$Proxy@42bd4aa, debugName = QuickstepLaunchHome }}
+08-29 23:26:24.256   769   821 V WindowManagerShell:  Delegate animation for #37 to null
+08-29 23:26:24.256   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:24.256   550   575 V WindowManager:     info={id=37 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{62fcf3c u0 com.google.android.gms/.signin.activity.SignInActivity)/@0x68ae417 sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1},{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{408710d u0 com.google.android.gms/.common.api.GoogleApiActivity)/@0x743c096 sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1}]}
+08-29 23:26:24.256   769   821 V WindowManagerShell: start default transition animation, info = {id=37 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{62fcf3c u0 com.google.android.gms/.signin.activity.SignInActivity)/@0xaaa3a15 sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1},{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{408710d u0 com.google.android.gms/.common.api.GoogleApiActivity)/@0x96b512a sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1}]}
+08-29 23:26:24.256   769   821 V WindowManagerShell: loadAnimation: anim=null animAttr=0x4 type=OPEN isEntrance=true
+08-29 23:26:24.256   769   821 V WindowManagerShell: loadAnimation: anim=null animAttr=0x4 type=OPEN isEntrance=true
+08-29 23:26:24.257   357  9902 I resolv  : GetAddrInfoHandler::run: {101 786533 101 983141 10128 0}
+08-29 23:26:24.257   769   821 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#37)android.os.BinderProxy@305e159@0
+08-29 23:26:24.257   357  9903 I resolv  : res_nmkquery: (QUERY, IN, AAAA)
+08-29 23:26:24.257   357  9903 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7b7abc8c9290
+08-29 23:26:24.258   357  9903 I resolv  : doQuery: rcode=0, ancount=8, return value=273
+08-29 23:26:24.258   550   575 V WindowManager: Finish Transition #37: created at 08-29 23:26:24.176 collect-started=0.022ms request-sent=1.811ms started=2.746ms ready=18.875ms sent=77.5ms finished=81.317ms
+08-29 23:26:24.258   357  9904 I resolv  : res_nmkquery: (QUERY, IN, A)
+08-29 23:26:24.259   769   821 V WindowManagerShell: Track 0 became idle
+08-29 23:26:24.259   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:24.259   769   821 V WindowManagerShell:  animated by com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:24.259   769   821 V WindowManagerShell: Track 0 became idle
+08-29 23:26:24.259   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:24.268   550  1819 I ImeTracker: com.google.android.gms:bdc60150: onRequestHide at ORIGIN_SERVER_HIDE_INPUT reason HIDE_UNSPECIFIED_WINDOW
+08-29 23:26:24.268   550  1819 I ImeTracker: com.google.android.gms:bdc60150: onCancelled at PHASE_SERVER_SHOULD_HIDE
+08-29 23:26:24.269  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():3227 
+08-29 23:26:24.270  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2087 repeatCheckTimes = 0, unlocked = true
+08-29 23:26:24.270  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=com.google.android.gms fieldId=0 fieldName=null extras=null}, false)
+08-29 23:26:24.270  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.shouldHideHeaderOnInitialState():4008 ShouldHideHeaderOnInitialState = false
+08-29 23:26:24.270  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2087 repeatCheckTimes = 2, unlocked = true
+08-29 23:26:24.318   769   877 D EGL_emulation: app_time_stats: avg=262.96ms min=13.67ms max=10151.43ms count=41
+08-29 23:26:24.570   357  9904 I resolv  : res_nsend: used send_dg 177 terrno: 0
+08-29 23:26:24.571   357  9904 I resolv  : doQuery: rcode=0, ancount=8, return value=177
+08-29 23:26:24.573  9751  9811 D TrafficStats: tagSocket(106) with statsTag=0x20006501, statsUid=-1
+08-29 23:26:24.669   769   769 D StatusBarIconController: ignoring old pipeline callback because the new wifi icon is enabled
+08-29 23:26:24.682  1601  2621 I WorkerManager: dispose()
+08-29 23:26:24.683  1601  2621 W A       : Queue length for executor EventBus is now 11. Perhaps some tasks are too long, or the pool is too small.
+08-29 23:26:25.072  9751  9811 W Conscrypt: Could not set socket write timeout: java.net.SocketException: Socket closed
+08-29 23:26:25.072  9751  9811 W Conscrypt: 	at com.google.android.gms.org.conscrypt.Platform.setSocketWriteTimeout(:com.google.android.gms@231818047@23.18.18 (190800-535401451):2)
+08-29 23:26:25.072  9751  9811 W Conscrypt: 	at com.google.android.gms.org.conscrypt.ConscryptFileDescriptorSocket.setSoWriteTimeout(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+08-29 23:26:25.588  9751  9811 W Conscrypt: Could not set socket write timeout: java.net.SocketException: Socket closed
+08-29 23:26:25.588  9751  9811 W Conscrypt: 	at com.google.android.gms.org.conscrypt.Platform.setSocketWriteTimeout(:com.google.android.gms@231818047@23.18.18 (190800-535401451):2)
+08-29 23:26:25.588  9751  9811 W Conscrypt: 	at com.google.android.gms.org.conscrypt.ConscryptFileDescriptorSocket.setSoWriteTimeout(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+08-29 23:26:25.759   550  2443 E Transition: Trying to add a ready-group twice: Display{#0 state=ON size=1080x2400 ROTATION_0}
+08-29 23:26:25.759   769   821 V WindowManagerShell: Transition requested: android.os.BinderProxy@6c555f6 TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=39 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.habitring.app/.MainActivity } baseActivity=ComponentInfo{com.habitring.app/com.habitring.app.MainActivity} topActivity=ComponentInfo{com.google.android.gms/com.google.android.gms.common.account.AccountChipAccountPickerActivity} origActivity=null realActivity=ComponentInfo{com.habitring.app/com.habitring.app.MainActivity} numActivities=6 lastActiveTime=38719758 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@47abdf7} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 136 - 0, 0) topActivityInfo=ActivityInfo{22e5464 com.google.android.gms.common.account.AccountChipAccountPickerActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+08-29 23:26:25.759   550  2443 I ActivityTaskManager: START u0 {act=com.google.android.gms.common.account.CHOOSE_ACCOUNT_USERTILE pkg=com.google.android.gms cmp=com.google.android.gms/.common.account.AccountChipAccountPickerActivity (has extras)} with LAUNCH_MULTIPLE from uid 10128 (BAL_ALLOW_VISIBLE_WINDOW) result code=0
+08-29 23:26:25.768   550  1988 I ActivityTaskManager: START u0 {flg=0x2000000 cmp=com.google.android.gms/.common.account.AccountPickerActivity (has extras)} with LAUNCH_MULTIPLE from uid 10128 (BAL_ALLOW_VISIBLE_WINDOW) result code=0
+08-29 23:26:25.777   550  2443 W ProcessStats: Tracking association SourceState{156cda0 com.google.android.gms.ui/10128 BTop #10086} whose proc state 2 is better than process ProcessState{cdcf34b com.google.android.gms/10128 pkg=com.google.android.gms} proc state 14 (186 skipped)
+08-29 23:26:25.779  9751  9751 I ContentCaptureHelper: Setting logging level to DEBUG
+08-29 23:26:25.779  9751  9751 D ContentCaptureManager: setFlushViewTreeAppearingEventDisabled(): setting to false
+08-29 23:26:25.779  9751  9751 D ContentCaptureManager: updateWindowAttributes(): window flags=8388610
+08-29 23:26:25.779  1578  1578 D BoundBrokerSvc: onBind: Intent { act=com.google.android.gms.people.service.START dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsBoundBrokerService }
+08-29 23:26:25.779  1578  1578 D BoundBrokerSvc: Loading bound service for intent: Intent { act=com.google.android.gms.people.service.START dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsBoundBrokerService }
+08-29 23:26:25.781   425   425 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+08-29 23:26:25.782  9751  9751 W DividerItem: @android:attr/listDivider was not set in the theme used for this DividerItemDecoration. Please set that attribute all call setDrawable()
+08-29 23:26:25.787  9751  9751 D MainContentCaptureSession: handleScheduleFlush(act:com.google.android.gms/.common.account.AccountPickerActivity [state=1 (WAITING_FOR_SERVER), disabled=false], reason=FORCE_FLUSH): not a timeout reason because mDirectServiceInterface is not ready yet
+08-29 23:26:25.788  1578  4634 I PeopleChimeraService: onService. callbacks = avsz@395736b, request = com.google.android.gms.common.internal.GetServiceRequest@f8eeec8
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: Failed to load OwnerAvatar from MDI with cause: %s
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: java.util.concurrent.ExecutionException: crlg
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnv.s(:com.google.android.gms@231818047@23.18.18 (190800-535401451):3)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnv.get(:com.google.android.gms@231818047@23.18.18 (190800-535401451):7)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at btxq.e(:com.google.android.gms@231818047@23.18.18 (190800-535401451):7)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at btxm.b(:com.google.android.gms@231818047@23.18.18 (190800-535401451):1)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at btxk.d(:com.google.android.gms@231818047@23.18.18 (190800-535401451):3)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at busi.f(:com.google.android.gms@231818047@23.18.18 (190800-535401451):1)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at avsy.eo(:com.google.android.gms@231818047@23.18.18 (190800-535401451):1)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at avtf.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):14)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dfhf.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):2)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at aced.c(:com.google.android.gms@231818047@23.18.18 (190800-535401451):6)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at aced.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):7)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:644)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at acjn.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at java.lang.Thread.run(Thread.java:1012)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: Caused by: crlg
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at crlr.a(:com.google.android.gms@231818047@23.18.18 (190800-535401451):2)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dfhi.a(:com.google.android.gms@231818047@23.18.18 (190800-535401451):2)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnx.d(:com.google.android.gms@231818047@23.18.18 (190800-535401451):2)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnz.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):9)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlpk.execute(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnv.h(:com.google.android.gms@231818047@23.18.18 (190800-535401451):1)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnv.l(:com.google.android.gms@231818047@23.18.18 (190800-535401451):10)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnv.o(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnf.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):8)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlpk.execute(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnv.h(:com.google.android.gms@231818047@23.18.18 (190800-535401451):1)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnv.l(:com.google.android.gms@231818047@23.18.18 (190800-535401451):10)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnv.o(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlny.e(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnz.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):13)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlpk.execute(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnv.h(:com.google.android.gms@231818047@23.18.18 (190800-535401451):1)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnv.l(:com.google.android.gms@231818047@23.18.18 (190800-535401451):10)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlnv.r(:com.google.android.gms@231818047@23.18.18 (190800-535401451):2)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlrr.e(:com.google.android.gms@231818047@23.18.18 (190800-535401451):2)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlqs.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):6)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	at dlrt.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+08-29 23:26:25.791  1578  2554 E BasePeopleOperation: 	... 6 more
+08-29 23:26:25.798   550  1988 D CoreBackPreview: Window{eeb23cc u0 com.google.android.gms/com.google.android.gms.common.account.AccountPickerActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@4ee7d2a, mPriority=0, mIsAnimationCallback=false}
+08-29 23:26:25.806  9751  9786 E OpenGLRenderer: Unable to match the desired swap behavior.
+08-29 23:26:25.862  9751  9751 W TextView: onProvideContentCaptureStructure(): calling assumeLayout()
+08-29 23:26:25.864   769   821 V WindowManagerShell: onTransitionReady android.os.BinderProxy@6c555f6: {id=38 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{9970107 u0 com.google.android.gms/.common.account.AccountPickerActivity)/@0x4c896cd sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1}]}
+08-29 23:26:25.864   769   821 V WindowManagerShell: Playing animation for (#38)android.os.BinderProxy@6c555f6@0
+08-29 23:26:25.864   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultMixedHandler@fa3d431
+08-29 23:26:25.864   769   821 V WindowManagerShell:  try handler com.android.wm.shell.keyguard.KeyguardTransitionHandler@24e7716
+08-29 23:26:25.864   769   821 V WindowManagerShell:  try handler com.android.wm.shell.activityembedding.ActivityEmbeddingController@4b59897
+08-29 23:26:25.864   769   821 V WindowManagerShell:  try handler com.android.wm.shell.recents.RecentsTransitionHandler@19a2a84
+08-29 23:26:25.864   769   821 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+08-29 23:26:25.864   769   821 V WindowManagerShell:  try handler com.android.wm.shell.pip.PipTransition@db0826d
+08-29 23:26:25.864   769   821 V WindowManagerShell:  try handler com.android.wm.shell.splitscreen.StageCoordinator@932eea2
+08-29 23:26:25.864   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.RemoteTransitionHandler@2b12733
+08-29 23:26:25.864   769   821 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=38 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{9970107 u0 com.google.android.gms/.common.account.AccountPickerActivity)/@0x4c896cd sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1}]}
+08-29 23:26:25.864   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@5d3337f, appThread = android.app.IApplicationThread$Stub$Proxy@7d7cf4c, debugName = LauncherToDream }}
+08-29 23:26:25.864   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@8d49b95, appThread = android.app.IApplicationThread$Stub$Proxy@42bd4aa, debugName = QuickstepLaunchHome }}
+08-29 23:26:25.864   769   821 V WindowManagerShell:  Delegate animation for #38 to null
+08-29 23:26:25.864   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:25.864   769   821 V WindowManagerShell: start default transition animation, info = {id=38 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{9970107 u0 com.google.android.gms/.common.account.AccountPickerActivity)/@0x4c896cd sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1}]}
+08-29 23:26:25.865   769   821 V WindowManagerShell: loadAnimation: anim=null animAttr=0x4 type=OPEN isEntrance=true
+08-29 23:26:25.865   550   575 I ActivityTaskManager: Displayed com.google.android.gms/.common.account.AccountPickerActivity for user 0: +108ms
+08-29 23:26:25.865   550   575 V WindowManager: Sent Transition #38 createdAt=08-29 23:26:25.755 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=39 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.habitring.app/.MainActivity } baseActivity=ComponentInfo{com.habitring.app/com.habitring.app.MainActivity} topActivity=ComponentInfo{com.google.android.gms/com.google.android.gms.common.account.AccountChipAccountPickerActivity} origActivity=null realActivity=ComponentInfo{com.habitring.app/com.habitring.app.MainActivity} numActivities=6 lastActiveTime=38719758 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{a86b1a1 Task{b7cafc0 #39 type=standard A=10194:com.habitring.app}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 136 - 0, 0) topActivityInfo=ActivityInfo{19c72cd com.google.android.gms.common.account.AccountChipAccountPickerActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+08-29 23:26:25.865   550   575 V WindowManager:     startWCT=WindowContainerTransaction { changes = {} hops = [] errorCallbackToken=null taskFragmentOrganizer=null }
+08-29 23:26:25.865   550   575 V WindowManager:     info={id=38 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=OPEN f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{9970107 u0 com.google.android.gms/.common.account.AccountPickerActivity)/@0x31c39f7 sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) d=-1->0 r=-1->0:-1}]}
+08-29 23:26:25.865   769   821 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#38)android.os.BinderProxy@6c555f6@0
+08-29 23:26:25.866   550   575 V WindowManager: Finish Transition #38: created at 08-29 23:26:25.755 collect-started=0.042ms request-sent=3.533ms started=4.996ms ready=15.243ms sent=108.519ms finished=111.17ms
+08-29 23:26:25.867   769   821 V WindowManagerShell: Track 0 became idle
+08-29 23:26:25.867   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:25.867   769   821 V WindowManagerShell:  animated by com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:25.867   769   821 V WindowManagerShell: Track 0 became idle
+08-29 23:26:25.867   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:25.878  9751  9786 E OpenGLRenderer: Unable to match the desired swap behavior.
+08-29 23:26:25.880  9751  9751 I ContentCaptureHelper: Setting logging level to DEBUG
+08-29 23:26:25.880  9751  9751 D ContentCaptureManager: setFlushViewTreeAppearingEventDisabled(): setting to false
+08-29 23:26:25.881  9751  9751 D MainContentCaptureSession: Destroying session (ctx=com.google.android.gms.common.account.AccountChipAccountPickerActivity@5611109, id=-136202073) with 0 event(s) for pkg:com.google.android.gms [state=0 (UNKNOWN), disabled=false]
+08-29 23:26:25.882   550  1819 D ContentCapturePerUserService: finishSession(): no session with id-136202073
+08-29 23:26:25.893   550  2443 I ImeTracker: com.google.android.gms:eca474c6: onRequestHide at ORIGIN_SERVER_HIDE_INPUT reason HIDE_UNSPECIFIED_WINDOW
+08-29 23:26:25.893   550  2443 I ImeTracker: com.google.android.gms:eca474c6: onCancelled at PHASE_SERVER_SHOULD_HIDE
+08-29 23:26:25.893  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():3227 
+08-29 23:26:25.894  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2087 repeatCheckTimes = 0, unlocked = true
+08-29 23:26:25.894  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=com.google.android.gms fieldId=0 fieldName=null extras=null}, false)
+08-29 23:26:25.894  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.shouldHideHeaderOnInitialState():4008 ShouldHideHeaderOnInitialState = false
+08-29 23:26:25.894  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2087 repeatCheckTimes = 2, unlocked = true
+08-29 23:26:27.052   363  3878 D android.hardware.audio@7.1-impl.ranchu: threadLoop: entering standby, frames: 1653760
+08-29 23:26:27.687   550  1533 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+08-29 23:26:27.898   769   769 D StatusBarIconController: ignoring old pipeline callbacks, because the new mobile icons are enabled
+08-29 23:26:27.917   769   877 D EGL_emulation: app_time_stats: avg=403.73ms min=0.81ms max=3584.22ms count=9
+08-29 23:26:28.013   755   755 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+08-29 23:26:29.077  9910  9910 W BpBinder: Linking to death on android.gui.ISurfaceComposer but there are no threads (yet?) listening to incoming transactions. See ProcessState::startThreadPool and ProcessState::setThreadPoolMaxThreadCount. Generally you should setup the binder threadpool before other initialization steps.
+08-29 23:26:29.077  9910  9910 W ProcessState: Extra binder thread started, but 0 threads requested. Do not use *startThreadPool when zero threads are requested.
+08-29 23:26:29.094   164   164 I hwservicemanager: getTransport: Cannot find entry android.hardware.graphics.mapper@4.0::IMapper/default in either framework or device VINTF manifest.
+08-29 23:26:29.094  9910  9911 I Gralloc4: mapper 4.x is not supported
+--------- beginning of kernel
+08-29 23:26:29.079     0     0 I servicemanager: Could not find android.hardware.graphics.allocator.IAllocator/default in the VINTF manifest.
+08-29 23:26:29.250  9914  9914 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+08-29 23:26:29.252  9914  9914 I AndroidRuntime: Using default boot image
+08-29 23:26:29.252  9914  9914 I AndroidRuntime: Leaving lock profiling enabled
+08-29 23:26:29.254  9914  9914 I app_process: Core platform API reporting enabled, enforcing=false
+08-29 23:26:29.254  9914  9914 I app_process: Using CollectorTypeCC GC.
+08-29 23:26:29.295  9914  9914 D nativeloader: InitDefaultPublicLibraries for_preload=1: libandroid.so:libaaudio.so:libamidi.so:libbinder_ndk.so:libc.so:libcamera2ndk.so:libdl.so:libEGL.so:libGLESv1_CM.so:libGLESv2.so:libGLESv3.so:libicu.so:libicui18n.so:libicuuc.so:libjnigraphics.so:liblog.so:libmediandk.so:libm.so:libnativehelper.so:libnativewindow.so:libOpenMAXAL.so:libOpenSLES.so:libRS.so:libstdc++.so:libsync.so:libvulkan.so:libwebviewchromium_plat_support.so:libz.so
+08-29 23:26:29.300  9914  9914 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+08-29 23:26:29.300  9914  9914 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt72l.dat
+08-29 23:26:29.302  9914  9914 W app_process: Unexpected CPU variant for x86: x86_64.
+08-29 23:26:29.302  9914  9914 W app_process: Known variants: atom, sandybridge, silvermont, goldmont, goldmont-plus, tremont, kabylake, default
+08-29 23:26:29.303  9914  9914 W app_process: ClassLoaderContext shared library size mismatch. Expected=2, found=0 (PCL[]{PCL[/system/framework/android.test.base.jar*836642756]#PCL[/system/framework/android.test.mock.jar*3186112116]} | PCL[])
+08-29 23:26:29.304  9914  9914 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[]{PCL[/system/framework/android.test.runner.jar*4168958247]{PCL[/system/framework/android.test.base.jar*836642756]#PCL[/system/framework/android.test.mock.jar*3186112116]}#PCL[/system/framework/android.test.base.jar*836642756]} | PCL[/system/framework/android.test.runner.jar*4168958247])
+08-29 23:26:29.312  9914  9914 W libc    : Access denied finding property "ro.product.name_for_attestation"
+08-29 23:26:29.312  9914  9914 W libc    : Access denied finding property "ro.product.brand_for_attestation"
+08-29 23:26:29.312  9914  9914 W libc    : Access denied finding property "ro.product.model_for_attestation"
+08-29 23:26:29.312  9914  9914 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+08-29 23:26:29.308  9914  9914 W main    : type=1400 audit(0.0:125): avc:  denied  { read } for  name="u:object_r:build_attestation_prop:s0" dev="tmpfs" ino=86 scontext=u:r:shell:s0 tcontext=u:object_r:build_attestation_prop:s0 tclass=file permissive=0
+08-29 23:26:29.314  9914  9914 D UiAutomationConnection: Created on user UserHandle{0}
+08-29 23:26:29.314  9914  9914 I UiAutomation: Initialized for user 0 on display 0
+08-29 23:26:29.314  9914  9914 W UiAutomation: Created with deprecatead constructor, assumes DEFAULT_DISPLAY
+08-29 23:26:29.314   550  1988 D AccessibilityManagerService: changeCurrentUserForTestAutomationIfNeededLocked(0): ignoring because device doesn't support visible background users
+08-29 23:26:29.314   550  1988 I UiAutomationManager: Registering UiTestAutomationService (id=com.android.server.accessibility/UiAutomation) when called by user 0
+08-29 23:26:29.312  9914  9914 W main    : type=1400 audit(0.0:126): avc:  denied  { read } for  name="u:object_r:build_attestation_prop:s0" dev="tmpfs" ino=86 scontext=u:r:shell:s0 tcontext=u:object_r:build_attestation_prop:s0 tclass=file permissive=0
+08-29 23:26:29.316   550  1988 W WindowMagnificationMgr: requestConnection duplicated request: connect=false, mConnectionState=DISCONNECTED
+08-29 23:26:29.317  9914  9929 V UiAutomation: Init UiAutomation@ad9c0d4[id=14, displayId=0, flags=0]
+08-29 23:26:29.317  1459  2220 I AiAiEcho: Settings changed for uri: content://settings/secure/accessibility_enabled
+08-29 23:26:29.312  9914  9914 W main    : type=1400 audit(0.0:127): avc:  denied  { read } for  name="u:object_r:build_attestation_prop:s0" dev="tmpfs" ino=86 scontext=u:r:shell:s0 tcontext=u:object_r:build_attestation_prop:s0 tclass=file permissive=0
+08-29 23:26:29.317  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:29.317  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:29.317  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:29.317  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:29.317  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:29.317  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:29.317  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:29.317  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:29.317  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:29.317  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:29.317  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:29.317  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:29.318  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface media_data_manager with targets# 0 (types=[])
+08-29 23:26:29.318  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0 (types=[])
+08-29 23:26:29.318  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0 (types=[])
+08-29 23:26:29.319   550   550 D BatterySaverPolicy: accessibility changed to true, updating policy.
+08-29 23:26:29.320  1601  2000 I A       : NGA disabled since it's running Panthera and at least one a11y feature is on.
+08-29 23:26:29.320  1601  2000 I A       : Nga state changed to NgaStateDetails{state=DISABLED, isSpecialExperience=false}
+08-29 23:26:29.320  1601  9399 I Search.LoginHelperImpl: Successfully received auth token for scope: oauth2:https://www.googleapis.com/auth/googlenow in time 0 ms
+08-29 23:26:29.322  1459  2220 I AiAiEcho: Settings changed for uri: content://settings/secure/accessibility_enabled
+08-29 23:26:29.322  1488  5728 I A       : APA or Classic session decision: SessionDecision(sessionVariance=CLASSIC, platformVariance=CLASSIC, justification=CURRENT_PLATFORM_VARIANCE).
+08-29 23:26:29.322  1488  5728 I A       : [Memory] eligibility: StashEligibility{4}
+08-29 23:26:29.322  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:29.322  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:29.322  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:29.322  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:29.322  1488  2060 I A       : Unsubscribed to apa or classic variant change.
+08-29 23:26:29.322  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:29.322  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:29.322  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:29.322  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:29.322  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:29.322  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:29.322  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:29.322  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:29.322   550   918 W WindowMagnificationMgr: requestConnection duplicated request: connect=false, mConnectionState=DISCONNECTED
+08-29 23:26:29.322  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface media_data_manager with targets# 0 (types=[])
+08-29 23:26:29.322  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0 (types=[])
+08-29 23:26:29.322  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0 (types=[])
+08-29 23:26:29.324   769   769 W PageIndicator: Total number of pages invalid: 0. Assuming 1 page.
+08-29 23:26:29.325   769   769 D SsMediaDataProvider: Forwarding Smartspace updates []
+08-29 23:26:29.325   769   769 D SsMediaDataProvider: Forwarding Smartspace updates []
+08-29 23:26:29.325   769   769 W PageIndicator: Total number of pages invalid: 0. Assuming 1 page.
+08-29 23:26:30.332  9914  9914 W AccessibilityNodeInfoDumper: Fetch time: 0ms
+08-29 23:26:30.334   550  2431 W WindowMagnificationMgr: requestConnection duplicated request: connect=false, mConnectionState=DISCONNECTED
+08-29 23:26:30.334   550  2431 D AccessibilityManagerService: restoreCurrentUserForTestAutomationIfNeededLocked(): ignoring because device doesn't support visible background users
+08-29 23:26:30.334  1459  2220 I AiAiEcho: Settings changed for uri: content://settings/secure/accessibility_enabled
+08-29 23:26:30.335  9914  9914 D AndroidRuntime: Shutting down VM
+08-29 23:26:30.336  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:30.336  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:30.336  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:30.336  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:30.337  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:30.337  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:30.337  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:30.337  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:30.337  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:30.337  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:30.337  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:30.337  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:30.337  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface media_data_manager with targets# 0 (types=[])
+08-29 23:26:30.337  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0 (types=[])
+08-29 23:26:30.337  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0 (types=[])
+08-29 23:26:30.337  1601  2008 I A       : NGA enabled in interactor.
+08-29 23:26:30.337  1601  2008 I A       : Nga state changed to NgaStateDetails{state=ENABLED, isSpecialExperience=false}
+08-29 23:26:30.338  1601  9399 I Search.LoginHelperImpl: Successfully received auth token for scope: oauth2:https://www.googleapis.com/auth/googlenow in time 0 ms
+08-29 23:26:30.339  1488  5728 I A       : Initializing all components
+08-29 23:26:30.339  1488  5728 I A       : APA or Classic session decision: SessionDecision(sessionVariance=CLASSIC, platformVariance=CLASSIC, justification=CURRENT_PLATFORM_VARIANCE).
+08-29 23:26:30.339  1488  5728 I A       : [Memory] eligibility: StashEligibility{3}
+08-29 23:26:30.340  1488  2061 I A       : State changed: IDLE => IDLE by NGA_STATE_CHANGED and N/A with Optional.empty
+08-29 23:26:30.340  1488  2060 I A       : onIsEnabledChanged, isEnabled: false
+08-29 23:26:30.340  1601  9846 I A       : Using proto config with mendel
+08-29 23:26:30.340  1601  9846 I A       : Using proto config with mendel
+08-29 23:26:30.340  1601  9846 I A       : Using proto config with mendel
+08-29 23:26:30.340  1601  9846 I A       : Merging legacy hotword config map with new proto.
+08-29 23:26:30.340  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1601  9846 I A       : Adding from config to map. Locale: cmn-Hant-TW modelPrefix: x_google Location:4e7cae00daee30ec565c34e3aa67a51f isSpeakerIdSupported: true
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1601  9846 I A       : Adding from config to map. Locale: id-ID modelPrefix: x_google Location:cfffcc1a4c1c084c003c8eb27f73d770 isSpeakerIdSupported: true
+08-29 23:26:30.341  1601  9846 I A       : Adding from config to map. Locale: ko-KR modelPrefix: x_google Location:0b132163a2eb2c1194b202067475724b isSpeakerIdSupported: true
+08-29 23:26:30.341  1601  9846 I A       : Skipping. Expected model: 2 Found: 1
+08-29 23:26:30.341  1601  9846 I A       : Adding from config to map. Locale: zh-TW modelPrefix: x_google Location:4e7cae00daee30ec565c34e3aa67a51f isSpeakerIdSupported: true
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2060 I A       : onOpaVisibilityChanged: false
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2060 I A       : Setting session to type: NO_SESSION
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.341  1488  2061 I A       : Recognizer choice: (recognizer_type: 1, recognizer_mode: 1, choice_reason: 4)
+08-29 23:26:30.341  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.342  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.342  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.342  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.342  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.342  1488  2061 I A       : onActiveStateChangeEvent: IDLE => IDLE
+08-29 23:26:30.342   769   769 D SsMediaDataProvider: Forwarding Smartspace updates []
+08-29 23:26:30.342  1488  2061 I A       : #onActiveStateChangeEvent, newState: IDLE, previousState: IDLE.
+08-29 23:26:30.342   769   769 W PageIndicator: Total number of pages invalid: 0. Assuming 1 page.
+08-29 23:26:30.342  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.342  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.342  1488  2060 I A       : setNavBarVisible: GestureNavBarVisible{navbarVisible=true}
+08-29 23:26:30.342  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.342  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.342  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.342  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.342  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.342  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:30.343  1488  2060 I A       : onDisabled. Registered: false
+08-29 23:26:30.343  1488  2061 I A       : on opa visibility changed false
+08-29 23:26:30.344  1488  2061 I NgaEntryPointEventSendr: setupConnection
+08-29 23:26:30.344  1488  1488 E GsaVoiceSerConnection: gsaVis null binding
+08-29 23:26:30.346   550   550 D BatterySaverPolicy: accessibility changed to false, updating policy.
+08-29 23:26:30.346  1488  2061 I NgaEntryPointEventSendr: State changed: Disconnected => Connecting
+08-29 23:26:30.346  1488  2061 I A       : stopListening(NGA_PAUSED_UNKNOWN_REASON, NGA_CREATE), idleOverride=NOT_LISTENING
+08-29 23:26:30.347  1488  2060 I A       : Initialize
+08-29 23:26:30.352  1488  2060 I A       : Successfully initialized all components
+08-29 23:26:30.353  1488  1488 V ClearcutMetricXmitter: Transmission is done.
+08-29 23:26:30.354  1601  1601 I A       : Creating pss binder().
+08-29 23:26:30.355  1488  2061 I A       : on opa visibility changed false
+08-29 23:26:30.355  1488  2061 I NgaEntryPointEventSendr: onServiceConnected
+08-29 23:26:30.355  1601  1673 I A       : Calling beginBinderSession().
+08-29 23:26:30.355  1601  1673 I A       : beginBinderSession(): calling binder
+08-29 23:26:30.355  1488  2061 I NgaEntryPointEventSendr: State changed: Connecting => Ready
+08-29 23:26:30.362  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:30.362  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:30.362  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:30.362  1601  2621 I A       : Merging legacy hotword config map with new proto.
+08-29 23:26:30.362  1601  2621 I A       : Adding from config to map. Locale: cmn-Hant-TW modelPrefix: x_google Location:4e7cae00daee30ec565c34e3aa67a51f isSpeakerIdSupported: true
+08-29 23:26:30.362  1601  2621 I A       : Adding from config to map. Locale: id-ID modelPrefix: x_google Location:cfffcc1a4c1c084c003c8eb27f73d770 isSpeakerIdSupported: true
+08-29 23:26:30.362  1601  2621 I A       : Adding from config to map. Locale: ko-KR modelPrefix: x_google Location:0b132163a2eb2c1194b202067475724b isSpeakerIdSupported: true
+08-29 23:26:30.362  1601  2621 I A       : Skipping. Expected model: 2 Found: 1
+08-29 23:26:30.362  1601  2621 I A       : Adding from config to map. Locale: zh-TW modelPrefix: x_google Location:4e7cae00daee30ec565c34e3aa67a51f isSpeakerIdSupported: true
+08-29 23:26:30.363  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:30.363  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:30.363  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:30.364  1601  2621 I MicroDetectionState: Should stop hotword detection immediately - true
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: Invalid input from icing corpus JSON flag.
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: android.util.MalformedJsonException: Use JsonReader.setLenient(true) to accept malformed JSON at line 123 column 2
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at android.util.JsonReader.syntaxError(JsonReader.java:1162)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at android.util.JsonReader.checkLenient(JsonReader.java:840)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at android.util.JsonReader.nextInArray(JsonReader.java:615)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at android.util.JsonReader.peek(JsonReader.java:345)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at android.util.JsonReader.hasNext(JsonReader.java:321)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.android.apps.gsa.searchbox.c.b.b.k.c(PG:7)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.android.apps.gsa.searchbox.c.b.b.k.<init>(PG:5)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.android.apps.gsa.staticplugins.searchboxroot.features.n.a.c.<init>(PG:16)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.android.apps.gsa.staticplugins.searchboxroot.b.a(PG:14)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.android.apps.gsa.staticplugins.searchboxroot.x.<init>(PG:7)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.android.apps.gsa.binaries.velvet.app.akd.b(PG:15)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at dagger.a.e.b(PG:1)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.android.apps.gsa.staticplugins.searchboxroot.a.a.a(PG:3)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.android.apps.gsa.binaries.velvet.app.ok.f(Unknown Source:2541)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.android.apps.gsa.binaries.velvet.app.ok.b(PG:1)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.android.apps.gsa.search.core.service.g.a.c.a(PG:2)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.android.libraries.gsa.k.a.f.a(PG:2)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.common.util.concurrent.dx.a(PG:1)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.common.util.concurrent.cv.run(PG:4)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.common.util.concurrent.dz.run(PG:1)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.android.libraries.i.ae.run(PG:1)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:644)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.android.libraries.i.k.run(PG:2)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at com.google.android.libraries.i.p.run(PG:4)
+08-29 23:26:30.366  1601  2050 W CorpusConfigHelper: 	at java.lang.Thread.run(Thread.java:1012)
+08-29 23:26:30.368  1488  2060 I NgaEntryPointEventSendr: State changed: Ready => Disconnected (onOpaDisconnected)
+08-29 23:26:30.368  1601  2621 W SearchServiceCore: Abort, client detached.
+08-29 23:26:30.369  1601  9399 I PBSessionCacheImpl: Deleted sessionId[7043060446372899] from persistence.
+08-29 23:26:30.369   550  2431 W ActivityManager: Unable to start service Intent { cmp=com.google.android.apps.tachyon/.clientapi.ClientApiService } U=0: not found
+08-29 23:26:30.390  1601  2621 I MicroDetectionState: Should stop hotword detection immediately - true
+08-29 23:26:30.391  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:30.391  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:31.165     0     0 I logd    : logdr: UID=2000 GID=2000 PID=9934 n tail=800 logMask=99 pid=0 start=0ns deadline=0ns
+08-29 23:26:33.681   769   769 D StatusBarIconController: ignoring old pipeline callback because the new wifi icon is enabled
+08-29 23:26:35.948   755   755 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+08-29 23:26:37.898   769   769 D StatusBarIconController: ignoring old pipeline callbacks, because the new mobile icons are enabled
+08-29 23:26:39.185   550  1834 W ProcessStats: Tracking association SourceState{d19f1b0 com.google.android.gms/10128 BTop #10107} whose proc state 2 is better than process ProcessState{9fe7d84 com.google.android.gms.persistent/10128 pkg=com.google.android.gms} proc state 4 (102 skipped)
+08-29 23:26:40.794  1578  1578 D BoundBrokerSvc: onUnbind: Intent { act=com.google.android.gms.people.service.START dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsBoundBrokerService }
+08-29 23:26:43.884   755   755 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+08-29 23:26:44.142  1091  1091 D TaplEvents: TIS / TouchInteractionService.onInputEvent: MotionEvent { action=ACTION_DOWN, actionButton=0, id[0]=0, x[0]=540.0, y[0]=1247.0, toolType[0]=TOOL_TYPE_FINGER, buttonState=0, classification=NONE, metaState=0, flags=0x0, edgeFlags=0x0, pointerCount=1, historySize=0, eventTime=38738142, downTime=38738142, deviceId=-1, source=0x1002, displayId=0, eventId=-1040784728 }
+08-29 23:26:44.143  1091  1091 D TaplEvents: TIS / TouchInteractionService.onInputEvent: MotionEvent { action=ACTION_UP, actionButton=0, id[0]=0, x[0]=540.0, y[0]=1247.0, toolType[0]=TOOL_TYPE_FINGER, buttonState=0, classification=NONE, metaState=0, flags=0x0, edgeFlags=0x0, pointerCount=1, historySize=0, eventTime=38738142, downTime=38738142, deviceId=-1, source=0x1002, displayId=0, eventId=-337302307 }
+08-29 23:26:44.150   421  4568 D audioserver: FGS Logger Transaction failed
+08-29 23:26:44.150   421  4568 D audioserver: -129
+08-29 23:26:44.151   769   821 V WindowManagerShell: Transition requested: android.os.BinderProxy@9ae52d0 TransitionRequestInfo { type = CLOSE, triggerTask = null, remoteTransition = null, displayChange = null }
+08-29 23:26:44.152   421   521 D AudioFlinger: mixer(0x78fbff2b4930) throttle end: throttle time(41)
+08-29 23:26:44.155  9751  9786 D EGL_emulation: app_time_stats: avg=2016.34ms min=0.58ms max=18137.77ms count=9
+08-29 23:26:44.169   550   575 V WindowManager: Sent Transition #39 createdAt=08-29 23:26:44.150 via request=TransitionRequestInfo { type = CLOSE, triggerTask = null, remoteTransition = null, displayChange = null }
+08-29 23:26:44.169   550   575 V WindowManager:     startWCT=WindowContainerTransaction { changes = {} hops = [] errorCallbackToken=null taskFragmentOrganizer=null }
+08-29 23:26:44.169   769   821 V WindowManagerShell: onTransitionReady android.os.BinderProxy@9ae52d0: {id=39 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{9970107 u0 com.google.android.gms/.common.account.AccountPickerActivity)/@0x954d2c9 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.169   550   575 V WindowManager:     info={id=39 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{9970107 u0 com.google.android.gms/.common.account.AccountPickerActivity)/@0x31c39f7 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.169   769   821 V WindowManagerShell: Playing animation for (#39)android.os.BinderProxy@9ae52d0@0
+08-29 23:26:44.169   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultMixedHandler@fa3d431
+08-29 23:26:44.169   769   821 V WindowManagerShell:  try handler com.android.wm.shell.keyguard.KeyguardTransitionHandler@24e7716
+08-29 23:26:44.169   769   821 V WindowManagerShell:  try handler com.android.wm.shell.activityembedding.ActivityEmbeddingController@4b59897
+08-29 23:26:44.169   769   821 V WindowManagerShell:  try handler com.android.wm.shell.recents.RecentsTransitionHandler@19a2a84
+08-29 23:26:44.169   769   821 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+08-29 23:26:44.169   769   821 V WindowManagerShell:  try handler com.android.wm.shell.pip.PipTransition@db0826d
+08-29 23:26:44.169   769   821 V WindowManagerShell:  try handler com.android.wm.shell.splitscreen.StageCoordinator@932eea2
+08-29 23:26:44.169   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.RemoteTransitionHandler@2b12733
+08-29 23:26:44.170   769   821 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=39 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{9970107 u0 com.google.android.gms/.common.account.AccountPickerActivity)/@0x954d2c9 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.170   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@5d3337f, appThread = android.app.IApplicationThread$Stub$Proxy@7d7cf4c, debugName = LauncherToDream }}
+08-29 23:26:44.170   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@8d49b95, appThread = android.app.IApplicationThread$Stub$Proxy@42bd4aa, debugName = QuickstepLaunchHome }}
+08-29 23:26:44.171   769   821 V WindowManagerShell:  Delegate animation for #39 to null
+08-29 23:26:44.171   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:44.171   769   821 V WindowManagerShell: start default transition animation, info = {id=39 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{9970107 u0 com.google.android.gms/.common.account.AccountPickerActivity)/@0x954d2c9 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.171   769   821 V WindowManagerShell: loadAnimation: anim=null animAttr=0x7 type=CLOSE isEntrance=false
+08-29 23:26:44.172   769   821 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#39)android.os.BinderProxy@9ae52d0@0
+08-29 23:26:44.173   550   575 V WindowManager: Finish Transition #39: created at 08-29 23:26:44.150 collect-started=0.009ms request-sent=0.094ms started=3.141ms ready=17.169ms sent=18.715ms finished=23.195ms
+08-29 23:26:44.175   769   821 V WindowManagerShell: Track 0 became idle
+08-29 23:26:44.176   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:44.176   769   821 V WindowManagerShell:  animated by com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:44.176   769   821 V WindowManagerShell: Track 0 became idle
+08-29 23:26:44.176   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:44.181  9751  9751 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=falsecallback=android.view.ViewRootImpl$$ExternalSyntheticLambda17@43a20c8
+08-29 23:26:44.181   550  1988 D CoreBackPreview: Window{eeb23cc u0 com.google.android.gms/com.google.android.gms.common.account.AccountPickerActivity}: Setting back callback null
+08-29 23:26:44.181  9751  9786 D OpenGLRenderer: endAllActiveAnimators on 0x7240d488dc60 (RippleDrawable) with handle 0x7241e48909a0
+08-29 23:26:44.182   550  1988 W InputManager-JNI: Input channel object 'eeb23cc com.google.android.gms/com.google.android.gms.common.account.AccountPickerActivity (client)' was disposed without first being removed with the input manager!
+08-29 23:26:44.183  9751  9751 D MainContentCaptureSession: Destroying session (ctx=com.google.android.gms.common.account.AccountPickerActivity@54fb7b2, id=-32765357) with 0 event(s) for act:com.google.android.gms/.common.account.AccountPickerActivity [state=2 (ACTIVE), disabled=false]
+08-29 23:26:44.183   550   580 V WindowManager: Unknown focus tokens, dropping reportFocusChanged
+08-29 23:26:44.198   421   521 D AudioFlinger: mixer(0x78fbff2b4930) throttle end: throttle time(31)
+08-29 23:26:44.202   550  1988 I ImeTracker: com.google.android.gms:65566044: onRequestHide at ORIGIN_SERVER_HIDE_INPUT reason HIDE_UNSPECIFIED_WINDOW
+08-29 23:26:44.202   550  1988 I ImeTracker: com.google.android.gms:65566044: onCancelled at PHASE_SERVER_SHOULD_HIDE
+08-29 23:26:44.203  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():3227 
+08-29 23:26:44.203  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2087 repeatCheckTimes = 0, unlocked = true
+08-29 23:26:44.203  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=com.google.android.gms fieldId=0 fieldName=null extras=null}, false)
+08-29 23:26:44.203  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.shouldHideHeaderOnInitialState():4008 ShouldHideHeaderOnInitialState = false
+08-29 23:26:44.204  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2087 repeatCheckTimes = 2, unlocked = true
+08-29 23:26:44.290   769   821 V WindowManagerShell: Transition requested: android.os.BinderProxy@6edcbfc TransitionRequestInfo { type = CLOSE, triggerTask = null, remoteTransition = null, displayChange = null }
+08-29 23:26:44.294   550   575 V WindowManager: Sent Transition #40 createdAt=08-29 23:26:44.290 via request=TransitionRequestInfo { type = CLOSE, triggerTask = null, remoteTransition = null, displayChange = null }
+08-29 23:26:44.294   550   575 V WindowManager:     startWCT=WindowContainerTransaction { changes = {} hops = [] errorCallbackToken=null taskFragmentOrganizer=null }
+08-29 23:26:44.294   550   575 V WindowManager:     info={id=40 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{62fcf3c u0 com.google.android.gms/.signin.activity.SignInActivity)/@0x68ae417 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.295   769   821 V WindowManagerShell: onTransitionReady android.os.BinderProxy@6edcbfc: {id=40 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{62fcf3c u0 com.google.android.gms/.signin.activity.SignInActivity)/@0x84ed285 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.295   769   821 V WindowManagerShell: Playing animation for (#40)android.os.BinderProxy@6edcbfc@0
+08-29 23:26:44.295   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultMixedHandler@fa3d431
+08-29 23:26:44.295   769   821 V WindowManagerShell:  try handler com.android.wm.shell.keyguard.KeyguardTransitionHandler@24e7716
+08-29 23:26:44.295   769   821 V WindowManagerShell:  try handler com.android.wm.shell.activityembedding.ActivityEmbeddingController@4b59897
+08-29 23:26:44.295   769   821 V WindowManagerShell:  try handler com.android.wm.shell.recents.RecentsTransitionHandler@19a2a84
+08-29 23:26:44.295   769   821 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+08-29 23:26:44.295   769   821 V WindowManagerShell:  try handler com.android.wm.shell.pip.PipTransition@db0826d
+08-29 23:26:44.295   769   821 V WindowManagerShell:  try handler com.android.wm.shell.splitscreen.StageCoordinator@932eea2
+08-29 23:26:44.295   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.RemoteTransitionHandler@2b12733
+08-29 23:26:44.295   769   821 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=40 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{62fcf3c u0 com.google.android.gms/.signin.activity.SignInActivity)/@0x84ed285 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.295   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@5d3337f, appThread = android.app.IApplicationThread$Stub$Proxy@7d7cf4c, debugName = LauncherToDream }}
+08-29 23:26:44.295   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@8d49b95, appThread = android.app.IApplicationThread$Stub$Proxy@42bd4aa, debugName = QuickstepLaunchHome }}
+08-29 23:26:44.295   769   821 V WindowManagerShell:  Delegate animation for #40 to null
+08-29 23:26:44.295   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:44.295   769   821 V WindowManagerShell: start default transition animation, info = {id=40 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{62fcf3c u0 com.google.android.gms/.signin.activity.SignInActivity)/@0x84ed285 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.295   769   821 V WindowManagerShell: loadAnimation: anim=null animAttr=0x7 type=CLOSE isEntrance=false
+08-29 23:26:44.296   769   821 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#40)android.os.BinderProxy@6edcbfc@0
+08-29 23:26:44.297   550   575 V WindowManager: Finish Transition #40: created at 08-29 23:26:44.290 collect-started=0.013ms request-sent=0.046ms started=1.616ms ready=3.591ms sent=4.17ms finished=6.801ms
+08-29 23:26:44.297   769   821 V WindowManagerShell: Track 0 became idle
+08-29 23:26:44.297   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:44.297   769   821 V WindowManagerShell:  animated by com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:44.298   769   821 V WindowManagerShell: Track 0 became idle
+08-29 23:26:44.298   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:44.298   769   821 V WindowManagerShell: Transition requested: android.os.BinderProxy@449abe8 TransitionRequestInfo { type = CLOSE, triggerTask = null, remoteTransition = null, displayChange = null }
+08-29 23:26:44.301   550   575 V WindowManager: Sent Transition #41 createdAt=08-29 23:26:44.296 via request=TransitionRequestInfo { type = CLOSE, triggerTask = null, remoteTransition = null, displayChange = null }
+08-29 23:26:44.302   550   575 V WindowManager:     startWCT=WindowContainerTransaction { changes = {} hops = [] errorCallbackToken=null taskFragmentOrganizer=null }
+08-29 23:26:44.302   769   821 V WindowManagerShell: onTransitionReady android.os.BinderProxy@449abe8: {id=41 t=CLOSE f=0x0 trk=1 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{408710d u0 com.google.android.gms/.common.api.GoogleApiActivity)/@0x32f1201 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.302   550   575 V WindowManager:     info={id=41 t=CLOSE f=0x0 trk=1 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{408710d u0 com.google.android.gms/.common.api.GoogleApiActivity)/@0x743c096 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.302   769   821 V WindowManagerShell: Playing animation for (#41)android.os.BinderProxy@449abe8@1
+08-29 23:26:44.302   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultMixedHandler@fa3d431
+08-29 23:26:44.302   769   821 V WindowManagerShell:  try handler com.android.wm.shell.keyguard.KeyguardTransitionHandler@24e7716
+08-29 23:26:44.302   769   821 V WindowManagerShell:  try handler com.android.wm.shell.activityembedding.ActivityEmbeddingController@4b59897
+08-29 23:26:44.302   769   821 V WindowManagerShell:  try handler com.android.wm.shell.recents.RecentsTransitionHandler@19a2a84
+08-29 23:26:44.302   769   821 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+08-29 23:26:44.302   769   821 V WindowManagerShell:  try handler com.android.wm.shell.pip.PipTransition@db0826d
+08-29 23:26:44.302   769   821 V WindowManagerShell:  try handler com.android.wm.shell.splitscreen.StageCoordinator@932eea2
+08-29 23:26:44.302   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.RemoteTransitionHandler@2b12733
+08-29 23:26:44.302   769   821 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=41 t=CLOSE f=0x0 trk=1 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{408710d u0 com.google.android.gms/.common.api.GoogleApiActivity)/@0x32f1201 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.302   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@5d3337f, appThread = android.app.IApplicationThread$Stub$Proxy@7d7cf4c, debugName = LauncherToDream }}
+08-29 23:26:44.302   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@8d49b95, appThread = android.app.IApplicationThread$Stub$Proxy@42bd4aa, debugName = QuickstepLaunchHome }}
+08-29 23:26:44.302   769   821 V WindowManagerShell:  Delegate animation for #41 to null
+08-29 23:26:44.302   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:44.302   769   821 V WindowManagerShell: start default transition animation, info = {id=41 t=CLOSE f=0x0 trk=1 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{408710d u0 com.google.android.gms/.common.api.GoogleApiActivity)/@0x32f1201 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.302   769   821 V WindowManagerShell: loadAnimation: anim=null animAttr=0x7 type=CLOSE isEntrance=false
+08-29 23:26:44.302   769   821 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#41)android.os.BinderProxy@449abe8@1
+08-29 23:26:44.302  9751  9751 W AutoManageHelper: Unresolved error while connecting client. Stopping auto-manage.
+08-29 23:26:44.303   550   575 V WindowManager: Finish Transition #41: created at 08-29 23:26:44.296 collect-started=0.009ms request-sent=0.04ms started=2.15ms ready=4.312ms sent=5.64ms finished=7.251ms
+08-29 23:26:44.304   769   821 V WindowManagerShell: Track 1 became idle
+08-29 23:26:44.304   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:44.304   769   821 V WindowManagerShell:  animated by com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:44.304   769   821 V WindowManagerShell: Track 1 became idle
+08-29 23:26:44.304   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:44.304   769   821 V WindowManagerShell: Transition requested: android.os.BinderProxy@3019e94 TransitionRequestInfo { type = CLOSE, triggerTask = null, remoteTransition = null, displayChange = null }
+08-29 23:26:44.312   421   521 D audioserver: FGS Logger Transaction failed
+08-29 23:26:44.312   421   521 D audioserver: -129
+08-29 23:26:44.313   550  2431 I ImeTracker: com.google.android.gms:31ff591e: onRequestHide at ORIGIN_SERVER_HIDE_INPUT reason HIDE_UNSPECIFIED_WINDOW
+08-29 23:26:44.313   550  2431 I ImeTracker: com.google.android.gms:31ff591e: onCancelled at PHASE_SERVER_SHOULD_HIDE
+08-29 23:26:44.313  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():3227 
+08-29 23:26:44.314  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2087 repeatCheckTimes = 0, unlocked = true
+08-29 23:26:44.314  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=com.google.android.gms fieldId=0 fieldName=null extras=null}, false)
+08-29 23:26:44.314  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.shouldHideHeaderOnInitialState():4008 ShouldHideHeaderOnInitialState = false
+08-29 23:26:44.314  1356  1356 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2087 repeatCheckTimes = 2, unlocked = true
+08-29 23:26:44.315   425   425 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+08-29 23:26:44.321   550   575 V WindowManager: Sent Transition #42 createdAt=08-29 23:26:44.304 via request=TransitionRequestInfo { type = CLOSE, triggerTask = null, remoteTransition = null, displayChange = null }
+08-29 23:26:44.321   769   821 V WindowManagerShell: onTransitionReady android.os.BinderProxy@3019e94: {id=42 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{1214dd6 u0 com.google.android.gms/.auth.api.signin.ui.SignInActivity)/@0x79cd3d sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.322   550   575 V WindowManager:     startWCT=WindowContainerTransaction { changes = {} hops = [] errorCallbackToken=null taskFragmentOrganizer=null }
+08-29 23:26:44.322   550   575 V WindowManager:     info={id=42 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{1214dd6 u0 com.google.android.gms/.auth.api.signin.ui.SignInActivity)/@0xd47566a sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.322   769   821 V WindowManagerShell: Playing animation for (#42)android.os.BinderProxy@3019e94@0
+08-29 23:26:44.322   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultMixedHandler@fa3d431
+08-29 23:26:44.322   769   821 V WindowManagerShell:  try handler com.android.wm.shell.keyguard.KeyguardTransitionHandler@24e7716
+08-29 23:26:44.322   769   821 V WindowManagerShell:  try handler com.android.wm.shell.activityembedding.ActivityEmbeddingController@4b59897
+08-29 23:26:44.322   769   821 V WindowManagerShell:  try handler com.android.wm.shell.recents.RecentsTransitionHandler@19a2a84
+08-29 23:26:44.323   769   821 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+08-29 23:26:44.323   769   821 V WindowManagerShell:  try handler com.android.wm.shell.pip.PipTransition@db0826d
+08-29 23:26:44.323   769   821 V WindowManagerShell:  try handler com.android.wm.shell.splitscreen.StageCoordinator@932eea2
+08-29 23:26:44.323   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.RemoteTransitionHandler@2b12733
+08-29 23:26:44.323   769   821 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=42 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{1214dd6 u0 com.google.android.gms/.auth.api.signin.ui.SignInActivity)/@0x79cd3d sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.323   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@5d3337f, appThread = android.app.IApplicationThread$Stub$Proxy@7d7cf4c, debugName = LauncherToDream }}
+08-29 23:26:44.323   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@8d49b95, appThread = android.app.IApplicationThread$Stub$Proxy@42bd4aa, debugName = QuickstepLaunchHome }}
+08-29 23:26:44.323   769   821 V WindowManagerShell:  Delegate animation for #42 to null
+08-29 23:26:44.323   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:44.323   769   821 V WindowManagerShell: start default transition animation, info = {id=42 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{1214dd6 u0 com.google.android.gms/.auth.api.signin.ui.SignInActivity)/@0x79cd3d sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.323   769   821 V WindowManagerShell: loadAnimation: anim=null animAttr=0x7 type=CLOSE isEntrance=false
+08-29 23:26:44.324  9751  9751 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=falsecallback=android.view.ViewRootImpl$$ExternalSyntheticLambda17@7c0c09a
+08-29 23:26:44.325   769   821 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#42)android.os.BinderProxy@3019e94@0
+08-29 23:26:44.326   550  1835 D CoreBackPreview: Window{cfd101f u0 com.google.android.gms/com.google.android.gms.signin.activity.SignInActivity}: Setting back callback null
+08-29 23:26:44.326   550  2431 W InputManager-JNI: Input channel object 'cfd101f com.google.android.gms/com.google.android.gms.signin.activity.SignInActivity (client)' was disposed without first being removed with the input manager!
+08-29 23:26:44.327  9669  9669 W unknown:BridgelessReact: ReactHost{0}.onHostResume(activity)
+08-29 23:26:44.327  9669  9669 W unknown:BridgelessReact: ReactHost{0}.ReactContext.onHostResume()
+08-29 23:26:44.328  9751  9751 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=falsecallback=android.view.ViewRootImpl$$ExternalSyntheticLambda17@919e539
+08-29 23:26:44.328   550   575 V WindowManager: Finish Transition #42: created at 08-29 23:26:44.304 collect-started=0.008ms request-sent=0.134ms started=8.392ms ready=15.732ms sent=16.919ms finished=23.253ms
+08-29 23:26:44.329   550  1835 D CoreBackPreview: Window{34dbd4b u0 com.google.android.gms/com.google.android.gms.common.api.GoogleApiActivity}: Setting back callback null
+08-29 23:26:44.330   769   821 V WindowManagerShell: Track 0 became idle
+08-29 23:26:44.330   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:44.330   769   821 V WindowManagerShell:  animated by com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:44.330   769   821 V WindowManagerShell: Track 0 became idle
+08-29 23:26:44.331   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:44.331   769   821 V WindowManagerShell: Transition requested: android.os.BinderProxy@6a41000 TransitionRequestInfo { type = CLOSE, triggerTask = null, remoteTransition = null, displayChange = null }
+08-29 23:26:44.331   550   568 W InputManager-JNI: Input channel object '34dbd4b com.google.android.gms/com.google.android.gms.common.api.GoogleApiActivity (client)' was disposed without first being removed with the input manager!
+08-29 23:26:44.334  9751  9751 D MainContentCaptureSession: Destroying session (ctx=com.google.android.gms.signin.activity.SignInActivity@d80ad8d, id=-558714523) with 0 event(s) for act:com.google.android.gms/.signin.activity.SignInActivity [state=2 (ACTIVE), disabled=false]
+08-29 23:26:44.334  9751  9751 D MainContentCaptureSession: Destroying session (ctx=com.google.android.gms.common.api.GoogleApiActivity@13a9a32, id=1908115832) with 0 event(s) for act:com.google.android.gms/.common.api.GoogleApiActivity [state=2 (ACTIVE), disabled=false]
+08-29 23:26:44.335   769   821 V WindowManagerShell: onTransitionReady android.os.BinderProxy@6a41000: {id=43 t=CLOSE f=0x0 trk=1 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{2fd6f7b u0 com.habitring.app/com.google.android.gms.auth.api.signin.internal.SignInHubActivity)/@0xbb0039 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.335   769   821 V WindowManagerShell: Playing animation for (#43)android.os.BinderProxy@6a41000@1
+08-29 23:26:44.335   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultMixedHandler@fa3d431
+08-29 23:26:44.335   769   821 V WindowManagerShell:  try handler com.android.wm.shell.keyguard.KeyguardTransitionHandler@24e7716
+08-29 23:26:44.335   769   821 V WindowManagerShell:  try handler com.android.wm.shell.activityembedding.ActivityEmbeddingController@4b59897
+08-29 23:26:44.335   769   821 V WindowManagerShell:  try handler com.android.wm.shell.recents.RecentsTransitionHandler@19a2a84
+08-29 23:26:44.335   769   821 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+08-29 23:26:44.335   769   821 V WindowManagerShell:  try handler com.android.wm.shell.pip.PipTransition@db0826d
+08-29 23:26:44.335   769   821 V WindowManagerShell:  try handler com.android.wm.shell.splitscreen.StageCoordinator@932eea2
+08-29 23:26:44.335   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.RemoteTransitionHandler@2b12733
+08-29 23:26:44.336   769   821 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=43 t=CLOSE f=0x0 trk=1 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{2fd6f7b u0 com.habitring.app/com.google.android.gms.auth.api.signin.internal.SignInHubActivity)/@0xbb0039 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.336   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@5d3337f, appThread = android.app.IApplicationThread$Stub$Proxy@7d7cf4c, debugName = LauncherToDream }}
+08-29 23:26:44.336   769   821 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@8d49b95, appThread = android.app.IApplicationThread$Stub$Proxy@42bd4aa, debugName = QuickstepLaunchHome }}
+08-29 23:26:44.336   769   821 V WindowManagerShell:  Delegate animation for #43 to null
+08-29 23:26:44.336   769   821 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:44.336   769   821 V WindowManagerShell: start default transition animation, info = {id=43 t=CLOSE f=0x0 trk=1 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{2fd6f7b u0 com.habitring.app/com.google.android.gms.auth.api.signin.internal.SignInHubActivity)/@0xbb0039 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.336   769   821 V WindowManagerShell: loadAnimation: anim=null animAttr=0x7 type=CLOSE isEntrance=false
+08-29 23:26:44.336   550   575 V WindowManager: Sent Transition #43 createdAt=08-29 23:26:44.322 via request=TransitionRequestInfo { type = CLOSE, triggerTask = null, remoteTransition = null, displayChange = null }
+08-29 23:26:44.336   769   821 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#43)android.os.BinderProxy@6a41000@1
+08-29 23:26:44.337   550   575 V WindowManager:     startWCT=WindowContainerTransaction { changes = {} hops = [] errorCallbackToken=null taskFragmentOrganizer=null }
+08-29 23:26:44.337   550   575 V WindowManager:     info={id=43 t=CLOSE f=0x0 trk=1 r=[0@Point(0, 0)] c=[{null m=CLOSE f=TRANSLUCENT|FILLS_TASK leash=Surface(name=ActivityRecord{2fd6f7b u0 com.habitring.app/com.google.android.gms.auth.api.signin.internal.SignInHubActivity)/@0x48a0c55 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+08-29 23:26:44.338   550   575 V WindowManager: Finish Transition #43: created at 08-29 23:26:44.322 collect-started=0.007ms request-sent=0.069ms started=11.946ms ready=11.937ms sent=12.683ms finished=15.807ms
+08-29 23:26:44.339   769   821 V WindowManagerShell: Track 1 became idle
+08-29 23:26:44.339   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:44.339   769   821 V WindowManagerShell:  animated by com.android.wm.shell.transition.DefaultTransitionHandler@3d16af0
+08-29 23:26:44.339   769   821 V WindowManagerShell: Track 1 became idle
+08-29 23:26:44.339   769   821 V WindowManagerShell: All active transition animations finished
+08-29 23:26:44.340  9669  9669 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=falsecallback=android.view.ViewRootImpl$$ExternalSyntheticLambda17@83be9c
+08-29 23:26:44.340   550  1988 D CoreBackPreview: Window{a37582d u0 com.habitring.app/com.google.android.gms.auth.api.signin.internal.SignInHubActivity}: Setting back callback null
+08-29 23:26:44.341   550  1988 W InputManager-JNI: Input channel object 'a37582d com.habitring.app/com.google.android.gms.auth.api.signin.internal.SignInHubActivity (client)' was disposed without first being removed with the input manager!
+08-29 23:26:44.343  9751  9751 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=falsecallback=android.view.ViewRootImpl$$ExternalSyntheticLambda17@94e4659
+08-29 23:26:44.343   550  1835 D CoreBackPreview: Window{a67f712 u0 com.google.android.gms/com.google.android.gms.auth.api.signin.ui.SignInActivity}: Setting back callback null
+08-29 23:26:44.345   550   568 W InputManager-JNI: Input channel object 'a67f712 com.google.android.gms/com.google.android.gms.auth.api.signin.ui.SignInActivity (client)' was disposed without first being removed with the input manager!
+08-29 23:26:44.345  9751  9751 D MainContentCaptureSession: Destroying session (ctx=com.google.android.gms.auth.api.signin.ui.SignInActivity@1bbbcb1, id=-1897042320) with 0 event(s) for act:com.google.android.gms/.auth.api.signin.ui.SignInActivity [state=2 (ACTIVE), disabled=false]
+08-29 23:26:44.347   550  1835 D CoreBackPreview: Window{ff7b580 u0 com.habitring.app/com.habitring.app.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@b0f98d6, mPriority=0, mIsAnimationCallback=false}
+08-29 23:26:44.360   769   877 D EGL_emulation: app_time_stats: avg=16442.59ms min=16442.59ms max=16442.59ms count=1
+08-29 23:26:44.386  9669  9702 E OpenGLRenderer: Unable to match the desired swap behavior.
+08-29 23:26:44.418  9669  9702 D EGL_emulation: app_time_stats: avg=17637.64ms min=1.65ms max=70532.91ms count=4
+08-29 23:26:44.469   769   877 D EGL_emulation: app_time_stats: avg=2867.19ms min=0.44ms max=20051.99ms count=7
+08-29 23:26:45.499   769   877 D EGL_emulation: app_time_stats: avg=16.32ms min=0.42ms max=48.82ms count=55
+08-29 23:26:45.701   769   769 D StatusBarIconController: ignoring old pipeline callback because the new wifi icon is enabled
+08-29 23:26:45.933  9669  9702 D EGL_emulation: app_time_stats: avg=126.08ms min=0.92ms max=1349.54ms count=11
+08-29 23:26:47.190   363  3878 D android.hardware.audio@7.1-impl.ranchu: threadLoop: entering standby, frames: 1802816
+08-29 23:26:47.839   550  1533 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+08-29 23:26:47.898   769   769 D StatusBarIconController: ignoring old pipeline callbacks, because the new mobile icons are enabled
+08-29 23:26:48.705   769   769 D StatusBarIconController: ignoring old pipeline callback because the new wifi icon is enabled
+08-29 23:26:49.197   550   568 W ProcessStats: Tracking association SourceState{d19f1b0 com.google.android.gms/10128 BTop #10152} whose proc state 2 is better than process ProcessState{9fe7d84 com.google.android.gms.persistent/10128 pkg=com.google.android.gms} proc state 4 (102 skipped)
+08-29 23:26:50.376  1601  2621 I WorkerManager: dispose()
+08-29 23:26:50.376  1601  2621 W A       : Queue length for executor EventBus is now 11. Perhaps some tasks are too long, or the pool is too small.
+08-29 23:26:51.821   755   755 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+08-29 23:26:52.237  9950  9950 W BpBinder: Linking to death on android.gui.ISurfaceComposer but there are no threads (yet?) listening to incoming transactions. See ProcessState::startThreadPool and ProcessState::setThreadPoolMaxThreadCount. Generally you should setup the binder threadpool before other initialization steps.
+08-29 23:26:52.237  9950  9950 W ProcessState: Extra binder thread started, but 0 threads requested. Do not use *startThreadPool when zero threads are requested.
+08-29 23:26:52.255   164   164 I hwservicemanager: getTransport: Cannot find entry android.hardware.graphics.mapper@4.0::IMapper/default in either framework or device VINTF manifest.
+08-29 23:26:52.255  9950  9951 I Gralloc4: mapper 4.x is not supported
+08-29 23:26:52.240     0     0 I servicemanager: Could not find android.hardware.graphics.allocator.IAllocator/default in the VINTF manifest.
+08-29 23:26:52.427  9954  9954 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+08-29 23:26:52.429  9954  9954 I AndroidRuntime: Using default boot image
+08-29 23:26:52.429  9954  9954 I AndroidRuntime: Leaving lock profiling enabled
+08-29 23:26:52.431  9954  9954 I app_process: Core platform API reporting enabled, enforcing=false
+08-29 23:26:52.431  9954  9954 I app_process: Using CollectorTypeCC GC.
+08-29 23:26:52.462  9954  9954 D nativeloader: InitDefaultPublicLibraries for_preload=1: libandroid.so:libaaudio.so:libamidi.so:libbinder_ndk.so:libc.so:libcamera2ndk.so:libdl.so:libEGL.so:libGLESv1_CM.so:libGLESv2.so:libGLESv3.so:libicu.so:libicui18n.so:libicuuc.so:libjnigraphics.so:liblog.so:libmediandk.so:libm.so:libnativehelper.so:libnativewindow.so:libOpenMAXAL.so:libOpenSLES.so:libRS.so:libstdc++.so:libsync.so:libvulkan.so:libwebviewchromium_plat_support.so:libz.so
+08-29 23:26:52.468  9954  9954 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+08-29 23:26:52.468  9954  9954 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt72l.dat
+08-29 23:26:52.469   550   568 D WifiNl80211Manager: Scan result ready event
+08-29 23:26:52.469   550   568 D WifiNative: Scan result ready event
+08-29 23:26:52.471  9954  9954 W app_process: Unexpected CPU variant for x86: x86_64.
+08-29 23:26:52.471  9954  9954 W app_process: Known variants: atom, sandybridge, silvermont, goldmont, goldmont-plus, tremont, kabylake, default
+08-29 23:26:52.472  9954  9954 W app_process: ClassLoaderContext shared library size mismatch. Expected=2, found=0 (PCL[]{PCL[/system/framework/android.test.base.jar*836642756]#PCL[/system/framework/android.test.mock.jar*3186112116]} | PCL[])
+08-29 23:26:52.472  9954  9954 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[]{PCL[/system/framework/android.test.runner.jar*4168958247]{PCL[/system/framework/android.test.base.jar*836642756]#PCL[/system/framework/android.test.mock.jar*3186112116]}#PCL[/system/framework/android.test.base.jar*836642756]} | PCL[/system/framework/android.test.runner.jar*4168958247])
+08-29 23:26:52.481  9954  9954 W libc    : Access denied finding property "ro.product.name_for_attestation"
+08-29 23:26:52.481  9954  9954 W libc    : Access denied finding property "ro.product.brand_for_attestation"
+08-29 23:26:52.481  9954  9954 W libc    : Access denied finding property "ro.product.model_for_attestation"
+08-29 23:26:52.482  9954  9954 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+08-29 23:26:52.480  9954  9954 W main    : type=1400 audit(0.0:128): avc:  denied  { read } for  name="u:object_r:build_attestation_prop:s0" dev="tmpfs" ino=86 scontext=u:r:shell:s0 tcontext=u:object_r:build_attestation_prop:s0 tclass=file permissive=0
+08-29 23:26:52.483  9954  9954 D UiAutomationConnection: Created on user UserHandle{0}
+08-29 23:26:52.483  9954  9954 I UiAutomation: Initialized for user 0 on display 0
+08-29 23:26:52.483  9954  9954 W UiAutomation: Created with deprecatead constructor, assumes DEFAULT_DISPLAY
+08-29 23:26:52.480  9954  9954 W main    : type=1400 audit(0.0:129): avc:  denied  { read } for  name="u:object_r:build_attestation_prop:s0" dev="tmpfs" ino=86 scontext=u:r:shell:s0 tcontext=u:object_r:build_attestation_prop:s0 tclass=file permissive=0
+08-29 23:26:52.480  9954  9954 W main    : type=1400 audit(0.0:130): avc:  denied  { read } for  name="u:object_r:build_attestation_prop:s0" dev="tmpfs" ino=86 scontext=u:r:shell:s0 tcontext=u:object_r:build_attestation_prop:s0 tclass=file permissive=0
+08-29 23:26:52.485   550   568 D AccessibilityManagerService: changeCurrentUserForTestAutomationIfNeededLocked(0): ignoring because device doesn't support visible background users
+08-29 23:26:52.485   550   568 I UiAutomationManager: Registering UiTestAutomationService (id=com.android.server.accessibility/UiAutomation) when called by user 0
+08-29 23:26:52.486   550   568 W WindowMagnificationMgr: requestConnection duplicated request: connect=false, mConnectionState=DISCONNECTED
+08-29 23:26:52.487  1459  1486 I AiAiEcho: Settings changed for uri: content://settings/secure/accessibility_enabled
+08-29 23:26:52.487  9954  9970 V UiAutomation: Init UiAutomation@775a043[id=15, displayId=0, flags=0]
+08-29 23:26:52.487  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:52.487  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:52.487  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:52.487  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:52.487  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:52.487  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:52.487  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:52.487  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:52.487  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:52.487  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:52.487  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:52.487  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:52.487  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface media_data_manager with targets# 0 (types=[])
+08-29 23:26:52.487  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0 (types=[])
+08-29 23:26:52.487   550   550 D BatterySaverPolicy: accessibility changed to true, updating policy.
+08-29 23:26:52.487  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0 (types=[])
+08-29 23:26:52.488   769   769 W PageIndicator: Total number of pages invalid: 0. Assuming 1 page.
+08-29 23:26:52.488   769   769 D SsMediaDataProvider: Forwarding Smartspace updates []
+08-29 23:26:52.490  1601  2000 I A       : NGA disabled since it's running Panthera and at least one a11y feature is on.
+08-29 23:26:52.490  1601  2000 I A       : Nga state changed to NgaStateDetails{state=DISABLED, isSpecialExperience=false}
+08-29 23:26:52.491  1601  9933 I Search.LoginHelperImpl: Successfully received auth token for scope: oauth2:https://www.googleapis.com/auth/googlenow in time 0 ms
+08-29 23:26:52.491  1488  1511 I A       : APA or Classic session decision: SessionDecision(sessionVariance=CLASSIC, platformVariance=CLASSIC, justification=CURRENT_PLATFORM_VARIANCE).
+08-29 23:26:52.491  1488  1511 I A       : [Memory] eligibility: StashEligibility{4}
+08-29 23:26:52.491  1488  2061 I A       : Unsubscribed to apa or classic variant change.
+08-29 23:26:52.492   550  1988 W WindowMagnificationMgr: requestConnection duplicated request: connect=false, mConnectionState=DISCONNECTED
+08-29 23:26:52.493  1459  1734 I AiAiEcho: Settings changed for uri: content://settings/secure/accessibility_enabled
+08-29 23:26:52.493  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:52.493  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:52.493  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:52.493  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:52.493  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:52.493  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:52.493  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:52.493  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:52.493  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:52.493  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:52.493  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:52.493  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:52.493  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface media_data_manager with targets# 0 (types=[])
+08-29 23:26:52.494  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0 (types=[])
+08-29 23:26:52.494  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0 (types=[])
+08-29 23:26:52.496   769   769 D SsMediaDataProvider: Forwarding Smartspace updates []
+08-29 23:26:52.496   769   769 W PageIndicator: Total number of pages invalid: 0. Assuming 1 page.
+08-29 23:26:53.493  9954  9954 W AccessibilityNodeInfoDumper: Fetch time: 0ms
+08-29 23:26:53.495   550  1819 W WindowMagnificationMgr: requestConnection duplicated request: connect=false, mConnectionState=DISCONNECTED
+08-29 23:26:53.495   550  1819 D AccessibilityManagerService: restoreCurrentUserForTestAutomationIfNeededLocked(): ignoring because device doesn't support visible background users
+08-29 23:26:53.495  1459  1734 I AiAiEcho: Settings changed for uri: content://settings/secure/accessibility_enabled
+08-29 23:26:53.496  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:53.496  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:53.496  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:53.496  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:53.496  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:53.496  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:53.496  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:53.496  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:53.496  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:26:53.496  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:26:53.496  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:26:53.496  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:26:53.497   550   550 D BatterySaverPolicy: accessibility changed to false, updating policy.
+08-29 23:26:53.497  9954  9954 D AndroidRuntime: Shutting down VM
+08-29 23:26:53.499  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface media_data_manager with targets# 0 (types=[])
+08-29 23:26:53.499  1601  1986 I A       : NGA enabled in interactor.
+08-29 23:26:53.499  1601  1986 I A       : Nga state changed to NgaStateDetails{state=ENABLED, isSpecialExperience=false}
+08-29 23:26:53.499  1601  9933 I Search.LoginHelperImpl: Successfully received auth token for scope: oauth2:https://www.googleapis.com/auth/googlenow in time 0 ms
+08-29 23:26:53.499  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0 (types=[])
+08-29 23:26:53.500  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0 (types=[])
+08-29 23:26:53.500  1488  2248 I A       : Initializing all components
+08-29 23:26:53.500  1488  2248 I A       : APA or Classic session decision: SessionDecision(sessionVariance=CLASSIC, platformVariance=CLASSIC, justification=CURRENT_PLATFORM_VARIANCE).
+08-29 23:26:53.500  1488  2248 I A       : [Memory] eligibility: StashEligibility{3}
+08-29 23:26:53.500  1488  2060 I A       : onIsEnabledChanged, isEnabled: false
+08-29 23:26:53.501  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.501  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.501  1488  2061 I A       : State changed: IDLE => IDLE by NGA_STATE_CHANGED and N/A with Optional.empty
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1601  9845 I A       : Using proto config with mendel
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 I A       : onOpaVisibilityChanged: false
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 I A       : Setting session to type: NO_SESSION
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2061 I A       : Recognizer choice: (recognizer_type: 1, recognizer_mode: 1, choice_reason: 4)
+08-29 23:26:53.502  1601  9845 I A       : Using proto config with mendel
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 I A       : setNavBarVisible: GestureNavBarVisible{navbarVisible=true}
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 W A       : Disposing empty manager. Did you forgot to subscribe observables?
+08-29 23:26:53.502  1488  2060 I A       : onDisabled. Registered: false
+08-29 23:26:53.502  1601  9845 I A       : Using proto config with mendel
+08-29 23:26:53.502  1601  9845 I A       : Merging legacy hotword config map with new proto.
+08-29 23:26:53.502  1601  9845 I A       : Adding from config to map. Locale: cmn-Hant-TW modelPrefix: x_google Location:4e7cae00daee30ec565c34e3aa67a51f isSpeakerIdSupported: true
+08-29 23:26:53.502  1601  9845 I A       : Adding from config to map. Locale: id-ID modelPrefix: x_google Location:cfffcc1a4c1c084c003c8eb27f73d770 isSpeakerIdSupported: true
+08-29 23:26:53.502  1601  9845 I A       : Adding from config to map. Locale: ko-KR modelPrefix: x_google Location:0b132163a2eb2c1194b202067475724b isSpeakerIdSupported: true
+08-29 23:26:53.502  1601  9845 I A       : Skipping. Expected model: 2 Found: 1
+08-29 23:26:53.502  1601  9845 I A       : Adding from config to map. Locale: zh-TW modelPrefix: x_google Location:4e7cae00daee30ec565c34e3aa67a51f isSpeakerIdSupported: true
+08-29 23:26:53.502  1488  2061 I A       : onActiveStateChangeEvent: IDLE => IDLE
+08-29 23:26:53.502  1488  2061 I A       : #onActiveStateChangeEvent, newState: IDLE, previousState: IDLE.
+08-29 23:26:53.503   769   769 D SsMediaDataProvider: Forwarding Smartspace updates []
+08-29 23:26:53.503   769   769 W PageIndicator: Total number of pages invalid: 0. Assuming 1 page.
+08-29 23:26:53.505  1488  2061 I A       : on opa visibility changed false
+08-29 23:26:53.505  1488  2061 I A       : stopListening(NGA_PAUSED_UNKNOWN_REASON, NGA_CREATE), idleOverride=NOT_LISTENING
+08-29 23:26:53.505  1488  2060 I A       : Initialize
+08-29 23:26:53.506  1488  2060 I NgaEntryPointEventSendr: setupConnection
+08-29 23:26:53.506  1488  1488 E GsaVoiceSerConnection: gsaVis null binding
+08-29 23:26:53.513  1488  2060 I NgaEntryPointEventSendr: State changed: Disconnected => Connecting
+08-29 23:26:53.515  1488  2061 I A       : Successfully initialized all components
+08-29 23:26:53.525  1601  1601 I A       : Creating pss binder().
+08-29 23:26:53.526  1488  2060 I A       : on opa visibility changed false
+08-29 23:26:53.526  1488  1488 V ClearcutMetricXmitter: Transmission is done.
+08-29 23:26:53.527  1488  2061 I NgaEntryPointEventSendr: onServiceConnected
+08-29 23:26:53.527  1601  2657 I A       : Calling beginBinderSession().
+08-29 23:26:53.527  1601  2657 I A       : beginBinderSession(): calling binder
+08-29 23:26:53.528  1488  2061 I NgaEntryPointEventSendr: State changed: Connecting => Ready
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: Invalid input from icing corpus JSON flag.
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: android.util.MalformedJsonException: Use JsonReader.setLenient(true) to accept malformed JSON at line 123 column 2
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at android.util.JsonReader.syntaxError(JsonReader.java:1162)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at android.util.JsonReader.checkLenient(JsonReader.java:840)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at android.util.JsonReader.nextInArray(JsonReader.java:615)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at android.util.JsonReader.peek(JsonReader.java:345)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at android.util.JsonReader.hasNext(JsonReader.java:321)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.android.apps.gsa.searchbox.c.b.b.k.c(PG:7)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.android.apps.gsa.searchbox.c.b.b.k.<init>(PG:5)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.android.apps.gsa.staticplugins.searchboxroot.features.n.a.c.<init>(PG:16)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.android.apps.gsa.staticplugins.searchboxroot.b.a(PG:14)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.android.apps.gsa.staticplugins.searchboxroot.x.<init>(PG:7)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.android.apps.gsa.binaries.velvet.app.akd.b(PG:15)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at dagger.a.e.b(PG:1)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.android.apps.gsa.staticplugins.searchboxroot.a.a.a(PG:3)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.android.apps.gsa.binaries.velvet.app.ok.f(Unknown Source:2541)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.android.apps.gsa.binaries.velvet.app.ok.b(PG:1)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.android.apps.gsa.search.core.service.g.a.c.a(PG:2)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.android.libraries.gsa.k.a.f.a(PG:2)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.common.util.concurrent.dx.a(PG:1)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.common.util.concurrent.cv.run(PG:4)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.common.util.concurrent.dz.run(PG:1)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.android.libraries.i.ae.run(PG:1)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:644)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.android.libraries.i.k.run(PG:2)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at com.google.android.libraries.i.p.run(PG:4)
+08-29 23:26:53.540  1601  2040 W CorpusConfigHelper: 	at java.lang.Thread.run(Thread.java:1012)
+08-29 23:26:53.545  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:53.546  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:53.546  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:53.546  1601  2621 I A       : Merging legacy hotword config map with new proto.
+08-29 23:26:53.546  1601  2621 I A       : Adding from config to map. Locale: cmn-Hant-TW modelPrefix: x_google Location:4e7cae00daee30ec565c34e3aa67a51f isSpeakerIdSupported: true
+08-29 23:26:53.546  1601  2621 I A       : Adding from config to map. Locale: id-ID modelPrefix: x_google Location:cfffcc1a4c1c084c003c8eb27f73d770 isSpeakerIdSupported: true
+08-29 23:26:53.547  1601  2621 I A       : Adding from config to map. Locale: ko-KR modelPrefix: x_google Location:0b132163a2eb2c1194b202067475724b isSpeakerIdSupported: true
+08-29 23:26:53.547  1601  2621 I A       : Skipping. Expected model: 2 Found: 1
+08-29 23:26:53.547  1601  2621 I A       : Adding from config to map. Locale: zh-TW modelPrefix: x_google Location:4e7cae00daee30ec565c34e3aa67a51f isSpeakerIdSupported: true
+08-29 23:26:53.547  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:53.547  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:53.548  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:53.550   550  2439 W ActivityManager: Unable to start service Intent { cmp=com.google.android.apps.tachyon/.clientapi.ClientApiService } U=0: not found
+08-29 23:26:53.550  1601  2621 W A       : UiCallbackStub-onGenericEvent[ServiceEvent = 111] task was not run. Callback from Service received after client was disposed.
+08-29 23:26:53.551  1601  2621 W A       : UiCallbackStub-onGenericEvent[ServiceEvent = 60] task was not run. Callback from Service received after client was disposed.
+08-29 23:26:53.551  1601  2621 W A       : UiCallbackStub-onGenericEvent[ServiceEvent = 60] task was not run. Callback from Service received after client was disposed.
+08-29 23:26:53.551  1601  2621 W A       : UiCallbackStub-onGenericEvent[ServiceEvent = 105] task was not run. Callback from Service received after client was disposed.
+08-29 23:26:53.551  1601  2621 W A       : UiCallbackStub-onGenericEvent[ServiceEvent = 107] task was not run. Callback from Service received after client was disposed.
+08-29 23:26:53.551  1601  2621 W A       : UiCallbackStub-onGenericEvent[ServiceEvent = 107] task was not run. Callback from Service received after client was disposed.
+08-29 23:26:53.551  1601  2621 W A       : UiCallbackStub-onGenericEvent[ServiceEvent = 42] task was not run. Callback from Service received after client was disposed.
+08-29 23:26:53.552  1488  2060 I NgaEntryPointEventSendr: State changed: Ready => Disconnected (onOpaDisconnected)
+08-29 23:26:53.555  1601  2621 W A       : UiCallbackStub-onGenericEvent[ServiceEvent = 67] task was not run. Callback from Service received after client was disposed.
+08-29 23:26:53.555  1601  2621 I MicroDetectionState: Should stop hotword detection immediately - true
+08-29 23:26:53.556  1601  2621 W A       : UiCallbackStub-onGenericEvent[ServiceEvent = 241] task was not run. Callback from Service received after client was disposed.
+08-29 23:26:53.556  1601  2621 W A       : UiCallbackStub-onGenericEvent[ServiceEvent = 241] task was not run. Callback from Service received after client was disposed.
+08-29 23:26:53.557  1601  2621 W A       : UiCallbackStub-onGenericEvent[ServiceEvent = 60] task was not run. Callback from Service received after client was disposed.
+08-29 23:26:53.558  1601  9933 I PBSessionCacheImpl: Deleted sessionId[7043060446372902] from persistence.
+08-29 23:26:53.558  1601  2621 W SearchServiceCore: Abort, client detached.
+08-29 23:26:53.558  1601  2621 I MicroDetectionState: Should stop hotword detection immediately - true
+08-29 23:26:53.559  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:53.559  1601  2621 I A       : Using proto config with mendel
+08-29 23:26:53.560  1488  1506 W hbox:interactor: Reducing the number of considered missed Gc histogram windows from 3871 to 100
+08-29 23:26:53.562  1601  1641 I earchbox:search: JIT allocated 67KB for compiled code of java.lang.Object com.google.android.apps.gsa.binaries.velvet.app.ok.f()
+08-29 23:26:54.331   550   643 D ActivityManager: freezing 9751 com.google.android.gms.ui
+08-29 23:26:54.328     0     0 I logd    : logdr: UID=2000 GID=2000 PID=9973 n tail=1200 logMask=99 pid=0 start=0ns deadline=0ns
+08-29 23:26:57.898   769   769 D StatusBarIconController: ignoring old pipeline callbacks, because the new mobile icons are enabled
+08-29 23:26:59.216   550   568 W ProcessStats: Tracking association SourceState{c8cecca com.google.android.googlequicksearchbox:search/10132 Service #10166} whose proc state 8 is better than process ProcessState{cdcf34b com.google.android.gms/10128 pkg=com.google.android.gms} proc state 14 (34 skipped)
+08-29 23:27:00.003  1459  1621 I AiAiEcho: Predicting[0]: 
+08-29 23:27:00.003  1459  1621 I AiAiEcho: EchoTargets: 
+08-29 23:27:00.003  1459  1621 I AiAiEcho: Filtered by AiAi flag check: 
+08-29 23:27:00.003  1459  1621 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+08-29 23:27:00.004  1459  1621 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0 (types=[])
+08-29 23:27:00.013   755   755 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+08-29 23:27:00.016   769   877 D EGL_emulation: app_time_stats: avg=1196.60ms min=1.81ms max=15431.90ms count=13
+08-29 23:27:00.016   769   769 W PageIndicator: Total number of pages invalid: 0. Assuming 1 page.
+08-29 23:27:04.365   550   639 W CpuMonitorService: Current CPU frequency (5327186) is greater than maximum CPU frequency (2) for policy ID (2). Skipping CPU frequency policy
+08-29 23:27:07.899   769   769 D StatusBarIconController: ignoring old pipeline callbacks, because the new mobile icons are enabled
+08-29 23:27:07.948   755   755 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
+08-29 23:27:08.381     0     0 I logd    : logdr: UID=2000 GID=2000 PID=9977 n tail=0 logMask=99 pid=0 start=0ns deadline=0ns

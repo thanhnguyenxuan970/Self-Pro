@@ -46,7 +46,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
         <hr>
         <small>
           From: ${esc(record.user_email)}<br>
-          App: v${esc(record.app_version)} · ${esc(record.device)} · Android ${esc(record.os_version)}<br>
+          App: v${esc(record.app_version)} · ${esc(record.platform)} · ${esc(record.device)} · OS ${esc(record.os_version)}<br>
+          Timezone: ${esc(record.device_timezone)} · Locale: ${esc(record.device_locale)} · App language: ${esc(record.app_language)}<br>
+          Local date: ${esc(record.local_date)} · Screen: ${esc(record.screen)} · Route: ${esc(record.route)}<br>
+          Error: ${esc(record.error_code)} · ${esc(record.error_notice)}<br>
           At: ${esc(record.created_at)}
         </small>`,
     }),

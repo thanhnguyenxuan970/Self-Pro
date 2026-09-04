@@ -30,6 +30,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **Timezone-aware growth audit queries**: absolute timestamps and date calculations now use each user's validated profile timezone, with UTC fallback, instead of a fixed `Asia/Ho_Chi_Minh` timezone.
 - **QA artifact privacy**: raw Android logcat files are no longer tracked; root `.audit/` log output is ignored to prevent device identifiers and internal runtime details from entering future pushes while keeping sanitized screenshot/XML evidence available.
 
+## [2.0.3.15] - 2026-09-04
+
+### Added
+- **Actionable feedback**: users can report an issue from Profile or directly from the News error state; Habi includes bounded screen, route, device, locale, timezone, and error context so reports are easier to investigate.
+
+### Changed
+- **Linked Challenge backfill**: restoring a missed day now reconciles each affected linked Challenge after its activity rows are written, while reminder schedules and related queries refresh afterward.
+- **Sign-in branding**: the animated sign-in mark now follows the selected Habi green accent while preserving the gold marker.
+
+### Fixed
+- **Restore safety**: divergent cloud and local snapshots remain blocked from publishing the account or being overwritten automatically.
+- **Post-commit backfill handling**: reminder cleanup failures no longer reject a completed backfill or skip its cache invalidation and sync.
+
+### Removed
+- Removed the duplicate Settings feedback entry after moving feedback access to Profile and News error recovery.
+
+Validation: TypeScript, 87 Jest suites/801 tests/1 snapshot, `git diff --check`, and `bundleRelease` passed. The AAB contains `com.habitring.app` version `2.0.3.o` (versionCode `83`); the release metadata suffix `o` maps to `VERSION` micro `15`. AAB SHA-256: `6B7D8602FDDF788E3918E1A4D4E1D61C3DAA148D11EAA140745C87CCACF2467D`.
+
 ## [2.0.3.h] - 2026-08-27
 
 - Fixed linked Challenge habits using the instant preset flow so logging the habit also appends the expected `activity_log` row and completes the day's Challenge progress; timed presets continue through the duration flow.

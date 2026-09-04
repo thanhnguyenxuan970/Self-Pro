@@ -14,6 +14,7 @@ import { useLanguage } from '../hooks/useSettings';
 import { FontFamily, Radii, Shadows, Spacing, AppColors } from '../config/theme';
 import { useNewsFeed } from '../queries/useNews';
 import { getNewsViewerKey, isNewsRead } from '../utils/news';
+import { FeedbackSheet } from './FeedbackSheet';
 
 function formatNewsDate(value: string, locale: string): string {
   const date = new Date(value);
@@ -25,6 +26,7 @@ export function NewsScreen() {
   const { googleUser, colors, t, styles } = useScreenCommons(makeStyles);
   const [language] = useLanguage();
   const [expandedNewsId, setExpandedNewsId] = useState<number | null>(null);
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
   const viewerKey = getNewsViewerKey(googleUser?.sub);
   const {
     news,
@@ -108,6 +110,15 @@ export function NewsScreen() {
           <TouchableOpacity style={styles.retryBtn} onPress={() => void refetch()} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t.newsRetry}>
             <Text style={styles.retryText}>{t.newsRetry}</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.reportBtn}
+            onPress={() => setFeedbackVisible(true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t.newsReportBug}
+          >
+            <Text style={styles.reportText}>{t.newsReportBug}</Text>
+          </TouchableOpacity>
         </View>
       ) : news.length === 0 ? (
         <View style={styles.stateCard}>
@@ -123,6 +134,11 @@ export function NewsScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
+      <FeedbackSheet
+        visible={feedbackVisible}
+        onClose={() => setFeedbackVisible(false)}
+        context={{ screen: 'News', route: 'News', errorCode: 'NEWS_LOAD_FAILED', errorNotice: t.newsLoadFailed }}
+      />
     </SafeAreaView>
   );
 }
@@ -177,6 +193,8 @@ function makeStyles(C: AppColors) {
       justifyContent: 'center',
     },
     retryText: { fontSize: 13, fontFamily: FontFamily.bold, color: C.onAccent },
+    reportBtn: { alignSelf: 'flex-start', marginTop: 8, minHeight: 44, paddingHorizontal: 14, paddingVertical: 11, borderRadius: Radii.md, justifyContent: 'center' },
+    reportText: { fontSize: 13, fontFamily: FontFamily.bold, color: C.primaryText },
     listContent: { padding: Spacing.lg, paddingTop: Spacing.sm, gap: 12 },
     card: {
       borderRadius: Radii.xl,

@@ -16,7 +16,6 @@ import {
 } from '../queries/useSettings';
 import Toast from 'react-native-toast-message';
 import { scheduleAllHabitReminders } from '../utils/notifications';
-import { FeedbackSheet } from './FeedbackSheet';
 import { AccentPicker } from '../components/AccentPicker';
 
 type Props = {
@@ -72,7 +71,6 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
   const t = useTranslations();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [deleting, setDeleting] = useState(false);
-  const [feedbackVisible, setFeedbackVisible] = useState(false);
   const reduceMotion = useReduceMotion();
   const [iosPickerIdx, setIosPickerIdx] = useState<number | null>(null);
   const [iosPickerDate, setIosPickerDate] = useState(new Date());
@@ -267,22 +265,6 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
           )}
         </View>
 
-        {/* Feedback */}
-        <Text style={styles.sectionLabel}>{t.sectionFeedback}</Text>
-        <View style={styles.card}>
-          <TouchableOpacity
-            style={[styles.row, styles.rowLast]}
-            onPress={() => setFeedbackVisible(true)}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={t.reportBugLabel}
-          >
-            <Text style={styles.rowIc} importantForAccessibility="no">📬</Text>
-            <Text style={styles.rowLabel}>{t.reportBugLabel}</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Danger zone */}
         <Text style={styles.sectionLabel}>{t.sectionAccount}</Text>
         <View style={styles.card}>
@@ -313,7 +295,6 @@ export function SettingsScreen({ onDeleteAccount }: Props) {
 
         <Text style={styles.hint}>{t.deleteAccountNote}</Text>
       </ScrollView>
-      <FeedbackSheet visible={feedbackVisible} onClose={() => setFeedbackVisible(false)} />
       {Platform.OS === 'ios' && (
         <Modal visible={iosPickerIdx !== null} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={() => setIosPickerIdx(null)} statusBarTranslucent navigationBarTranslucent>
           <View style={styles.iosPickerBackdrop}>

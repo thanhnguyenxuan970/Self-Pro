@@ -126,7 +126,7 @@ describe('interactive Google sign-in recovery', () => {
     expect(mockRestoreLifetimeStarsFromSupabase).not.toHaveBeenCalled();
   });
 
-  it('tags the thrown restore-unavailable error with the short failure-reason code', async () => {
+  it('keeps a divergent restore blocked and tags its failure reason', async () => {
     mockRestoreUserDataIfNeeded.mockImplementation(async (...args: unknown[]) => {
       const onFailureReason = args[7] as ((reason: string) => void) | undefined;
       onFailureReason?.('RESTORE_DIVERGED');
@@ -148,5 +148,32 @@ describe('interactive Google sign-in recovery', () => {
     }
 
     expect((caught as { code?: string }).code).toBe('RESTORE_DIVERGED');
+    expect(mockWriteGoogleUser).not.toHaveBeenCalled();
+    expect(mockSetState).not.toHaveBeenCalled();
+    expect(mockRestoreLifetimeStarsFromSupabase).not.toHaveBeenCalled();
+  });
+
+  it('tags a generic restore failure with the short failure-reason code', async () => {
+    mockRestoreUserDataIfNeeded.mockImplementation(async (...args: unknown[]) => {
+      const onFailureReason = args[7] as ((reason: string) => void) | undefined;
+      onFailureReason?.('RESTORE_ERROR');
+      return 'unavailable';
+    });
+    const auth = useAuth();
+    const user = {
+      sub: 'google-sub',
+      email: 'user@example.com',
+      name: 'Test User',
+      picture: 'https://example.com/photo.jpg',
+    };
+
+    let caught: unknown;
+    try {
+      await auth.signInWithGoogle(user, 'google-id-token');
+    } catch (error) {
+      caught = error;
+    }
+
+    expect((caught as { code?: string }).code).toBe('RESTORE_ERROR');
   });
 });

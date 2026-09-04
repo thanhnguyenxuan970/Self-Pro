@@ -17,14 +17,12 @@ type Props = {
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-// Brand mark, matching the Habi Analytics promo "closing" logo exactly:
-// always brand green (never the accent), an 82%-sweep progress ring with a
-// gold dot at 12 o'clock and a checkmark that draws in AFTER the ring, the
+// Brand mark, matching the Habi Analytics promo "closing" logo while using
+// the selected app accent, an 82%-sweep progress ring with
+// a gold dot at 12 o'clock and a checkmark that draws in AFTER the ring, the
 // whole mark popping up in scale. Shown only for unauthenticated users (this
 // screen mounts only in the signed-out stack). Reduce-motion paints the final
 // frame directly.
-const BRAND = '#14663C'; // dark brand green keeps the logo/checkmark at AA contrast on the light surface
-const GOLD = '#E0A93B'; // logo star is always gold, independent of accent (matches Colors.starGold)
 const GOOGLE_BLUE = '#1967D2'; // Google's brand blue, darkened from #4285F4 to clear WCAG AA on the button surface
 
 function useSignInIntro(reduceMotion: boolean) {
@@ -63,6 +61,7 @@ function useSignInIntro(reduceMotion: boolean) {
 export function SignInScreen({ onSignIn, onSignInWithGoogle, onEnterQaSandbox }: Props) {
   const { loading, setLoading, colors, t, reduceMotion, styles } = useThemedScreenState(makeStyles);
   const { ringDraw, checkDraw, logoPop, markOpacity, contentRise } = useSignInIntro(reduceMotion);
+  const logoColor = colors.primary;
 
   // viewBox 0 0 100 100, ring radius 40 (matches the promo mark). The ring is
   // an 82%-length arc: dash the arc, gap the rest, and sweep the dashoffset
@@ -127,19 +126,19 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle, onEnterQaSandbox }:
       <View style={styles.card}>
         <Animated.View style={[styles.logoContainer, { opacity: markOpacity, transform: [{ scale: logoPop }] }]}>
           <Svg width={96} height={96} viewBox="0 0 100 100">
-            <Circle cx="50" cy="50" r="40" fill="none" stroke="rgba(37,179,110,0.22)" strokeWidth="9" />
+            <Circle cx="50" cy="50" r="40" fill="none" stroke={logoColor} strokeOpacity={0.22} strokeWidth="9" />
             <AnimatedCircle
               cx="50" cy="50" r="40"
-              fill="none" stroke={BRAND} strokeWidth="9"
+              fill="none" stroke={logoColor} strokeWidth="9"
               strokeLinecap="round"
               strokeDasharray={`${ARC_LEN} ${RING_C}`}
               strokeDashoffset={ringOffset}
               transform="rotate(-90 50 50)"
             />
-            <Circle cx="50" cy="10" r="6" fill={GOLD} />
+            <Circle cx="50" cy="10" r="6" fill={colors.starGold} />
             <AnimatedPath
               d="M35 51 L46 62 L67 39"
-              fill="none" stroke={BRAND} strokeWidth="8"
+              fill="none" stroke={logoColor} strokeWidth="8"
               strokeLinecap="round" strokeLinejoin="round"
               strokeDasharray={CHECK_LEN}
               strokeDashoffset={checkOffset}
@@ -147,7 +146,7 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle, onEnterQaSandbox }:
           </Svg>
         </Animated.View>
         <Animated.View style={{ width: '100%', alignItems: 'center', opacity: contentRise, transform: [{ translateY: contentTranslate }] }}>
-          <Text style={styles.title}>Hab<Text style={{ color: BRAND }}>i</Text></Text>
+          <Text style={styles.title}>Hab<Text style={{ color: logoColor }}>i</Text></Text>
 
           {loading ? (
             <ActivityIndicator

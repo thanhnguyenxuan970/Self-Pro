@@ -1,0 +1,7 @@
+TextView text="🏆 Climb the leaderboard" bounds=[84,1646][636,1762]
+TextView text="Compete globally — the leaderboard uses your lifetime stars." bounds=[84,1777][636,1921]
+ViewGroup desc="6 / 6" flags=focusable bounds=[84,1959][636,1974]
+Button desc="Back" flags=clickable,focusable bounds=[296,1991][450,2107]
+  TextView text="← Back" bounds=[306,2024][439,2072]
+Button desc="Done" flags=clickable,focusable bounds=[471,1991][636,2107]
+  TextView text="Done" bounds=[507,2022][599,2075]

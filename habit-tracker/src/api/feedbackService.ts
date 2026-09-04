@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import appConfig from '../../app.json';
 import { supabase } from './supabase';
 import {
   FeedbackType,
@@ -8,23 +9,57 @@ import {
   validateFeedbackMessage,
 } from '../utils/feedbackLogic';
 import { isQaSandboxActive } from '../qa/qaSandbox';
+import { getLocalDate } from '../utils/formatters';
 
 const LAST_SUBMIT_KEY = 'habit_feedback_last_submit';
 const SUBMIT_TIMEOUT_MS = 15_000;
 
-// Keep in sync with app.json "version" (no expo-application dep needed).
-const APP_VERSION = '1.1.0.0';
+const APP_VERSION = typeof appConfig.expo?.version === 'string' ? appConfig.expo.version : null;
+
+export type FeedbackContext = {
+  appLanguage?: string | null;
+  screen?: string | null;
+  route?: string | null;
+  errorCode?: string | null;
+  errorNotice?: string | null;
+};
+
+function getDeviceLocale(): string | null {
+  try {
+    // Keep this runtime-only and guard the native registry: an OTA update can
+    // reach a binary that predates expo-localization, and requireNativeModule
+    // would otherwise turn a diagnostic field into a startup crash.
+    const { NativeModules } = require('react-native') as { NativeModules?: Record<string, unknown> };
+    if (!NativeModules?.ExpoLocalization) return null;
+    const Localization = require('expo-localization') as {
+      getLocales?: () => Array<{ languageTag?: unknown }>;
+    };
+    const languageTag = Localization.getLocales?.()[0]?.languageTag;
+    return typeof languageTag === 'string' && languageTag.trim() ? languageTag.trim().slice(0, 64) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getDeviceTimezone(): string | null {
+  try {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return typeof timezone === 'string' && timezone.trim() ? timezone.trim().slice(0, 64) : null;
+  } catch {
+    return null;
+  }
+}
 
 export type FeedbackResult = 'OK' | 'INVALID' | 'RATE_LIMITED' | 'UNAVAILABLE' | 'FAILED';
 
 /** Device info from RN core Platform — no extra native deps. */
-function getDeviceInfo(): { device: string; osVersion: string } {
+function getDeviceInfo(): { platform: string; device: string; osVersion: string } {
   const pc = (Platform.constants ?? {}) as Record<string, unknown>;
   const brand = typeof pc.Brand === 'string' ? pc.Brand : '';
   const model = typeof pc.Model === 'string' ? pc.Model : '';
   const release = typeof pc.Release === 'string' ? pc.Release : String(Platform.Version);
   const device = `${brand} ${model}`.trim() || Platform.OS;
-  return { device: device.slice(0, 128), osVersion: release.slice(0, 64) };
+  return { platform: String(Platform.OS).slice(0, 32), device: device.slice(0, 128), osVersion: release.slice(0, 64) };
 }
 
 /**
@@ -43,6 +78,7 @@ export async function submitFeedback(params: {
   type: FeedbackType;
   message: string;
   userEmail: string | null;
+  context?: FeedbackContext;
   /** D0 survey MCQ answers — only meaningful (and only sent) for type SURVEY_D0. */
   answers?: SurveyD0Answers;
 }): Promise<FeedbackResult> {
@@ -67,7 +103,8 @@ export async function submitFeedback(params: {
     if (!canSubmitFeedback(last, Date.now(), params.type)) return 'RATE_LIMITED';
   }
 
-  const { device, osVersion } = getDeviceInfo();
+  const { platform, device, osVersion } = getDeviceInfo();
+  const context = params.context ?? {};
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SUBMIT_TIMEOUT_MS);
@@ -79,8 +116,17 @@ export async function submitFeedback(params: {
         type: params.type,
         message: params.message.trim(),
         appVersion: APP_VERSION,
+        platform,
         device,
         osVersion,
+        deviceTimezone: getDeviceTimezone(),
+        deviceLocale: getDeviceLocale(),
+        appLanguage: context.appLanguage ?? null,
+        localDate: getLocalDate(),
+        screen: context.screen ?? null,
+        route: context.route ?? null,
+        errorCode: context.errorCode ?? null,
+        errorNotice: context.errorNotice ?? null,
         answers: params.answers ?? null,
       },
       signal: controller.signal,

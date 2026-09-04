@@ -520,6 +520,7 @@ const vi = {
   newsEmptyBody: 'Khi có cập nhật mới, nội dung sẽ xuất hiện ở đây.',
   newsLoadFailed: 'Không tải được bản tin.',
   newsRetry: 'Thử lại',
+  newsReportBug: 'Báo lỗi này',
 
   timeLocale: 'vi-VN',
 
@@ -621,10 +622,12 @@ const vi = {
   rewardDismiss: 'Tuyệt vời! 🎉',
 
   // Feedback
-  sectionFeedback: 'Phản hồi',
   reportBugLabel: 'Báo lỗi / Phản hồi',
+  feedbackPromptTitle: 'Có vấn đề hoặc ý tưởng?',
+  feedbackPromptBody: 'Báo lỗi hoặc góp ý để Habi tốt hơn.',
   replayTutorial: 'Xem lại hướng dẫn',
   feedbackTitle: 'Gửi phản hồi',
+  feedbackContextNote: 'Habi sẽ đính kèm bối cảnh cơ bản để xử lý nhanh hơn.',
   feedbackTypeBug: 'Báo lỗi',
   feedbackTypeSuggestion: 'Góp ý',
   feedbackTypeOther: 'Khác',
@@ -1464,6 +1467,7 @@ const en: typeof vi = {
   newsEmptyBody: 'New product updates will show up here.',
   newsLoadFailed: 'Could not load updates.',
   newsRetry: 'Retry',
+  newsReportBug: 'Report this issue',
 
   timeLocale: 'en-US',
 
@@ -1565,10 +1569,12 @@ const en: typeof vi = {
   rewardDismiss: 'Awesome! 🎉',
 
   // Feedback
-  sectionFeedback: 'Feedback',
   reportBugLabel: 'Report Bug / Feedback',
+  feedbackPromptTitle: 'Have an issue or idea?',
+  feedbackPromptBody: 'Report a bug or help make Habi better.',
   replayTutorial: 'Replay Tutorial',
   feedbackTitle: 'Send feedback',
+  feedbackContextNote: 'Habi includes basic context so we can investigate faster.',
   feedbackTypeBug: 'Bug',
   feedbackTypeSuggestion: 'Suggestion',
   feedbackTypeOther: 'Other',

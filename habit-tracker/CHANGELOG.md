@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 2.0.3.o - 2026-09-04
+
+- Added contextual bug-report metadata and moved the feedback entry point to Profile and relevant error states; duplicate Settings feedback entry removed. Android native release metadata is `2.0.3.o` (versionCode `83`); the shared Expo/iOS version remains `2.0.3`.
+- Validation: TypeScript and 87 Jest suites/801 tests/1 snapshot passed; Android UI was verified in Vietnamese and English, including Settings without the duplicate feedback row and contextual feedback capture. The linked Supabase migration and Edge Functions still require deployment before production feedback metadata is stored.
+
 ## 2.0.3.m - 2026-09-03
 
 - Fixed interactive Google sign-in getting stuck behind a generic, undiagnosable "sign-in remains blocked for safety" error: a failed cloud-data restore now carries a short, pre-validated reason code (e.g. blocked/diverged/timed-out/transient) that the existing opt-in `EXPO_PUBLIC_GOOGLE_AUTH_DIAGNOSTICS` alert can surface, instead of the failure being visible only to a Sentry integration that has no DSN configured yet. The reason callback is guaranteed to fire at most once per sign-in attempt even when a timeout races a later abort-triggered failure.

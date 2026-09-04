@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -14,6 +14,7 @@ import { useAuthUser } from '../hooks/useAuth';
 import { useTheme, useTranslations } from '../hooks/useSettings';
 import { isQaSandboxBuildAvailable, isQaSandboxIdentity } from '../qa/qaSandbox';
 import { GOOGLE_PICTURE_PLACEHOLDER } from '../lib/googleUserStorage';
+import { FeedbackSheet } from './FeedbackSheet';
 
 type Props = {
   googleUser: { sub: string; email: string; name: string; picture: string };
@@ -36,6 +37,7 @@ export function ProfileScreen({ googleUser, onEnterQaSandbox, onSignOut }: Props
   const { data: activityMetrics } = useAchievementActivityMetrics(userId);
   const currentTier = rank?.tiers.find(tier => tier.id === rank.currentTierId);
   const nextTier = rank?.tiers.find(tier => tier.stars_required > (rank?.currentStars ?? 0));
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
   const trophies = useMemo(() => ACHIEVEMENTS.map(achievement => ({
     ...achievement,
     ...computeAchievementStatus(achievement, {
@@ -87,6 +89,25 @@ export function ProfileScreen({ googleUser, onEnterQaSandbox, onSignOut }: Props
           <Text style={ph.trophyChevron}>{'>'}</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={ph.feedbackCard}
+          onPress={() => setFeedbackVisible(true)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t.reportBugLabel}
+          accessibilityHint={t.feedbackPromptBody}
+          testID="profile-feedback-card"
+        >
+          <View style={ph.feedbackIconWrap} importantForAccessibility="no">
+            <Text style={ph.feedbackIcon}>💬</Text>
+          </View>
+          <View style={ph.feedbackCopy}>
+            <Text style={ph.feedbackTitle} numberOfLines={1}>{t.feedbackPromptTitle}</Text>
+            <Text style={ph.feedbackBody} numberOfLines={2}>{t.feedbackPromptBody}</Text>
+          </View>
+          <Text style={ph.feedbackChevron} importantForAccessibility="no">›</Text>
+        </TouchableOpacity>
+
         {isQaSandboxBuildAvailable() && !isQaSandboxIdentity(googleUser) && (
           <TouchableOpacity
             style={styles.qaSwitchBtn}
@@ -101,6 +122,11 @@ export function ProfileScreen({ googleUser, onEnterQaSandbox, onSignOut }: Props
         )}
         <TouchableOpacity style={styles.logoutBtn} onPress={onSignOut} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t.signOut}><Text style={styles.logoutBtnText}>{t.signOut}</Text></TouchableOpacity>
       </ScrollView>
+      <FeedbackSheet
+        visible={feedbackVisible}
+        onClose={() => setFeedbackVisible(false)}
+        context={{ screen: 'Profile', route: 'Profile' }}
+      />
     </SafeAreaView>
   );
 }
@@ -137,5 +163,12 @@ function makePhStyles(C: AppColors) {
     trophyBadges: { flexDirection: 'row', gap: 3, marginRight: 5 },
     trophyBadge: { height: 40, width: 40 },
     trophyChevron: { fontSize: 20, color: C.faint, fontFamily: FontFamily.bold },
+    feedbackCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginTop: 18, padding: 14, minHeight: 74, backgroundColor: C.primarySoft, borderRadius: Radii.md, borderWidth: 1, borderColor: C.primaryLine, ...Shadows.light },
+    feedbackIconWrap: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: C.surface },
+    feedbackIcon: { fontSize: 20 },
+    feedbackCopy: { flex: 1, marginLeft: 12, marginRight: 8 },
+    feedbackTitle: { color: C.primaryText, fontFamily: FontFamily.bold, fontSize: 14 },
+    feedbackBody: { color: C.ink2, fontSize: 12, lineHeight: 17, marginTop: 2 },
+    feedbackChevron: { color: C.primaryText, fontSize: 24, fontFamily: FontFamily.bold, lineHeight: 26 },
   });
 }
