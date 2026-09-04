@@ -10,6 +10,8 @@ import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
+import { cancelTerminalChallengeReminders, logActiveChallengeDay, syncActiveChallengeReminders } from './useChallenge';
+import { useLanguage } from '../hooks/useSettings';
 
 export type BackfillEntryParams = BackfillSessionEntry;
 
@@ -97,7 +99,12 @@ async function insertActivityRows(
   if (bonusRow) await db.runAsync(sql, args(bonusRow));
 }
 
-async function runBackfillTx(
+/**
+ * Runs the complete backfill write inside the caller-owned exclusive
+ * transaction. Exported so the transaction seam can be regression-tested
+ * without mounting React Query hooks.
+ */
+export async function runBackfillTx(
   db: SQLiteDatabase, entries: BackfillEntryParams[],
   userId: number, backfillDate: string,
   backfillWeekStart: string, currentWeekStart: string, today: string,
@@ -194,11 +201,30 @@ async function runBackfillTx(
     }
   }
 
+  // Backfill inserts the task rows before syncing the linked Challenge so its
+  // query-time activity source sees the complete session. Deduplicate task
+  // ids: a session may contain several entries for one task, but one
+  // Challenge reconciliation is enough and avoids repeated completion work.
+  const taskTypeIds = new Set(
+    session.rows
+      .map(row => row.activityRow.task_type_id)
+      .filter((taskTypeId): taskTypeId is number => taskTypeId != null),
+  );
+  for (const taskTypeId of taskTypeIds) {
+    const challengeResult = await logActiveChallengeDay(db, {
+      userId,
+      localDate: backfillDate,
+      taskTypeId,
+    });
+    lifetimeCrossings.push(...challengeResult.lifetimeCrossings);
+  }
+
   return { newStreak, milestone, lifetimeCrossings };
 }
 
 export function useBackfillDay(userId: number) {
   const qc = useQueryClient();
+  const [lang] = useLanguage();
 
   return useMutation({
     mutationFn: async (params: BackfillDayParams): Promise<{ newStreak: number; milestone: StreakMilestone | null; lifetimeCrossings: LifetimeTierCrossing[] }> => {
@@ -236,6 +262,10 @@ export function useBackfillDay(userId: number) {
         milestone = result.milestone;
         lifetimeCrossings = result.lifetimeCrossings;
       });
+      await cancelTerminalChallengeReminders(db, userId);
+      try {
+        await syncActiveChallengeReminders(userId, lang);
+      } catch {}
       return { newStreak, milestone, lifetimeCrossings };
     },
 
@@ -245,6 +275,9 @@ export function useBackfillDay(userId: number) {
       qc.invalidateQueries({ queryKey: ['progress'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['backfill'] });
+      qc.invalidateQueries({ queryKey: ['challenge'] });
+      qc.invalidateQueries({ queryKey: ['treats'] });
+      qc.invalidateQueries({ queryKey: ['achievements'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
       void syncCurrentUserToSupabase()
         .catch(error => { if (__DEV__) console.warn('[sync] activity log sync failed:', error); })
