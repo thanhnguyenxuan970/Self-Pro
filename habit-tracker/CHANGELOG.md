@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 2.0.3.n - 2026-09-04
+
+- Raised the Android release metadata to version `2.0.3.n` (versionCode `82`) so Google Play accepts the replacement AAB after versionCode `81` was already used.
+- Validation: TypeScript, 86 Jest suites/797 tests/1 snapshot, `git diff --check`, and the signed release AAB passed. The AAB contains `com.habitring.app` version `2.0.3.n` (versionCode `82`); SHA-256: `DE2245F27E7C58EDF3F837E94CEEFCFFBD7F47038C76CB83C6A8CC932E1F01A6`.
+
 ## 2.0.3.m - 2026-09-03
 
 - Fixed interactive Google sign-in getting stuck behind a generic, undiagnosable "sign-in remains blocked for safety" error: a failed cloud-data restore now carries a short, pre-validated reason code (e.g. blocked/diverged/timed-out/transient) that the existing opt-in `EXPO_PUBLIC_GOOGLE_AUTH_DIAGNOSTICS` alert can surface, instead of the failure being visible only to a Sentry integration that has no DSN configured yet. The reason callback is guaranteed to fire at most once per sign-in attempt even when a timeout races a later abort-triggered failure.
