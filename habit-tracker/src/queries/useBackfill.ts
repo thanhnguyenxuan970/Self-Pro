@@ -262,10 +262,19 @@ export function useBackfillDay(userId: number) {
         milestone = result.milestone;
         lifetimeCrossings = result.lifetimeCrossings;
       });
-      await cancelTerminalChallengeReminders(db, userId);
+      // The SQLite transaction has committed at this point. Notification
+      // cleanup is best-effort and must not turn a successful backfill into a
+      // rejected mutation that skips cache invalidation and cloud sync.
+      try {
+        await cancelTerminalChallengeReminders(db, userId);
+      } catch (error) {
+        if (__DEV__) console.warn('[notifications] terminal Challenge cleanup failed:', error);
+      }
       try {
         await syncActiveChallengeReminders(userId, lang);
-      } catch {}
+      } catch (error) {
+        if (__DEV__) console.warn('[notifications] active Challenge reminder sync failed:', error);
+      }
       return { newStreak, milestone, lifetimeCrossings };
     },
 
