@@ -622,7 +622,6 @@ const vi = {
   rewardDismiss: 'Tuyệt vời! 🎉',
 
   // Feedback
-  sectionFeedback: 'Phản hồi',
   reportBugLabel: 'Báo lỗi / Phản hồi',
   feedbackPromptTitle: 'Có vấn đề hoặc ý tưởng?',
   feedbackPromptBody: 'Báo lỗi hoặc góp ý để Habi tốt hơn.',
@@ -1570,7 +1569,6 @@ const en: typeof vi = {
   rewardDismiss: 'Awesome! 🎉',
 
   // Feedback
-  sectionFeedback: 'Feedback',
   reportBugLabel: 'Report Bug / Feedback',
   feedbackPromptTitle: 'Have an issue or idea?',
   feedbackPromptBody: 'Report a bug or help make Habi better.',
