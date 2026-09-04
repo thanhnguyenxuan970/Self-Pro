@@ -46,7 +46,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Removed
 - Removed the duplicate Settings feedback entry after moving feedback access to Profile and News error recovery.
 
-Validation: TypeScript, 87 Jest suites/801 tests/1 snapshot, `git diff --check`, and the signed release AAB passed. The AAB contains `com.habitring.app` version `2.0.3.o` (versionCode `83`); the release metadata suffix `o` maps to `VERSION` micro `15`. AAB SHA-256: `77A20D97B9620BFC2BD111CACAF09D4585D40B1481E1E6DF8A429AC7FF107B74`.
+Validation: TypeScript, 87 Jest suites/801 tests/1 snapshot, `git diff --check`, and `bundleRelease` passed. The AAB contains `com.habitring.app` version `2.0.3.o` (versionCode `83`); the release metadata suffix `o` maps to `VERSION` micro `15`. AAB SHA-256: `6B7D8602FDDF788E3918E1A4D4E1D61C3DAA148D11EAA140745C87CCACF2467D`.
 
 ## [2.0.3.h] - 2026-08-27
 
