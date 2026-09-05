@@ -1,5 +1,6 @@
 import {
   extractGoogleUser,
+  getGoogleSignInFailureKind,
   getGoogleSignInErrorCode,
   isGoogleSignInCancelledResponse,
 } from '../src/lib/googleAuth';
@@ -82,5 +83,16 @@ describe('getGoogleSignInErrorCode', () => {
     expect(getGoogleSignInErrorCode({ code: { message: 'secret' } })).toBeNull();
     expect(getGoogleSignInErrorCode(new Error('secret'))).toBeNull();
     expect(getGoogleSignInErrorCode(null)).toBeNull();
+  });
+});
+
+describe('getGoogleSignInFailureKind', () => {
+  test('classifies guarded cloud restore failures separately from provider failures', () => {
+    expect(getGoogleSignInFailureKind('RESTORE_DIVERGED')).toBe('account_recovery');
+    expect(getGoogleSignInFailureKind('RESTORE_TIMEOUT')).toBe('account_recovery');
+    expect(getGoogleSignInFailureKind('DEVELOPER_ERROR')).toBe('provider_configuration');
+    expect(getGoogleSignInFailureKind('10')).toBe('provider_configuration');
+    expect(getGoogleSignInFailureKind('SIGN_IN_CANCELLED')).toBe('unknown');
+    expect(getGoogleSignInFailureKind(null)).toBe('unknown');
   });
 });

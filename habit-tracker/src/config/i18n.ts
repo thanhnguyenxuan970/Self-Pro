@@ -598,6 +598,8 @@ const vi = {
   signInNoPlayServices: 'Google Play Services không khả dụng.',
   signInLibError: 'Không thể tải thư viện đăng nhập Google.',
   signInFailed: 'Không thể hoàn tất đăng nhập Google. Hãy thử lại.',
+  signInRecoveryFailed: 'Dữ liệu tài khoản đang được bảo vệ nên chưa thể đăng nhập. Hãy kiểm tra mạng và thử lại.',
+  signInConfigError: 'Cấu hình Google của bản phát hành không khớp. Hãy cập nhật bản mới nhất.',
   signInLoading: 'Đang đăng nhập Google',
   qaSandboxFailed: 'Không thể mở chế độ QA. Hãy thử lại.',
 
@@ -1545,6 +1547,8 @@ const en: typeof vi = {
   signInNoPlayServices: 'Google Play Services not available.',
   signInLibError: 'Could not load Google sign-in library.',
   signInFailed: "Couldn't complete Google sign-in. Please try again.",
+  signInRecoveryFailed: 'Your account data is protected, so sign-in cannot continue yet. Check your connection and try again.',
+  signInConfigError: 'The release Google configuration does not match. Please update to the latest version.',
   signInLoading: 'Signing in with Google',
   qaSandboxFailed: "Couldn't open QA mode. Please try again.",
 

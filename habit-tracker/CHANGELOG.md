@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.0.3.p - 2026-09-05
+
+- Fixed release ABI packaging so the Android bundle includes both `arm64-v8a` and `x86_64` native libraries, including `libreactnative.so`.
+- Google sign-in now distinguishes protected account-recovery failures from Google provider configuration errors without exposing raw native error text or bypassing data-safety gates.
+- Validation: TypeScript, 104 Jest suites/1,041 tests/1 snapshot, V8 coverage at 98.77% statements, 95.01% branches, 97.64% functions, and 98.77% lines, 10 repeated auth-focused stress runs, `git diff --check`, and the signed release AAB passed. AAB SHA-256: `15D6BC99E207A71AE83EE622743D4A012B362494EDF8BE66BF351A9862FAF581`.
+
 ## 2.0.3.o - 2026-09-04
 
 - Added contextual bug-report metadata and moved the feedback entry point to Profile and relevant error states; duplicate Settings feedback entry removed. Android native release metadata is `2.0.3.o` (versionCode `83`); the shared Expo/iOS version remains `2.0.3`.

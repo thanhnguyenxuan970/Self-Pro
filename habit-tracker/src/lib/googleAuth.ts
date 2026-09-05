@@ -24,6 +24,19 @@ export function getGoogleSignInErrorCode(error: unknown): string | null {
   return typeof code === 'string' && /^[A-Za-z0-9_]{1,64}$/.test(code) ? code : null;
 }
 
+export type GoogleSignInFailureKind = 'account_recovery' | 'provider_configuration' | 'unknown';
+
+/**
+ * Map only the app's short, validated error codes to safe user-facing states.
+ * Restore failures are deliberately kept fail-closed; this classification only
+ * prevents them from being presented as a misleading generic OAuth failure.
+ */
+export function getGoogleSignInFailureKind(code: string | null): GoogleSignInFailureKind {
+  if (code?.startsWith('RESTORE_')) return 'account_recovery';
+  if (code === 'DEVELOPER_ERROR' || code === '10') return 'provider_configuration';
+  return 'unknown';
+}
+
 /** Convert the native Google response only when the remote-auth credential is present. */
 export function extractGoogleUser(response: GoogleSignInResponse): { googleUser: GoogleUser; idToken: string } | null {
   const user = response.data?.user;

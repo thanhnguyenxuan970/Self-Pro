@@ -13,6 +13,10 @@
 
 # Add any project specific keep options here:
 
+# expo-notifications brings Firebase Messaging's optional KTX reference into
+# the release graph; the app does not use Firebase KTX at runtime.
+-dontwarn com.google.firebase.ktx.Firebase
+
 # expo-modules-core's ReactActivityDelegateWrapper reflectively reads/writes
 # these private RN core fields to wrap the app's entry point at startup.
 # Without explicit keep rules R8 renames/strips them and the app crashes on
