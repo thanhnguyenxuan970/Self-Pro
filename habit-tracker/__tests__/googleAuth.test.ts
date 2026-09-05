@@ -1,5 +1,6 @@
 import {
   extractGoogleUser,
+  getGoogleSignInFailureMessage,
   getGoogleSignInFailureKind,
   getGoogleSignInErrorCode,
   isGoogleSignInCancelledResponse,
@@ -92,7 +93,38 @@ describe('getGoogleSignInFailureKind', () => {
     expect(getGoogleSignInFailureKind('RESTORE_TIMEOUT')).toBe('account_recovery');
     expect(getGoogleSignInFailureKind('DEVELOPER_ERROR')).toBe('provider_configuration');
     expect(getGoogleSignInFailureKind('10')).toBe('provider_configuration');
+    expect(getGoogleSignInFailureKind('RESTORE_PROVIDER_ERROR')).toBe('unknown');
     expect(getGoogleSignInFailureKind('SIGN_IN_CANCELLED')).toBe('unknown');
     expect(getGoogleSignInFailureKind(null)).toBe('unknown');
+  });
+});
+
+describe('getGoogleSignInFailureMessage', () => {
+  const messages = {
+    signInNoPlayServices: 'no play services',
+    signInRecoveryFailed: 'recovery failed',
+    signInConfigError: 'config error',
+    signInFailed: 'sign-in failed',
+  };
+  const base = {
+    cancelledCode: 'SIGN_IN_CANCELLED',
+    playServicesUnavailableCode: 'PLAY_SERVICES_NOT_AVAILABLE',
+    diagnosticsEnabled: false,
+    messages,
+  };
+
+  test('maps cancellation, Play Services, recovery, and provider failures to safe messages', () => {
+    expect(getGoogleSignInFailureMessage({ ...base, code: 'SIGN_IN_CANCELLED' })).toBeNull();
+    expect(getGoogleSignInFailureMessage({ ...base, code: 'PLAY_SERVICES_NOT_AVAILABLE' })).toBe('no play services');
+    expect(getGoogleSignInFailureMessage({ ...base, code: 'RESTORE_DIVERGED' })).toBe('recovery failed');
+    expect(getGoogleSignInFailureMessage({ ...base, code: 'DEVELOPER_ERROR' })).toBe('config error');
+    expect(getGoogleSignInFailureMessage({ ...base, code: 'RESTORE_PROVIDER_ERROR' })).toBe('sign-in failed');
+  });
+
+  test('shows a validated diagnostic code only when diagnostics are enabled', () => {
+    expect(getGoogleSignInFailureMessage({ ...base, code: 'UNKNOWN_CODE' })).toBe('sign-in failed');
+    expect(getGoogleSignInFailureMessage({ ...base, code: 'UNKNOWN_CODE', diagnosticsEnabled: true }))
+      .toBe('sign-in failed (UNKNOWN_CODE)');
+    expect(getGoogleSignInFailureMessage({ ...base, code: null, diagnosticsEnabled: true })).toBe('sign-in failed');
   });
 });
