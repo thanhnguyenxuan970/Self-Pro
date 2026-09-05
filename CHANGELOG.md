@@ -6,29 +6,39 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
-### Added
-- **Native in-app review prompt**: after a user returns at least 24 hours after their first eligible activity, Habi makes one best-effort request through the platform review API per device; unavailable or failed review prompts never affect activity logging.
+## [2.0.4] - Draft
 
-### Changed
+### English
+
+#### Added
+- **In-app review prompt**: after returning at least 24 hours after your first eligible activity, Habi may ask for a store review once per device. If the prompt is unavailable, activity logging is unaffected.
+
+#### Changed
+- **More responsive onboarding and Calendar**: coachmarks, larger text, safe areas, the tab bar, Calendar grid, month navigation, and summary cards now adapt better to smaller screens.
+- **Clearer star totals**: Home, Analytics, Rank, Global, Friends, Profile, Trophy, and Badge use the same current-year positive task-star total. Rank progression and the underlying reward system still use lifetime progress.
+- **Better Android experience**: improved rotation and system back behavior, refreshed the launcher icon, strengthened light/dark contrast, and restored a compact Home heatmap without removing day-detail taps.
+
+#### Fixed
+- **Recovery after reconnect**: account recovery now refreshes the sign-in session before retrying, reducing repeated recovery failures after connectivity returns.
+
+#### Removed
 - Removed user photo selection from Challenge Detail and share-card creation; existing challenge photos remain display-only.
-- **Signed-in social star consistency**: the current user's visible Global and Friends totals now follow the local Analytics Year KPI used by Analytics/Home when the social payload contains additional historical or other-device rows; rival rows retain their own server-provided annual totals, rank metadata remains server-derived, and no cloud rows are deleted.
-- **Responsive onboarding and calendar surfaces**: tutorial coachmarks now size and reposition for narrow screens, enlarged font scales, safe-area insets, and the bottom tab bar; task/streak steps auto-scroll to and re-measure their live targets. Calendar's seven-column grid, month navigation, legend, and summary cards now use bounded flex layouts with responsive spacing and typography while preserving the phone-first portrait navigation.
 
-### Fixed
-- **Android adaptive release compatibility**: removed app-owned portrait and legacy system-bar restrictions, enabled predictive back dispatch, and migrated `MainActivity` away from deprecated back handling; release metadata is 2.0.3.l (versionCode 80), while iOS remains explicitly portrait-only. A signed AAB and API 34 release stress loops passed; API 35/36, tablet/foldable, Play re-scan, and R8 obfuscation remain pending.
-- **Home heatmap density**: restored the compact visual cell pitch while keeping per-day detail taps and accessibility labels, so the touch-target sizing no longer expands the 53-week grid.
-- **Account activity boundary**: the confirmed thanguyenxuan account now starts counting real activity on 2026-07-06; earlier fake rows no longer inflate its heatmap, lifetime stars, rank, backup, restore, or sync.
-- **Analytics Year star contract**: Home, Analytics, Rank, Global, Friends, Profile, Trophy, and Badge totals now use the same current-calendar-year positive TASK-star KPI; lifetime stars remain internal for tier/economy/recovery and are no longer a visible total.
-- **Offline-safe recovery**: a temporary cloud-restore outage no longer replaces an already-populated local account with the recovery screen; fresh databases remain fail-closed until restore succeeds.
-- **Recovery after reconnect**: the explicit account-recovery Retry now refreshes the Google-backed Supabase session before reconciling, so a stale in-memory session cannot keep returning the recovery screen after connectivity returns.
-- **Backup CAS reconciliation**: an existing local snapshot now adopts a newer cloud revision only when the payloads match; divergent snapshots keep sync blocked instead of issuing repeated stale-revision writes.
-- **Quiet backup contention**: expected multi-device revision mismatches now return a non-error CAS sentinel, so the client can run the same data-preserving reconciliation without recording normal contention as a Supabase `P0001`; legacy backup calls still fail closed.
-- **Theme contrast**: accent, loading, selection, and celebration states now use semantic contrast-safe tokens across light and dark modes.
-- **Android launcher icon**: synchronized the committed native launcher resources with Habi's green checkmark adaptive icon so installed Android builds no longer show the legacy blue A.
-- **Google sign-in race hardening**: malformed identities and missing ID tokens now fail closed before local account mutation; same-account exchanges remain serialized with bounded duplicate-key/5xx retry, cancellation-fenced retries and queued exchanges, finite-expiry/email/Google-subject checks, one process-wide session lease for protected RPCs, canonical remote ownership keys with legacy local-email lookup preserved, cancellation-safe native restore, token-owned cleanup, atomic local user/category seeding, and localized failure copy.
-- **Late auth cleanup fencing**: a timed-out Google/GoTrue exchange that completes after its caller has moved on now queues token cleanup behind the shared session lease, so it cannot interleave with another account's sign-in or sign-out.
-- **Timezone-aware growth audit queries**: absolute timestamps and date calculations now use each user's validated profile timezone, with UTC fallback, instead of a fixed `Asia/Ho_Chi_Minh` timezone.
-- **QA artifact privacy**: raw Android logcat files are no longer tracked; root `.audit/` log output is ignored to prevent device identifiers and internal runtime details from entering future pushes while keeping sanitized screenshot/XML evidence available.
+### Tiếng Việt
+
+#### Thêm mới
+- **Nhắc đánh giá trong ứng dụng**: sau khi bạn quay lại ít nhất 24 giờ kể từ hoạt động đủ điều kiện đầu tiên, Habi có thể mời bạn đánh giá ứng dụng tối đa một lần trên mỗi thiết bị. Nếu lời nhắc không khả dụng, việc ghi nhận hoạt động vẫn bình thường.
+
+#### Cải thiện
+- **Onboarding và Lịch responsive hơn**: hướng dẫn, cỡ chữ lớn, vùng an toàn, thanh tab, lưới Lịch, chuyển tháng và thẻ tổng quan thích ứng tốt hơn với màn hình nhỏ.
+- **Tổng sao rõ ràng hơn**: Home, Analytics, Rank, Global, Friends, Profile, Trophy và Badge dùng chung tổng sao nhiệm vụ tích cực trong năm hiện tại. Tiến trình rank và hệ thống phần thưởng vẫn dựa trên tiến độ tích lũy trọn đời.
+- **Trải nghiệm Android tốt hơn**: cải thiện xoay màn hình và thao tác quay lại, làm mới biểu tượng ứng dụng, tăng độ tương phản sáng/tối, đồng thời khôi phục heatmap Home gọn hơn nhưng vẫn giữ thao tác xem chi tiết từng ngày.
+
+#### Đã sửa
+- **Khôi phục tài khoản sau khi kết nối lại**: Habi làm mới phiên đăng nhập trước khi thử lại khôi phục, giúp hạn chế lỗi lặp lại sau khi mạng hoạt động trở lại.
+
+#### Đã loại bỏ
+- Loại bỏ tùy chọn chọn ảnh trong Chi tiết Challenge và khi tạo share card; ảnh Challenge hiện có vẫn chỉ được hiển thị.
 
 ## [2.0.3.15] - 2026-09-04
 
@@ -46,7 +56,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Removed
 - Removed the duplicate Settings feedback entry after moving feedback access to Profile and News error recovery.
 
-Validation: TypeScript, 87 Jest suites/801 tests/1 snapshot, `git diff --check`, and `bundleRelease` passed. The AAB contains `com.habitring.app` version `2.0.3.o` (versionCode `83`); the release metadata suffix `o` maps to `VERSION` micro `15`. AAB SHA-256: `6B7D8602FDDF788E3918E1A4D4E1D61C3DAA148D11EAA140745C87CCACF2467D`.
+Validation: TypeScript, 101 Jest suites/939 tests/1 snapshot, V8 coverage at 97.44% statements/lines, 88.69% branches, and 96.31% functions, `git diff --check`, and `bundleRelease` passed. The AAB contains `com.habitring.app` version `2.0.3.o` (versionCode `83`); the release metadata suffix `o` maps to `VERSION` micro `15`. AAB SHA-256: `6B7D8602FDDF788E3918E1A4D4E1D61C3DAA148D11EAA140745C87CCACF2467D`.
 
 ## [2.0.3.h] - 2026-08-27
 
