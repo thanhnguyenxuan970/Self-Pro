@@ -38,6 +38,7 @@ import {
   useAllTimeStats,
   useAnalyticsDashboard,
   useAnalyticsPointsData,
+  useDeleteActivityLogs,
   useRecentActivityLogs,
   useStreakCount,
   useTopActivities,
@@ -135,5 +136,84 @@ describe('progress query contracts', () => {
     await expect(top.queryFn()).resolves.toEqual([{ name: 'Read', count: 3 }]);
     const stats = useAllTimeStats(5) as unknown as { queryFn: () => Promise<Record<string, number>> };
     await expect(stats.queryFn()).resolves.toEqual({ totalActivities: 4, totalStars: 7, bestStreak: 5, activeDays: 3 });
+  });
+
+  test('uses default activity-log dates and preserves non-zero scalar rows', async () => {
+    const db = createDb();
+    const rows = [{ id: 2, task_name: null, kind: 'BAD', stars_delta: -1, local_date: '2026-09-05', logged_at: 11, source: 'TASK' }];
+    jest.mocked(db.getAllAsync).mockResolvedValue(rows);
+    jest.mocked(db.getFirstAsync).mockResolvedValue({ streak_count: 4 });
+    mockGetDb.mockResolvedValue(db);
+
+    const recent = useRecentActivityLogs(5) as unknown as { queryFn: () => Promise<unknown> };
+    await expect(recent.queryFn()).resolves.toEqual(rows);
+    expect(db.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('local_date BETWEEN ? AND ?'), [5, 'offset--6', '2026-09-05', '0000-01-01', 50]);
+
+    const streak = useStreakCount(5) as unknown as { queryFn: () => Promise<number> };
+    await expect(streak.queryFn()).resolves.toBe(4);
+  });
+
+  test('short-circuits deletion when there are no selected ids', async () => {
+    const mutation = useDeleteActivityLogs(5) as unknown as { mutationFn: (ids: number[]) => Promise<unknown> };
+    await expect(mutation.mutationFn([])).resolves.toEqual({ lifetimeCrossings: [] });
+    expect(mockGetDb).not.toHaveBeenCalled();
+  });
+
+  test('covers year dashboard bounds, account-specific query bounds, and zero all-time fallbacks', async () => {
+    mockUseGoogleUser.mockReturnValue({ email: 'a@example.com' });
+    mockGetAccountActivityStartDate.mockReturnValue('2026-09-01');
+    const db = createDb();
+    mockGetDb.mockResolvedValue(db);
+
+    const points = useAnalyticsPointsData(5, 'Y') as unknown as { queryFn: () => Promise<unknown> };
+    await expect(points.queryFn()).resolves.toEqual([]);
+
+    const dashboard = useAnalyticsDashboard(5, 'Y') as unknown as { queryFn: () => Promise<unknown> };
+    await expect(dashboard.queryFn()).resolves.toEqual(expect.objectContaining({}));
+
+    const consistency = useWeeklyConsistency(5) as unknown as { queryFn: () => Promise<number> };
+    const top = useTopActivities(5, 1) as unknown as { queryFn: () => Promise<unknown> };
+    await expect(consistency.queryFn()).resolves.toBe(0);
+    await expect(top.queryFn()).resolves.toEqual([]);
+
+    const stats = useAllTimeStats(5) as unknown as { queryFn: () => Promise<Record<string, number>> };
+    await expect(stats.queryFn()).resolves.toEqual({ totalActivities: 0, totalStars: 7, bestStreak: 0, activeDays: 0 });
+  });
+
+  test('keeps the rolling dashboard bound when the account boundary is older', async () => {
+    mockUseGoogleUser.mockReturnValue({ email: 'old@example.com' });
+    mockGetAccountActivityStartDate.mockReturnValue('2020-01-01');
+    const db = createDb();
+    mockGetDb.mockResolvedValue(db);
+    const query = useAnalyticsDashboard(5, 'W') as unknown as { queryFn: () => Promise<unknown> };
+    await expect(query.queryFn()).resolves.toEqual(expect.objectContaining({}));
+    expect(db.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('activity_log'), expect.arrayContaining([5, 'ANALYTICS_STAR', 'offset--13']));
+  });
+
+  test('uses a newer account boundary for rolling dashboard logs and recent activity queries', async () => {
+    mockUseGoogleUser.mockReturnValue({ email: 'new@example.com' });
+    mockGetAccountActivityStartDate.mockReturnValue('2026-08-20');
+    const formatters = jest.requireMock('../src/utils/formatters') as { getLocalDateOffset: jest.Mock };
+    const originalOffset = formatters.getLocalDateOffset.getMockImplementation();
+    formatters.getLocalDateOffset.mockImplementation((days: number) => days === -13 ? '2026-01-01' : `offset-${days}`);
+    const db = createDb();
+    mockGetDb.mockResolvedValue(db);
+    try {
+      const dashboard = useAnalyticsDashboard(5, 'W') as unknown as { queryFn: () => Promise<unknown> };
+      await dashboard.queryFn();
+      const recent = useRecentActivityLogs(5) as unknown as { queryFn: () => Promise<unknown> };
+      await recent.queryFn();
+      expect(db.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('activity_log'), expect.arrayContaining([5, 'ANALYTICS_STAR', '2026-08-20']));
+    } finally {
+      formatters.getLocalDateOffset.mockImplementation(originalOffset);
+    }
+  });
+
+  test('preserves a non-zero weekly consistency row', async () => {
+    const db = createDb();
+    (db.getFirstAsync as unknown as jest.Mock).mockResolvedValue({ active_days: 4 });
+    mockGetDb.mockResolvedValue(db);
+    const consistency = useWeeklyConsistency(5) as unknown as { queryFn: () => Promise<number> };
+    await expect(consistency.queryFn()).resolves.toBe(4);
   });
 });

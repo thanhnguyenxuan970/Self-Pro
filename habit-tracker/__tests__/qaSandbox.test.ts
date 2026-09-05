@@ -63,6 +63,9 @@ describe('QA sandbox identity and fixture contract', () => {
     expect(first.some(row => row.rank_delta_7d === null)).toBe(true);
     expect(first.some(row => row.rank_delta_7d! > 0)).toBe(true);
     expect(first.some(row => row.rank_delta_7d! < 0)).toBe(true);
+    expect(buildQaSandboxLeaderboard(Number.NaN).find(row => row.is_current_user)?.year_stars).toBe(0);
+    expect(buildQaSandboxLeaderboard(-12).find(row => row.is_current_user)?.year_stars).toBe(0);
+    expect(buildQaSandboxLeaderboard(980).filter(row => row.year_stars === 980)).toHaveLength(2);
   });
 
   it('blocks Supabase transport before the underlying fetch is called', async () => {
@@ -106,6 +109,15 @@ describe('QA sandbox identity and fixture contract', () => {
 
     const emptyDb = { getFirstAsync: jest.fn().mockResolvedValue(null) };
     await expect(purgeQaSandbox(emptyDb as never)).resolves.toBeUndefined();
+
+    const userWithoutChallenges = {
+      getFirstAsync: jest.fn().mockResolvedValue({ id: 8 }),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn().mockResolvedValue({ changes: 1 }),
+      withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => callback()),
+    };
+    await purgeQaSandbox(userWithoutChallenges as never);
+    expect(userWithoutChallenges.runAsync).toHaveBeenCalledWith('DELETE FROM users WHERE id = ?', [8]);
   });
 
   it('seeds the fixture transaction once when concurrent callers race', async () => {
@@ -126,5 +138,19 @@ describe('QA sandbox identity and fixture contract', () => {
     expect(first).toBeGreaterThan(0);
     expect(db.withTransactionAsync).toHaveBeenCalledTimes(1);
     expect(isQaSandboxActive()).toBe(true);
+  });
+
+  it('seeds safely when no rank tiers exist yet', async () => {
+    const db = {
+      getFirstAsync: jest.fn().mockResolvedValue(null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn().mockImplementation(async () => ({ changes: 1, lastInsertRowId: 1 })),
+      withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => callback()),
+    };
+    await expect(seedQaSandbox(db as never, new Date('2026-08-22T10:00:00+07:00'))).resolves.toBe(1);
+    expect(db.runAsync).toHaveBeenCalledWith(
+      'UPDATE users SET current_tier_id = ?, lifetime_stars = ?, treat_stars = ?, treat_stars_lifetime = ? WHERE id = ?',
+      [null, expect.any(Number), 42, expect.any(Number), 1],
+    );
   });
 });

@@ -20,7 +20,7 @@ jest.mock('../src/queries/useChallenge', () => ({
 }));
 jest.mock('../src/game/lifetimeRankWrites', () => ({ applyLifetimeStarsDelta: mockApplyLifetimeStarsDelta }));
 jest.mock('../src/game/pendingLevelUpQueue', () => ({ enqueuePendingLevelUps: mockEnqueuePendingLevelUps }));
-jest.mock('../src/lib/rankMascotBridge', () => ({ rankMascotBridge: {} }));
+jest.mock('../src/lib/rankMascotBridge', () => ({ rankMascotBridge: { ref: { current: { playRankUp: jest.fn() } }, onRankUp: jest.fn() } }));
 jest.mock('../src/hooks/useSettings', () => ({ useLanguage: jest.fn(() => ['en']) }));
 jest.mock('../src/utils/formatters', () => ({
   getLocalDate: jest.fn(() => '2026-06-19'),
@@ -64,6 +64,14 @@ describe('backfill mutation guards and transaction seam', () => {
     const mutation = useBackfillDay(5) as unknown as { mutationFn: (params: { date: string; entries: unknown[] }) => Promise<unknown> };
     await expect(mutation.mutationFn({ date: '2026-06-21', entries: [{ taskTypeId: 1 }] })).rejects.toThrow('FUTURE');
     await expect(mutation.mutationFn({ date: '2026-06-17', entries: [] })).rejects.toThrow('EMPTY_SESSION');
+    await expect(mutation.mutationFn({ date: '2026-06-19', entries: [{ taskTypeId: 1 }] })).rejects.toThrow('TODAY');
+    const formatter = jest.requireMock('../src/utils/formatters') as { getWeekStartFor: jest.Mock };
+    formatter.getWeekStartFor.mockReturnValue('2026-05-25');
+    try {
+      await expect(mutation.mutationFn({ date: '2026-06-01', entries: [{ taskTypeId: 1 }] })).rejects.toThrow('NOT_CURRENT_WEEK');
+    } finally {
+      formatter.getWeekStartFor.mockImplementation(() => '2026-06-15');
+    }
   });
 
   test('commits one session and treats post-commit notification failures as non-fatal', async () => {
@@ -115,5 +123,44 @@ describe('backfill mutation guards and transaction seam', () => {
     expect(mockApplyLifetimeStarsDelta).toHaveBeenCalled();
     expect(mockLogActiveChallengeDay).toHaveBeenCalledWith(db, { userId: 5, localDate: '2026-06-17', taskTypeId: 7 });
     expect(runAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO weekly_summary'), expect.any(Array));
+  });
+
+  test('handles an existing daily row, prior streak, and a newly crossed milestone', async () => {
+    const getFirstAsync = jest.fn()
+      .mockResolvedValueOnce({ best: 2 })
+      .mockResolvedValueOnce({ n: 0 })
+      .mockResolvedValueOnce({ n: 0 })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ total_points: 5, bonus_star_awarded: 1 })
+      .mockResolvedValueOnce({ streak_count: 3 })
+      .mockResolvedValueOnce({ best: 8 });
+    const db = {
+      getFirstAsync,
+      getAllAsync: jest.fn().mockResolvedValue([{ local_date: '2026-06-17', total_points: 5 }]),
+      runAsync: jest.fn().mockResolvedValue({ changes: 1 }),
+    } as unknown as SQLiteDatabase;
+    const result = await runBackfillTx(
+      db,
+      [{ taskTypeId: 7, kind: 'GOOD', isTimeBased: false, basePoints: 20, starPenalty: 0, countTowardRank: false }],
+      5, '2026-06-17', '2026-06-15', '2026-06-15', '2026-06-19',
+    );
+    expect(result.milestone).not.toBeNull();
+    expect(db.runAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT OR IGNORE INTO boost_events'), expect.any(Array));
+  });
+
+  test('rechecks quota and existing-day denial inside the transaction', async () => {
+    const mutation = useBackfillDay(5) as unknown as { mutationFn: (params: { date: string; entries: unknown[] }) => Promise<unknown> };
+    const db = {
+      getFirstAsync: jest.fn()
+        .mockResolvedValueOnce({ best: 0 })
+        .mockResolvedValueOnce({ n: 3 })
+        .mockResolvedValueOnce({ n: 0 })
+        .mockResolvedValueOnce(null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+      withExclusiveTransactionAsync: jest.fn(async (cb: (value: SQLiteDatabase) => Promise<void>) => cb(db as unknown as SQLiteDatabase)),
+    } as unknown as SQLiteDatabase;
+    mockGetDb.mockResolvedValue(db);
+    await expect(mutation.mutationFn({ date: '2026-06-17', entries: [{ taskTypeId: 1 }] })).rejects.toThrow('QUOTA_EXCEEDED');
   });
 });

@@ -121,6 +121,15 @@ describe('validateSurveyD0Answers', () => {
     expect(validateSurveyD0Answers({ ...validAnswers, q1_motivation: 'Z' as SurveyD0Answers['q1_motivation'] })).toBe(false);
   });
 
+  it('rejects invalid options and incomplete locale metadata at every survey field boundary', () => {
+    expect(validateSurveyD0Answers({ ...validAnswers, q2_impression: 'Z' as SurveyD0Answers['q2_impression'] })).toBe(false);
+    expect(validateSurveyD0Answers({ ...validAnswers, q3_friction: ['Z' as SurveyD0Answers['q3_friction'][number]] })).toBe(false);
+    expect(validateSurveyD0Answers({ ...validAnswers, q4_feature: 'Z' as SurveyD0Answers['q4_feature'] })).toBe(false);
+    expect(validateSurveyD0Answers({ ...validAnswers, q5_return_intent: 'Z' as SurveyD0Answers['q5_return_intent'] })).toBe(false);
+    expect(validateSurveyD0Answers({ ...validAnswers, device_lang: '' })).toBe(false);
+    expect(validateSurveyD0Answers({ ...validAnswers, app_lang: '' })).toBe(false);
+  });
+
   it('rejects a missing locale field', () => {
     const { locale, ...rest } = validAnswers;
     expect(validateSurveyD0Answers(rest as SurveyD0Answers)).toBe(false);

@@ -84,6 +84,13 @@ describe('cloud backup validation branches', () => {
     expect(isCloudBackupPayload({ ...basePayload(), challenge_days: [{ id: 1, challenge_id: 99, local_date: '2026-01-01' }] })).toBe(false);
     expect(isCloudBackupPayload({ ...basePayload(), treats: [{ id: 1, name: 'Treat', created_at: 'x' }], treat_history: [{ id: 2, treat_id: 99, name: 'Treat', enjoyed_at: 'x' }] })).toBe(false);
     expect(isCloudBackupPayload({ ...basePayload(), daily_summary: [{ id: 1, local_date: '2026-01-01' }, { id: 2, local_date: '2026-01-01' }] })).toBe(false);
+    expect(isCloudBackupPayload({
+      ...basePayload(),
+      achievements: [
+        { id: 1, key: 'same', earned_at: '2026-01-01' },
+        { id: 2, key: 'same', earned_at: '2026-01-01' },
+      ],
+    })).toBe(false);
   });
 
   test('accepts a complete relationship graph and filters a historical boundary consistently', () => {
@@ -96,9 +103,64 @@ describe('cloud backup validation branches', () => {
   });
 
   test('rejects an oversized row collection and non-numeric ids', () => {
-    const oversized = Array.from({ length: 100001 }, (_, id) => ({ id: id + 1 }));
+    const oversized = Array.from({ length: 100001 }, (_, id) => ({ id: id + 1, name: 'Category' }));
     expect(isCloudBackupPayload({ ...basePayload(), categories: oversized })).toBe(false);
     expect(isCloudBackupPayload({ ...basePayload(), categories: [{ id: '1', name: 'Health' }] })).toBe(false);
+  });
+
+  test('exercises strict date, string, timestamp, integer, and bounded-number validation', () => {
+    const paddedCategory = populatedPayload();
+    paddedCategory.categories[0].name = ' Health ';
+    expect(isCloudBackupPayload(paddedCategory)).toBe(false);
+
+    const badKind = populatedPayload();
+    badKind.task_types[0].kind = 'MAYBE';
+    expect(isCloudBackupPayload(badKind)).toBe(false);
+
+    const badDate = populatedPayload();
+    badDate.activity_log[0].local_date = '2026-02-30';
+    expect(isCloudBackupPayload(badDate)).toBe(false);
+
+    const malformedDate = populatedPayload();
+    malformedDate.activity_log[0].local_date = 'not-a-date';
+    expect(isCloudBackupPayload(malformedDate)).toBe(false);
+    const outOfRangeDate = populatedPayload();
+    outOfRangeDate.activity_log[0].local_date = '0999-01-01';
+    expect(isCloudBackupPayload(outOfRangeDate)).toBe(false);
+
+    const badTimestamp = populatedPayload();
+    badTimestamp.activity_log[0].logged_at = 1.5;
+    expect(isCloudBackupPayload(badTimestamp)).toBe(false);
+    const tooLateTimestamp = populatedPayload();
+    tooLateTimestamp.activity_log[0].logged_at = 32_503_680_000_001;
+    expect(isCloudBackupPayload(tooLateTimestamp)).toBe(false);
+
+    const badInteger = populatedPayload();
+    badInteger.daily_summary[0].id = 1.5;
+    expect(isCloudBackupPayload(badInteger)).toBe(false);
+
+    const badNumber = populatedPayload();
+    badNumber.user!.lifetime_stars = Number.POSITIVE_INFINITY;
+    expect(isCloudBackupPayload(badNumber)).toBe(false);
+    const textNumber = populatedPayload();
+    textNumber.user!.lifetime_stars = '1';
+    expect(isCloudBackupPayload(textNumber)).toBe(false);
+    const tooLargeNumber = populatedPayload();
+    tooLargeNumber.user!.lifetime_stars = 1_000_000_000_001;
+    expect(isCloudBackupPayload(tooLargeNumber)).toBe(false);
+
+    const tooLong = populatedPayload();
+    tooLong.categories[0].name = 'x'.repeat(1_048_577);
+    expect(isCloudBackupPayload(tooLong)).toBe(false);
+    const negativeTimestamp = populatedPayload();
+    negativeTimestamp.activity_log[0].logged_at = -1;
+    expect(isCloudBackupPayload(negativeTimestamp)).toBe(false);
+    const unsafeInteger = populatedPayload();
+    unsafeInteger.daily_summary[0].streak_count = Number.MAX_SAFE_INTEGER + 1;
+    expect(isCloudBackupPayload(unsafeInteger)).toBe(false);
+    const badBound = populatedPayload();
+    badBound.user!.treat_stars = -1;
+    expect(isCloudBackupPayload(badBound)).toBe(false);
   });
 });
 
@@ -125,6 +187,7 @@ describe('backup snapshot and legacy restore seams', () => {
     const unavailable = validDb();
     (unavailable as any).withExclusiveTransactionAsync = undefined;
     await expect(restoreUserDataBackup(unavailable, 1, basePayload())).rejects.toThrow('Exclusive SQLite restore transaction unavailable');
+    await expect(restoreUserDataBackup(validDb(), 1, { ...basePayload(), schema_version: 2 } as never)).rejects.toThrow('Invalid cloud backup payload');
   });
 
   test('restores every supported table and applies default/null field conversions', async () => {
@@ -133,6 +196,17 @@ describe('backup snapshot and legacy restore seams', () => {
     await expect(restoreUserDataBackup(db, 1, payload, 'sub')).resolves.toBe(true);
     expect(db.runAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT OR REPLACE INTO boost_events'), expect.any(Array));
     expect(db.runAsync.mock.calls.length).toBeGreaterThan(20);
+
+    const tiersDb = validDb();
+    tiersDb.getAllAsync.mockImplementation(async (sql: string) => sql.includes('FROM tiers')
+      ? [{ id: 1, tier_order: 1, stars_required: 1 }, { id: 2, tier_order: 2, stars_required: 100 }]
+      : []);
+    await expect(restoreUserDataBackup(tiersDb, 1, payload, 'sub')).resolves.toBe(true);
+
+    const recalculatedTierDb = validDb();
+    const tierPayload = populatedPayload();
+    tierPayload.user!.current_tier_id = null;
+    await expect(restoreUserDataBackup(recalculatedTierDb, 1, tierPayload, 'sub', undefined, undefined, '2026-01-01')).resolves.toBe(true);
   });
 
   test('handles legacy LOGIN-only rows, filtered rows, and a complete legacy restore', async () => {
@@ -147,5 +221,53 @@ describe('backup snapshot and legacy restore seams', () => {
     const finalize = jest.fn().mockResolvedValue(undefined);
     await expect(restoreLegacyActivityMirror(complete, 1, [validRow], undefined, undefined, false, finalize)).resolves.toEqual({ count: 1, maxId: 7 });
     expect(finalize).toHaveBeenCalled();
+  });
+
+  test('rejects malformed legacy numeric, text, and duplicate-id rows', async () => {
+    const valid = { local_id: 7, kind: 'GOOD', source: 'TASK', duration_min: null, points_earned: 5, stars_delta: 1, logged_at: 100, local_date: '2026-01-01', week_start: null };
+    await expect(restoreLegacyActivityMirror(validDb(), 1, [{ ...valid, points_earned: undefined }]))
+      .rejects.toThrow('Invalid legacy activity field: points_earned');
+    await expect(restoreLegacyActivityMirror(validDb(), 1, [{ ...valid, kind: ' ' }]))
+      .rejects.toThrow('Invalid legacy activity row');
+    await expect(restoreLegacyActivityMirror(validDb(), 1, [valid, { ...valid }]))
+      .rejects.toThrow('Duplicate legacy activity ids');
+    await expect(restoreLegacyActivityMirror(validDb(), 1, [{ ...valid, source: ' TASK ' }]))
+      .rejects.toThrow('Invalid legacy activity row');
+
+    await expect(restoreLegacyActivityMirror(validDb(), 1, [{ ...valid, local_id: 0 }]))
+      .rejects.toThrow('Invalid legacy activity row');
+    await expect(restoreLegacyActivityMirror(validDb(), 1, [{ ...valid, duration_min: -1 }]))
+      .rejects.toThrow('Invalid legacy activity row');
+    await expect(restoreLegacyActivityMirror(validDb(), 1, [{ ...valid, stars_delta: -1_000_000_000_001 }]))
+      .rejects.toThrow('Invalid legacy activity row');
+    await expect(restoreLegacyActivityMirror(validDb(), 1, [{ ...valid, points_earned: '5' }]))
+      .rejects.toThrow('Invalid legacy activity field: points_earned');
+    await expect(restoreLegacyActivityMirror(validDb(), 1, [{ ...valid, week_start: 'not-a-date' }]))
+      .rejects.toThrow('Invalid legacy activity row');
+    await expect(restoreLegacyActivityMirror(validDb(), 1, [{ ...valid, local_date: 'not-a-date', week_start: null }]))
+      .rejects.toThrow('Invalid legacy activity row');
+    await expect(restoreLegacyActivityMirror(validDb(), 1, [{ ...valid, note: 'x'.repeat(1_048_577) }]))
+      .rejects.toThrow('Invalid legacy activity row');
+  });
+
+  test('blocks cross-account legacy ids and refuses unsafe id remapping', async () => {
+    const valid = { local_id: 7, kind: 'GOOD', source: 'TASK', duration_min: null, points_earned: 5, stars_delta: 1, logged_at: 100, local_date: '2026-01-01', week_start: null };
+    const conflictDb = validDb();
+    conflictDb.getAllAsync.mockImplementation(async (sql: string) => sql.includes('WHERE id IN') ? [{ id: 7 }] : []);
+    await expect(restoreLegacyActivityMirror(conflictDb, 1, [valid])).rejects.toThrow('Legacy activity restore conflicts with another local account');
+
+    const overflowDb = validDb();
+    overflowDb.getAllAsync.mockImplementation(async (sql: string) => sql.includes('WHERE id IN') ? [{ id: 7 }] : []);
+    overflowDb.getFirstAsync.mockResolvedValue({ max_id: Number.MAX_SAFE_INTEGER });
+    await expect(restoreLegacyActivityMirror(overflowDb, 1, [valid], undefined, undefined, true))
+      .rejects.toThrow('Legacy activity id remap exceeds SQLite integer safety');
+
+    const minimal = validDb();
+    (minimal as any).withExclusiveTransactionAsync = undefined;
+    await expect(restoreLegacyActivityMirror(minimal, 1, [valid])).rejects.toThrow('Exclusive SQLite restore transaction unavailable');
+
+    const childConflict = validDb();
+    childConflict.getAllAsync.mockImplementation(async (sql: string) => sql.includes('JOIN challenges parent') ? [{ id: 13 }] : []);
+    await expect(restoreUserDataBackup(childConflict, 1, populatedPayload())).rejects.toThrow('another local account');
   });
 });

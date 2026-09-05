@@ -26,6 +26,12 @@ test('enqueue called twice accumulates onto the existing queue without duplicate
   expect(await readPendingActivityDeletes(5)).toEqual([101, 102]);
 });
 
+test('enqueue discards a corrupted existing value before merging new ids', async () => {
+  await AsyncStorage.setItem('pending_activity_deletes:5', '{bad json');
+  await enqueuePendingActivityDeletes(5, [103]);
+  expect(await readPendingActivityDeletes(5)).toEqual([103]);
+});
+
 test('queues are scoped per user id', async () => {
   await enqueuePendingActivityDeletes(5, [101]);
   await enqueuePendingActivityDeletes(6, [201]);
@@ -50,6 +56,12 @@ test('clearing every queued id removes the storage key entirely', async () => {
   expect(await AsyncStorage.getItem('pending_activity_deletes:5')).toBeNull();
 });
 
+test('clearing an empty id list is a no-op', async () => {
+  await enqueuePendingActivityDeletes(5, [101]);
+  await clearPendingActivityDeletes(5, []);
+  expect(await readPendingActivityDeletes(5)).toEqual([101]);
+});
+
 test('corrupted JSON in storage is treated as an empty queue, not a crash', async () => {
   await AsyncStorage.setItem('pending_activity_deletes:5', '{not valid json');
   expect(await readPendingActivityDeletes(5)).toEqual([]);
@@ -58,4 +70,9 @@ test('corrupted JSON in storage is treated as an empty queue, not a crash', asyn
 test('malformed array entries (non-numbers) are filtered out', async () => {
   await AsyncStorage.setItem('pending_activity_deletes:5', JSON.stringify([101, 'not-a-number', null]));
   expect(await readPendingActivityDeletes(5)).toEqual([101]);
+});
+
+test('a valid JSON object is not treated as a pending-id array', async () => {
+  await AsyncStorage.setItem('pending_activity_deletes:5', JSON.stringify({ ids: [101] }));
+  expect(await readPendingActivityDeletes(5)).toEqual([]);
 });

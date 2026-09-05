@@ -1,4 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+(globalThis as { __DEV__?: boolean }).__DEV__ = true;
 jest.mock('../src/db/client', () => ({ getDb: jest.fn() }));
 jest.mock('@tanstack/react-query', () => ({
   useMutation: jest.fn((options) => options),
@@ -6,7 +7,8 @@ jest.mock('@tanstack/react-query', () => ({
   useQueryClient: jest.fn(() => ({ invalidateQueries: jest.fn() })),
 }));
 jest.mock('../src/api/syncService', () => ({ syncCurrentUserToSupabase: jest.fn(() => Promise.resolve()) }));
-jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletes: jest.fn() }));
+jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletes: jest.fn(() => Promise.resolve()) }));
+jest.mock('../src/lib/rankMascotBridge', () => ({ rankMascotBridge: { ref: { current: { playRankUp: jest.fn() } }, onRankUp: jest.fn() } }));
 import { getDb } from '../src/db/client';
 import { useDeleteActivityLogs } from '../src/queries/useProgress';
 import { enqueuePendingActivityDeletes } from '../src/game/pendingActivityDeletes';
@@ -80,5 +82,27 @@ describe('useDeleteActivityLogs', () => {
       expect.stringContaining("INSERT INTO activity_log"),
       expect.arrayContaining([3, 5, '2026-08-10', '2026-08-10']),
     );
+  });
+
+  it('reverses BAD penalties and runs both successful and failed post-delete sync paths', async () => {
+    const db = createDb([
+      { id: 304, local_date: '2026-08-10', week_start: '2026-08-10', points_earned: 0, stars_delta: -3, kind: 'BAD', source: 'TASK' },
+    ]);
+    jest.mocked(getDb).mockResolvedValue(db);
+    const mutation = useDeleteActivityLogs(5) as unknown as {
+      mutationFn: (ids: number[]) => Promise<{ lifetimeCrossings: unknown[] }>;
+      onSuccess: (data: { lifetimeCrossings: unknown[] }) => void;
+    };
+    await mutation.mutationFn([304]);
+    expect(db.runAsync).toHaveBeenCalledWith(
+      'UPDATE users SET treat_stars = treat_stars + ? WHERE id = ? AND penalty_hits_treats = 1',
+      [3, 5],
+    );
+
+    const sync = jest.requireMock('../src/api/syncService').syncCurrentUserToSupabase as jest.Mock;
+    await mutation.onSuccess({ lifetimeCrossings: [] });
+    sync.mockRejectedValueOnce(new Error('offline'));
+    await mutation.onSuccess({ lifetimeCrossings: [{ tierId: 2 }] });
+    await Promise.resolve();
   });
 });

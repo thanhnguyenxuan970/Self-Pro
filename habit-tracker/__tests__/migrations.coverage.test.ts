@@ -111,4 +111,21 @@ describe('full migration chain contract', () => {
     await expect(runMigrations(db as never)).resolves.toBeUndefined();
     expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 29');
   });
+
+  test('repairs v27 challenge dates defensively and supports old adapters without transactions', async () => {
+    const db = createFreshDatabase();
+    db.getFirstAsync.mockImplementation(async (sql: string) => (
+      sql === 'PRAGMA user_version' ? { user_version: 27 } : null
+    ));
+    db.getAllAsync.mockResolvedValue([
+      { id: 1, start_date: '2026-08-21', created_at: 'not-a-date' },
+      { id: 2, start_date: '2026-08-20', created_at: '2026-08-21T12:00:00Z' },
+      { id: 3, start_date: '2026-08-21', created_at: '2026-08-21 12:00:00Z' },
+    ] as never);
+    (db as { withTransactionAsync?: unknown }).withTransactionAsync = undefined;
+    await expect(runMigrations(db as never)).resolves.toBeUndefined();
+    expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 28');
+    expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 29');
+    expect(db.runAsync).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE challenges SET start_date'), expect.anything());
+  });
 });

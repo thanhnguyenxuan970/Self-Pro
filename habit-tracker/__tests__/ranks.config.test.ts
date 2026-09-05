@@ -14,6 +14,7 @@ describe('rank config', () => {
     expect(getRankThreshold(8)).toBe(640);
     expect(getRankThreshold(9)).toBe(1280);
     expect(getRankThreshold(10)).toBe(2560);
+    expect(getRankThreshold(0.5)).toBe(0);
   });
 
   test('keeps the planned glow tiers and readable Mewing tilt', () => {

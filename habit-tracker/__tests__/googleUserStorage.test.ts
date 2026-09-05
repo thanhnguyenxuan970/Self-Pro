@@ -58,6 +58,12 @@ describe('SecureStore migration and fallback', () => {
     expect(AsyncStorage.getItem).not.toHaveBeenCalled();
   });
 
+  test('writes directly to secure storage when available', async () => {
+    await writeGoogleUser(storedValue);
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('habit_tracker_google_user', storedValue);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
   test('migrates a legacy value when secure storage is empty', async () => {
     await AsyncStorage.setItem('habit_tracker_google_user', storedValue);
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(null);
@@ -86,6 +92,20 @@ describe('SecureStore migration and fallback', () => {
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('habit_tracker_google_user');
     expect(AsyncStorage.removeItem).toHaveBeenCalledWith('habit_tracker_google_user');
   });
+
+  test('deletes from both stores when SecureStore deletion succeeds', async () => {
+    (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValueOnce(undefined);
+    await expect(deleteGoogleUser()).resolves.toBeUndefined();
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('habit_tracker_google_user');
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith('habit_tracker_google_user');
+  });
+
+  test('returns null when both secure and legacy reads fail', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce(new Error('secure read failed'));
+    (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(new Error('legacy read failed'));
+    await expect(getStoredGoogleUser()).resolves.toBeNull();
+  });
+
 });
 
 describe('parseGoogleUser validation', () => {

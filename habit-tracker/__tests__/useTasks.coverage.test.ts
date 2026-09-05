@@ -34,6 +34,7 @@ import {
   useSetTaskPinned,
   useUpdateTaskName,
 } from '../src/queries/useTasks';
+import { rankMascotBridge } from '../src/lib/rankMascotBridge';
 
 function createDb() {
   const getAllAsync = jest.fn().mockResolvedValue([]);
@@ -62,8 +63,10 @@ describe('task query and mutation contracts', () => {
     const picker = useActivityPickerTasks(5) as unknown as { queryFn: () => Promise<unknown> };
     await expect(picker.queryFn()).resolves.toEqual([{ id: 1, name: 'Read', kind: 'GOOD' }]);
 
-    const create = useCreateTask(5) as unknown as { mutationFn: (params: { name: string; kind: 'GOOD'; isTimeBased: boolean; basePoints: number; starPenalty: number }) => Promise<number>; onSuccess: () => Promise<void> };
+    const create = useCreateTask(5) as unknown as { mutationFn: (params: { name: string; kind: 'GOOD'; isTimeBased: boolean; basePoints: number; starPenalty: number; icon?: string; categoryId?: number; isTemplate?: boolean }) => Promise<number>; onSuccess: () => Promise<void> };
     await expect(create.mutationFn({ name: 'Write', kind: 'GOOD', isTimeBased: false, basePoints: 5, starPenalty: 0 })).resolves.toBe(9);
+    first.mockResolvedValueOnce({ id: 9 });
+    await expect(create.mutationFn({ name: 'Timed', kind: 'GOOD', isTimeBased: true, basePoints: 2, starPenalty: 0, icon: '⏱️', categoryId: 3, isTemplate: true })).resolves.toBe(9);
     await create.onSuccess();
 
     first.mockResolvedValueOnce(null);
@@ -98,6 +101,14 @@ describe('task query and mutation contracts', () => {
     await pin.mutationFn({ taskId: 7, pinned: false });
     await pin.onSuccess();
     await expect(pin.mutationFn({ taskId: 8, pinned: true })).rejects.toThrow('PIN_LIMIT');
+    expect(db.runAsync).toHaveBeenCalledWith('UPDATE task_types SET is_pinned = ? WHERE id = ? AND user_id = ?', [1, 7, 5]);
+  });
+
+  test('allows pinning when the count query has no row', async () => {
+    const db = createDb();
+    mockGetDb.mockResolvedValue(db);
+    const pin = useSetTaskPinned(5) as unknown as { mutationFn: (input: { taskId: number; pinned: boolean }) => Promise<void> };
+    await expect(pin.mutationFn({ taskId: 7, pinned: true })).resolves.toBeUndefined();
     expect(db.runAsync).toHaveBeenCalledWith('UPDATE task_types SET is_pinned = ? WHERE id = ? AND user_id = ?', [1, 7, 5]);
   });
 
@@ -158,5 +169,71 @@ describe('task query and mutation contracts', () => {
     expect(result).toEqual({ lifetimeCrossings: [] });
     await expect(archive.onSuccess({ lifetimeCrossings: [] })).resolves.toBeUndefined();
     expect(db.runAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO activity_log'), expect.any(Array));
+  });
+
+  test('archives a task with no logs and restores optional update-name values', async () => {
+    const db = createDb();
+    const all = db.getAllAsync as unknown as jest.Mock;
+    const first = db.getFirstAsync as unknown as jest.Mock;
+    first.mockResolvedValue(null);
+    all.mockResolvedValue([]);
+    mockGetDb.mockResolvedValue(db);
+    const archive = useArchiveTask(5) as unknown as {
+      mutationFn: (id: number) => Promise<{ lifetimeCrossings: unknown[] }>;
+      onSuccess: (data: { lifetimeCrossings?: unknown[] }) => Promise<void>;
+    };
+    await expect(archive.mutationFn(8)).resolves.toEqual({ lifetimeCrossings: [] });
+    await expect(archive.onSuccess({})).resolves.toBeUndefined();
+
+    const update = useUpdateTaskName(5) as unknown as {
+      mutationFn: (params: { taskId: number; name: string; isTimeBased?: boolean }) => Promise<void>;
+    };
+    await update.mutationFn({ taskId: 8, name: 'Optional' });
+    await update.mutationFn({ taskId: 8, name: 'Untimed', isTimeBased: false });
+    expect(db.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('COALESCE'),
+      ['Untimed', 0, 8, 5],
+    );
+  });
+
+  test('reverses a BAD archive across a non-consecutive day', async () => {
+    const db = createDb();
+    const all = db.getAllAsync as unknown as jest.Mock;
+    const first = db.getFirstAsync as unknown as jest.Mock;
+    first.mockResolvedValue(null);
+    all.mockImplementation(async (sql: string) => {
+      if (sql.includes("source = 'TASK'")) return [
+        { id: 21, local_date: '2026-09-01', week_start: '2026-08-31', points_earned: 1, stars_delta: -2, kind: 'BAD' },
+        { id: 22, local_date: '2026-09-03', week_start: '2026-08-31', points_earned: 1, stars_delta: -1, kind: 'BAD' },
+      ];
+      if (sql.includes('daily_summary') && sql.includes('total_points')) return [
+        { local_date: '2026-09-01', total_points: 1, bonus_star_awarded: 0 },
+        { local_date: '2026-09-03', total_points: 1, bonus_star_awarded: 0 },
+      ];
+      if (sql.includes('SELECT id, local_date FROM daily_summary')) return [
+        { id: 1, local_date: '2026-09-01' },
+        { id: 2, local_date: '2026-09-03' },
+      ];
+      return [];
+    });
+    mockGetDb.mockResolvedValue(db);
+    const archive = useArchiveTask(5) as unknown as { mutationFn: (id: number) => Promise<unknown> };
+    await archive.mutationFn(8);
+    expect(db.runAsync).toHaveBeenCalledWith(
+      'UPDATE users SET treat_stars = treat_stars + ? WHERE id = ? AND penalty_hits_treats = 1',
+      [3, 5],
+    );
+  });
+
+  test('runs the archive rank-up callback when crossings are present', async () => {
+    const playRankUp = jest.fn();
+    const onRankUp = jest.fn();
+    (rankMascotBridge as unknown as { ref: unknown; onRankUp: unknown }).ref = { current: { playRankUp } };
+    (rankMascotBridge as unknown as { ref: unknown; onRankUp: unknown }).onRankUp = onRankUp;
+    const archive = useArchiveTask(5) as unknown as { onSuccess: (data: { lifetimeCrossings: unknown[] }) => Promise<void> };
+    await archive.onSuccess({ lifetimeCrossings: [{ tierId: 9 }] });
+    await Promise.resolve();
+    expect(playRankUp).toHaveBeenCalled();
+    expect(onRankUp).toHaveBeenCalledWith([{ tierId: 9 }]);
   });
 });

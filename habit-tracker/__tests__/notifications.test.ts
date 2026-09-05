@@ -246,11 +246,59 @@ describe('state-aware Challenge reminders', () => {
     await expect(cancelChallengeReminders(['legacy-id'])).resolves.toBe(1);
   });
 
+  test('swallows prefix queue reads and exercises the permission-request path', async () => {
+    (Notifications.getAllScheduledNotificationsAsync as jest.Mock).mockRejectedValueOnce(new Error('queue unavailable'));
+    await expect(cancelChallengeReminders(['habi-ch-7-'])).resolves.toBe(0);
+    (Notifications.requestPermissionsAsync as jest.Mock).mockResolvedValueOnce({ status: 'granted' });
+    await expect(syncChallengeReminders([baseState], 'en', { requestPermission: true, maxSlots: 1 }))
+      .resolves.toMatchObject({ granted: true });
+  });
+
+  test('keeps an existing deterministic slot when force-reschedule is disabled', async () => {
+    (Notifications.getAllScheduledNotificationsAsync as jest.Mock).mockResolvedValue([
+      { identifier: 'habi-ch-7-normal-2026-08-21' },
+    ]);
+    const result = await syncChallengeReminders([baseState], 'en', {
+      now: new Date(2026, 7, 21, 8, 0, 0),
+    });
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalledWith(expect.objectContaining({
+      identifier: 'habi-ch-7-normal-2026-08-21',
+    }));
+  });
+
+  test('reports schedule errors when the OS queue cannot be read or the API is absent', async () => {
+    (Notifications.getAllScheduledNotificationsAsync as jest.Mock).mockRejectedValueOnce(new Error('queue failed'));
+    await expect(syncChallengeReminders([baseState], 'en')).resolves.toMatchObject({ granted: true, scheduleError: true });
+
+  });
+
+  test('stops after a granted permission when lifecycle is invalidated with no slots', async () => {
+    let checks = 0;
+    const result = await syncChallengeReminders([{ ...baseState, status: 'done' }], 'en', {
+      isActive: () => ++checks < 3,
+    });
+    expect(result.granted).toBe(true);
+    expect(result.scheduled).toBe(0);
+  });
+
   test('returns permissionError when the OS permission query fails', async () => {
     (Notifications.getPermissionsAsync as jest.Mock).mockRejectedValueOnce(new Error('permission failed'));
     const result = await syncChallengeReminders([baseState], 'en');
     expect(result.permissionError).toBe(true);
     expect(result.granted).toBe(false);
+  });
+
+  test('stops safely when lifecycle changes after denied or granted permission', async () => {
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({ status: 'denied' });
+    let deniedChecks = 0;
+    await expect(syncChallengeReminders([baseState], 'en', {
+      isActive: () => ++deniedChecks < 2,
+    })).resolves.toMatchObject({ granted: false, cancelled: 0 });
+
+    let grantedChecks = 0;
+    await expect(syncChallengeReminders([baseState], 'en', {
+      isActive: () => ++grantedChecks < 2,
+    })).resolves.toMatchObject({ granted: true, scheduled: 0 });
   });
 
   test('stops when lifecycle becomes inactive after permission and restores a failed persisted slot', async () => {
@@ -288,6 +336,59 @@ describe('state-aware Challenge reminders', () => {
     expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
   });
 
+  test('handles permission and lifecycle failures while scheduling habit slots', async () => {
+    (Notifications.requestPermissionsAsync as jest.Mock).mockRejectedValueOnce(new Error('request failed'));
+    await expect(scheduleAllHabitReminders(['08:00'], 'en')).resolves.toBe(false);
+
+    let afterPermissionChecks = 0;
+    await expect(scheduleAllHabitReminders(['08:00'], 'en', {
+      isActive: () => ++afterPermissionChecks < 2,
+    })).resolves.toBe(false);
+
+    let duringLoopChecks = 0;
+    await expect(scheduleAllHabitReminders(['08:00', '09:00'], 'en', {
+      isActive: () => ++duringLoopChecks < 3,
+    })).resolves.toBe(false);
+  });
+
+  test('does not attempt to restore a persisted slot without a date trigger', async () => {
+    (Notifications.getAllScheduledNotificationsAsync as jest.Mock).mockResolvedValueOnce([
+      { identifier: 'habi-ch-7-normal-2026-08-21', content: { title: 'old', body: 'old', data: {} }, trigger: {} },
+    ]);
+    (Notifications.scheduleNotificationAsync as jest.Mock).mockRejectedValueOnce(new Error('replacement failed'));
+
+    const result = await syncChallengeReminders([baseState], 'en', {
+      now: new Date(2026, 7, 21, 8, 0, 0),
+      forceReschedule: true,
+    });
+    expect(result.failedChallengeIds).toContain(7);
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith(expect.objectContaining({
+      identifier: 'habi-ch-7-normal-2026-08-21',
+    }));
+  });
+
+  test('restores a failed persisted slot with an optional sound omitted', async () => {
+    (Notifications.getAllScheduledNotificationsAsync as jest.Mock).mockResolvedValueOnce([
+      {
+        identifier: 'habi-ch-7-normal-2026-08-21',
+        content: { title: 'old', body: 'old', data: {} },
+        trigger: { date: new Date(2026, 7, 21, 20, 0, 0) },
+      },
+    ]);
+    (Notifications.scheduleNotificationAsync as jest.Mock)
+      .mockRejectedValueOnce(new Error('replacement failed'))
+      .mockResolvedValueOnce('restored');
+    const result = await syncChallengeReminders([baseState], 'en', {
+      now: new Date(2026, 7, 21, 8, 0, 0),
+      forceReschedule: true,
+    });
+    expect(result.failedChallengeIds).toContain(7);
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith(expect.objectContaining({
+      identifier: 'habi-ch-7-normal-2026-08-21',
+      content: expect.objectContaining({ sound: undefined }),
+    }));
+  });
+
   test('swallows Expo Notifications import failures while cancelling reminders', async () => {
     jest.resetModules();
     jest.doMock('expo-notifications', () => {
@@ -302,4 +403,23 @@ describe('state-aware Challenge reminders', () => {
       jest.resetModules();
     }
   });
+
+  test('reports a schedule error when the native queue API is absent', async () => {
+    jest.resetModules();
+    jest.doMock('expo-notifications', () => ({
+      requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+      getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+      scheduleNotificationAsync: jest.fn().mockResolvedValue('scheduled'),
+      cancelScheduledNotificationAsync: jest.fn().mockResolvedValue(undefined),
+      SchedulableTriggerInputTypes: { DATE: 'date', DAILY: 'daily' },
+    }));
+    try {
+      const isolated = await import('../src/utils/notifications');
+      await expect(isolated.syncChallengeReminders([baseState], 'en')).resolves.toMatchObject({ granted: true, scheduleError: true });
+    } finally {
+      jest.dontMock('expo-notifications');
+      jest.resetModules();
+    }
+  });
+
 });

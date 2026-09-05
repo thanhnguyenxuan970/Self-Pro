@@ -91,6 +91,7 @@ import {
   useUnlogTask,
   useWeeklySummary,
 } from '../src/queries/useToday';
+import { rankMascotBridge } from '../src/lib/rankMascotBridge';
 
 function createDb() {
   return {
@@ -184,6 +185,57 @@ describe('today query and boost contracts', () => {
     await expect(emptySummary.queryFn()).resolves.toEqual({
       boostStars: 0, boostLogs: 0, baseStars: 0, bonusStars: 0, totalStars: 0,
     });
+    const emptyIds = useTodayBoostedTaskIds(5, null) as unknown as { queryFn: () => Promise<Set<number>> };
+    await expect(emptyIds.queryFn()).resolves.toEqual(new Set());
+  });
+
+  test('normalizes nullable duration aggregates and missing streak history', async () => {
+    const db = createDb();
+    db.getAllAsync.mockResolvedValueOnce([
+      { task_type_id: 9, total_min: null, total_stars: null, total_points: null },
+    ]);
+    db.getFirstAsync.mockImplementation(async (sql: string) => {
+      if (sql.includes('total_points, bonus_star_awarded, streak_count')) return null;
+      if (sql.includes('MAX(streak_count)')) return null;
+      if (sql.includes('FROM weekly_summary')) return null;
+      if (sql.includes('FROM boost_events')) return null;
+      if (sql.includes('COUNT(*) AS count')) return null;
+      return null;
+    });
+    mockGetDb.mockResolvedValue(db);
+
+    const durations = useTodayTaskTotalDurations(5) as unknown as { queryFn: () => Promise<Map<number, unknown>> };
+    await expect(durations.queryFn()).resolves.toEqual(new Map([[9, { duration: 0, stars: 0, points: 0 }]]));
+    const mutation = useLogTask(5) as unknown as { mutationFn: (params: unknown) => Promise<unknown> };
+    await expect(mutation.mutationFn({ taskTypeId: 9, kind: 'GOOD', isTimeBased: false, basePoints: 1, starPenalty: 0 }))
+      .resolves.toMatchObject({ prevStreak: 0, newStreak: 1, isFirstEverLog: false });
+  });
+
+  test('continues yesterday streaks and fires log rank callbacks', async () => {
+    const db = createDb();
+    db.getFirstAsync.mockImplementation(async (sql: string) => {
+      if (sql.includes('total_points, bonus_star_awarded, streak_count')) return null;
+      if (sql.includes('SELECT streak_count FROM daily_summary')) return { streak_count: 4 };
+      if (sql.includes('MAX(streak_count)')) return { best: 4 };
+      if (sql.includes('FROM weekly_summary')) return null;
+      if (sql.includes('FROM boost_events')) return null;
+      if (sql.includes('COUNT(*) AS count')) return { count: 1 };
+      return null;
+    });
+    mockGetDb.mockResolvedValue(db);
+    const mutation = useLogTask(5) as unknown as {
+      mutationFn: (params: unknown) => Promise<{ newStreak: number; prevStreak: number }>;
+      onSuccess: (data: { lifetimeCrossings: unknown[]; isFirstEverLog: boolean; newStreak: number }) => void;
+    };
+    await expect(mutation.mutationFn({ taskTypeId: 9, kind: 'GOOD', isTimeBased: false, basePoints: 1, starPenalty: 0 }))
+      .resolves.toMatchObject({ prevStreak: 4, newStreak: 5 });
+    const playRankUp = jest.fn();
+    const onRankUp = jest.fn();
+    (rankMascotBridge as unknown as { ref: unknown; onRankUp: unknown }).ref = { current: { playRankUp } };
+    (rankMascotBridge as unknown as { ref: unknown; onRankUp: unknown }).onRankUp = onRankUp;
+    mutation.onSuccess({ lifetimeCrossings: [{ tierId: 8 }], isFirstEverLog: false, newStreak: 5 });
+    expect(playRankUp).toHaveBeenCalled();
+    expect(onRankUp).toHaveBeenCalledWith([{ tierId: 8 }]);
   });
 });
 
@@ -334,5 +386,43 @@ describe('today log mutation contracts', () => {
     mutation.onSuccess(result);
     await Promise.resolve();
     expect(mockSyncCurrentUserToSupabase).toHaveBeenCalled();
+  });
+
+  test('replaces a stale daily bonus row when unlogging leaves bonus stars to retain', async () => {
+    const db = createDb();
+    db.getAllAsync
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 11, points_earned: 5, stars_delta: 1 }])
+      .mockResolvedValueOnce([{ id: 22 }]);
+    db.getFirstAsync.mockResolvedValue({ total_points: 20, bonus_star_awarded: 2 });
+    mockDailyBonusStarsForPoints.mockReturnValue(1);
+    mockGetDb.mockResolvedValue(db);
+
+    const mutation = useUnlogTask(5) as unknown as { mutationFn: (params: unknown) => Promise<unknown> };
+    await mutation.mutationFn({ taskTypeId: 9, kind: 'GOOD' });
+    expect(db.runAsync).toHaveBeenCalledWith(expect.stringContaining("INSERT INTO activity_log"), expect.any(Array));
+  });
+
+  test('executes rank celebration callbacks when an unlog crosses a tier', async () => {
+    const playRankUp = jest.fn();
+    const onRankUp = jest.fn();
+    (rankMascotBridge as unknown as { ref: unknown; onRankUp: unknown }).ref = { current: { playRankUp } };
+    (rankMascotBridge as unknown as { ref: unknown; onRankUp: unknown }).onRankUp = onRankUp;
+    const mutation = useUnlogTask(5) as unknown as { onSuccess: (data: { lifetimeCrossings: unknown[] }) => void };
+    mutation.onSuccess({ lifetimeCrossings: [{ tierId: 4 }] });
+    await Promise.resolve();
+    expect(playRankUp).toHaveBeenCalled();
+    expect(onRankUp).toHaveBeenCalledWith([{ tierId: 4 }]);
+  });
+
+  test('unlogs safely when the daily summary row is absent', async () => {
+    const db = createDb();
+    db.getAllAsync
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 12, points_earned: 2, stars_delta: 1 }]);
+    db.getFirstAsync.mockResolvedValue(null);
+    mockGetDb.mockResolvedValue(db);
+    const mutation = useUnlogTask(5) as unknown as { mutationFn: (params: unknown) => Promise<unknown> };
+    await expect(mutation.mutationFn({ taskTypeId: 9, kind: 'GOOD' })).resolves.toEqual({ lifetimeCrossings: [] });
   });
 });

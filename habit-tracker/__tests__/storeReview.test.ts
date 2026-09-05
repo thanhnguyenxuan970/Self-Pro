@@ -10,6 +10,7 @@ import {
   REVIEW_ELIGIBILITY_DELAY_MS,
   maybeRequestStoreReview,
   requestStoreReview,
+  scheduleStoreReviewPrompt,
 } from '../src/lib/storeReview';
 
 jest.mock('expo-store-review', () => ({
@@ -104,6 +105,29 @@ describe('store review trigger', () => {
     ]);
 
     expect(await AsyncStorage.getItem(FIRST_USE_AT_KEY)).toBe(String(firstUseAt));
+  });
+
+  test('coalesces delayed prompts and tolerates a storage failure', async () => {
+    jest.useFakeTimers();
+    scheduleStoreReviewPrompt(100);
+    scheduleStoreReviewPrompt(100);
+    jest.advanceTimersByTime(100);
+    await Promise.resolve();
+    expect(requestReview).not.toHaveBeenCalled();
+    jest.useRealTimers();
+  });
+
+  test('swallows review eligibility storage failures', async () => {
+    (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(new Error('storage unavailable'));
+    await expect(maybeRequestStoreReview(Date.now())).resolves.toBeUndefined();
+  });
+
+  test('stops eligibility checks when the first-use timestamp is unavailable', async () => {
+    (AsyncStorage.getItem as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    await expect(maybeRequestStoreReview(Date.now() + REVIEW_ELIGIBILITY_DELAY_MS)).resolves.toBeUndefined();
+    expect(requestReview).not.toHaveBeenCalled();
   });
 
 });

@@ -60,6 +60,14 @@ describe('deriveLinkedDoneDates', () => {
     expect(deriveLinkedDoneDates([], { minDuration: null, minCount: null }, '2026-07-01')).toEqual([]);
   });
 
+  it('warns in development when rows exist but none qualify', () => {
+    (globalThis as { __DEV__?: boolean }).__DEV__ = true;
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(deriveLinkedDoneDates([row('2026-07-01', 1)], { minDuration: 10, minCount: null }, '2026-07-01')).toEqual([]);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it('sorts output dates ascending regardless of input order', () => {
     const rows = [row('2026-07-03', 1), row('2026-07-01', 1), row('2026-07-02', 1)];
     expect(deriveLinkedDoneDates(rows, { minDuration: null, minCount: null }, '2026-07-01')).toEqual(['2026-07-01', '2026-07-02', '2026-07-03']);

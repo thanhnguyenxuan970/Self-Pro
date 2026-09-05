@@ -196,3 +196,39 @@ test('a BUG submitted right before SURVEY_D0 does not block the survey', async (
   expect(survey).toBe('OK');
   expect(mockSupabase.supabase.functions.invoke).toHaveBeenCalledTimes(2);
 });
+
+test('keeps diagnostics safe when timezone detection throws', async () => {
+  mockSupabase.supabase.functions.invoke.mockResolvedValueOnce({ data: { result: 'OK' }, error: null });
+  const timezone = jest.spyOn(Intl, 'DateTimeFormat').mockImplementation(() => {
+    throw new Error('timezone unavailable');
+  });
+  try {
+    await expect(submitFeedback({ type: 'BUG', message: 'timezone fallback message', userEmail: null }))
+      .resolves.toBe('OK');
+  } finally {
+    timezone.mockRestore();
+  }
+});
+
+test('handles native locale variants and null platform constants defensively', async () => {
+  mockSupabase.supabase.functions.invoke.mockResolvedValue({ data: { result: 'OK' }, error: null });
+  mockReactNative.NativeModules.ExpoLocalization = {};
+  await expect(submitFeedback({ type: 'BUG', message: 'locale missing branch', userEmail: null })).resolves.toBe('OK');
+
+  jest.resetModules();
+  jest.doMock('react-native', () => ({
+    Platform: { OS: 'android', Version: 33, constants: null },
+    NativeModules: { ExpoLocalization: {} },
+  }));
+  jest.doMock('../src/api/supabase', () => ({ supabase: { functions: { invoke: jest.fn().mockResolvedValue({ data: { result: 'OK' }, error: null }) } } }));
+  jest.doMock('../src/qa/qaSandbox', () => ({ isQaSandboxActive: jest.fn(() => false) }));
+  try {
+    const isolated = await import('../src/api/feedbackService');
+    await expect(isolated.submitFeedback({ type: 'BUG', message: 'null constants branch', userEmail: null })).resolves.toBe('OK');
+  } finally {
+    jest.dontMock('react-native');
+    jest.dontMock('../src/api/supabase');
+    jest.dontMock('../src/qa/qaSandbox');
+    jest.resetModules();
+  }
+});

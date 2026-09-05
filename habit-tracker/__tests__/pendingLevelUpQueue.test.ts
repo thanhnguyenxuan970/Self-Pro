@@ -50,6 +50,13 @@ test('legacy single-object shape (pre-queue) is parsed into a one-item queue', a
   expect(queue).toEqual([{ tierOrder: 3, tierName: 'Rizz', starsAtCrossing: 0 }]);
 });
 
+test('legacy queue keeps an explicit zero crossing value and rejects an invalid object', async () => {
+  await AsyncStorage.setItem(PENDING_LEVELUP_KEY, JSON.stringify({ tierOrder: 3, tierName: 'Rizz', starsAtCrossing: 0 }));
+  await expect(readPendingLevelUpQueue()).resolves.toEqual([{ tierOrder: 3, tierName: 'Rizz', starsAtCrossing: 0 }]);
+  await AsyncStorage.setItem(PENDING_LEVELUP_KEY, JSON.stringify({ tierOrder: 'bad' }));
+  await expect(readPendingLevelUpQueue()).resolves.toEqual([]);
+});
+
 test('corrupted JSON in storage is treated as an empty queue, not a crash', async () => {
   await AsyncStorage.setItem(PENDING_LEVELUP_KEY, '{not valid json');
   expect(await readPendingLevelUpQueue()).toEqual([]);

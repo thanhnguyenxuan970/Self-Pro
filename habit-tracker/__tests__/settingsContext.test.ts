@@ -42,6 +42,8 @@ jest.mock('expo-localization', () => ({
 }));
 jest.mock('../src/audio/audioEnabled', () => ({ setAudioEnabled: jest.fn() }));
 
+const mockLocalization = jest.requireMock('expo-localization') as { getLocales: jest.Mock };
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setAudioEnabled as syncAudioEnabled } from '../src/audio/audioEnabled';
 import { SettingsProvider, useSettingsContext } from '../src/contexts/SettingsContext';
@@ -102,8 +104,10 @@ describe('SettingsProvider persistence and defaults', () => {
     };
 
     settings.setDarkMode(true);
+    settings.setDarkMode(false);
     settings.setLanguage('en');
     settings.setAudioEnabled(false);
+    settings.setAudioEnabled(true);
     settings.setAccent('honey');
     await Promise.resolve();
 
@@ -119,6 +123,15 @@ describe('SettingsProvider persistence and defaults', () => {
     (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(new Error('storage unavailable'));
     expect(SettingsProvider({ children: null })).toBeNull();
     await flushSettingsEffect();
+    warn.mockRestore();
+  });
+
+  test('falls back safely when device locale lookup throws', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockLocalization.getLocales.mockImplementationOnce(() => { throw new Error('locale unavailable'); });
+    SettingsProvider({ children: null });
+    await flushSettingsEffect();
+    expect(stateSetters[1]).toHaveBeenCalledWith('en');
     warn.mockRestore();
   });
 });

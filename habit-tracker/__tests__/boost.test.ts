@@ -5,6 +5,7 @@ import {
   formatCountdown,
   isBoostActiveAt,
   nextBoostPhaseAt,
+  secsRemaining,
   summarizeBoostLogs,
 } from '../src/game/boost';
 import type { AppColors } from '../src/config/theme';
@@ -82,4 +83,23 @@ test('phase timer schedules only the next visual boundary', () => {
   expect(nextBoostPhaseAt(20_000, active)).toBe(700_000);
   expect(nextBoostPhaseAt(800_000, active)).toBe(1_000_000);
   expect(nextBoostPhaseAt(1_000_000, active)).toBeNull();
+});
+
+test('covers dismissed, expiring, fallback-expiry, and defensive timer states', () => {
+  expect(deriveBoostPhase(10, null)).toBe('none');
+  expect(deriveBoostPhase(10, { ...event, dismissed_at: 1 })).toBe('none');
+  expect(deriveBoostPhase(2_000, event)).toBe('none');
+  expect(deriveBoostPhase(95_000, { ...event, claim_deadline: 100_000 })).toBe('available');
+  expect(deriveBoostPhase(100_000 + 29_000, { ...event, claimed_at: 100_000, expires_at: 200_000 })).toBe('expiring');
+  expect(deriveBoostPhase(100_000 + 1_000, { ...event, claimed_at: 100_000, expires_at: null })).toBe('expired');
+  expect(nextBoostPhaseAt(10, null)).toBeNull();
+  expect(nextBoostPhaseAt(10, { ...event, dismissed_at: 1 })).toBeNull();
+  expect(nextBoostPhaseAt(2_000, event)).toBeNull();
+  expect(nextBoostPhaseAt(500, event)).toBe(1_000);
+  expect(nextBoostPhaseAt(10, { ...event, claimed_at: 100, expires_at: null })).toBe(100);
+  expect(isBoostActiveAt(10, null)).toBe(false);
+  expect(isBoostActiveAt(10, { ...event, claimed_at: 1, expires_at: null })).toBe(false);
+  expect(secsRemaining(10, null)).toBe(0);
+  expect(secsRemaining(10, 2_010)).toBe(2);
+  expect(formatCountdown(-1)).toBe('00:00');
 });

@@ -13,7 +13,7 @@ jest.mock('../src/utils/notifications', () => ({
 }));
 jest.mock('../src/api/syncService', () => ({ syncCurrentUserToSupabase: mockSyncCurrentUser }));
 jest.mock('../src/game/lifetimeRankWrites', () => ({ applyLifetimeStarsDelta: mockApplyLifetimeStarsDelta }));
-jest.mock('../src/game/pendingLevelUpQueue', () => ({ enqueuePendingLevelUps: jest.fn() }));
+jest.mock('../src/game/pendingLevelUpQueue', () => ({ enqueuePendingLevelUps: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('../src/hooks/useSettings', () => ({ useLanguage: () => ['en', jest.fn()] }));
 jest.mock('@tanstack/react-query', () => ({
   useQuery: jest.fn((options) => options),
@@ -40,6 +40,7 @@ import {
   rolloverChallenge,
   updateChallengeNameById,
 } from '../src/queries/useChallenge';
+import { rankMascotBridge } from '../src/lib/rankMascotBridge';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = true;
 
@@ -341,12 +342,59 @@ describe('Challenge query helpers and hook contracts', () => {
     expect(result.deletedActivityIds).toEqual([]);
   });
 
+  test('fails closed on an ambiguous legacy challenge reward', async () => {
+    const db = createDb({
+      getAllAsync: jest.fn(async (sql: string) => {
+        if (sql.includes("status = 'done'")) return [{
+          id: 70, name: 'Read', task_type_id: 42, target_days: 2, mode: 'streak',
+          start_date: '2026-09-01', min_duration: null, min_count: null,
+          notifications_enabled: 0, notification_id: null,
+        }];
+        if (sql.includes('FROM activity_log')) return [];
+        return [];
+      }),
+      getFirstAsync: jest.fn().mockResolvedValue({ id: 91, week_start: '2026-09-01', stars_delta: 1, is_exact: 0, candidate_count: 2 }),
+    });
+    await expect(reconcileUnloggedLinkedChallenges(db, { userId: 5, taskTypeId: 42, localDate: '2026-09-02' }))
+      .rejects.toThrow('AMBIGUOUS_CHALLENGE_REWARD');
+  });
+
   test('runs rollover and reminder mutation wrappers against an empty database', async () => {
     const rollover = useChallengeRollover(5) as unknown as { mutationFn: () => Promise<void> };
     await expect(rollover.mutationFn()).resolves.toBeUndefined();
 
+    mockGetDb.mockResolvedValue(createDb());
     const log = useLogChallengeDay(5) as unknown as { mutationFn: (id: number) => Promise<unknown> };
     await expect(log.mutationFn(99)).rejects.toThrow('NO_ACTIVE_CHALLENGE');
+  });
+
+  test('loads linked weekly/detail data and rejects an already-logged challenge day', async () => {
+    const db = createDb({
+      getAllAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('FROM challenges')) {
+          return [challengeRow({ task_type_id: 42, mode: 'weekly', weekly_target: 2, total_weeks: 2 })];
+        }
+        if (sql.includes('FROM activity_log')) return [{ local_date: '2026-09-01', duration_min: 30 }];
+        return [];
+      }),
+      getFirstAsync: jest.fn(async (sql: string) => (
+        sql.includes('FROM challenges') ? challengeRow({ id: 7 }) : { id: 7 }
+      )),
+    });
+    mockGetDb.mockResolvedValue(db);
+    const active = useActiveChallenges(5) as unknown as { queryFn: () => Promise<Array<Record<string, unknown>>> };
+    await expect(active.queryFn()).resolves.toEqual([expect.objectContaining({ mode: 'weekly', weekSessionsDone: 1 })]);
+
+    const detail = useChallengeById(5, 7) as unknown as { queryFn: () => Promise<Record<string, unknown> | null> };
+    await expect(detail.queryFn()).resolves.toEqual(expect.objectContaining({ id: 7 }));
+
+    const alreadyLogDb = createDb({
+      getAllAsync: jest.fn().mockResolvedValue([challengeRow()]),
+      getFirstAsync: jest.fn().mockResolvedValue({ id: 1 }),
+    });
+    mockGetDb.mockResolvedValue(alreadyLogDb);
+    const log = useLogChallengeDay(5) as unknown as { mutationFn: (id: number) => Promise<unknown> };
+    await expect(log.mutationFn(7)).rejects.toThrow('ALREADY_LOGGED_TODAY');
   });
 
   test('creates a manual challenge without scheduling notifications', async () => {
@@ -514,6 +562,18 @@ describe('Challenge query helpers and hook contracts', () => {
     })).rejects.toThrow('ACTIVE_EXISTS');
   });
 
+  test('creates weekly challenges and preserves a granted reminder result', async () => {
+    const db = createDb();
+    mockGetDb.mockResolvedValue(db);
+    mockSyncChallengeReminders.mockResolvedValueOnce({ ...emptySyncResult(), granted: true });
+    const create = useCreateChallenge(5) as unknown as { mutationFn: (params: unknown) => Promise<{ notificationDenied: boolean }> };
+    await expect(create.mutationFn({
+      name: 'Read weekly', taskTypeId: 42, mode: 'weekly', weeklyTarget: 3, totalWeeks: 2,
+      freezesLeft: 1, notificationsEnabled: true, minDuration: 20, minCount: 2,
+    })).resolves.toEqual({ notificationDenied: false });
+    expect(db.runAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO challenges'), expect.arrayContaining([14, 3, 2]));
+  });
+
   test('captures reminder scheduler exceptions and executes mutation success callbacks', async () => {
     const db = createDb();
     mockGetDb.mockResolvedValue(db);
@@ -556,5 +616,234 @@ describe('Challenge query helpers and hook contracts', () => {
     };
     await expect(del.mutationFn([])).resolves.toBeUndefined();
     await expect(del.onSuccess()).resolves.toBeUndefined();
+  });
+
+  test('covers linked rollover failure and reminder-sync error recovery', async () => {
+    const linked = challengeRow({ id: 44, task_type_id: 42, start_date: '2026-09-01', freezes_left: 0 });
+    const db = createDb({
+      getAllAsync: jest.fn(async (sql: string) => {
+        if (sql.includes("status = 'active'")) return [linked];
+        if (sql.includes('FROM activity_log')) return [];
+        if (sql.includes('FROM challenge_log')) return [];
+        return [];
+      }),
+    });
+    mockGetDb.mockResolvedValue(db);
+    await expect(rolloverChallenge(5)).resolves.toBeUndefined();
+    expect(db.runAsync).toHaveBeenCalledWith("UPDATE challenges SET status = 'failed' WHERE id = ?", [44]);
+
+    mockSyncChallengeReminders.mockRejectedValueOnce(new Error('notifications offline'));
+    const rollover = useChallengeRollover(5) as unknown as { mutationFn: () => Promise<void> };
+    await expect(rollover.mutationFn()).resolves.toBeUndefined();
+  });
+
+  test('loads a manual detail through the persisted challenge-log branch', async () => {
+    const db = createDb({
+      getFirstAsync: jest.fn().mockResolvedValue(challengeRow({ id: 77 })),
+      getAllAsync: jest.fn().mockResolvedValue([
+        { local_date: '2026-09-01', state: 'done' },
+        { local_date: '2026-09-02', state: 'reset' },
+      ]),
+    });
+    mockGetDb.mockResolvedValue(db);
+    const detail = useChallengeById(5, 77) as unknown as { queryFn: () => Promise<Record<string, unknown>> };
+    await expect(detail.queryFn()).resolves.toMatchObject({ id: 77, daysDone: 1, loggedToday: false });
+  });
+
+  test('completes a linked streak day and runs the log success celebration path', async () => {
+    const db = createDb({
+      getAllAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('FROM challenges')) return [challengeRow({ id: 78, task_type_id: 42, target_days: 1, min_duration: 10 })];
+        if (sql.includes('FROM activity_log')) return [{ local_date: '2026-09-04', duration_min: 30 }];
+        if (sql.includes('FROM tiers')) return [];
+        return [];
+      }),
+    });
+    mockGetDb.mockResolvedValue(db);
+    mockApplyLifetimeStarsDelta.mockResolvedValueOnce({ crossings: [{ tierId: 6 }] });
+    const playRankUp = jest.fn();
+    const onRankUp = jest.fn();
+    rankMascotBridge.ref = { current: { playRankUp } } as never;
+    rankMascotBridge.onRankUp = onRankUp;
+    const log = useLogChallengeDay(5) as unknown as {
+      mutationFn: (id: number) => Promise<{ lifetimeCrossings: unknown[] }>;
+      onSuccess: (data: { lifetimeCrossings: unknown[] }) => Promise<void>;
+    };
+    const result = await log.mutationFn(78);
+    expect(result.lifetimeCrossings).toEqual([{ tierId: 6 }]);
+    await log.onSuccess(result);
+    expect(playRankUp).toHaveBeenCalled();
+    expect(onRankUp).toHaveBeenCalledWith([{ tierId: 6 }]);
+  });
+
+  test('covers non-unique create errors, retry invalidation, rename sync, and restart reminder failure', async () => {
+    const db = createDb();
+    mockGetDb.mockResolvedValue(db);
+    const create = useCreateChallenge(5) as unknown as { mutationFn: (params: unknown) => Promise<unknown> };
+    (db.runAsync as jest.Mock).mockRejectedValueOnce(new Error('offline'));
+    await expect(create.mutationFn({
+      name: 'Offline', taskTypeId: null, mode: 'streak', targetDays: 7,
+      freezesLeft: 1, notificationsEnabled: false,
+    })).rejects.toThrow('offline');
+
+    const retry = useRetryChallengeReminder(5) as unknown as { mutationFn: (id: number) => Promise<boolean>; onSuccess: () => void };
+    (db.getFirstAsync as jest.Mock).mockResolvedValueOnce({ id: 7 });
+    mockSyncChallengeReminders.mockResolvedValueOnce(emptySyncResult());
+    await expect(retry.mutationFn(7)).resolves.toBe(true);
+    retry.onSuccess();
+
+    const update = useUpdateChallengeName(5) as unknown as { onSuccess: () => Promise<void> };
+    await update.onSuccess();
+
+    const previous = challengeRow({ id: 79, status: 'failed', notifications_enabled: 1 });
+    const restartDb = createDb({ getFirstAsync: jest.fn().mockResolvedValue(previous) });
+    mockGetDb.mockResolvedValue(restartDb);
+    mockSyncChallengeReminders.mockRejectedValueOnce(new Error('notification failure'));
+    const restart = useRestartChallenge(5) as unknown as { mutationFn: (id: number) => Promise<{ notificationDenied: boolean }> };
+    await expect(restart.mutationFn(79)).resolves.toMatchObject({ id: 41, notificationDenied: true });
+  });
+
+  test('recomputes a manual rollover without a persisted streak count', async () => {
+    const row = challengeRow({ id: 80, start_date: '2000-01-01', freezes_left: 1 });
+    const db = createDb({
+      getAllAsync: jest.fn(async (sql: string) => {
+        if (sql.includes("status = 'active'")) return [row];
+        if (sql.includes('FROM challenge_log')) return [{ local_date: '2000-01-01' }];
+        return [];
+      }),
+      getFirstAsync: jest.fn().mockResolvedValue(null),
+    });
+    mockGetDb.mockResolvedValue(db);
+    await expect(rolloverChallenge(5)).resolves.toBeUndefined();
+    expect(db.runAsync).toHaveBeenCalledWith(expect.stringContaining('streak_current'), expect.any(Array));
+  });
+
+  test('celebrates rollover crossings and leaves an in-progress weekly challenge unchanged', async () => {
+    const playRankUp = jest.fn();
+    const onRankUp = jest.fn();
+    rankMascotBridge.ref = { current: { playRankUp } } as never;
+    rankMascotBridge.onRankUp = onRankUp;
+    const completed = challengeRow({ id: 81, start_date: '2000-01-01', mode: 'weekly', target_days: 14, weekly_target: 3, total_weeks: 2 });
+    const completedDb = createDb({
+      getAllAsync: jest.fn(async (sql: string) => {
+        if (sql.includes("status = 'active'")) return [completed];
+        if (sql.includes('FROM challenge_log')) return [
+          { local_date: '2000-01-01', state: 'done' }, { local_date: '2000-01-02', state: 'done' }, { local_date: '2000-01-03', state: 'done' },
+          { local_date: '2000-01-08', state: 'done' }, { local_date: '2000-01-09', state: 'done' }, { local_date: '2000-01-10', state: 'done' },
+        ];
+        if (sql.includes('FROM tiers')) return [];
+        return [];
+      }),
+    });
+    mockApplyLifetimeStarsDelta.mockResolvedValueOnce({ crossings: [{ tierId: 10 }] });
+    mockGetDb.mockResolvedValueOnce(completedDb);
+    await rolloverChallenge(5);
+    expect(playRankUp).toHaveBeenCalled();
+    expect(onRankUp).toHaveBeenCalledWith([{ tierId: 10 }]);
+
+    const inProgress = challengeRow({ id: 82, start_date: '2026-09-04', mode: 'weekly', target_days: 14, weekly_target: 3, total_weeks: 2 });
+    const inProgressDb = createDb({
+      getAllAsync: jest.fn(async (sql: string) => sql.includes("status = 'active'") ? [inProgress] : []),
+    });
+    mockGetDb.mockResolvedValueOnce(inProgressDb);
+    await expect(rolloverChallenge(5)).resolves.toBeUndefined();
+  });
+
+  test('uses rare and legendary achievement tiers for long streak challenges', async () => {
+    for (const targetDays of [30, 66]) {
+      const db = createDb({
+        getAllAsync: jest.fn(async (sql: string) => sql.includes('FROM challenges')
+          ? [challengeRow({ id: targetDays, target_days: targetDays })]
+          : []),
+        getFirstAsync: jest.fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ n: targetDays })
+          .mockResolvedValueOnce({ n: targetDays }),
+      });
+      const result = await logActiveChallengeDay(db, { userId: 5, localDate: '2026-09-05', challengeId: targetDays });
+      expect(result.status).toBe('logged');
+      expect(db.runAsync).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT OR IGNORE INTO achievements'),
+        expect.arrayContaining([targetDays >= 66 ? 'legendary' : 'rare']),
+      );
+    }
+  });
+
+  test('skips reactivation when a linked challenge is already complete', async () => {
+    const db = createDb({
+      getAllAsync: jest.fn(async (sql: string) => {
+        if (sql.includes("status = 'done'")) return [{
+          id: 90, name: 'Read', task_type_id: 42, target_days: 1, mode: 'streak',
+          start_date: '2026-09-01', min_duration: null, min_count: null,
+          notifications_enabled: 0, notification_id: null,
+        }];
+        if (sql.includes('FROM activity_log')) return [{ local_date: '2026-09-02', duration_min: 30 }];
+        return [];
+      }),
+    });
+    await expect(reconcileUnloggedLinkedChallenges(db, { userId: 5, taskTypeId: 42, localDate: '2026-09-03' }))
+      .resolves.toEqual({ reactivatedChallenges: [], deletedActivityIds: [], lifetimeCrossings: [] });
+  });
+
+  test('rejects restarting a missing challenge and supports weekly restart defaults', async () => {
+    const missingDb = createDb({ getFirstAsync: jest.fn().mockResolvedValue(null) });
+    mockGetDb.mockResolvedValueOnce(missingDb);
+    const restart = useRestartChallenge(5) as unknown as { mutationFn: (id: number) => Promise<unknown> };
+    await expect(restart.mutationFn(999)).rejects.toThrow('CHALLENGE_NOT_RESTARTABLE');
+
+    const weeklyDb = createDb({
+      getFirstAsync: jest.fn().mockResolvedValue(challengeRow({ id: 91, status: 'failed', mode: 'weekly', notifications_enabled: 0 })),
+    });
+    mockGetDb.mockResolvedValueOnce(weeklyDb);
+    const weeklyRestart = useRestartChallenge(5) as unknown as { mutationFn: (id: number) => Promise<{ notificationDenied: boolean }> };
+    await expect(weeklyRestart.mutationFn(91)).resolves.toEqual({ id: 41, notificationDenied: false });
+    expect(weeklyDb.runAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO challenges'), expect.arrayContaining([0]));
+  });
+
+  test('uses zero fallbacks when persisted manual challenge counters are absent', async () => {
+    for (const counters of [[null, null, { n: 1 }], [null, { n: 1 }, null]]) {
+      const db = createDb({
+        getAllAsync: jest.fn().mockResolvedValue([challengeRow({ target_days: 7 })]),
+        getFirstAsync: jest.fn()
+          .mockResolvedValueOnce(counters[0])
+          .mockResolvedValueOnce(counters[1])
+          .mockResolvedValueOnce(counters[2]),
+      });
+      await expect(logActiveChallengeDay(db, { userId: 5, localDate: '2026-09-05', challengeId: 7 }))
+        .resolves.toMatchObject({ status: 'logged', lifetimeCrossings: [] });
+    }
+  });
+
+  test('leaves a manual rollover alone when there are no elapsed days to fill', async () => {
+    const db = createDb({
+      getAllAsync: jest.fn(async (sql: string) => sql.includes("status = 'active'") ? [challengeRow({ start_date: '2026-09-05' })] : []),
+    });
+    mockGetDb.mockResolvedValue(db);
+    await expect(rolloverChallenge(5)).resolves.toBeUndefined();
+  });
+
+  test('swallows reminder sync failure after logging a challenge day', async () => {
+    const db = createDb({
+      getAllAsync: jest.fn(async (sql: string) => sql.includes('FROM challenges')
+        ? [challengeRow({ task_type_id: 42, target_days: 7 })]
+        : []),
+    });
+    mockGetDb.mockResolvedValue(db);
+    mockSyncChallengeReminders.mockRejectedValueOnce(new Error('reminders unavailable'));
+    const log = useLogChallengeDay(5) as unknown as { mutationFn: (id: number) => Promise<unknown> };
+    await expect(log.mutationFn(7)).resolves.toEqual({ lifetimeCrossings: [] });
+  });
+
+  test('derives a linked weekly rollover before applying failure rules', async () => {
+    const db = createDb({
+      getAllAsync: jest.fn(async (sql: string) => {
+        if (sql.includes("status = 'active'")) return [challengeRow({ mode: 'weekly', task_type_id: 42, start_date: '2000-01-01', weekly_target: 3, total_weeks: 2 })];
+        if (sql.includes('FROM activity_log')) return [];
+        return [];
+      }),
+    });
+    mockGetDb.mockResolvedValue(db);
+    await expect(rolloverChallenge(5)).resolves.toBeUndefined();
+    expect(db.runAsync).toHaveBeenCalledWith("UPDATE challenges SET status = 'failed' WHERE id = ?", [7]);
   });
 });

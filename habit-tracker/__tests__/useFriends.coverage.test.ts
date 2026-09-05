@@ -103,6 +103,17 @@ describe('friends query and mutation contracts', () => {
     mockRefreshSupabaseSessionForAccount.mockRejectedValueOnce(new Error('refresh failed'));
     const failed = useFriendCode('a@example.com', 'sub', true) as unknown as { retryCode: () => Promise<unknown> };
     await expect(failed.retryCode()).rejects.toThrow('refresh failed');
+
+    mockRefreshSupabaseSessionForAccount.mockResolvedValueOnce(undefined);
+    mockQueryResult.refetch.mockResolvedValueOnce({ isError: true, error: null });
+    const unavailable = useFriendCode('a@example.com', 'sub', true) as unknown as { retryCode: () => Promise<unknown> };
+    await expect(unavailable.retryCode()).rejects.toThrow('Friend code unavailable');
+  });
+
+  test('disables social queries without a complete account identity', () => {
+    expect((useFriendPendingCount(null, null) as unknown as { enabled: boolean }).enabled).toBe(false);
+    expect((useFriendDashboard(null, null, 'Me', true) as unknown as { enabled: boolean }).enabled).toBe(false);
+    expect((useBlockedAccounts(null, null, true) as unknown as { enabled: boolean }).enabled).toBe(false);
   });
 
   test('runs friend mutations and invalidates only the affected caches', async () => {
