@@ -392,3 +392,177 @@ describe('account lifecycle safety branches', () => {
     await expect(first).resolves.toBe(false);
   });
 });
+
+describe('auth recovery and cleanup edge branches', () => {
+  test('restores a normal stored session and marks an available QA session as offline', async () => {
+    mockReadGoogleUser.mockResolvedValue(JSON.stringify(user));
+    mockGetItem.mockResolvedValue('true');
+    mockEnsureSupabaseSession.mockResolvedValue(undefined);
+    const auth = useAuth();
+    effectCallbacks[0]();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(mockEnsureSupabaseSession).toHaveBeenCalledWith(user.email, expect.any(Function), user.sub);
+    expect(stateSetters[1]).toHaveBeenCalledWith(true);
+    expect(stateSetters[2]).toHaveBeenCalledWith(user);
+    expect(stateSetters[0]).toHaveBeenCalledWith(false);
+    void auth;
+
+    jest.clearAllMocks();
+    stateSetters.length = 0;
+    effectCallbacks.length = 0;
+    mockReadGoogleUser.mockResolvedValue(JSON.stringify(user));
+    mockGetItem.mockResolvedValue('true');
+    mockIsQaSandboxIdentity.mockReturnValue(true);
+    const qaAuth = useAuth();
+    effectCallbacks[0]();
+    for (let i = 0; i < 6; i++) await Promise.resolve();
+    expect(mockSetQaSandboxNetworkBlocked).toHaveBeenCalledWith(true);
+    expect(stateSetters[2]).toHaveBeenCalledWith(user);
+    void qaAuth;
+  });
+
+  test('removes a QA identity that is loaded by an unavailable production build', async () => {
+    mockReadGoogleUser.mockResolvedValue(JSON.stringify(user));
+    mockGetItem.mockResolvedValue('true');
+    mockIsQaSandboxIdentity.mockReturnValue(true);
+    mockIsQaSandboxBuildAvailable.mockReturnValue(false);
+    const auth = useAuth();
+    effectCallbacks[0]();
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+    expect(mockDeleteGoogleUser).toHaveBeenCalled();
+    expect(mockRemoveItem).toHaveBeenCalledWith('habit_tracker_onboarded');
+    expect(stateSetters[2]).toHaveBeenCalledWith(null);
+    void auth;
+  });
+
+  test('fails closed when cold-start session restoration has no saved credential', async () => {
+    mockReadGoogleUser.mockResolvedValue(JSON.stringify(user));
+    mockGetItem.mockResolvedValue('true');
+    mockEnsureSupabaseSession.mockRejectedValue({ code: 'NO_SAVED_GOOGLE_CREDENTIAL' });
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const auth = useAuth();
+    effectCallbacks[0]();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(stateSetters[1]).toHaveBeenCalledWith(false);
+    expect(stateSetters[2]).toHaveBeenCalledWith(null);
+    expect(stateSetters[0]).toHaveBeenCalledWith(false);
+    warn.mockRestore();
+    void auth;
+  });
+
+  test('covers local account resolution for existing, claimed, new, and missing results', async () => {
+    const existing = {
+      getFirstAsync: jest.fn().mockResolvedValueOnce({ id: 2 }),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => callback()),
+    };
+    await expect(resolveUserRow(existing as never, user.sub, user.email)).resolves.toEqual({ id: 2, isNew: false });
+
+    const claimed = {
+      getFirstAsync: jest.fn().mockResolvedValue(null),
+      runAsync: jest.fn().mockResolvedValue({ changes: 1, lastInsertRowId: 0 }),
+      withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => callback()),
+    };
+    await expect(resolveUserRow(claimed as never, user.sub, user.email)).resolves.toEqual({ id: 1, isNew: false });
+
+    const fresh = {
+      getFirstAsync: jest.fn().mockResolvedValue(null),
+      runAsync: jest.fn()
+        .mockResolvedValueOnce({ changes: 0, lastInsertRowId: 0 })
+        .mockResolvedValueOnce({ changes: 0, lastInsertRowId: 19 })
+        .mockResolvedValue({ changes: 1 }),
+      withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => callback()),
+    };
+    await expect(resolveUserRow(fresh as never, user.sub, user.email)).resolves.toEqual({ id: 19, isNew: true });
+    expect(fresh.runAsync).toHaveBeenCalledTimes(7);
+
+    const unresolved = {
+      getFirstAsync: jest.fn().mockResolvedValue(null),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(async () => undefined),
+    };
+    await expect(resolveUserRow(unresolved as never, user.sub, user.email)).rejects.toThrow('Unable to resolve local Google account');
+  });
+
+  test('uses legacy and global reset markers only for the matching account', async () => {
+    mockGetStoredGoogleUser.mockResolvedValue(user);
+    const legacyKey = 'habit_tracker_pending_progress_reset:google-sub';
+    installStorage({ [legacyKey]: JSON.stringify({ userId: 4, email: user.email, sub: user.sub, operationId }) });
+    const auth = useAuth();
+    await expect(auth.completePendingReset()).resolves.toBe(true);
+    expect(mockRemoveItem).toHaveBeenCalledWith(legacyKey);
+
+    const globalKey = 'habit_tracker_pending_progress_reset';
+    installStorage({ [globalKey]: JSON.stringify({ userId: 4, email: user.email, sub: user.sub, operationId }) });
+    await expect(auth.completePendingReset()).resolves.toBe(true);
+    expect(mockRemoveItem).toHaveBeenCalledWith(globalKey);
+
+    installStorage({ [globalKey]: JSON.stringify({ email: user.email, sub: user.sub }) });
+    await expect(auth.completePendingReset()).resolves.toBe(false);
+    expect(mockMarkBackupRestoreBlocked).toHaveBeenCalledWith(user.email);
+  });
+
+  test('handles legacy, malformed, and mismatched pending deletion markers', async () => {
+    mockGetStoredGoogleUser.mockResolvedValue(user);
+    const auth = useAuth();
+    const legacyKey = 'habit_tracker_pending_account_delete:google-sub';
+    installStorage({ [legacyKey]: JSON.stringify({ userId: 8, email: user.email, sub: user.sub, operationId }) });
+    await expect(auth.completePendingDelete()).resolves.toBe('deleted');
+    expect(mockRemoveItem).toHaveBeenCalledWith(legacyKey);
+
+    installStorage({ 'habit_tracker_pending_account_delete:user%40example.com': '{bad json' });
+    await expect(auth.completePendingDelete()).resolves.toBe('blocked');
+    installStorage({ 'habit_tracker_pending_account_delete': JSON.stringify({ email: user.email, sub: user.sub }) });
+    await expect(auth.completePendingDelete()).resolves.toBe('blocked');
+    installStorage({ 'habit_tracker_pending_account_delete:user%40example.com': JSON.stringify({ userId: 8, email: 'other@example.com', sub: user.sub, operationId }) });
+    await expect(auth.completePendingDelete()).resolves.toBe('blocked');
+  });
+
+  test('deletes a normal account and isolates QA account deletion', async () => {
+    mockReadGoogleUser.mockResolvedValue(JSON.stringify(user));
+    mockGetStoredGoogleUser.mockResolvedValue(user);
+    installStorage({});
+    const auth = useAuth();
+    await expect(auth.deleteAccount(7)).resolves.toBeUndefined();
+    expect(mockDeleteUserFromSupabase).toHaveBeenCalledWith(user.email, user.sub, expect.any(String), true);
+    expect(mockGoogleRevokeAccess).toHaveBeenCalled();
+    expect(mockGoogleSignOut).toHaveBeenCalled();
+
+    mockIsQaSandboxIdentity.mockReturnValue(true);
+    await expect(auth.deleteAccount(7)).resolves.toBeUndefined();
+    expect(mockPurgeQaSandbox).toHaveBeenCalledWith(defaultDb);
+  });
+
+  test('continues local sign-out when native, Supabase, cursor, or challenge cleanup fails', async () => {
+    mockGetStoredGoogleUser.mockResolvedValue(user);
+    mockGoogleRevokeAccess.mockRejectedValue(new Error('native revoke failed'));
+    mockSignOutSupabaseSession.mockRejectedValue(new Error('supabase signout failed'));
+    mockResetSyncCursors.mockRejectedValue(new Error('cursor failed'));
+    mockGetDb.mockRejectedValue(new Error('db unavailable'));
+    const auth = useAuth();
+    await expect(auth.signOut()).resolves.toBeUndefined();
+    expect(mockDeleteGoogleUser).toHaveBeenCalled();
+
+    mockGetStoredGoogleUser.mockResolvedValue(user);
+    mockIsQaSandboxIdentity.mockReturnValue(true);
+    mockGetDb.mockResolvedValue(defaultDb);
+    mockPurgeQaSandbox.mockRejectedValue(new Error('qa purge failed'));
+    await expect(auth.signOut()).rejects.toThrow('qa purge failed');
+    expect(mockDeleteGoogleUser).toHaveBeenCalled();
+  });
+
+  test('blocks interactive sign-in when restore is unavailable and clears a failed reset marker', async () => {
+    mockGetDb.mockResolvedValue({ ...defaultDb, getFirstAsync: jest.fn().mockResolvedValue({ id: 4 }) });
+    mockRestoreUserDataIfNeeded.mockResolvedValue('unavailable');
+    const auth = useAuth();
+    await expect(auth.signInWithGoogle(user, 'token')).rejects.toThrow('Cloud data restore is unavailable');
+
+    mockGetStoredGoogleUser.mockResolvedValue(user);
+    installStorage({
+      'habit_tracker_pending_progress_reset:user%40example.com': JSON.stringify({ userId: 7, email: user.email, sub: user.sub, operationId }),
+    });
+    mockSetItem.mockRejectedValueOnce(new Error('marker write failed'));
+    await expect(auth.resetProgress(7)).rejects.toThrow('marker write failed');
+    expect(mockMarkBackupRestoreBlocked).toHaveBeenCalledWith(user.email);
+  });
+});

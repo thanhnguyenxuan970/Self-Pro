@@ -136,3 +136,30 @@ test('respond_to_friend_request passes the request id and action through as RPC 
   await respondToFriendRequest('me@example.com', 'req-1', 'accept', 'sub-1');
   expect(mockSupabase.supabase.rpc).toHaveBeenCalledWith('respond_to_friend_request', { p_request_id: 'req-1', p_action: 'accept' });
 });
+
+test('defensive parsers reject primitive and malformed RPC payloads', async () => {
+  mockSupabase.supabase.rpc.mockResolvedValueOnce({ data: 123, error: null });
+  await expect(getOrCreateFriendCode('me@example.com')).rejects.toThrow('Invalid friend code response');
+
+  mockSupabase.supabase.rpc.mockResolvedValueOnce({ data: [{ relationship_id: '', display_name: null, blocked_at: '' }], error: null });
+  await expect(getBlockedAccounts('me@example.com')).rejects.toThrow('Invalid blocked accounts response');
+
+  mockSupabase.supabase.rpc.mockResolvedValueOnce({ data: [{ status: 'OK', retry_after_seconds: undefined }], error: null });
+  await expect(requestFriendByCode('me@example.com', 'K7M2QX')).resolves.toEqual({ status: 'UNAVAILABLE', retryAfterSeconds: null });
+
+  mockSupabase.supabase.rpc.mockResolvedValueOnce({ data: null, error: 'offline' });
+  await expect(requestFriendByCode('me@example.com', 'K7M2QX')).resolves.toEqual({ status: 'UNAVAILABLE', retryAfterSeconds: null });
+  mockSupabase.supabase.rpc.mockResolvedValueOnce({ data: [{ status: 'OK' }], error: 'offline' });
+  await expect(respondToFriendRequest('me@example.com', 'req-1', 'reject')).resolves.toBe('UNAVAILABLE');
+});
+
+test('read calls classify missing-RPC errors consistently across endpoints', async () => {
+  for (const call of [
+    () => getOrCreateFriendCode('me@example.com'),
+    () => getFriendPendingCount('me@example.com'),
+    () => getBlockedAccounts('me@example.com'),
+  ]) {
+    mockSupabase.supabase.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PGRST202' } });
+    await expect(call()).rejects.toBeInstanceOf(FriendsUnavailableError);
+  }
+});

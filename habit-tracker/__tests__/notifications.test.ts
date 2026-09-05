@@ -239,6 +239,55 @@ describe('state-aware Challenge reminders', () => {
     expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledTimes(2);
   });
 
+  test('handles empty cancellation input and notification cancellation failures', async () => {
+    await expect(cancelChallengeReminders([null, undefined, ''])).resolves.toBe(0);
+    (Notifications.getAllScheduledNotificationsAsync as jest.Mock).mockRejectedValueOnce(new Error('queue unavailable'));
+    (Notifications.cancelScheduledNotificationAsync as jest.Mock).mockRejectedValueOnce(new Error('cancel failed'));
+    await expect(cancelChallengeReminders(['legacy-id'])).resolves.toBe(1);
+  });
+
+  test('returns permissionError when the OS permission query fails', async () => {
+    (Notifications.getPermissionsAsync as jest.Mock).mockRejectedValueOnce(new Error('permission failed'));
+    const result = await syncChallengeReminders([baseState], 'en');
+    expect(result.permissionError).toBe(true);
+    expect(result.granted).toBe(false);
+  });
+
+  test('stops when lifecycle becomes inactive after permission and restores a failed persisted slot', async () => {
+    let activeChecks = 0;
+    const result = await syncChallengeReminders([baseState], 'en', {
+      now: new Date(2026, 7, 21, 8, 0, 0),
+      isActive: () => ++activeChecks < 3,
+    });
+    expect(result.granted).toBe(true);
+    expect(result.scheduled).toBe(0);
+
+    jest.clearAllMocks();
+    (Notifications.getAllScheduledNotificationsAsync as jest.Mock).mockResolvedValue([
+      {
+        identifier: 'habi-ch-7-normal-2026-08-21',
+        content: { title: 'old', body: 'old', data: {}, sound: true },
+        trigger: { date: new Date(2026, 7, 21, 20, 0, 0) },
+      },
+    ]);
+    (Notifications.scheduleNotificationAsync as jest.Mock)
+      .mockRejectedValueOnce(new Error('new schedule failed'))
+      .mockResolvedValueOnce('restored');
+    const retry = await syncChallengeReminders([baseState], 'en', {
+      now: new Date(2026, 7, 21, 8, 0, 0),
+      forceReschedule: true,
+    });
+    expect(retry.failedChallengeIds).toContain(7);
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith(expect.objectContaining({ identifier: 'habi-ch-7-normal-2026-08-21' }));
+    expect((Notifications.scheduleNotificationAsync as jest.Mock).mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test('scheduleAllHabitReminders exits before native import when inactive and skips invalid slots', async () => {
+    await expect(scheduleAllHabitReminders(['08:00'], 'en', { isActive: () => false })).resolves.toBe(false);
+    await expect(scheduleAllHabitReminders(['bad', '', null], 'en')).resolves.toBe(true);
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
   test('swallows Expo Notifications import failures while cancelling reminders', async () => {
     jest.resetModules();
     jest.doMock('expo-notifications', () => {

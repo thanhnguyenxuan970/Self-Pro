@@ -48,4 +48,67 @@ describe('full migration chain contract', () => {
     await expect(runMigrations(db as never)).resolves.toBeUndefined();
     expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 29');
   });
+
+  test('rethrows a non-duplicate ALTER TABLE failure', async () => {
+    const db = createFreshDatabase();
+    db.getFirstAsync.mockImplementation(async (sql: string) => (
+      sql === 'PRAGMA user_version' ? { user_version: 1 } : { count: 1 }
+    ));
+    db.runAsync.mockRejectedValue(new Error('disk is read-only'));
+    await expect(runMigrations(db as never)).rejects.toThrow('disk is read-only');
+  });
+
+  test('seeds the initial schema when all v1 seed probes are empty', async () => {
+    const db = createFreshDatabase();
+    db.getFirstAsync.mockImplementation(async (sql: string) => {
+      if (sql === 'PRAGMA user_version') return { user_version: 0 };
+      if (sql.includes('COUNT(*)')) return { count: 0 };
+      if (sql.includes('tier_order = ?')) return null;
+      return null;
+    });
+    await expect(runMigrations(db as never)).resolves.toBeUndefined();
+    expect(db.execAsync.mock.calls.some(([sql]) => String(sql).includes("INSERT INTO users (username"))).toBe(true);
+  });
+
+  test('runs the tier refresh when v3 finds no canonical tier rows', async () => {
+    const db = createFreshDatabase();
+    db.getFirstAsync.mockImplementation(async (sql: string) => {
+      if (sql === 'PRAGMA user_version') return { user_version: 2 };
+      if (sql.includes("rank_name='Delulu'")) return { count: 0 };
+      if (sql.includes('tier_order = ?')) return null;
+      if (sql.includes('COUNT(*)')) return { count: 1 };
+      return null;
+    });
+    await expect(runMigrations(db as never)).resolves.toBeUndefined();
+    expect(db.execAsync.mock.calls.some(([sql]) => String(sql).includes('DELETE FROM tiers WHERE tier_order > 7'))).toBe(true);
+  });
+
+  test('updates existing rows in the v13 and v22 tier migrations', async () => {
+    const db = createFreshDatabase();
+    (db.getFirstAsync as jest.Mock).mockImplementation(async (sql: string) => {
+      if (sql === 'PRAGMA user_version') return { user_version: 12 };
+      if (sql.includes('tier_order = ?')) return { id: 77 };
+      return null;
+    });
+    await expect(runMigrations(db as never)).resolves.toBeUndefined();
+    expect(db.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE tiers'),
+      expect.any(Array),
+    );
+    expect(db.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE tiers SET stars_required'),
+      [2560, 'Cosmic', 2000000, 77],
+    );
+  });
+
+  test('defaults a missing user_version to the initial migration', async () => {
+    const db = createFreshDatabase();
+    db.getFirstAsync.mockImplementation(async (sql: string) => {
+      if (sql === 'PRAGMA user_version') return null;
+      if (sql.includes('COUNT(*)')) return { count: 1 };
+      return null;
+    });
+    await expect(runMigrations(db as never)).resolves.toBeUndefined();
+    expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 29');
+  });
 });

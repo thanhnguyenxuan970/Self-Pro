@@ -1,0 +1,119 @@
+import type { SQLiteDatabase } from 'expo-sqlite';
+
+(globalThis as { __DEV__?: boolean }).__DEV__ = true;
+
+const mockGetDb = jest.fn();
+const mockSyncCurrentUserToSupabase = jest.fn().mockResolvedValue(undefined);
+const mockCancelTerminalChallengeReminders = jest.fn().mockResolvedValue(undefined);
+const mockSyncActiveChallengeReminders = jest.fn().mockResolvedValue(undefined);
+const mockLogActiveChallengeDay = jest.fn().mockResolvedValue({ status: 'logged', lifetimeCrossings: [] });
+const mockApplyLifetimeStarsDelta = jest.fn().mockResolvedValue({ crossings: [] });
+const mockEnqueuePendingLevelUps = jest.fn().mockResolvedValue(undefined);
+const invalidateQueries = jest.fn();
+
+jest.mock('../src/db/client', () => ({ getDb: mockGetDb }));
+jest.mock('../src/api/syncService', () => ({ syncCurrentUserToSupabase: mockSyncCurrentUserToSupabase }));
+jest.mock('../src/queries/useChallenge', () => ({
+  cancelTerminalChallengeReminders: mockCancelTerminalChallengeReminders,
+  logActiveChallengeDay: mockLogActiveChallengeDay,
+  syncActiveChallengeReminders: mockSyncActiveChallengeReminders,
+}));
+jest.mock('../src/game/lifetimeRankWrites', () => ({ applyLifetimeStarsDelta: mockApplyLifetimeStarsDelta }));
+jest.mock('../src/game/pendingLevelUpQueue', () => ({ enqueuePendingLevelUps: mockEnqueuePendingLevelUps }));
+jest.mock('../src/lib/rankMascotBridge', () => ({ rankMascotBridge: {} }));
+jest.mock('../src/hooks/useSettings', () => ({ useLanguage: jest.fn(() => ['en']) }));
+jest.mock('../src/utils/formatters', () => ({
+  getLocalDate: jest.fn(() => '2026-06-19'),
+  getLocalDateFor: jest.fn((date: Date) => date.toISOString().slice(0, 10)),
+  getWeekStart: jest.fn(() => '2026-06-15'),
+  getWeekStartFor: jest.fn(() => '2026-06-15'),
+}));
+jest.mock('@tanstack/react-query', () => ({
+  useMutation: jest.fn((options) => options),
+  useQueryClient: jest.fn(() => ({ invalidateQueries })),
+}));
+
+import { runBackfillTx, useBackfillDay } from '../src/queries/useBackfill';
+
+function createDb() {
+  const getFirstAsync = jest.fn()
+    .mockResolvedValueOnce({ best: 0 })
+    .mockResolvedValueOnce({ n: 0 })
+    .mockResolvedValueOnce({ n: 0 })
+    .mockResolvedValueOnce(null)
+    .mockResolvedValueOnce(null)
+    .mockResolvedValueOnce(null)
+    .mockResolvedValueOnce({ best: 1 });
+  const getAllAsync = jest.fn().mockResolvedValue([{ local_date: '2026-06-17', total_points: 20 }]);
+  const runAsync = jest.fn().mockResolvedValue({ changes: 1 });
+  const withExclusiveTransactionAsync = jest.fn(async (cb: (db: SQLiteDatabase) => Promise<void>) => cb(db as unknown as SQLiteDatabase));
+  const db = { getFirstAsync, getAllAsync, runAsync, withExclusiveTransactionAsync } as unknown as SQLiteDatabase;
+  return db;
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockGetDb.mockResolvedValue(createDb());
+  mockCancelTerminalChallengeReminders.mockResolvedValue(undefined);
+  mockSyncActiveChallengeReminders.mockResolvedValue(undefined);
+  mockSyncCurrentUserToSupabase.mockResolvedValue(undefined);
+});
+
+describe('backfill mutation guards and transaction seam', () => {
+  test('fails fast for future dates and empty sessions', async () => {
+    const mutation = useBackfillDay(5) as unknown as { mutationFn: (params: { date: string; entries: unknown[] }) => Promise<unknown> };
+    await expect(mutation.mutationFn({ date: '2026-06-21', entries: [{ taskTypeId: 1 }] })).rejects.toThrow('FUTURE');
+    await expect(mutation.mutationFn({ date: '2026-06-17', entries: [] })).rejects.toThrow('EMPTY_SESSION');
+  });
+
+  test('commits one session and treats post-commit notification failures as non-fatal', async () => {
+    const db = createDb();
+    mockGetDb.mockResolvedValue(db);
+    mockCancelTerminalChallengeReminders.mockRejectedValueOnce(new Error('cancel failed'));
+    mockSyncActiveChallengeReminders.mockRejectedValueOnce(new Error('sync failed'));
+    const mutation = useBackfillDay(5) as unknown as {
+      mutationFn: (params: { date: string; entries: Array<{ taskTypeId: number; kind: 'GOOD'; isTimeBased: boolean; basePoints: number; starPenalty: number }> }) => Promise<unknown>;
+      onSuccess: (data: { lifetimeCrossings: unknown[] }) => void;
+    };
+    const result = await mutation.mutationFn({
+      date: '2026-06-17',
+      entries: [{ taskTypeId: 42, kind: 'GOOD', isTimeBased: false, basePoints: 20, starPenalty: 0 }],
+    });
+    expect(result).toEqual(expect.objectContaining({ newStreak: expect.any(Number) }));
+    expect(db.withExclusiveTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(mockLogActiveChallengeDay).toHaveBeenCalledWith(db, { userId: 5, localDate: '2026-06-17', taskTypeId: 42 });
+
+    mockSyncCurrentUserToSupabase.mockRejectedValueOnce(new Error('cloud unavailable'));
+    mutation.onSuccess({ lifetimeCrossings: [{ tierId: 3 }] });
+    await Promise.resolve();
+    expect(mockEnqueuePendingLevelUps).toHaveBeenCalledWith([{ tierId: 3 }]);
+  });
+
+  test('runs a fresh ranked session through missing-row and partial-streak branches', async () => {
+    const getFirstAsync = jest.fn().mockResolvedValue(null);
+    const getAllAsync = jest.fn(async (sql: string) => {
+      if (sql.includes('FROM tiers')) return [{ id: 1, tier_order: 0, rank_name: 'Delulu', stars_required: 5 }];
+      return [{ local_date: '2026-06-17', total_points: 20 }];
+    });
+    const runAsync = jest.fn().mockResolvedValue({ changes: 1 });
+    const db = { getFirstAsync, getAllAsync, runAsync } as unknown as SQLiteDatabase;
+    mockApplyLifetimeStarsDelta.mockResolvedValueOnce({ crossings: [{ tierId: 1 }] });
+    mockLogActiveChallengeDay.mockResolvedValueOnce({ lifetimeCrossings: [{ tierId: 2 }] });
+
+    const result = await runBackfillTx(
+      db,
+      [{ taskTypeId: 7, kind: 'GOOD', isTimeBased: true, durationMin: 600, basePoints: 20, starPenalty: 0, countTowardRank: true }],
+      5,
+      '2026-06-17',
+      '2026-06-15',
+      '2026-06-15',
+      '2026-06-19',
+    );
+
+    expect(result.milestone).toBeNull();
+    expect(result.lifetimeCrossings).toEqual([{ tierId: 1 }, { tierId: 2 }]);
+    expect(mockApplyLifetimeStarsDelta).toHaveBeenCalled();
+    expect(mockLogActiveChallengeDay).toHaveBeenCalledWith(db, { userId: 5, localDate: '2026-06-17', taskTypeId: 7 });
+    expect(runAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO weekly_summary'), expect.any(Array));
+  });
+});

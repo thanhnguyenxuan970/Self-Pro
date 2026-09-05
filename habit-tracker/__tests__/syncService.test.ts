@@ -32,6 +32,8 @@ const mockGetDb = jest.fn();
 const mockStorageGetItem = jest.fn();
 const mockStorageSetItem = jest.fn();
 const mockStorageRemoveItem = jest.fn();
+const mockStorageGetAllKeys = jest.fn();
+const mockStorageMultiRemove = jest.fn();
 
 const freshSession = (email: string, googleSub = 'google-sub') => ({
   user: { email, identities: [{ provider: 'google', identity_data: { sub: googleSub } }] },
@@ -64,6 +66,8 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: mockStorageGetItem,
   setItem: mockStorageSetItem,
   removeItem: mockStorageRemoveItem,
+  getAllKeys: mockStorageGetAllKeys,
+  multiRemove: mockStorageMultiRemove,
 }));
 
 jest.mock('../src/db/client', () => ({ getDb: mockGetDb }));
@@ -73,6 +77,10 @@ import {
   ensureSupabaseSession,
   withSupabaseSession,
   clearBackupRestoreBlocked,
+  markBackupRestoreBlocked,
+  refreshSupabaseSessionForAccount,
+  resetSyncCursors,
+  syncCurrentUserToSupabase,
   pauseAccountSync,
   readSocialProfile,
   restoreUserDataIfNeeded,
@@ -121,7 +129,9 @@ describe('restoreUserDataIfNeeded', () => {
     });
     mockStorageGetItem.mockReset();
     mockStorageSetItem.mockReset();
-    mockStorageRemoveItem.mockReset();
+  mockStorageRemoveItem.mockReset();
+  mockStorageGetAllKeys.mockReset();
+  mockStorageMultiRemove.mockReset();
     await clearBackupRestoreBlocked('user@example.com');
     mockStorageRemoveItem.mockClear();
     mockLegacyActivityOrder.mockReset();
@@ -1956,6 +1966,53 @@ describe('account sync gate', () => {
     await Promise.resolve();
     expect(writes).toEqual([]);
   });
+
+  it('rejects an already-aborted retry and supports a non-cancelled wait-for-gate retry', async () => {
+    const account = 'aborted-retry@example.com';
+    const release = await pauseAccountSync(account);
+    const cancellation = new AbortController();
+    cancellation.abort();
+    await expect(runAccountSync(account, async () => undefined, false, true, cancellation.signal))
+      .rejects.toThrow('Account sync was invalidated');
+
+    const writes: string[] = [];
+    const waiting = runAccountSync(account, async () => { writes.push('after-wait'); }, false, true);
+    release();
+    await waiting;
+    expect(writes).toEqual(['after-wait']);
+  });
+
+  it('keeps a failed-closed account blocked unless the caller explicitly allows recovery', async () => {
+    const account = 'fail-closed@example.com';
+    mockStorageSetItem.mockRejectedValueOnce(new Error('storage unavailable'));
+    await expect(markBackupRestoreBlocked(account)).rejects.toThrow('storage unavailable');
+
+    const writes: string[] = [];
+    await runAccountSync(account, async () => { writes.push('suppressed'); });
+    expect(writes).toEqual([]);
+    await runAccountSync(account, async () => { writes.push('explicit-recovery'); }, true);
+    expect(writes).toEqual(['explicit-recovery']);
+
+    mockStorageSetItem.mockResolvedValue(undefined);
+    mockStorageRemoveItem.mockResolvedValue(undefined);
+    await clearBackupRestoreBlocked(account);
+  });
+
+  it('waits for an existing pause and makes release idempotent', async () => {
+    const account = 'double-pause@example.com';
+    const firstRelease = await pauseAccountSync(account);
+    let secondReady = false;
+    const second = pauseAccountSync(account).then(release => {
+      secondReady = true;
+      return release;
+    });
+    await Promise.resolve();
+    expect(secondReady).toBe(false);
+    firstRelease();
+    const secondRelease = await second;
+    secondRelease();
+    secondRelease();
+  });
 });
 
 describe('syncUserStreak', () => {
@@ -2167,6 +2224,42 @@ describe('ensureSupabaseSession', () => {
 
     await expect(ensureSupabaseSession('user@example.com')).resolves.toBeUndefined();
   });
+
+  it('rejects every malformed or errored Supabase session envelope before native refresh', async () => {
+    for (const response of [
+      undefined,
+      { data: null },
+      { data: {} },
+      { data: { session: {} } },
+    ]) {
+      mockGetSession.mockReset();
+      mockGetSession.mockResolvedValueOnce(response);
+      await expect(ensureSupabaseSession('malformed@example.com')).rejects.toThrow('Supabase session response was malformed');
+    }
+    mockGetSession.mockResolvedValueOnce({ data: { session: null }, error: new Error('session lookup failed') });
+    await expect(ensureSupabaseSession('errored@example.com')).rejects.toThrow('session lookup failed');
+  });
+
+  it('refreshes when the cached Google subject differs and when a caller forces refresh', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com', 'old-sub') }, error: null });
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: {} });
+    mockGetTokens.mockResolvedValue({ idToken: 'fresh-google-id-token' });
+    mockSignInWithIdToken.mockResolvedValue(successfulTokenResponse('user@example.com', 'new-sub'));
+
+    await ensureSupabaseSession('user@example.com', undefined, 'new-sub');
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com', 'new-sub') }, error: null });
+    await refreshSupabaseSessionForAccount('user@example.com', 'new-sub');
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a silent refresh when Google does not return an ID token', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: {} });
+    mockGetTokens.mockResolvedValue({ idToken: null });
+    await expect(ensureSupabaseSession('no-token@example.com')).rejects.toThrow('did not provide an ID token');
+  });
 });
 
 describe('withSupabaseSession', () => {
@@ -2369,6 +2462,20 @@ describe('withSupabaseSession', () => {
     await expect(read).resolves.toEqual({ data: 4, error: null });
     await expect(directSignIn).resolves.toBeUndefined();
     expect(mockSignInWithIdToken).toHaveBeenCalledWith({ provider: 'google', token: 'fresh-google-id-token' });
+  });
+
+  it('fails closed when the process-wide Supabase session changes during a protected operation', async () => {
+    const first = freshSession('user@example.com');
+    const second = { ...freshSession('user@example.com'), access_token: 'different-token' };
+    mockGetSession
+      .mockResolvedValueOnce({ data: { session: first }, error: null })
+      .mockResolvedValueOnce({ data: { session: first }, error: null })
+      .mockResolvedValueOnce({ data: { session: second }, error: null });
+    await expect(withSupabaseSession(
+      'user@example.com',
+      'google-sub',
+      async () => ({ data: 1, error: null }),
+    )).rejects.toThrow('session changed during the protected operation');
   });
 });
 
@@ -2803,6 +2910,40 @@ describe('syncToSupabase', () => {
     await expect(syncToSupabase('google-sub', 'user@example.com')).resolves.toBeUndefined();
     expect(mockRpc).not.toHaveBeenCalled();
     expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('returns without legacy writes when the signed-in subject has no local row', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('missing@example.com', 'missing-sub') }, error: null });
+    mockGetDb.mockResolvedValue({
+      getFirstAsync: jest.fn().mockResolvedValue(null),
+      getAllAsync: jest.fn(),
+      runAsync: jest.fn(),
+    });
+    await expect(syncToSupabase('missing-sub', 'missing@example.com')).resolves.toBeUndefined();
+    expect(mockFrom).not.toHaveBeenCalled();
+    expect(mockRpc).not.toHaveBeenCalledWith('sync_user_profile_v2', expect.anything());
+  });
+
+  it('treats a non-numeric lifetime response as unavailable instead of writing a bogus local total', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('no-total@example.com', 'no-total-sub') }, error: null });
+    mockStorageGetItem.mockResolvedValue(null);
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('SELECT id FROM users')) return { id: 1 };
+        if (sql.includes('lifetime_stars')) return { lifetime_stars: 0 };
+        if (sql.includes('daily_summary')) return { current_streak: 0 };
+        if (sql.includes('activity_log')) return { last_active_local_date: null };
+        return null;
+      }),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn(),
+    };
+    mockGetDb.mockResolvedValue(db);
+    mockRpc.mockImplementation(async (name: string) => (
+      name === 'sync_lifetime_stars' ? { data: 'not-a-number', error: null } : { data: null, error: null }
+    ));
+    await expect(syncToSupabase('no-total-sub', 'no-total@example.com')).resolves.toBeUndefined();
+    expect(db.runAsync).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE users SET lifetime_stars'), expect.anything());
   });
 
   it('reconciles a non-throwing CAS conflict result before any legacy writes', async () => {
@@ -3274,6 +3415,35 @@ describe('restoreLifetimeStarsFromSupabase', () => {
     expect(db.runAsync).not.toHaveBeenCalled();
   });
 
+  it('uses the exclusive SQLite transaction adapter when one is available', async () => {
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'sync_lifetime_stars' ? { data: 39, error: null } : { data: null, error: null });
+    const userRow = { lifetime_stars: 8, current_tier_id: 1 as number | null };
+    const runAsync = jest.fn(async (sql: string, params: unknown[]) => {
+      if (sql.includes('UPDATE users SET lifetime_stars')) {
+        userRow.lifetime_stars = params[0] as number;
+        userRow.current_tier_id = params[1] as number | null;
+      }
+      return { changes: 1 };
+    });
+    const getFirstAsync = jest.fn(async (sql: string) => (sql.includes('FROM users') ? { ...userRow } : null));
+    const getAllAsync = jest.fn(async (sql: string) => (sql.includes('FROM tiers') ? tiers : []));
+    const db = {
+      getFirstAsync,
+      getAllAsync,
+      runAsync,
+      withExclusiveTransactionAsync: jest.fn(async (fn: (transactionDb: unknown) => Promise<void>) => fn({ getFirstAsync, runAsync })),
+      withTransactionAsync: jest.fn(),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await restoreLifetimeStarsFromSupabase(1, 'user@example.com');
+
+    expect(db.withExclusiveTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(db.withTransactionAsync).not.toHaveBeenCalled();
+    expect(userRow.lifetime_stars).toBe(39);
+  });
+
   it('re-reads the local total inside the transaction, so a concurrent local write applied between the outer RPC read and the transaction is never overshot', async () => {
     mockRpc.mockImplementation(async (name: string) =>
       name === 'sync_lifetime_stars' ? { data: 39, error: null } : { data: null, error: null });
@@ -3299,5 +3469,31 @@ describe('restoreLifetimeStarsFromSupabase', () => {
 
     await expect(restoreLifetimeStarsFromSupabase(1, 'user@example.com')).resolves.toBeUndefined();
     expect(Sentry.captureException).toHaveBeenCalledWith(expect.any(Error));
+  });
+});
+
+describe('sync cursor maintenance', () => {
+  it('removes both legacy and account-scoped cursor keys', async () => {
+    mockStorageGetAllKeys.mockResolvedValue([
+      'habit_sync_last_activity_id',
+      'habit_sync_last_fund_id',
+      'habit_sync_last_activity_id:1',
+      'habit_sync_last_fund_id:2',
+      'unrelated',
+    ]);
+    await resetSyncCursors();
+    expect(mockStorageMultiRemove).toHaveBeenCalledWith([
+      'habit_sync_last_activity_id',
+      'habit_sync_last_fund_id',
+      'habit_sync_last_activity_id:1',
+      'habit_sync_last_fund_id:2',
+    ]);
+  });
+
+  it('does not issue a multi-remove call when no cursor keys exist', async () => {
+    mockStorageMultiRemove.mockClear();
+    mockStorageGetAllKeys.mockResolvedValue(['unrelated']);
+    await resetSyncCursors();
+    expect(mockStorageMultiRemove).not.toHaveBeenCalled();
   });
 });

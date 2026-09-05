@@ -24,6 +24,8 @@ jest.mock('@tanstack/react-query', () => ({
 import {
   cancelTerminalChallengeReminders,
   syncActiveChallengeReminders,
+  restoreReactivatedChallengeReminders,
+  reconcileUnloggedLinkedChallenges,
   useActiveChallenges,
   useChallengeById,
   useChallengeHistory,
@@ -188,6 +190,7 @@ describe('Challenge query helpers and hook contracts', () => {
   });
 
   test('derives a linked streak challenge from activity_log thresholds', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-09-03T05:00:00.000Z'));
     const db = createDb({
       getAllAsync: jest.fn(async (sql: string) => {
         if (sql.includes('FROM challenges WHERE user_id = ? AND status =')) {
@@ -205,15 +208,19 @@ describe('Challenge query helpers and hook contracts', () => {
     });
     mockGetDb.mockResolvedValue(db);
 
-    const query = useActiveChallenges(5) as unknown as { queryFn: () => Promise<Array<Record<string, unknown>>> };
-    const [loaded] = await query.queryFn();
-    expect(loaded).toMatchObject({
-      taskTypeId: 42,
-      daysDone: 2,
-      streak: 2,
-      notificationsEnabled: true,
-    });
-    expect((loaded.log as Array<{ date: string }>).map(entry => entry.date)).toEqual(['2026-09-01', '2026-09-03']);
+    try {
+      const query = useActiveChallenges(5) as unknown as { queryFn: () => Promise<Array<Record<string, unknown>>> };
+      const [loaded] = await query.queryFn();
+      expect(loaded).toMatchObject({
+        taskTypeId: 42,
+        daysDone: 2,
+        streak: 2,
+        notificationsEnabled: true,
+      });
+      expect((loaded.log as Array<{ date: string }>).map(entry => entry.date)).toEqual(['2026-09-01', '2026-09-03']);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test('computes weekly challenge pace and elapsed perfect weeks', async () => {
@@ -271,6 +278,67 @@ describe('Challenge query helpers and hook contracts', () => {
     );
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('omitted 1 slot'));
     warn.mockRestore();
+  });
+
+  test('abandons notification persistence when the scheduler loses the active account race', async () => {
+    const db = createDb({
+      getAllAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('FROM challenges WHERE user_id = ? AND status =')) return [challengeRow({ notification_id: 'old-token' })];
+        if (sql.includes('FROM challenge_log WHERE challenge_id = ? ORDER BY local_date')) return [];
+        return [];
+      }),
+    });
+    mockGetDb.mockResolvedValue(db);
+    mockSyncChallengeReminders.mockResolvedValueOnce({
+      ...emptySyncResult(),
+      challengeTokens: new Map([[7, 'new-token']]),
+    });
+    (db.runAsync as jest.Mock).mockResolvedValueOnce({ changes: 0 });
+
+    await syncActiveChallengeReminders(5, 'en');
+    expect(mockCancelChallengeReminders).toHaveBeenCalledWith(['habi-ch-7-']);
+  });
+
+  test('does not write notification tokens after an inactive scheduler result', async () => {
+    const db = createDb({
+      getAllAsync: jest.fn(async (sql: string) => (
+        sql.includes('FROM challenges WHERE user_id = ? AND status =') ? [challengeRow()] : []
+      )),
+    });
+    mockGetDb.mockResolvedValue(db);
+    let active = true;
+    mockSyncChallengeReminders.mockImplementationOnce(async () => {
+      active = false;
+      return { ...emptySyncResult(), challengeTokens: new Map([[7, 'new-token']]) };
+    });
+    await syncActiveChallengeReminders(5, 'en', { isActive: () => active });
+    expect(db.runAsync).not.toHaveBeenCalled();
+  });
+
+  test('keeps reactivation cleanup safe when cancellation of old reminders fails', async () => {
+    mockCancelChallengeReminders.mockRejectedValueOnce(new Error('notification service offline'));
+    const db = createDb();
+    await expect(restoreReactivatedChallengeReminders(db, [
+      { id: 7, name: 'Read', mode: 'streak', notificationsEnabled: true, reminderToken: 'reactivation:7', previousNotificationId: 'old' },
+    ])).resolves.toBeUndefined();
+    expect(db.runAsync).toHaveBeenCalledWith(expect.stringContaining('SET notification_id = NULL'), [7, 'reactivation:7']);
+  });
+
+  test('reopens a linked challenge without a reward when its final day disappears', async () => {
+    const db = createDb({
+      getAllAsync: jest.fn(async (sql: string) => {
+        if (sql.includes("status = 'done'")) return [{
+          id: 7, name: 'Read', task_type_id: 42, target_days: 3, mode: 'streak', start_date: '2026-09-01',
+          min_duration: null, min_count: null, notifications_enabled: 1, notification_id: 'old',
+        }];
+        if (sql.includes('FROM activity_log')) return [];
+        return [];
+      }),
+      getFirstAsync: jest.fn().mockResolvedValue(null),
+    });
+    const result = await reconcileUnloggedLinkedChallenges(db, { userId: 5, taskTypeId: 42, localDate: '2026-09-03' });
+    expect(result.reactivatedChallenges[0]).toMatchObject({ id: 7, reminderToken: expect.stringContaining('reactivation:7:'), notificationsEnabled: true });
+    expect(result.deletedActivityIds).toEqual([]);
   });
 
   test('runs rollover and reminder mutation wrappers against an empty database', async () => {

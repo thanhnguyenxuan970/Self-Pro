@@ -263,4 +263,76 @@ describe('today log mutation contracts', () => {
     expect(mockRestoreReactivatedChallengeReminders).toHaveBeenCalled();
     expect(mockEnqueuePendingActivityDeletes).toHaveBeenCalledWith(5, [22, 11]);
   });
+
+  test('logs a bonus row for an existing day and tolerates reminder sync failure', async () => {
+    const db = createDb();
+    db.getAllAsync.mockResolvedValue([{ id: 1, tier_order: 1, rank_name: 'A', stars_required: 1 }]);
+    db.getFirstAsync.mockImplementation(async (sql: string) => {
+      if (sql.includes('total_points, bonus_star_awarded, streak_count')) return { total_points: 9, bonus_star_awarded: 0, streak_count: 4 };
+      if (sql.includes('MAX(streak_count)')) return { best: 4 };
+      if (sql.includes('FROM weekly_summary')) return { weekly_stars: 5 };
+      if (sql.includes('FROM boost_events')) return null;
+      if (sql.includes('COUNT(*) AS count')) return { count: 2 };
+      return null;
+    });
+    mockComputeLogTaskRows.mockReturnValueOnce({
+      activityRow: {
+        user_id: 5, task_type_id: 9, kind: 'GOOD', duration_min: null,
+        points_earned: 10, stars_delta: 1, source: 'TASK', logged_at: 123,
+        local_date: '2026-08-17', week_start: '2026-08-17',
+      },
+      bonusRow: {
+        user_id: 5, task_type_id: null, kind: 'DAILY_BONUS', duration_min: null,
+        points_earned: 0, stars_delta: 1, source: 'DAILY_BONUS', logged_at: 123,
+        local_date: '2026-08-17', week_start: '2026-08-17',
+      },
+    });
+    mockLogActiveChallengeDay.mockResolvedValueOnce({ status: 'logged', lifetimeCrossings: [{ tierId: 3 }] });
+    mockApplyLifetimeStarsDelta.mockResolvedValueOnce({ crossings: [{ tierId: 2 }] });
+    mockGetStoredGoogleUser.mockResolvedValueOnce({ email: 'a@example.com', sub: 'sub', name: 'A', photo: null });
+    mockSyncActiveChallengeReminders.mockRejectedValueOnce(new Error('notifications unavailable'));
+    mockGetDb.mockResolvedValue(db);
+
+    const mutation = useLogTask(5) as unknown as {
+      mutationFn: (params: { taskTypeId: number; kind: 'GOOD'; isTimeBased: boolean; basePoints: number; starPenalty: number }) => Promise<any>;
+      onSuccess: (data: { lifetimeCrossings: unknown[]; isFirstEverLog: boolean; newStreak: number }) => void;
+    };
+    const result = await mutation.mutationFn({ taskTypeId: 9, kind: 'GOOD', isTimeBased: false, basePoints: 10, starPenalty: 0 });
+    expect(result).toMatchObject({ newStreak: 4, prevStreak: 4, isFirstEverLog: false });
+    expect(db.runAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO activity_log'), expect.any(Array));
+    expect(mockCancelTerminalChallengeReminders).toHaveBeenCalledWith(db, 5);
+    mutation.onSuccess(result);
+    await Promise.resolve();
+    expect(mockSyncUserStreak).toHaveBeenCalledWith('a@example.com', 4, 'sub');
+  });
+
+  test('unlogs a good task, removes the stale bonus, and restores linked reminders', async () => {
+    const db = createDb();
+    db.getAllAsync
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 11, points_earned: 12, stars_delta: 2 }])
+      .mockResolvedValueOnce([{ id: 22 }]);
+    db.getFirstAsync.mockResolvedValue({ total_points: 20, bonus_star_awarded: 1 });
+    mockDailyBonusStarsForPoints.mockReturnValue(0);
+    mockApplyLifetimeStarsDelta.mockResolvedValueOnce({ crossings: [{ tierId: 4 }] });
+    mockReconcileUnloggedLinkedChallenges.mockResolvedValueOnce({
+      lifetimeCrossings: [{ tierId: 5 }],
+      reactivatedChallenges: [{ id: 1 }],
+      deletedActivityIds: [33],
+    });
+    mockSyncActiveChallengeReminders.mockRejectedValueOnce(new Error('notifications unavailable'));
+    mockGetDb.mockResolvedValue(db);
+
+    const mutation = useUnlogTask(5) as unknown as {
+      mutationFn: (params: { taskTypeId: number; kind: 'GOOD' }) => Promise<{ lifetimeCrossings: unknown[] }>;
+      onSuccess: (data: { lifetimeCrossings: unknown[] }) => void;
+    };
+    const result = await mutation.mutationFn({ taskTypeId: 9, kind: 'GOOD' });
+    expect(result).toEqual({ lifetimeCrossings: [{ tierId: 4 }, { tierId: 5 }] });
+    expect(mockRestoreReactivatedChallengeReminders).toHaveBeenCalledWith(db, [{ id: 1 }]);
+    expect(mockEnqueuePendingActivityDeletes).toHaveBeenCalledWith(5, [22, 11, 33]);
+    mutation.onSuccess(result);
+    await Promise.resolve();
+    expect(mockSyncCurrentUserToSupabase).toHaveBeenCalled();
+  });
 });
