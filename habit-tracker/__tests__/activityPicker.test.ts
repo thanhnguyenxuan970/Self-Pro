@@ -8,6 +8,9 @@ describe('activity picker matching', () => {
 
   test('infers a useful group for a custom activity', () => {
     expect(activityGroup('Chạy bộ buổi sáng')).toBe('Vận động');
+    expect(activityGroup('Học ngoại ngữ')).toBe('Học tập');
+    expect(activityGroup('Dọn dẹp nhà')).toBe('Nhà cửa');
+    expect(activityGroup('Việc khác')).toBe('Khác');
   });
 
   test('names the task when announcing the pin action', () => {

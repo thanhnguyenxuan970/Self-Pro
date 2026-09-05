@@ -154,6 +154,12 @@ it('logs once and completes with a celebration reward at the target', () => {
   expect(completeChallenge(done)).toMatchObject({ celebrate: true, reward: 'completion' });
 });
 
+it('does not duplicate an existing log or mutate terminal challenges', () => {
+  expect(logToday(challenge, '2026-06-17')).toBe(challenge);
+  expect(logToday({ ...challenge, status: 'failed' }, '2026-06-18')).toEqual({ ...challenge, status: 'failed' });
+  expect(logToday(challenge, '2026-06-18').log).toHaveLength(2);
+});
+
 describe('dateRange', () => {
   it('inclusive range, single day', () => {
     expect(dateRange('2026-06-17', '2026-06-17')).toEqual(['2026-06-17']);
@@ -179,6 +185,10 @@ describe('computeProgress', () => {
   });
   it('computes partial progress', () => {
     expect(computeProgress(3, 21)).toEqual({ fraction: 3 / 21, daysLeft: 18 });
+  });
+
+  it('uses a zero fraction for a zero-day target', () => {
+    expect(computeProgress(2, 0)).toEqual({ fraction: 0, daysLeft: 0 });
   });
 
   it.each([

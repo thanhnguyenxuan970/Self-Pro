@@ -5,7 +5,7 @@
 ## 2.0.3.o - 2026-09-04
 
 - Added contextual bug-report metadata and moved the feedback entry point to Profile and relevant error states; duplicate Settings feedback entry removed. Android native release metadata is `2.0.3.o` (versionCode `83`); the shared Expo/iOS version remains `2.0.3`.
-- Validation: TypeScript and 87 Jest suites/801 tests/1 snapshot passed; Android UI was verified in Vietnamese and English, including Settings without the duplicate feedback row and contextual feedback capture. The linked Supabase migration and Edge Functions still require deployment before production feedback metadata is stored.
+- Validation: TypeScript and 94 Jest suites/866 tests/1 snapshot passed; V8 coverage is 91.13% statements/lines, 84.97% branches, and 91.87% functions. Android UI was verified in Vietnamese and English, including Settings without the duplicate feedback row and contextual feedback capture. The linked Supabase migration and Edge Functions still require deployment before production feedback metadata is stored.
 
 ## 2.0.3.m - 2026-09-03
 

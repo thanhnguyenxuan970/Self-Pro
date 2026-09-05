@@ -1,6 +1,7 @@
 import {
   getAccountActivityStartDate,
   isActivityDateIncluded,
+  filterRowsByActivityStartDate,
 } from '../src/lib/accountActivityBoundary';
 import {
   filterCloudBackupPayload,
@@ -39,6 +40,8 @@ test('uses the confirmed 06/07 boundary only for thanguyenxuan', () => {
   expect(isActivityDateIncluded('2026-07-05', '2026-07-06')).toBe(false);
   expect(isActivityDateIncluded('2026-07-06', '2026-07-06')).toBe(true);
   expect(isActivityDateIncluded('2026-07-07', null)).toBe(true);
+  expect(filterRowsByActivityStartDate([{ local_date: 42 }, { local_date: '2026-07-06' }], '2026-07-06'))
+    .toEqual([{ local_date: '2026-07-06' }]);
 });
 
 test('filters old activity-derived backup rows and reanchors the backed-up stars', () => {

@@ -172,4 +172,9 @@ describe('analyticsBarAccessibilityLabel', () => {
       'T2: 42 điểm, mục tiêu 50 điểm',
     );
   });
+
+  it('omits optional previous and goal text in both languages when disabled', () => {
+    expect(analyticsBarAccessibilityLabel('en', 'Monday', 1, 99, 0, false)).toBe('Monday: 1 points');
+    expect(analyticsBarAccessibilityLabel('vi', 'T2', 2, 99, 0, true)).toBe('T2: 2 điểm, trước đó 99 điểm');
+  });
 });

@@ -6,6 +6,8 @@ import {
   friendSummaryStars,
   filterFriendCodeInput,
   formatRelativeAgo,
+  formatAbsoluteDate,
+  formatAbsoluteDateTime,
   formatStarCount,
   initialsFromName,
   isStickyResult,
@@ -30,6 +32,7 @@ test('initialsFromName takes first+last token first code point, uppercased', () 
   expect(initialsFromName('Minh', 'P')).toBe('MI');
   expect(initialsFromName('  ', 'Player')).toBe('PL');
   expect(initialsFromName(null, 'Player')).toBe('PL');
+  expect(initialsFromName(null, '')).toBe('');
 });
 
 test('avatarPaletteSlot is deterministic and bounded to 0-5', () => {
@@ -125,6 +128,17 @@ test('mapFriendDashboardRows maps incoming rows with the requester identity inta
   expect(incoming[0]).toMatchObject({ relationshipId: 'req1', requesterPlayerId: 'requester-1', requesterDisplayName: 'Trần Gia Hân' });
 });
 
+test('mapFriendDashboardRows supplies safe fallbacks for incomplete incoming/outgoing rows', () => {
+  const { incoming, outgoing, ladder } = mapFriendDashboardRows([
+    row({ section: 'accepted', player_id: null, display_name: null, friend_rank: null, effective_streak: null }),
+    row({ section: 'incoming', relationship_id: null, player_id: null, display_name: null, created_at: null, expires_at: null }),
+    row({ section: 'outgoing', relationship_id: null, created_at: null, expires_at: null }),
+  ], 'Player');
+  expect(ladder[0]).toMatchObject({ playerId: 'unknown-0', displayName: 'Player', friendRank: 1 });
+  expect(incoming[0]).toMatchObject({ relationshipId: '', requesterPlayerId: 'unknown', requesterDisplayName: 'Player' });
+  expect(outgoing[0]).toMatchObject({ relationshipId: '', ordinal: 1 });
+});
+
 test('buildFriendsSummary: solo leader at #1 with no tie and no catch target', () => {
   const { ladder } = mapFriendDashboardRows([
     row({ section: 'self', player_id: 'me', friend_rank: 1, year_stars: 500, is_current_user: true }),
@@ -161,6 +175,13 @@ test('buildFriendsSummary: tie below #1 carries both the tie and the catch targe
 test('buildFriendsSummary returns null when there is no self row', () => {
   const { ladder } = mapFriendDashboardRows([row({ section: 'accepted', friend_rank: 1 })], 'Player');
   expect(buildFriendsSummary(ladder)).toBeNull();
+});
+
+test('buildFriendsSummary handles a missing rank-1 catch row and formats both locales', () => {
+  expect(buildFriendsSummary([{ relationshipId: null, playerId: 'me', displayName: 'Me', effectiveStreak: 0, yearStars: 2, friendRank: 3, isCurrentUser: true, tiedCount: 1 }])).toEqual({ kind: 'catch', rank: 3, catchStars: 0, catchRank: 2 });
+  const iso = '2026-08-11T12:34:00Z';
+  expect(formatAbsoluteDateTime(iso, 'en')).toContain('Aug');
+  expect(formatAbsoluteDate(iso, 'vi')).toContain('8');
 });
 
 test('daysAgo and daysUntil clamp at 0 and never go negative', () => {
@@ -250,4 +271,5 @@ test('isStickyResult keeps submit disabled only for caps/rate-limit, not for an 
   expect(isStickyResult('NOT_FOUND')).toBe(false);
   expect(isStickyResult('SELF')).toBe(false);
   expect(isStickyResult('PENDING')).toBe(false);
+  expect(resultBannerTone('UNKNOWN' as never)).toBe('danger');
 });

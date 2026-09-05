@@ -9,6 +9,8 @@ jest.mock('../src/hooks/authContext', () => ({
 import { getDb } from '../src/db/client';
 import { useRankData, visibleTierId, type TierRow } from '../src/queries/useRank';
 
+const mockUseGoogleUser = jest.requireMock('../src/hooks/authContext').useGoogleUser as jest.Mock;
+
 const tiers: TierRow[] = [
   { id: 1, tier_order: 1, rank_name: 'Delulu', stars_required: 5 },
   { id: 2, tier_order: 2, rank_name: 'Mewing', stars_required: 10 },
@@ -49,4 +51,15 @@ test('does not demote the stored lifetime tier when the Analytics Year resets', 
 
   const query = useRankData(7) as unknown as { queryFn: () => Promise<{ currentStars: number; currentTierId: number | null }> };
   await expect(query.queryFn()).resolves.toMatchObject({ currentStars: 0, currentTierId: 2 });
+});
+
+test('handles a missing Google identity while loading Rank data', async () => {
+  mockUseGoogleUser.mockReturnValueOnce(null);
+  const getFirstAsync = jest.fn()
+    .mockResolvedValueOnce(null)
+    .mockResolvedValueOnce({ total: 0 });
+  const getAllAsync = jest.fn().mockResolvedValue([]);
+  jest.mocked(getDb).mockResolvedValue({ getFirstAsync, getAllAsync } as never);
+  const query = useRankData(7) as unknown as { queryFn: () => Promise<{ currentTierId: number | null }> };
+  await expect(query.queryFn()).resolves.toMatchObject({ currentTierId: null });
 });

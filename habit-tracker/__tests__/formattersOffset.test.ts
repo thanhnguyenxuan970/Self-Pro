@@ -8,6 +8,7 @@ import {
   getMonthOffset,
   getYearOffset,
   getLocalDateFor,
+  getWeekStartFor,
   getMillisecondsUntilLocalMidnight,
 } from '../src/utils/formatters';
 
@@ -74,6 +75,10 @@ describe('getWeekStartOffset', () => {
       (24 * 60 * 60 * 1000);
     expect(diffDays).toBe(28);
   });
+});
+
+test('treats Sunday as belonging to the preceding Monday week', () => {
+  expect(getWeekStartFor(new Date(2026, 7, 23, 12, 0, 0))).toBe('2026-08-17');
 });
 
 // ── getLocalDateOffset ───────────────────────────────────────────────────────

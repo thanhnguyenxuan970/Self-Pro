@@ -62,6 +62,11 @@ test('weekly impossible pace schedules the outcome after the window', () => {
     .toEqual(new Date(2026, 7, 24, 9, 0, 0, 0));
 });
 
+test('drops an outcome slot whose consequence time has already passed', () => {
+  expect(planChallengeReminders(state({ freezesLeft: 0 }), { now: new Date(2026, 7, 23, 10, 0, 0) }))
+    .toHaveLength(0);
+});
+
 test('terminal or disabled Challenges schedule nothing', () => {
   expect(planChallengeReminders(state({ status: 'failed' }), { now: NOW })).toEqual([]);
   expect(planChallengeReminders(state({ notificationsEnabled: false }), { now: NOW })).toEqual([]);
@@ -77,4 +82,28 @@ test('an explicit platform budget reports omissions instead of hiding them', () 
   expect(result.slots).toHaveLength(2);
   expect(result.omittedCount).toBe(26);
   expect(challengeReminderPrefix(1)).toBe('habi-ch-1-');
+});
+
+test('sorts outcome reminders ahead of normal reminders across challenges', () => {
+  const result = planAllChallengeReminders([
+    state({ challengeId: 1, freezesLeft: 1 }),
+    state({ challengeId: 2, freezesLeft: 0 }),
+  ], { now: NOW });
+  expect(result.slots[0].tone).toBe('outcome');
+  expect(result.slots.some(slot => slot.tone === 'normal')).toBe(true);
+});
+
+test('sort comparator also handles an outcome slot already preceding a normal slot', () => {
+  const result = planAllChallengeReminders([
+    state({
+      challengeId: 1,
+      mode: 'weekly',
+      weekPaceState: 'impossible',
+      weekEnd: '2026-08-23',
+    }),
+    state({ challengeId: 2, freezesLeft: 1 }),
+  ], { now: NOW });
+
+  expect(result.slots[0]).toMatchObject({ challengeId: 1, tone: 'outcome' });
+  expect(result.slots.some(slot => slot.challengeId === 2 && slot.tone === 'normal')).toBe(true);
 });

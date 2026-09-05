@@ -171,6 +171,23 @@ test('classifies an undeployed annual RPC as unavailable instead of a network re
   await expect(query.queryFn()).rejects.toBeInstanceOf(LeaderboardUnavailableError);
 });
 
+test('also classifies a textual missing annual RPC error when the gateway omits PGRST202', async () => {
+  mockSupabase.supabase.rpc.mockResolvedValue({
+    data: null,
+    error: { code: 'PGRST500', message: 'could not find function get_global_year_leaderboard_v1' },
+  });
+
+  const query = useLeaderboard('me@example.com', 'Thanh', 'Player') as unknown as { queryFn: () => Promise<unknown> };
+  await expect(query.queryFn()).rejects.toBeInstanceOf(LeaderboardUnavailableError);
+});
+
+test('propagates a deployed RPC error without misclassifying it as unavailable', async () => {
+  const error = { code: 'PGRST500', message: 'temporary failure' };
+  mockSupabase.supabase.rpc.mockResolvedValue({ data: null, error });
+  const query = useLeaderboard('me@example.com', 'Thanh', 'Player') as unknown as { queryFn: () => Promise<unknown> };
+  await expect(query.queryFn()).rejects.toBe(error);
+});
+
 test('disables the query when there is no signed-in email', () => {
   const query = useLeaderboard(null, null, 'Player') as unknown as { enabled: boolean };
   expect(query.enabled).toBe(false);
@@ -294,6 +311,42 @@ test('the render cap drops distant out-of-contract rows', () => {
   expect(capped.some(entry => entry.playerId === 'me')).toBe(true);
   expect(capped.some(entry => entry.playerId === 'far-below')).toBe(false);
   expect(capped).toHaveLength(52);
+});
+
+test('the render cap handles malformed limits and a payload without a current user', () => {
+  const rows = Array.from({ length: 3 }, (_, i) => ({
+    player_id: `r-${i}`, year_stars: 10 - i, rank: i + 1, is_current_user: false,
+  }));
+  const capped = capLeaderboardRows(mapRemoteLeaderboardRows(rows, null, 'Player'), 0, -2);
+  expect(capped.map(row => row.rank)).toEqual([1]);
+});
+
+test('keeps a short payload unchanged and resolves same-rank ordering deterministically', () => {
+  const rows = mapRemoteLeaderboardRows([
+    { player_id: 'zulu', year_stars: 5, rank: 1, is_current_user: false },
+    { player_id: 'alpha', year_stars: 5, rank: 1, is_current_user: false },
+  ], 'Thanh', 'Player');
+  expect(capLeaderboardRows([], 50)).toEqual([]);
+  expect(rows.map(row => row.playerId)).toEqual(['alpha', 'zulu']);
+
+  const capTie = capLeaderboardRows([
+    { ...rows[0], playerId: 'zulu', isCurrentUser: false },
+    { ...rows[1], playerId: 'alpha', isCurrentUser: true },
+  ], 1, 5);
+  expect(capTie.map(row => row.playerId)).toEqual(['alpha', 'zulu']);
+});
+
+test('uses the player label when the current user name is blank', () => {
+  const [entry] = mapRemoteLeaderboardRows([
+    { player_id: 'me', year_stars: 5, rank: 1, is_current_user: true },
+  ], '', 'Player');
+  expect(entry.displayName).toBe('Player');
+});
+
+test('normalizes a successful RPC response with a null data payload to an empty board', async () => {
+  mockSupabase.supabase.rpc.mockResolvedValue({ data: null, error: null });
+  const query = useLeaderboard('me@example.com', 'Thanh', 'Player') as unknown as { queryFn: () => Promise<unknown> };
+  await expect(query.queryFn()).resolves.toEqual([]);
 });
 
 test('initialsForName takes the first letter of the first two words, stripping the jersey-number suffix', () => {

@@ -14,6 +14,7 @@ describe('Analytics Year star anchor', () => {
       { local_date: '2026-01-03', stars_delta: 9, source: 'CHALLENGE' },
       { local_date: '2026-01-04', stars_delta: 7, source: 'DAILY_BONUS' },
       { local_date: '2026-01-05', stars_delta: 99 },
+      { local_date: '2026-01-06', stars_delta: Number.NaN, source: 'TASK' },
     ])).toBe(4);
   });
 
