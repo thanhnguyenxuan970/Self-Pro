@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [2.0.3.16] - 2026-09-05
+
+### Changed
+- **Coverage guard**: Jest now enforces at least 95% global statements, branches, functions, and lines coverage so future changes cannot silently reduce the tested surface.
+- **Edge-case validation**: expanded regression coverage across authentication, backup/restore, Challenge reminders and backfill, leaderboard/friends, notifications, and local data validation.
+
+Validation: TypeScript, 104 Jest suites/1,040 tests/1 snapshot, V8 coverage at 98.76% statements/lines, 95.01% branches, and 97.64% functions, `git diff --check`, and `bundleRelease` passed. Signed AAB SHA-256: `6B7D8602FDDF788E3918E1A4D4E1D61C3DAA148D11EAA140745C87CCACF2467D`.
+
 ## [2.0.4] - Draft
 
 ### English
