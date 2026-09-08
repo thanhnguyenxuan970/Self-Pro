@@ -1,3 +1,5 @@
+import { normalizeAccountEmail } from './accountIdentity';
+
 /**
  * The named `thanguyenxuan` account has a confirmed real-activity start date.
  * Keep this boundary account-scoped so QA fixtures and other users retain their
@@ -7,7 +9,7 @@ export const THANGUYENXUAN_EMAIL = 'thanhnguyenxuan970@gmail.com';
 export const THANGUYENXUAN_ACTIVITY_START_DATE = '2026-07-06';
 
 export function getAccountActivityStartDate(userEmail: string | null | undefined): string | null {
-  return userEmail?.trim().toLowerCase() === THANGUYENXUAN_EMAIL
+  return userEmail != null && normalizeAccountEmail(userEmail) === THANGUYENXUAN_EMAIL
     ? THANGUYENXUAN_ACTIVITY_START_DATE
     : null;
 }

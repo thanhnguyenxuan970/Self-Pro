@@ -11,6 +11,10 @@ import {
 import { createQaGuardedFetch } from '../src/api/supabase';
 import { restoreStoredGoogleSession } from '../src/hooks/useAuth';
 
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  removeItem: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('../src/utils/notifications', () => ({
   cancelChallengeReminders: jest.fn().mockResolvedValue(undefined),
 }));
@@ -107,7 +111,10 @@ describe('QA sandbox identity and fixture contract', () => {
     await purgeQaSandbox(db as never, true);
     expect(runAsync).toHaveBeenCalledWith('DELETE FROM users WHERE id = ?', [7]);
 
-    const emptyDb = { getFirstAsync: jest.fn().mockResolvedValue(null) };
+    const emptyDb = {
+      getFirstAsync: jest.fn().mockResolvedValue(null),
+      runAsync: jest.fn().mockResolvedValue({ changes: 1 }),
+    };
     await expect(purgeQaSandbox(emptyDb as never)).resolves.toBeUndefined();
 
     const userWithoutChallenges = {
