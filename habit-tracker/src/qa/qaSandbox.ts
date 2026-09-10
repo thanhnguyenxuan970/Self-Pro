@@ -3,6 +3,8 @@ import type { GoogleUser } from '../lib/googleUserStorage';
 import { dailyBonusStarsForPoints } from '../config/constants';
 import { getLocalDateFor, getWeekStartFor } from '../utils/formatters';
 import { challengeReminderPrefix } from '../lib/challengeNotificationPlan';
+import { discardLegacyPendingActivityDeletes } from '../game/pendingActivityDeletes';
+import { createActivityKey } from '../lib/activityIdentity';
 
 /**
  * Reserved identity for the emulator-only QA sandbox.
@@ -412,7 +414,15 @@ const QA_PURGE_STATEMENTS = [
 /** Purges only rows owned by the reserved QA identity. Real users are untouched. */
 export async function purgeQaSandbox(db: SQLiteDatabase, deleteUser = true): Promise<void> {
   const qaUser = await db.getFirstAsync<{ id: number }>('SELECT id FROM users WHERE google_sub = ?', [QA_SANDBOX_SUB]);
-  if (!qaUser) return;
+  if (!qaUser) {
+    // A previous interrupted/legacy purge may already have removed the user
+    // row. The stable account key still lets reseeding remove its old outbox.
+    await db.runAsync(
+      'DELETE FROM pending_activity_deletes WHERE account_key = ?',
+      [QA_SANDBOX_EMAIL],
+    );
+    return;
+  }
   const qaChallenges = await db.getAllAsync<{ id: number; notification_id: string | null }>(
     'SELECT id, notification_id FROM challenges WHERE user_id = ?',
     [qaUser.id],
@@ -426,8 +436,13 @@ export async function purgeQaSandbox(db: SQLiteDatabase, deleteUser = true): Pro
   }
   await db.withTransactionAsync(async () => {
     for (const sql of QA_PURGE_STATEMENTS) await db.runAsync(sql, [qaUser.id]);
+    await db.runAsync(
+      'DELETE FROM pending_activity_deletes WHERE account_key = ?',
+      [QA_SANDBOX_EMAIL],
+    );
     if (deleteUser) await db.runAsync('DELETE FROM users WHERE id = ?', [qaUser.id]);
   });
+  await discardLegacyPendingActivityDeletes(qaUser.id);
 }
 
 /**
@@ -454,10 +469,10 @@ async function seedQaSandboxInternal(db: SQLiteDatabase, now: Date): Promise<num
   await db.withTransactionAsync(async () => {
     const userResult = await db.runAsync(
       `INSERT INTO users
-       (username, timezone, carry_debt, currency, google_sub, treat_stars,
+       (username, timezone, carry_debt, currency, google_sub, account_key, treat_stars,
         treat_stars_lifetime, value_per_star, penalty_hits_treats, lifetime_stars)
-       VALUES (?, 'Asia/Ho_Chi_Minh', 0, 'VND', ?, ?, ?, 1000, 1, ?)`,
-      [QA_SANDBOX_NAME, QA_SANDBOX_SUB, fixture.treatStars, fixture.lifetimeStars, fixture.lifetimeStars],
+       VALUES (?, 'Asia/Ho_Chi_Minh', 0, 'VND', ?, ?, ?, ?, 1000, 1, ?)`,
+      [QA_SANDBOX_NAME, QA_SANDBOX_SUB, QA_SANDBOX_EMAIL, fixture.treatStars, fixture.lifetimeStars, fixture.lifetimeStars],
     );
     userId = Number(userResult.lastInsertRowId);
 
@@ -487,11 +502,11 @@ async function seedQaSandboxInternal(db: SQLiteDatabase, now: Date): Promise<num
       await db.runAsync(
         `INSERT INTO activity_log
          (user_id, task_type_id, kind, duration_min, points_earned, stars_delta,
-          source, logged_at, local_date, week_start)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         source, logged_at, local_date, week_start, activity_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [userId, activity.taskKey ? taskIds.get(activity.taskKey) ?? null : null, activity.kind,
           activity.durationMin, activity.pointsEarned, activity.starsDelta, activity.source,
-          activity.loggedAt, activity.localDate, activity.weekStart],
+          activity.loggedAt, activity.localDate, activity.weekStart, createActivityKey()],
       );
     }
 

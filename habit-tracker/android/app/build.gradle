@@ -146,6 +146,17 @@ android {
             def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
             crunchPngs enablePngCrunchInRelease.toBoolean()
         }
+        // Local emulator QA only. This keeps the production release manifest
+        // and shrinker settings unchanged while allowing the QA network
+        // security config to reach the host-mapped Supabase endpoint.
+        qa {
+            initWith release
+            matchingFallbacks = ['release']
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            shrinkResources false
+            crunchPngs false
+        }
     }
     packagingOptions {
         jniLibs {

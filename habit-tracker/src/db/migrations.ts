@@ -812,11 +812,328 @@ async function v29(db: SQLiteDatabase): Promise<void> {
   `);
 }
 
-const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29];
+// v29 -> v30: durable, account-scoped outbox for activity rows that were
+// deleted locally and still need their Supabase twins removed.
+async function v30(db: SQLiteDatabase): Promise<void> {
+  const createAccountOutbox = async () => {
+    // account_key is populated only after the app has verified the current
+    // Google/Supabase identity. Existing google_sub values cannot be translated
+    // safely because they are provider subjects rather than email addresses.
+    await addColumnIfMissing(db, 'ALTER TABLE users ADD COLUMN account_key TEXT');
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS pending_activity_deletes (
+        account_key       TEXT NOT NULL CHECK (
+          length(account_key) > 0 AND account_key = lower(trim(account_key))
+        ),
+        local_activity_id INTEGER NOT NULL CHECK (local_activity_id > 0),
+        created_at        INTEGER NOT NULL,
+        -- activity_log.id is AUTOINCREMENT, so this key names one immutable
+        -- delete intent for the lifetime of this SQLite database.
+        PRIMARY KEY (account_key, local_activity_id)
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_account_key
+        ON users(account_key)
+        WHERE account_key IS NOT NULL;
+
+      CREATE INDEX IF NOT EXISTS idx_pending_activity_deletes_drain
+        ON pending_activity_deletes(account_key, created_at, local_activity_id);
+    `);
+  };
+
+  if (typeof db.withTransactionAsync === 'function') {
+    await db.withTransactionAsync(createAccountOutbox);
+  } else {
+    // Test doubles and legacy adapters may omit the helper. The SDK 56
+    // production path above keeps the v30 schema change atomic.
+    await createAccountOutbox();
+  }
+}
+
+// v30 -> v31: add the nullable stable activity identity. Existing rows stay
+// unresolved until a reviewed provenance mapping exists; local_id is never an
+// implicit identity.
+async function v31(db: SQLiteDatabase): Promise<void> {
+  const ensureActivityIdentity = async () => {
+    await addColumnIfMissing(db, 'ALTER TABLE activity_log ADD COLUMN activity_key TEXT');
+    await db.execAsync(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_user_key
+        ON activity_log(user_id, activity_key)
+        WHERE activity_key IS NOT NULL;
+    `);
+  };
+
+  if (typeof db.withTransactionAsync === 'function') {
+    await db.withTransactionAsync(ensureActivityIdentity);
+  } else {
+    await ensureActivityIdentity();
+  }
+}
+
+// v31 -> v32: preserve the stable activity key in the delete outbox. The
+// trigger runs before callers hard-delete a row, so a remote delete cannot
+// fall back to a device-local id when two devices share the same id.
+async function v32(db: SQLiteDatabase): Promise<void> {
+  const ensureActivityDeleteIdentity = async () => {
+    await addColumnIfMissing(db, 'ALTER TABLE users ADD COLUMN account_key TEXT');
+    await addColumnIfMissing(db, 'ALTER TABLE activity_log ADD COLUMN activity_key TEXT');
+    await db.execAsync(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_user_key
+        ON activity_log(user_id, activity_key)
+        WHERE activity_key IS NOT NULL;
+    `);
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS pending_activity_deletes (
+        account_key       TEXT NOT NULL CHECK (
+          length(account_key) > 0 AND account_key = lower(trim(account_key))
+        ),
+        local_activity_id INTEGER NOT NULL CHECK (local_activity_id > 0),
+        created_at        INTEGER NOT NULL,
+        activity_key      TEXT,
+        PRIMARY KEY (account_key, local_activity_id)
+      );
+    `);
+    await addColumnIfMissing(db, 'ALTER TABLE pending_activity_deletes ADD COLUMN activity_key TEXT');
+    await db.execAsync(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_activity_deletes_activity_key
+        ON pending_activity_deletes(account_key, activity_key)
+        WHERE activity_key IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS activity_restore_suppression (
+        user_id INTEGER PRIMARY KEY
+      );
+
+      DROP TRIGGER IF EXISTS trg_activity_log_enqueue_delete;
+      CREATE TRIGGER trg_activity_log_enqueue_delete
+      AFTER DELETE ON activity_log
+      WHEN EXISTS (
+        SELECT 1 FROM users
+         WHERE users.id = OLD.user_id
+           AND users.account_key IS NOT NULL
+           AND length(trim(users.account_key)) > 0
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM activity_restore_suppression
+         WHERE activity_restore_suppression.user_id = OLD.user_id
+      )
+      BEGIN
+        INSERT OR IGNORE INTO pending_activity_deletes
+          (account_key, local_activity_id, activity_key, created_at)
+        SELECT users.account_key,
+               OLD.id,
+               NULLIF(trim(OLD.activity_key), ''),
+               CAST(strftime('%s', 'now') AS INTEGER) * 1000
+          FROM users
+         WHERE users.id = OLD.user_id
+           AND users.account_key IS NOT NULL
+           AND length(trim(users.account_key)) > 0;
+      END;
+    `);
+  };
+
+  if (typeof db.withTransactionAsync === 'function') {
+    await db.withTransactionAsync(ensureActivityDeleteIdentity);
+  } else {
+    await ensureActivityDeleteIdentity();
+  }
+}
+
+// v32 -> v33: make the unresolved state explicit. Rows created before the
+// stable-key rollout (including rows that an earlier local build stamped as
+// legacy:<id>) remain local and are quarantined from sync.
+async function v33(db: SQLiteDatabase): Promise<void> {
+  const ensureActivityIdentityStatus = async () => {
+    await addColumnIfMissing(
+      db,
+      `ALTER TABLE activity_log ADD COLUMN activity_identity_status TEXT NOT NULL DEFAULT 'resolved'`,
+    );
+    await db.runAsync(
+      `UPDATE activity_log
+          SET activity_identity_status = 'unresolved'
+        WHERE activity_key IS NULL
+           OR trim(activity_key) = ''
+           OR activity_key LIKE 'legacy:%'
+           OR activity_identity_status NOT IN ('resolved', 'unresolved')`,
+    );
+    await db.execAsync(`
+      CREATE INDEX IF NOT EXISTS idx_activity_user_identity_status
+        ON activity_log(user_id, activity_identity_status);
+
+      CREATE TRIGGER IF NOT EXISTS trg_activity_log_mark_unresolved_identity
+      AFTER INSERT ON activity_log
+      WHEN NEW.activity_key IS NULL
+        OR trim(NEW.activity_key) = ''
+        OR NEW.activity_key LIKE 'legacy:%'
+      BEGIN
+        UPDATE activity_log
+           SET activity_identity_status = 'unresolved'
+         WHERE id = NEW.id;
+      END;
+    `);
+  };
+
+  if (typeof db.withTransactionAsync === 'function') {
+    await db.withTransactionAsync(ensureActivityIdentityStatus);
+  } else {
+    await ensureActivityIdentityStatus();
+  }
+}
+
+async function v34(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS activity_restore_suppression (
+      user_id INTEGER PRIMARY KEY
+    );
+
+    DROP TRIGGER IF EXISTS trg_activity_log_enqueue_delete;
+    CREATE TRIGGER trg_activity_log_enqueue_delete
+    AFTER DELETE ON activity_log
+    WHEN EXISTS (
+      SELECT 1 FROM users
+       WHERE users.id = OLD.user_id
+         AND users.account_key IS NOT NULL
+         AND length(trim(users.account_key)) > 0
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM activity_restore_suppression
+       WHERE activity_restore_suppression.user_id = OLD.user_id
+    )
+    BEGIN
+      INSERT OR IGNORE INTO pending_activity_deletes
+        (account_key, local_activity_id, activity_key, created_at)
+      SELECT users.account_key,
+             OLD.id,
+             NULLIF(trim(OLD.activity_key), ''),
+             CAST(strftime('%s', 'now') AS INTEGER) * 1000
+        FROM users
+       WHERE users.id = OLD.user_id
+         AND users.account_key IS NOT NULL
+         AND length(trim(users.account_key)) > 0;
+    END;
+  `);
+}
+
+// v34 -> v35: retain a cloud mirror's task reference separately from the
+// local task relationship. A restored mirror row may have a valid durable key
+// and must compare against the cloud task id without attaching that id locally.
+async function v35(db: SQLiteDatabase): Promise<void> {
+  await addColumnIfMissing(
+    db,
+    'ALTER TABLE activity_log ADD COLUMN activity_source_task_type_id INTEGER',
+  );
+}
+
+const MIGRATIONS: MigrationFn[] = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, v31, v32, v33, v34, v35];
+
+// Auth-only v30 used the same schema version for `account_key` but did not
+// know about the activity-delete outbox. A later full build must reconcile
+// that shape instead of assuming user_version=30 proves the outbox exists.
+async function ensurePendingActivityDeleteOutbox(db: SQLiteDatabase): Promise<void> {
+  const ensureSchema = async () => {
+    await addColumnIfMissing(db, 'ALTER TABLE users ADD COLUMN account_key TEXT');
+    await addColumnIfMissing(db, 'ALTER TABLE activity_log ADD COLUMN activity_key TEXT');
+    await addColumnIfMissing(
+      db,
+      `ALTER TABLE activity_log ADD COLUMN activity_identity_status TEXT NOT NULL DEFAULT 'resolved'`,
+    );
+    await addColumnIfMissing(
+      db,
+      'ALTER TABLE activity_log ADD COLUMN activity_source_task_type_id INTEGER',
+    );
+    await db.runAsync(
+      `UPDATE activity_log
+          SET activity_identity_status = 'unresolved'
+        WHERE activity_key IS NULL
+           OR trim(activity_key) = ''
+           OR activity_key LIKE 'legacy:%'
+           OR activity_identity_status NOT IN ('resolved', 'unresolved')`,
+    );
+    await db.execAsync(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_user_key
+        ON activity_log(user_id, activity_key)
+        WHERE activity_key IS NOT NULL;
+    `);
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS pending_activity_deletes (
+        account_key       TEXT NOT NULL CHECK (
+          length(account_key) > 0 AND account_key = lower(trim(account_key))
+        ),
+        local_activity_id INTEGER NOT NULL CHECK (local_activity_id > 0),
+        created_at        INTEGER NOT NULL,
+        activity_key      TEXT,
+        PRIMARY KEY (account_key, local_activity_id)
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_account_key
+        ON users(account_key)
+        WHERE account_key IS NOT NULL;
+
+      CREATE INDEX IF NOT EXISTS idx_pending_activity_deletes_drain
+        ON pending_activity_deletes(account_key, created_at, local_activity_id);
+    `);
+    await addColumnIfMissing(db, 'ALTER TABLE pending_activity_deletes ADD COLUMN activity_key TEXT');
+    await db.execAsync(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_activity_deletes_activity_key
+        ON pending_activity_deletes(account_key, activity_key)
+        WHERE activity_key IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS activity_restore_suppression (
+        user_id INTEGER PRIMARY KEY
+      );
+
+      DROP TRIGGER IF EXISTS trg_activity_log_enqueue_delete;
+      CREATE TRIGGER trg_activity_log_enqueue_delete
+      AFTER DELETE ON activity_log
+      WHEN EXISTS (
+        SELECT 1 FROM users
+         WHERE users.id = OLD.user_id
+           AND users.account_key IS NOT NULL
+           AND length(trim(users.account_key)) > 0
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM activity_restore_suppression
+         WHERE activity_restore_suppression.user_id = OLD.user_id
+      )
+      BEGIN
+        INSERT OR IGNORE INTO pending_activity_deletes
+          (account_key, local_activity_id, activity_key, created_at)
+        SELECT users.account_key,
+               OLD.id,
+               NULLIF(trim(OLD.activity_key), ''),
+               CAST(strftime('%s', 'now') AS INTEGER) * 1000
+          FROM users
+         WHERE users.id = OLD.user_id
+           AND users.account_key IS NOT NULL
+           AND length(trim(users.account_key)) > 0;
+      END;
+
+      CREATE INDEX IF NOT EXISTS idx_activity_user_identity_status
+        ON activity_log(user_id, activity_identity_status);
+
+      CREATE TRIGGER IF NOT EXISTS trg_activity_log_mark_unresolved_identity
+      AFTER INSERT ON activity_log
+      WHEN NEW.activity_key IS NULL
+        OR trim(NEW.activity_key) = ''
+        OR NEW.activity_key LIKE 'legacy:%'
+      BEGIN
+        UPDATE activity_log
+           SET activity_identity_status = 'unresolved'
+         WHERE id = NEW.id;
+      END;
+    `);
+  };
+
+  if (typeof db.withTransactionAsync === 'function') {
+    await db.withTransactionAsync(ensureSchema);
+  } else {
+    await ensureSchema();
+  }
+}
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   let version = row?.user_version ?? 0;
+  const startingVersion = version;
 
   for (; version < MIGRATIONS.length; version++) {
     await MIGRATIONS[version](db);
@@ -828,4 +1145,7 @@ export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   // lifetime-rank columns. Repair the schema by shape as well as version so
   // RankScreen cannot remain on an infinite loading state.
   await ensureLifetimeRankColumns(db);
+  if (startingVersion >= 30) {
+    await ensurePendingActivityDeleteOutbox(db);
+  }
 }

@@ -67,7 +67,7 @@ jest.mock('../src/game/boost', () => ({
 }));
 jest.mock('../src/game/lifetimeRankWrites', () => ({ applyLifetimeStarsDelta: mockApplyLifetimeStarsDelta }));
 jest.mock('../src/game/pendingLevelUpQueue', () => ({ enqueuePendingLevelUps: mockEnqueuePendingLevelUps }));
-jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletes: mockEnqueuePendingActivityDeletes }));
+jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletesForUser: mockEnqueuePendingActivityDeletes }));
 jest.mock('../src/game/pendingSurveyD0', () => ({ markSurveyD0Pending: mockMarkSurveyD0Pending }));
 jest.mock('../src/hooks/useSurveyD0Intent', () => ({ notifyFirstEverLog: mockNotifyFirstEverLog }));
 jest.mock('../src/lib/storeReview', () => ({
@@ -300,7 +300,7 @@ describe('today log mutation contracts', () => {
     mockGetDb.mockResolvedValue(emptyDb);
     const mutation = useUnlogTask(5) as unknown as { mutationFn: (params: unknown) => Promise<unknown> };
     await expect(mutation.mutationFn({ taskTypeId: 9, kind: 'GOOD' })).resolves.toEqual({ lifetimeCrossings: [] });
-    expect(mockEnqueuePendingActivityDeletes).toHaveBeenCalledWith(5, []);
+    expect(mockEnqueuePendingActivityDeletes).not.toHaveBeenCalled();
 
     const db = createDb();
     db.getAllAsync
@@ -313,7 +313,7 @@ describe('today log mutation contracts', () => {
     await expect(mutation.mutationFn({ taskTypeId: 9, kind: 'BAD' })).resolves.toEqual({ lifetimeCrossings: [] });
     expect(db.runAsync).toHaveBeenCalledWith(expect.stringContaining('UPDATE users SET treat_stars = treat_stars +'), expect.any(Array));
     expect(mockRestoreReactivatedChallengeReminders).toHaveBeenCalled();
-    expect(mockEnqueuePendingActivityDeletes).toHaveBeenCalledWith(5, [22, 11]);
+    expect(mockEnqueuePendingActivityDeletes).toHaveBeenCalledWith(db, 5, [22, 11]);
   });
 
   test('logs a bonus row for an existing day and tolerates reminder sync failure', async () => {
@@ -382,7 +382,7 @@ describe('today log mutation contracts', () => {
     const result = await mutation.mutationFn({ taskTypeId: 9, kind: 'GOOD' });
     expect(result).toEqual({ lifetimeCrossings: [{ tierId: 4 }, { tierId: 5 }] });
     expect(mockRestoreReactivatedChallengeReminders).toHaveBeenCalledWith(db, [{ id: 1 }]);
-    expect(mockEnqueuePendingActivityDeletes).toHaveBeenCalledWith(5, [22, 11, 33]);
+    expect(mockEnqueuePendingActivityDeletes).toHaveBeenCalledWith(db, 5, [22, 11, 33]);
     mutation.onSuccess(result);
     await Promise.resolve();
     expect(mockSyncCurrentUserToSupabase).toHaveBeenCalled();

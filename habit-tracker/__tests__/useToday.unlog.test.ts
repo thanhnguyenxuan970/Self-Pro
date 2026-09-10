@@ -30,14 +30,14 @@ jest.mock('../src/game/streakMilestones', () => ({ crossedStreakMilestone: jest.
 jest.mock('../src/game/boost', () => ({ boostEndOfDayMs: jest.fn(), isBoostActiveAt: jest.fn(), summarizeBoostLogs: jest.fn() }));
 jest.mock('../src/game/lifetimeRankWrites', () => ({ applyLifetimeStarsDelta: jest.fn() }));
 jest.mock('../src/game/pendingLevelUpQueue', () => ({ enqueuePendingLevelUps: jest.fn() }));
-jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletes: jest.fn() }));
+jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletesForUser: jest.fn() }));
 jest.mock('../src/lib/rankMascotBridge', () => ({ rankMascotBridge: {} }));
 
 import { useUnlogTask } from '../src/queries/useToday';
 import { getDb } from '../src/db/client';
 import { reconcileUnloggedLinkedChallenges } from '../src/queries/useChallenge';
 import { applyLifetimeStarsDelta } from '../src/game/lifetimeRankWrites';
-import { enqueuePendingActivityDeletes } from '../src/game/pendingActivityDeletes';
+import { enqueuePendingActivityDeletesForUser } from '../src/game/pendingActivityDeletes';
 import { dailyBonusStarsForPoints } from '../src/config/constants';
 
 describe('useUnlogTask', () => {
@@ -84,6 +84,6 @@ describe('useUnlogTask', () => {
     await mutation.mutationFn({ taskTypeId: 7, kind: 'GOOD' });
 
     expect(runAsync).toHaveBeenCalledWith('DELETE FROM activity_log WHERE id IN (?)', [42]);
-    expect(enqueuePendingActivityDeletes).toHaveBeenCalledWith(5, [42]);
+    expect(enqueuePendingActivityDeletesForUser).toHaveBeenCalledWith(db, 5, [42]);
   });
 });
