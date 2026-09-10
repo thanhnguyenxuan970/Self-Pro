@@ -10,6 +10,8 @@ verification only; it introduces no migration or runtime change.
 | Layer | Evidence | Result and limits |
 | --- | --- | --- |
 | TypeScript | `npx tsc --noEmit` | PASS |
+| Full Jest coverage | Command below, Node 24.14.1 | 110 suites, 1,133 tests, one snapshot PASS; statements/lines 98.60%, functions 97.55%, branches 95.05% |
+| New regression repeat | Sync, acknowledgement, challenge coverage suites | 208 tests per run, three consecutive passes (624 total) |
 | Focused repeated tests | Five suites below, ten runs | 155 tests per run, 1,550 passes |
 | Real SQLite | `activityIdentityMigration.realSqlite.test.ts` | v29 to v35 upgrade preserves legacy fields; 20 reopen/rollback cycles preserve the activity; 20 reopen cycles preserve a committed delete intent |
 | Mock transport | `syncService.test.ts`, pending-delete suites | Missing RPC leaves cursor/outbox pending; retry and concurrent account/delete cases pass. This is not network evidence from Android |
@@ -22,6 +24,29 @@ Focused command:
 ```powershell
 npx.cmd jest --runInBand __tests__/activityIdentityMigration.realSqlite.test.ts __tests__/restoreOutbox.realSqlite.test.ts __tests__/pendingActivityDeletes.race.test.ts __tests__/pendingActivityDeletes.test.ts __tests__/syncService.test.ts --silent
 ```
+
+Full coverage command (2026-09-10 follow-up):
+
+```powershell
+node --no-opt node_modules/jest/bin/jest.js --runInBand --coverage --silent --coverageReporters=text-summary --coverageReporters=json-summary
+```
+
+The ordinary Node 24 coverage run crashed in V8 with `Fatal error unreachable
+code`. Disabling optimizing JIT for this test process completed successfully;
+this is a test-runner workaround, not an Android runtime or release-toolchain
+fix. Jest's existing V8 provider, collection configuration and 95% thresholds
+were not changed. Percentages describe the modules collected by that Jest
+configuration, not every source file in the repository, and do not imply that
+each individual module exceeds 95%.
+
+The reproduced weekly-challenge test failure came from using the real current
+date against a September 1 fixture while expecting week 1. The test now freezes
+time separately in weeks 1 and 2 and restores real timers in `finally`; no
+challenge runtime logic changed. Added sync/outbox tests verify malformed,
+empty and foreign acknowledgements, unchanged append payload on retry,
+cancellation before local acknowledgement, legacy receipts, and bounded batch
+limits. The new outbox suite uses mock transport/SQLite and asserts the exact
+identity-bound DELETE parameters; real SQLite evidence remains separate above.
 
 The RPC harness is deliberately pinned to loopback port 54321 and the existing
 Docker stack `habi-staging-local-20260907-r4`. It reads local Docker credentials
@@ -52,8 +77,9 @@ on port 55421 lacks the append/delete-key RPCs; no schemas were altered.
 - Review the parent activity-identity PR and this stacked draft before merge.
   The remote parent has a later QA-network-profile commit not imported into this
   recovery checkout. No merge, deploy, version bump, or production request made.
-- Full-suite prior date-sensitive failure in `useChallenge.coverage.test.ts`
-  remains outside this change; the full suite was not repeated here.
+- The full-suite date-sensitive failure is now fixed and coverage is above 95%
+  on all four global metrics. This does not close the diagnostic-source,
+  Android integration, or signed/optimized release-artifact gaps above.
 
 Review: manually checked test cleanup, transaction assertions, endpoint boundary,
 credential handling, fixture isolation and concurrent-request cleanup. This is

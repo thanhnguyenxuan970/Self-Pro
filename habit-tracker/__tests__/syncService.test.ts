@@ -3423,6 +3423,40 @@ describe('syncToSupabase', () => {
     expect(mockSelect).not.toHaveBeenCalledWith('activity_key', { head: true });
   });
 
+  it.each([
+    ['non-array', null],
+    ['empty', []],
+    ['null row', [null]],
+    ['primitive row', [9]],
+    ['missing key', [{}]],
+    ['invalid key', [{ activity_key: '' }]],
+    ['foreign key', [{ activity_key: 'activity-other-9' }]],
+    ['extra key', [{ activity_key: 'activity-test-9' }, { activity_key: 'activity-other-9' }]],
+  ])('does not advance the append cursor for a %s acknowledgement, including retry', async (_label, receipt) => {
+    mockStorageGetItem.mockResolvedValue(null);
+    const row = { id: 9, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null,
+      points_earned: 1, stars_delta: 1, source: 'TASK', logged_at: 1,
+      local_date: '2026-07-22', week_start: '2026-07-20', note: null,
+      activity_key: 'activity-test-9', activity_identity_status: 'resolved' };
+    mockGetDb.mockResolvedValue({
+      getFirstAsync: jest.fn().mockResolvedValue({ id: 1 }),
+      getAllAsync: jest.fn((sql: string) => sql.includes('FROM activity_log') ? [row] : []),
+      runAsync: jest.fn(),
+    });
+    mockRpc.mockImplementation(async (name: string) => name === 'append_my_activity_rows'
+      ? { data: receipt, error: null } : { data: 1, error: null });
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await expect(syncToSupabase('google-sub', 'user@example.com'))
+        .rejects.toThrow(/activity append acknowledgement/);
+    }
+    expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_last_activity_id:1', expect.anything());
+    expect(mockSelect).not.toHaveBeenCalledWith('activity_key', { head: true });
+    const appends = mockRpc.mock.calls.filter(([name]) => name === 'append_my_activity_rows');
+    expect(appends).toHaveLength(2);
+    expect(appends[0]).toEqual(appends[1]);
+  });
+
   it('re-uploads the signed-in user activity when the server rank total lags the local lifetime total', async () => {
     mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
     mockStorageGetItem.mockResolvedValue(null);
@@ -3644,7 +3678,15 @@ describe('syncToSupabase', () => {
     expect(await readPendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com')).toEqual([56]);
   });
 
-  it('does not acknowledge anything when the RPC returns an invalid or foreign key', async () => {
+  it.each([
+    ['foreign key', [{ activity_key: 'activity-device-b-999' }]],
+    ['non-array', null],
+    ['empty', []],
+    ['null row', [null]],
+    ['primitive row', [55]],
+    ['missing key', [{}]],
+    ['invalid key', [{ activity_key: '' }]],
+  ])('does not acknowledge anything when the delete RPC returns %s', async (_label, receipt) => {
     mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
     mockStorageGetItem.mockResolvedValue(null);
     const outboxDb = new PendingActivityDeleteTestDb();
@@ -3655,7 +3697,7 @@ describe('syncToSupabase', () => {
     mockGetDb.mockResolvedValue(outboxDb.asDatabase());
     mockRpc.mockImplementation(async (name: string) => {
       if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
-      if (name === 'delete_my_activity_keys') return { data: [{ activity_key: 'activity-device-b-999' }], error: null };
+      if (name === 'delete_my_activity_keys') return { data: receipt, error: null };
       return { data: null, error: null };
     });
 
