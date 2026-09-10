@@ -101,37 +101,55 @@ function createV29Database() {
 test('upgrades a v29 database without rewriting activity data and installs the outbox', async () => {
   const { native, api } = createV29Database();
 
-  await runMigrations(api as never);
+  try {
+    await runMigrations(api as never);
 
-  expect(native.prepare('PRAGMA user_version').get()).toEqual({ user_version: 35 });
-  const activityColumns = native.prepare('PRAGMA table_info(activity_log)').all() as Array<{ name: string }>;
-  expect(activityColumns.map(column => column.name)).toEqual(expect.arrayContaining([
-    'activity_key',
-    'activity_identity_status',
-    'activity_source_task_type_id',
-  ]));
-  expect(native.prepare('SELECT id, points_earned, activity_key, activity_identity_status FROM activity_log').all())
-    .toEqual([expect.objectContaining({
+    expect(native.prepare('PRAGMA user_version').get()).toEqual({ user_version: 35 });
+    const activityColumns = native.prepare('PRAGMA table_info(activity_log)').all() as Array<{ name: string }>;
+    expect(activityColumns.map(column => column.name)).toEqual(expect.arrayContaining([
+      'activity_key',
+      'activity_identity_status',
+      'activity_source_task_type_id',
+    ]));
+    expect(native.prepare(`
+      SELECT id, user_id, task_type_id, kind, duration_min, points_earned, stars_delta,
+             source, logged_at, local_date, week_start, note,
+             activity_key, activity_identity_status, activity_source_task_type_id
+      FROM activity_log
+    `).all()).toEqual([{
       id: 42,
+      user_id: 1,
+      task_type_id: null,
+      kind: 'GOOD',
+      duration_min: null,
       points_earned: 5,
+      stars_delta: 2,
+      source: 'TASK',
+      logged_at: 100,
+      local_date: '2026-09-01',
+      week_start: '2026-08-31',
+      note: 'legacy row',
       activity_key: null,
       activity_identity_status: 'unresolved',
+      activity_source_task_type_id: null,
+    }]);
+
+    native.prepare('UPDATE users SET account_key = ? WHERE id = 1').run('legacy@example.com');
+    native.prepare('DELETE FROM activity_log WHERE id = 42').run();
+    expect(native.prepare(
+      'SELECT account_key, local_activity_id, activity_key FROM pending_activity_deletes',
+    ).all()).toEqual([expect.objectContaining({
+      account_key: 'legacy@example.com',
+      local_activity_id: 42,
+      activity_key: null,
     })]);
 
-  native.prepare('UPDATE users SET account_key = ? WHERE id = 1').run('legacy@example.com');
-  native.prepare('DELETE FROM activity_log WHERE id = 42').run();
-  expect(native.prepare(
-    'SELECT account_key, local_activity_id, activity_key FROM pending_activity_deletes',
-  ).all()).toEqual([expect.objectContaining({
-    account_key: 'legacy@example.com',
-    local_activity_id: 42,
-    activity_key: null,
-  })]);
-
-  // A second startup must be idempotent and retain the delete intent.
-  await runMigrations(api as never);
-  expect(native.prepare('PRAGMA user_version').get()).toEqual({ user_version: 35 });
-  expect(native.prepare('SELECT COUNT(*) AS count FROM pending_activity_deletes').get())
-    .toEqual({ count: 1 });
-  native.close();
+    // A second startup must be idempotent and retain the delete intent.
+    await runMigrations(api as never);
+    expect(native.prepare('PRAGMA user_version').get()).toEqual({ user_version: 35 });
+    expect(native.prepare('SELECT COUNT(*) AS count FROM pending_activity_deletes').get())
+      .toEqual({ count: 1 });
+  } finally {
+    native.close();
+  }
 });
