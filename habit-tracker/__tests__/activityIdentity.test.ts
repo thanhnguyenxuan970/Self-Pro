@@ -12,6 +12,25 @@ describe('activity identity rules', () => {
     expect(isConfirmedActivityIdentity(key)).toBe(true);
   });
 
+  it('creates a collision-resistant fallback key without Web Crypto', () => {
+    const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+    const random = jest.spyOn(Math, 'random').mockReturnValue(0.5);
+    Object.defineProperty(globalThis, 'crypto', { configurable: true, value: undefined });
+
+    try {
+      expect(createActivityKey()).toBe('activity-loyw3v28-i');
+    } finally {
+      now.mockRestore();
+      random.mockRestore();
+      if (cryptoDescriptor) {
+        Object.defineProperty(globalThis, 'crypto', cryptoDescriptor);
+      } else {
+        delete (globalThis as unknown as { crypto?: unknown }).crypto;
+      }
+    }
+  });
+
   it('keeps missing and legacy-shaped identities unresolved without manufacturing a key', () => {
     expect(normalizeStoredActivityIdentity(undefined, undefined)).toEqual({
       activityKey: null,
