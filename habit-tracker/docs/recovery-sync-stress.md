@@ -64,19 +64,18 @@ specific clock error before any activity writes. The final run passed. This is a
 test-environment workaround, not a production Auth fix. The other local instance
 on port 55421 lacks the append/delete-key RPCs; no schemas were altered.
 
-## Remaining work
+## Remaining integration evidence
 
-- Build a new APK with the local endpoint and verify the actual embedded host.
-- Exercise app Auth and sync, offline-to-online, app-process restart, and missing
+- Exercise authenticated app sync, offline-to-online, and missing
   RPC while observing pending SQLite state and network methods. Database reopen
-  tests are not Android restart evidence. No HEAD in this harness proves only
+  tests are not authenticated Android sync evidence. No HEAD in this harness proves only
   the harness's methods, not the app's runtime behavior.
 - `user_data_backup_history` and `u.updated_at`: diagnostic execution paths were
   previously identified, but the originating scripts remain unavailable. Neither
   diagnostic bug is fixed by this follow-up; no substitute diagnostic file edited.
 - Review the parent activity-identity PR and this stacked draft before merge.
-  The remote parent has a later QA-network-profile commit not imported into this
-  recovery checkout. No merge, deploy, version bump, or production request made.
+  The QA network profile from the parent is now merged into this recovery branch.
+  No deploy, version bump, or production request was made.
 - The full-suite date-sensitive failure is now fixed and coverage is above 95%
   on all four global metrics. This does not close the diagnostic-source,
   Android integration, or signed/optimized release-artifact gaps above.
@@ -92,6 +91,10 @@ variant. It inherits release signing but disables shrinking, and its manifest
 permits cleartext traffic only to the emulator host `10.0.2.2`. The production
 release manifest and release shrinker setting remain unchanged. A regression
 test enforces these boundaries.
+
+The final coverage run passed 111 suites and 1,140 tests with statements/lines
+98.65%, functions 97.55%, and branches 95.02%; the repository's 95% global
+threshold was not lowered.
 
 The local QA APK was built with a loopback Supabase URL, installed on the fresh
 Android 34 AVD `Codex_Local_402_20260912`, and the installed package matched the
