@@ -84,3 +84,35 @@ on port 55421 lacks the append/delete-key RPCs; no schemas were altered.
 Review: manually checked test cleanup, transaction assertions, endpoint boundary,
 credential handling, fixture isolation and concurrent-request cleanup. This is
 not an independent multi-agent review or release approval.
+
+## Android and release verification (2026-09-13)
+
+The recovery branch now includes the parent branch's dedicated `qa` Android
+variant. It inherits release signing but disables shrinking, and its manifest
+permits cleartext traffic only to the emulator host `10.0.2.2`. The production
+release manifest and release shrinker setting remain unchanged. A regression
+test enforces these boundaries.
+
+The local QA APK was built with a loopback Supabase URL, installed on the fresh
+Android 34 AVD `Codex_Local_402_20260912`, and the installed package matched the
+built APK byte-for-byte. The app reached the native Google account chooser and
+completed 20 independent process starts with 20 distinct process IDs and no
+`FATAL EXCEPTION`, `ReactNativeJS` error, or bundle-load failure. This proves
+installation, cold-start stability, and native Auth-provider routing. It does
+not prove an authenticated app sync because no test Google account was entered.
+
+The signed, minified release AAB completed `bundleRelease` under JDK 17 with R8
+enabled and embeds project `ebprkyplvqexzpwfasjq`; it was not installed and no
+production request was sent. Reproducible commands, tool versions, sanitized
+environment metadata, build logs, artifact checksums, and signature checks are
+kept in the local audit record generated after the final source commit.
+
+The real loopback GoTrue/PostgREST stress harness remains the backend integration
+evidence: password Auth, append, concurrent retry, delete, and append/delete race
+all passed against the permitted local stack. The missing-RPC pending behavior
+is covered by Jest and real SQLite reopen tests, not by an authenticated APK run.
+
+`user_data_backup_history` and `u.updated_at` remain unchanged: the originating
+diagnostic scripts are unavailable, so no unrelated diagnostic file was edited
+as a substitute. The draft PR remains unmerged and undeployed; no version was
+bumped.
