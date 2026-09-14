@@ -112,6 +112,7 @@ export async function resolveUserRow(
   isActive: () => boolean = () => true,
   previousGoogleSub?: string,
 ): Promise<{ id: number; isNew: boolean }> {
+  const accountKey = googleEmail.trim().toLowerCase();
   let resolved: { id: number; isNew: boolean } | null = null;
   await db.withTransactionAsync(async () => {
     if (!isActive()) throw new Error('Google sign-in cancelled');
@@ -122,6 +123,11 @@ export async function resolveUserRow(
       [googleSub]
     );
     if (existing) {
+      if (!isActive()) throw new Error('Google sign-in cancelled');
+      await db.runAsync(
+        'UPDATE users SET account_key = ? WHERE id = ?',
+        [accountKey, existing.id],
+      );
       resolved = { id: existing.id, isNew: false };
       return;
     }
@@ -138,7 +144,10 @@ export async function resolveUserRow(
       );
       if (previous) {
         if (!isActive()) throw new Error('Google sign-in cancelled');
-        await db.runAsync('UPDATE users SET google_sub = ? WHERE id = ?', [googleSub, previous.id]);
+        await db.runAsync(
+          'UPDATE users SET google_sub = ?, account_key = ? WHERE id = ?',
+          [googleSub, accountKey, previous.id],
+        );
         resolved = { id: previous.id, isNew: false };
         return;
       }
@@ -151,15 +160,18 @@ export async function resolveUserRow(
     );
     if (legacy) {
       if (!isActive()) throw new Error('Google sign-in cancelled');
-      await db.runAsync('UPDATE users SET google_sub = ? WHERE id = ?', [googleSub, legacy.id]);
+      await db.runAsync(
+        'UPDATE users SET google_sub = ?, account_key = ? WHERE id = ?',
+        [googleSub, accountKey, legacy.id],
+      );
       resolved = { id: legacy.id, isNew: false };
       return;
     }
 
     if (!isActive()) throw new Error('Google sign-in cancelled');
     const claimed = await db.runAsync(
-      'UPDATE users SET google_sub = ? WHERE id = 1 AND google_sub IS NULL',
-      [googleSub]
+      'UPDATE users SET google_sub = ?, account_key = ? WHERE id = 1 AND google_sub IS NULL',
+      [googleSub, accountKey]
     );
     if (claimed.changes > 0) {
       resolved = { id: 1, isNew: false };
@@ -172,9 +184,9 @@ export async function resolveUserRow(
     // account behind.
     if (!isActive()) throw new Error('Google sign-in cancelled');
     const result = await db.runAsync(
-      `INSERT INTO users (username, timezone, carry_debt, currency, google_sub)
-       VALUES ('me', 'Asia/Ho_Chi_Minh', 0, 'VND', ?)`,
-      [googleSub]
+      `INSERT INTO users (username, timezone, carry_debt, currency, google_sub, account_key)
+       VALUES ('me', 'Asia/Ho_Chi_Minh', 0, 'VND', ?, ?)`,
+      [googleSub, accountKey]
     );
     const newUserId = result.lastInsertRowId;
     const catSeed = [

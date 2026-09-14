@@ -265,7 +265,8 @@ describe('account lifecycle safety branches', () => {
     await expect(resolveUserRow(legacyDb as never, 'new-sub', user.email))
       .resolves.toEqual({ id: 5, isNew: false });
     expect(legacyDb.runAsync).toHaveBeenCalledWith(
-      'UPDATE users SET google_sub = ? WHERE id = ?', ['new-sub', 5],
+      'UPDATE users SET google_sub = ?, account_key = ? WHERE id = ?',
+      ['new-sub', user.email, 5],
     );
   });
 
