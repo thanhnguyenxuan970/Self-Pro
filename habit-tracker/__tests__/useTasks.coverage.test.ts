@@ -13,7 +13,7 @@ jest.mock('../src/db/client', () => ({ getDb: mockGetDb }));
 jest.mock('../src/api/syncService', () => ({ syncCurrentUserToSupabase: mockSyncCurrentUserToSupabase }));
 jest.mock('../src/game/lifetimeRankWrites', () => ({ applyLifetimeStarsDelta: mockApplyLifetimeStarsDelta }));
 jest.mock('../src/game/pendingLevelUpQueue', () => ({ enqueuePendingLevelUps: mockEnqueuePendingLevelUps }));
-jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletes: mockEnqueuePendingActivityDeletes }));
+jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletesForUser: mockEnqueuePendingActivityDeletes }));
 jest.mock('../src/lib/rankMascotBridge', () => ({ rankMascotBridge: {} }));
 jest.mock('../src/config/constants', () => ({ dailyBonusStarsForPoints: jest.fn((points: number) => points >= 10 ? 1 : 0) }));
 jest.mock('../src/utils/activityPicker', () => ({
@@ -132,7 +132,7 @@ describe('task query and mutation contracts', () => {
     mockApplyLifetimeStarsDelta.mockResolvedValueOnce({ crossings: [{ tierId: 2 }] });
     const result = await archive.mutationFn([7]);
     expect(result.lifetimeCrossings).toEqual([{ tierId: 2 }]);
-    expect(mockEnqueuePendingActivityDeletes).toHaveBeenCalledWith(5, [11, 12]);
+    expect(mockEnqueuePendingActivityDeletes).toHaveBeenCalledWith(db, 5, [11, 12]);
     expect(db.runAsync).toHaveBeenCalledWith('UPDATE task_types SET archived = 1 WHERE id = ? AND user_id = ?', [7, 5]);
   });
 

@@ -6,9 +6,10 @@ import { MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../uti
 import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
-import { enqueuePendingActivityDeletes } from '../game/pendingActivityDeletes';
+import { enqueuePendingActivityDeletesForUser } from '../game/pendingActivityDeletes';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { syncCurrentUserToSupabase } from '../api/syncService';
+import { createActivityKey } from '../lib/activityIdentity';
 
 interface TaskFormParams {
   name: string;
@@ -202,9 +203,9 @@ async function revertDailySummaries(
       if (remainingBonusStars > 0) {
         await db.runAsync(
           `INSERT INTO activity_log
-           (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
-           VALUES (?, NULL, 'DAILY_BONUS', NULL, 0, ?, 'DAILY_BONUS', ?, ?, ?)`,
-          [userId, remainingBonusStars, Date.now(), date, weekStart],
+           (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, activity_key)
+           VALUES (?, NULL, 'DAILY_BONUS', NULL, 0, ?, 'DAILY_BONUS', ?, ?, ?, ?)`,
+          [userId, remainingBonusStars, Date.now(), date, weekStart, createActivityKey()],
         );
       }
       const wk = byWeek.get(weekStart) ?? { points: 0, stars: 0 };
@@ -353,8 +354,8 @@ export function useArchiveTask(userId: number) {
             [taskId, userId]
           );
         }
+        await enqueuePendingActivityDeletesForUser(db, userId, deletedActivityIds);
       });
-      await enqueuePendingActivityDeletes(userId, deletedActivityIds);
 
       return { lifetimeCrossings };
     },

@@ -24,6 +24,57 @@ export function getGoogleSignInErrorCode(error: unknown): string | null {
   return typeof code === 'string' && /^[A-Za-z0-9_]{1,64}$/.test(code) ? code : null;
 }
 
+export type GoogleSignInFailureKind = 'account_recovery' | 'provider_configuration' | 'unknown';
+
+const ACCOUNT_RECOVERY_ERROR_CODES = new Set([
+  'RESTORE_NO_CLIENT',
+  'RESTORE_BLOCKED',
+  'RESTORE_TRANSIENT',
+  'RESTORE_ERROR',
+  'RESTORE_DIVERGED',
+  'RESTORE_TIMEOUT',
+]);
+
+/**
+ * Map only the app's short, validated error codes to safe user-facing states.
+ * Restore failures are deliberately kept fail-closed; this classification only
+ * prevents them from being presented as a misleading generic OAuth failure.
+ */
+export function getGoogleSignInFailureKind(code: string | null): GoogleSignInFailureKind {
+  if (code && ACCOUNT_RECOVERY_ERROR_CODES.has(code)) return 'account_recovery';
+  if (code === 'DEVELOPER_ERROR' || code === '10') return 'provider_configuration';
+  return 'unknown';
+}
+
+export type GoogleSignInAlertMessages = {
+  signInNoPlayServices: string;
+  signInRecoveryFailed: string;
+  signInConfigError: string;
+  signInFailed: string;
+};
+
+export function getGoogleSignInFailureMessage({
+  code,
+  cancelledCode,
+  playServicesUnavailableCode,
+  diagnosticsEnabled,
+  messages,
+}: {
+  code: string | null;
+  cancelledCode?: string;
+  playServicesUnavailableCode?: string;
+  diagnosticsEnabled: boolean;
+  messages: GoogleSignInAlertMessages;
+}): string | null {
+  if (code === cancelledCode) return null;
+  if (code === playServicesUnavailableCode) return messages.signInNoPlayServices;
+
+  const failureKind = getGoogleSignInFailureKind(code);
+  if (failureKind === 'account_recovery') return messages.signInRecoveryFailed;
+  if (failureKind === 'provider_configuration') return messages.signInConfigError;
+  return diagnosticsEnabled && code ? `${messages.signInFailed} (${code})` : messages.signInFailed;
+}
+
 /** Convert the native Google response only when the remote-auth credential is present. */
 export function extractGoogleUser(response: GoogleSignInResponse): { googleUser: GoogleUser; idToken: string } | null {
   const user = response.data?.user;

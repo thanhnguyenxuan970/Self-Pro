@@ -4,10 +4,10 @@ jest.mock('@tanstack/react-query', () => ({
   useMutation: jest.fn((options) => options),
   useQueryClient: jest.fn(() => ({ invalidateQueries: jest.fn() })),
 }));
-jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletes: jest.fn() }));
+jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletesForUser: jest.fn() }));
 import { getDb } from '../src/db/client';
 import { useArchiveTask } from '../src/queries/useTasks';
-import { enqueuePendingActivityDeletes } from '../src/game/pendingActivityDeletes';
+import { enqueuePendingActivityDeletesForUser } from '../src/game/pendingActivityDeletes';
 
 type Mutation = { mutationFn: (taskIdOrIds: number | number[]) => Promise<{ lifetimeCrossings: unknown[] }> };
 
@@ -49,7 +49,7 @@ describe('useArchiveTask', () => {
       'UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?',
       [3, 4, 5],
     );
-    expect(enqueuePendingActivityDeletes).toHaveBeenCalledWith(5, [201, 202]);
+    expect(enqueuePendingActivityDeletesForUser).toHaveBeenCalledWith(db, 5, [201, 202]);
   });
 
   it('is a no-op enqueue when the archived task type has no activity history', async () => {
@@ -59,6 +59,6 @@ describe('useArchiveTask', () => {
     const mutation = useArchiveTask(5) as unknown as Mutation;
     await mutation.mutationFn(9);
 
-    expect(enqueuePendingActivityDeletes).toHaveBeenCalledWith(5, []);
+    expect(enqueuePendingActivityDeletesForUser).toHaveBeenCalledWith(db, 5, []);
   });
 });

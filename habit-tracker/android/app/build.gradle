@@ -99,8 +99,8 @@ android {
         applicationId 'com.habitring.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 83
-        versionName "2.0.3.o"
+        versionCode 84
+        versionName "2.0.3.p"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
 
@@ -145,6 +145,17 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
             crunchPngs enablePngCrunchInRelease.toBoolean()
+        }
+        // Local emulator QA only. This keeps the production release manifest
+        // and shrinker settings unchanged while allowing the QA network
+        // security config to reach the host-mapped Supabase endpoint.
+        qa {
+            initWith release
+            matchingFallbacks = ['release']
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            shrinkResources false
+            crunchPngs false
         }
     }
     packagingOptions {

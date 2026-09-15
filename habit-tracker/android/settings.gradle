@@ -1,4 +1,16 @@
 pluginManagement {
+  // AGP 8.12.0 bundles R8 8.12.14, which crashes while shaking this app's
+  // dependency graph. Use the newer stable R8 compiler until AGP is upgraded.
+  buildscript {
+    repositories {
+      google()
+      mavenCentral()
+    }
+    dependencies {
+      classpath("com.android.tools:r8:9.0.45")
+    }
+  }
+
   def reactNativeGradlePlugin = new File(
     providers.exec {
       workingDir(rootDir)

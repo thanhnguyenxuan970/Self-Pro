@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [2.0.3.17] - 2026-09-05
+
+### Fixed
+- **Android release optimization**: enabled verified R8 shrinking/resource optimization with the stable R8 compiler and JDK 21 toolchain; the signed AAB now packages both `arm64-v8a` and `x86_64` native libraries, including `libreactnative.so`.
+- **Google sign-in diagnostics**: protected account-recovery failures are distinguished from provider-configuration errors without exposing raw native error text or bypassing recovery gates.
+
+Validation: TypeScript, 104 Jest suites/1,043 tests/1 snapshot, V8 coverage at 98.77% statements, 95.02% branches, 97.64% functions, and 98.77% lines, 10 repeated auth-focused stress runs, `git diff --check`, and `bundleRelease` passed. Signed AAB `2.0.3.p` (versionCode `84`) SHA-256: `C5B21E6A118E759250E7910DE3A13637240A1DD907671B1E539DD995617EE4AF`.
+
 ## [2.0.3.16] - 2026-09-05
 
 ### Changed

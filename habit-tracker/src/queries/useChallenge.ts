@@ -13,7 +13,7 @@ import type { LifetimeTierRow } from '../game/lifetimeRank';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierCrossing } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
-import { enqueuePendingActivityDeletes } from '../game/pendingActivityDeletes';
+import { enqueuePendingActivityDeletesForUser } from '../game/pendingActivityDeletes';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { getWeekStart } from '../utils/formatters';
 import type { AppLanguage } from '../config/i18n';
@@ -25,6 +25,7 @@ import {
 import { challengeReminderPrefix, type ChallengeReminderState } from '../lib/challengeNotificationPlan';
 import { syncCurrentUserToSupabase } from '../api/syncService';
 import { useLanguage } from '../hooks/useSettings';
+import { createActivityKey } from '../lib/activityIdentity';
 
 async function syncChallengeData(context: string): Promise<void> {
   try {
@@ -323,9 +324,9 @@ async function awardChallengeCompletion(
   );
   await db.runAsync(
     `INSERT INTO activity_log
-      (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note)
-     VALUES (?, ?, 'CHALLENGE', NULL, 0, ?, 'CHALLENGE', ?, ?, ?, ?)`,
-    [params.userId, params.taskTypeId, rewardStars, nowMs, params.localDate, weekStart, `challenge:${params.challengeId}`],
+      (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note, activity_key)
+     VALUES (?, ?, 'CHALLENGE', NULL, 0, ?, 'CHALLENGE', ?, ?, ?, ?, ?)`,
+    [params.userId, params.taskTypeId, rewardStars, nowMs, params.localDate, weekStart, `challenge:${params.challengeId}`, createActivityKey()],
   );
   await db.runAsync(
     `INSERT INTO weekly_summary (user_id, week_start, total_points, weekly_stars)
@@ -651,6 +652,7 @@ export async function deleteChallengesById(
       if (result.notificationId) reminderIds.push(result.notificationId);
       deletedActivityIds.push(...result.deletedActivityIds);
     }
+    await enqueuePendingActivityDeletesForUser(txn, userId, deletedActivityIds);
   });
 
   await cancelChallengeReminders([
@@ -1175,8 +1177,7 @@ export function useDeleteChallenge(userId: number) {
       const ids = Array.isArray(challengeIds) ? challengeIds : [challengeIds];
       if (ids.length === 0) return;
       const db = await getDb();
-      const { deletedActivityIds } = await deleteChallengesById(db, userId, ids);
-      await enqueuePendingActivityDeletes(userId, deletedActivityIds);
+      await deleteChallengesById(db, userId, ids);
     },
     onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['challenge'] });
