@@ -7,10 +7,11 @@ import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../c
 import { useThemedScreenState } from '../hooks/useThemedScreenState';
 import { isQaSandboxBuildAvailable } from '../qa/qaSandbox';
 import { extractGoogleUser, getGoogleSignInErrorCode, getGoogleSignInFailureMessage, isGoogleSignInCancelledResponse } from '../lib/googleAuth';
+import { createAuthAttemptId, createAuthStageReporter, logGoogleSignInResponseTelemetry } from '../lib/authTelemetry';
 
 type Props = {
   onSignIn: () => void;
-  onSignInWithGoogle: (user: GoogleUser, idToken: string) => Promise<boolean>;
+  onSignInWithGoogle: (user: GoogleUser, idToken: string, attemptId?: string) => Promise<boolean>;
   onEnterQaSandbox: () => Promise<boolean>;
 };
 
@@ -75,9 +76,15 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle, onEnterQaSandbox }:
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
+    const attemptId = createAuthAttemptId();
+    const reporter = createAuthStageReporter(attemptId);
+    reporter.start('google_native');
+    let nativeStageCompleted = false;
     let signInCancelledCode: string | undefined;
     let playServicesUnavailableCode: string | undefined;
     let googleModuleLoaded = false;
+    let nativeResponseReceived = false;
+    let nativeResponse: unknown;
     try {
       // require() at call-time — avoids TurboModule registration race at bundle load
       const { GoogleSignin, statusCodes } = require('@react-native-google-signin/google-signin');
@@ -88,13 +95,35 @@ export function SignInScreen({ onSignIn, onSignInWithGoogle, onEnterQaSandbox }:
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       try { await GoogleSignin.signOut(); } catch { }
       const response = await GoogleSignin.signIn();
-      if (isGoogleSignInCancelledResponse(response)) return;
+      nativeResponseReceived = true;
+      nativeResponse = response;
+      if (isGoogleSignInCancelledResponse(response)) {
+        logGoogleSignInResponseTelemetry({ attemptId, response });
+        reporter.end('google_native', 'cancelled', { code: 'CANCELLED' });
+        return;
+      }
       const extracted = extractGoogleUser(response);
-      if (!extracted) { Alert.alert(t.error, t.signInMissingInfo); return; }
-      const isNew = await onSignInWithGoogle(extracted.googleUser, extracted.idToken);
+      if (!extracted) {
+        logGoogleSignInResponseTelemetry({ attemptId, response, failureStep: 'extractGoogleUser' });
+        reporter.end('google_native', 'failure', { code: 'GOOGLE_NATIVE_INVALID_RESPONSE' });
+        Alert.alert(t.error, t.signInMissingInfo);
+        return;
+      }
+      logGoogleSignInResponseTelemetry({ attemptId, response });
+      reporter.end('google_native', 'success');
+      nativeStageCompleted = true;
+      const isNew = await onSignInWithGoogle(extracted.googleUser, extracted.idToken, attemptId);
       if (isNew) onSignIn();
     } catch (err: unknown) {
       const code = getGoogleSignInErrorCode(err);
+      if (!nativeStageCompleted) {
+        logGoogleSignInResponseTelemetry({
+          attemptId,
+          response: nativeResponseReceived ? nativeResponse : undefined,
+          failureStep: nativeResponseReceived ? 'extractGoogleUser' : 'native_sign_in',
+        });
+        reporter.end('google_native', 'failure', code ? { code } : err);
+      }
       if (!googleModuleLoaded) {
         Alert.alert(t.error, t.signInLibError);
       } else {

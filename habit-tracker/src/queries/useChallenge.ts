@@ -23,16 +23,13 @@ import {
   type ChallengeReminderSyncResult,
 } from '../utils/notifications';
 import { challengeReminderPrefix, type ChallengeReminderState } from '../lib/challengeNotificationPlan';
-import { syncCurrentUserToSupabase } from '../api/syncService';
+import { requestCurrentUserSync } from '../api/syncRetry';
 import { useLanguage } from '../hooks/useSettings';
 import { createActivityKey } from '../lib/activityIdentity';
 
 async function syncChallengeData(context: string): Promise<void> {
-  try {
-    await syncCurrentUserToSupabase();
-  } catch (error) {
-    if (__DEV__) console.warn(`[sync] ${context} failed:`, error);
-  }
+  void context;
+  await requestCurrentUserSync();
 }
 
 export interface ActiveChallenge {

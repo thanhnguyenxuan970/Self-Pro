@@ -16,15 +16,19 @@ import { queryClient } from './src/queries/queryClient';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { getDb } from './src/db/client';
 import { useAuth, resolveUserRow, UserIdContext, GoogleUserContext } from './src/hooks/useAuth';
-import { restoreUserDataIfNeeded, syncToSupabase } from './src/api/syncService';
+import { restoreUserDataIfNeeded } from './src/api/syncService';
 import { SettingsProvider } from './src/contexts/SettingsContext';
-import { useTheme, useLanguage } from './src/hooks/useSettings';
+import { useTheme, useLanguage, useTranslations } from './src/hooks/useSettings';
 import { FontFamily } from './src/config/theme';
 import { createToastConfig } from './src/config/toastConfig';
 import { TutorialProvider } from './src/hooks/useTutorial';
 import { rolloverChallenge, syncActiveChallengeReminders } from './src/queries/useChallenge';
 import { activateChallengeReminderSync, scheduleAllHabitReminders } from './src/utils/notifications';
 import { createQaSandboxUser, isQaSandboxBuildAvailable, isQaSandboxIdentity, purgeQaSandbox, seedQaSandbox } from './src/qa/qaSandbox';
+import { normalizeAccountEmail } from './src/lib/accountIdentity';
+import { AuthRecoveryScreen } from './src/components/AuthRecoveryScreen';
+import { SyncStatusBanner } from './src/components/SyncStatusBanner';
+import { requestCurrentUserSync } from './src/api/syncRetry';
 
 // Crash reporting: hard no-op until EXPO_PUBLIC_SENTRY_DSN is supplied (no
 // Sentry account/project exists yet -- see TODOS.md). Guarded in try/catch
@@ -86,6 +90,7 @@ function AppInner() {
   const qaSeedInFlight = useRef(false);
   const qaSeededForSub = useRef<string | null>(null);
   const { colors } = useTheme();
+  const t = useTranslations();
   const [lang] = useLanguage();
   const toastConfig = useMemo(() => createToastConfig(colors), [colors]);
   const retryInit = useCallback(() => {
@@ -96,6 +101,8 @@ function AppInner() {
   }, []);
   const {
     isLoading: authLoading,
+    startupRecoveryState,
+    retryStartupRecovery,
     isOnboarded,
     googleUser,
     userId,
@@ -111,6 +118,10 @@ function AppInner() {
   googleUserRef.current = googleUser;
 
   const handleAccountRecoveryRetry = useCallback(() => {
+    if (startupRecoveryState === 'retryable') {
+      retryStartupRecovery();
+      return;
+    }
     if (!googleUser?.email) {
       retryInit();
       return;
@@ -121,19 +132,19 @@ function AppInner() {
     recoveryRetryRequested.current = request;
     setRecoveryRetryPending(true);
     retryInit();
-  }, [googleUser?.email, googleUser?.sub, retryInit]);
+  }, [googleUser?.email, googleUser?.sub, retryInit, retryStartupRecovery, startupRecoveryState]);
 
   // Wait for auth to finish loading (AsyncStorage is async) so googleUser is
   // available before we resolve the DB row. Without this guard, init() runs
   // with googleUser=null and userId stays 1 for all returning users.
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || startupRecoveryState === 'recovering' || startupRecoveryState === 'retryable') return;
     async function init() {
       const requestedRecoveryRetry = recoveryRetryRequested.current;
       const allowBlockedRetry = Boolean(
         requestedRecoveryRetry
         && googleUser?.email
-        && requestedRecoveryRetry.email.trim().toLowerCase() === googleUser.email.trim().toLowerCase()
+        && normalizeAccountEmail(requestedRecoveryRetry.email) === normalizeAccountEmail(googleUser.email)
         && (!requestedRecoveryRetry.sub || requestedRecoveryRetry.sub === googleUser.sub),
       );
       if (!allowBlockedRetry && recoveryRetryInFlight.current === requestedRecoveryRetry) {
@@ -192,7 +203,7 @@ function AppInner() {
                     const currentUser = googleUserRef.current;
                     return Boolean(
                       currentUser?.email
-                      && currentUser.email.trim().toLowerCase() === googleUser.email.trim().toLowerCase()
+                      && normalizeAccountEmail(currentUser.email) === normalizeAccountEmail(googleUser.email)
                       && (!googleUser.sub || currentUser.sub === googleUser.sub),
                     );
                   },
@@ -216,7 +227,7 @@ function AppInner() {
                   setAccountRecoveryError(true);
                   console.warn('[sync] cloud restore is unavailable; keeping account recovery blocked');
                 } else {
-                  syncToSupabase(googleUser.sub, googleUser.email)
+                  requestCurrentUserSync()
                     .then(() => {
                       queryClient.invalidateQueries({ queryKey: ['rank'] });
                       queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
@@ -249,7 +260,7 @@ function AppInner() {
   // googleUser intentionally captured via closure: init() runs once when auth
   // settles. Fresh sign-ins resolve userId via signInWithGoogle() instead.
   // retryCount bumped by retryInit() to re-trigger this effect after user taps Retry.
-  }, [authLoading, retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authLoading, retryCount, startupRecoveryState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auth restoration can publish the QA identity one render after the DB init
   // effect above has already settled with the default local user. Reconcile
@@ -387,25 +398,19 @@ function AppInner() {
     };
   }, [dbReady, isOnboarded, userId, lang, googleUser?.email, googleUser?.sub, qaFixturePending]);
 
-  if (accountRecoveryError) {
+  if (accountRecoveryError || startupRecoveryState === 'retryable') {
     const retryBusy = recoveryRetryPending || recoveryRetryInFlight.current !== null;
-    return (
-      <View style={[appStyles.center, { backgroundColor: colors.bgBase }]}>
-        <Text style={[appStyles.errorMsg, { color: colors.ink2 }]}>
-          {'Account recovery is paused to protect your data.\nPlease retry when the connection is stable.'}
-        </Text>
-        <TouchableOpacity
-          style={[appStyles.retryBtn, { backgroundColor: colors.primary }, retryBusy && appStyles.retryBtnDisabled]}
-          onPress={() => void handleAccountRecoveryRetry()}
-          disabled={retryBusy}
-          accessibilityRole="button"
-          accessibilityLabel="Retry account recovery"
-          accessibilityState={{ busy: retryBusy, disabled: retryBusy }}
-        >
-          <Text style={[appStyles.retryTxt, { color: colors.onAccent }]}>{retryBusy ? 'Waiting…' : 'Retry'}</Text>
-        </TouchableOpacity>
-      </View>
-    );
+    return <AuthRecoveryScreen
+      backgroundColor={colors.bgBase}
+      textColor={colors.ink2}
+      buttonColor={colors.primary}
+      buttonTextColor={colors.onAccent}
+      message={t.signInRecoveryFailed}
+      buttonLabel={t.friendsRetry}
+      busyLabel={t.syncWaitingForConnection}
+      busy={retryBusy}
+      onRetry={() => void handleAccountRecoveryRetry()}
+    />;
   }
 
   if (dbError) {
@@ -445,6 +450,7 @@ function AppInner() {
           onSignOut={signOut}
           onDeleteAccount={deleteAccount}
         />
+        <SyncStatusBanner />
         <Toast config={toastConfig} />
       </TutorialProvider>
     </GoogleUserContext.Provider>
@@ -455,7 +461,7 @@ function AppInner() {
 const appStyles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   errorMsg: { fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
-  retryBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 10 },
+  retryBtn: { minHeight: 44, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 10, justifyContent: 'center' },
   retryBtnDisabled: { opacity: 0.65 },
   retryTxt: { fontSize: 15, fontFamily: FontFamily.semiBold },
 });

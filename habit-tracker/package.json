@@ -20,6 +20,7 @@
     "expo-haptics": "~56.0.3",
     "expo-linear-gradient": "~56.0.4",
     "expo-localization": "~56.0.6",
+    "expo-network": "~56.0.5",
     "expo-notifications": "~56.0.22",
     "expo-secure-store": "~56.0.4",
     "expo-sharing": "~56.0.23",
@@ -51,6 +52,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "test": "jest",
+    "verify:staging-endpoint": "node scripts/verify-staging-endpoint.mjs",
     "postinstall": "patch-package"
   },
   "private": true

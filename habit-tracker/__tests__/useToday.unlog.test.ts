@@ -63,6 +63,7 @@ describe('useUnlogTask', () => {
     });
 
     const runAsync = jest.fn(async () => ({ changes: 1 }));
+    let transactionOpen = false;
     const db = {
       getAllAsync: jest.fn(async (sql: string) => {
         if (sql.includes('FROM tiers')) return [];
@@ -74,9 +75,19 @@ describe('useUnlogTask', () => {
         sql.includes('daily_summary') ? { total_points: 1, bonus_star_awarded: 0 } : null
       )),
       runAsync,
-      withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => callback()),
+      withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => {
+        transactionOpen = true;
+        try {
+          await callback();
+        } finally {
+          transactionOpen = false;
+        }
+      }),
     };
     jest.mocked(getDb).mockResolvedValue(db as never);
+    jest.mocked(enqueuePendingActivityDeletesForUser).mockImplementationOnce(async () => {
+      expect(transactionOpen).toBe(true);
+    });
 
     const mutation = useUnlogTask(5) as unknown as {
       mutationFn: (params: { taskTypeId: number; kind: 'GOOD' | 'BAD' }) => Promise<{ lifetimeCrossings: unknown[] }>;

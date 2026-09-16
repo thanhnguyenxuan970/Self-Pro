@@ -1,3 +1,7 @@
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+
 import {
   buildQaSandboxLeaderboard,
   buildQaSandboxFixture,
@@ -107,6 +111,10 @@ describe('QA sandbox identity and fixture contract', () => {
       withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => callback()),
     };
     await purgeQaSandbox(db as never, false);
+    expect(runAsync).toHaveBeenCalledWith(
+      'DELETE FROM pending_activity_deletes WHERE account_key = ?',
+      ['qa-sandbox@local.habi'],
+    );
     expect(runAsync).not.toHaveBeenCalledWith('DELETE FROM users WHERE id = ?', [7]);
     await purgeQaSandbox(db as never, true);
     expect(runAsync).toHaveBeenCalledWith('DELETE FROM users WHERE id = ?', [7]);
@@ -116,6 +124,10 @@ describe('QA sandbox identity and fixture contract', () => {
       runAsync: jest.fn().mockResolvedValue({ changes: 1 }),
     };
     await expect(purgeQaSandbox(emptyDb as never)).resolves.toBeUndefined();
+    expect(emptyDb.runAsync).toHaveBeenCalledWith(
+      'DELETE FROM pending_activity_deletes WHERE account_key = ?',
+      ['qa-sandbox@local.habi'],
+    );
 
     const userWithoutChallenges = {
       getFirstAsync: jest.fn().mockResolvedValue({ id: 8 }),
@@ -144,6 +156,10 @@ describe('QA sandbox identity and fixture contract', () => {
     expect(first).toBe(second);
     expect(first).toBeGreaterThan(0);
     expect(db.withTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(db.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('google_sub, account_key, treat_stars'),
+      expect.arrayContaining(['qa-sandbox-local-v1', 'qa-sandbox@local.habi']),
+    );
     expect(isQaSandboxActive()).toBe(true);
   });
 

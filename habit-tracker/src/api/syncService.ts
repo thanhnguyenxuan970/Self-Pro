@@ -14,6 +14,11 @@ import { getAccountActivityStartDate } from '../lib/accountActivityBoundary';
 import { isConfirmedActivityIdentity } from '../lib/activityIdentity';
 import { normalizeAccountEmail, requireNormalizedAccountEmail } from '../lib/accountIdentity';
 import {
+  logRestorePhase,
+  type RestorePhase,
+  type RestoreRpcOperation,
+} from '../lib/authTelemetry';
+import {
   buildUserDataBackup,
   CLOUD_BACKUP_SCHEMA_VERSION,
   filterCloudBackupPayload,
@@ -48,6 +53,24 @@ const ACTIVITY_IDENTITY_UNRESOLVED_ERROR =
 
 type AssertSyncActive = () => void;
 type SyncTask = (assertActive: AssertSyncActive) => Promise<void>;
+
+async function withRestoreTelemetry<T>(
+  attemptId: string | undefined,
+  phase: RestorePhase,
+  operation: RestoreRpcOperation | undefined,
+  work: () => Promise<T>,
+): Promise<T> {
+  const startedAt = Date.now();
+  logRestorePhase({ attemptId, phase, operation, outcome: 'started' });
+  try {
+    const result = await work();
+    logRestorePhase({ attemptId, phase, operation, outcome: 'success', durationMs: Date.now() - startedAt });
+    return result;
+  } catch (error) {
+    logRestorePhase({ attemptId, phase, operation, outcome: 'failure', durationMs: Date.now() - startedAt, error });
+    throw error;
+  }
+}
 
 interface AccountSyncGate {
   epoch: number;
@@ -1165,6 +1188,13 @@ async function signInWithGoogleTokenRequest(
       };
     }
 
+    // Preserve provenance for startup recovery classification. A 401 from
+    // the Google→Supabase auth exchange is credential evidence; a 401 from
+    // bootstrap/profile/RPC code must remain retryable and is never tagged
+    // here. The marker is non-sensitive and contains no token or payload.
+    if (isUnauthorizedSupabaseError(error) && error && typeof error === 'object') {
+      (error as { source?: string }).source = 'supabase_auth';
+    }
     lastError = error;
     if (attempt === 0 && isRetryableAuthExchangeError(error)) {
       assertSessionActive(isActive);
@@ -1834,6 +1864,7 @@ export async function restoreUserDataIfNeeded(
   // raw error message — matches this project's short-validated-code-only
   // diagnostics convention (see SignInScreen's native Google error handling).
   onFailureReasonRaw?: (reason: string) => void,
+  telemetryAttemptId?: string,
 ): Promise<UserDataRestoreResult> {
   // A timed-out restore can still be mid-flight when its abort signal
   // surfaces as a second, differently-classified failure (timeout, then a
@@ -2122,21 +2153,65 @@ export async function restoreUserDataIfNeeded(
         }
         await withSupabaseSession(userEmail, expectedGoogleSub, async () => {
           assertRestoreActive();
-          const { data, error } = await withSupabaseAbortSignal(
-            supabase!.rpc('restore_my_data_backup_v2'),
-            restoreAbortController.signal,
+          const { data } = await withRestoreTelemetry(
+            telemetryAttemptId,
+            'rpc_load',
+            'restore_my_data_backup_v2',
+            async () => {
+              const response = await withSupabaseAbortSignal(
+                supabase!.rpc('restore_my_data_backup_v2'),
+                restoreAbortController.signal,
+              );
+              if (response.error) throw response.error;
+              return response;
+            },
           );
-          if (error) throw error;
           assertRestoreActive();
 
-          const envelope = parseCloudBackupEnvelope(data);
-          if (!envelope) throw new Error('Invalid cloud backup envelope');
+          const envelope = await withRestoreTelemetry(
+            telemetryAttemptId,
+            'parse_envelope',
+            undefined,
+            async () => {
+              const parsed = parseCloudBackupEnvelope(data);
+              if (!parsed) {
+                throw Object.assign(new Error('Invalid cloud backup envelope'), {
+                  code: 'INVALID_CLOUD_BACKUP_ENVELOPE',
+                });
+              }
+              return parsed;
+            },
+          );
+
+          await withRestoreTelemetry(
+            telemetryAttemptId,
+            'validate_payload',
+            undefined,
+            async () => {
+              if (envelope.payload === null) return;
+              if (!isCloudBackupPayload(envelope.payload)) {
+                throw Object.assign(new Error('Unsupported cloud backup payload'), {
+                  code: 'UNSUPPORTED_CLOUD_BACKUP_PAYLOAD',
+                });
+              }
+              if (isPartialInconsistentCloudBackup(envelope.payload)) {
+                throw Object.assign(new Error('Cloud backup is partial while the account still has remote progress'), {
+                  code: 'CLOUD_BACKUP_PARTIAL',
+                });
+              }
+            },
+          );
 
           if (envelope.payload === null) {
             // An older app version never stored Challenges/tasks remotely. Recover
             // the legacy activity mirror before allowing the empty local database
             // to become the new cloud snapshot.
-            result = await restoreLegacyActivityWithFinalization(db);
+            result = await withRestoreTelemetry(
+              telemetryAttemptId,
+              'sqlite_transaction',
+              undefined,
+              () => restoreLegacyActivityWithFinalization(db),
+            );
           } else if (isCloudBackupPayload(envelope.payload)) {
             const payload = envelope.payload;
             if (isPartialInconsistentCloudBackup(payload)) {
@@ -2147,19 +2222,29 @@ export async function restoreUserDataIfNeeded(
               // valid-looking but empty payload after reinstall. The legacy
               // activity mirror is still safe to recover because it is
               // validated and rebuilt without reattaching task ids.
-              result = await restoreLegacyActivityWithFinalization(
-                db,
-                snapshotTierId(payload),
+              result = await withRestoreTelemetry(
+                telemetryAttemptId,
+                'sqlite_transaction',
+                undefined,
+                () => restoreLegacyActivityWithFinalization(
+                  db,
+                  snapshotTierId(payload),
+                ),
               );
             } else {
-              const restored = await restoreUserDataBackup(
-                db,
-                userId,
-                payload,
-                expectedGoogleSub,
-                assertRestoreActive,
-                transactionDb => isLocalAccountFresh(transactionDb, userId, activityStartDate),
-                activityStartDate,
+              const restored = await withRestoreTelemetry(
+                telemetryAttemptId,
+                'sqlite_transaction',
+                undefined,
+                () => restoreUserDataBackup(
+                  db,
+                  userId,
+                  payload,
+                  expectedGoogleSub,
+                  assertRestoreActive,
+                  transactionDb => isLocalAccountFresh(transactionDb, userId, activityStartDate),
+                  activityStartDate,
+                ),
               );
               if (!restored) {
                 // A populated local account must not be overwritten, but its
@@ -2465,10 +2550,13 @@ export async function restoreLifetimeStarsFromSupabase(
 }
 
 /** Sync all pending rows for the currently stored Google account. */
-export async function syncCurrentUserToSupabase(): Promise<void> {
+export async function syncCurrentUserToSupabase(expectedAccountSub?: string): Promise<void> {
   if (isQaSandboxActive()) return;
   const user = await getStoredGoogleUser();
   if (!user) return;
+  if (expectedAccountSub && user.sub !== expectedAccountSub) {
+    throw new Error('Sync account changed before upload');
+  }
   try {
     await syncToSupabase(user.sub, user.email);
   } catch (error) {

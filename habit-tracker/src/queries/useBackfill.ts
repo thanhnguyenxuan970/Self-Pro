@@ -5,7 +5,7 @@ import { getLocalDate, getLocalDateFor, getWeekStart, getWeekStartFor } from '..
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { crossedStreakMilestone, type StreakMilestone } from '../game/streakMilestones';
 import { boostEndOfDayMs } from '../game/boost';
-import { syncCurrentUserToSupabase } from '../api/syncService';
+import { requestCurrentUserSync } from '../api/syncRetry';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
@@ -290,8 +290,7 @@ export function useBackfillDay(userId: number) {
       qc.invalidateQueries({ queryKey: ['treats'] });
       qc.invalidateQueries({ queryKey: ['achievements'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
-      void syncCurrentUserToSupabase()
-        .catch(error => { if (__DEV__) console.warn('[sync] activity log sync failed:', error); })
+      void requestCurrentUserSync()
         .finally(() => {
           qc.invalidateQueries({ queryKey: ['rank'] });
           qc.invalidateQueries({ queryKey: ['leaderboard'] });

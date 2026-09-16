@@ -2,7 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { getStoredGoogleUser } from '../hooks/useAuth';
-import { syncCurrentUserToSupabase, syncUserStreak } from '../api/syncService';
+import { syncUserStreak } from '../api/syncService';
+import { requestCurrentUserSync } from '../api/syncRetry';
 import { cancelTerminalChallengeReminders, logActiveChallengeDay, reconcileUnloggedLinkedChallenges, restoreReactivatedChallengeReminders, syncActiveChallengeReminders, type ReactivatedLinkedChallenge } from './useChallenge';
 import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
@@ -526,7 +527,7 @@ export function useLogTask(userId: number) {
       getStoredGoogleUser()
         .then(user => user && Promise.all([
           syncUserStreak(user.email, data.newStreak, user.sub),
-          syncCurrentUserToSupabase(),
+          requestCurrentUserSync(),
         ]))
         .then(() => {
           qc.invalidateQueries({ queryKey: ['rank'] });
@@ -635,8 +636,7 @@ export function useUnlogTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
       qc.invalidateQueries({ queryKey: ['challenge'] });
-      void syncCurrentUserToSupabase()
-        .catch(error => { if (__DEV__) console.warn('[sync] activity delete sync failed:', error); })
+      void requestCurrentUserSync()
         .finally(() => {
           qc.invalidateQueries({ queryKey: ['rank'] });
           qc.invalidateQueries({ queryKey: ['leaderboard'] });

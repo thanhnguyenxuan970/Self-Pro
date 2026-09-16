@@ -8,7 +8,7 @@ import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { enqueuePendingActivityDeletesForUser } from '../game/pendingActivityDeletes';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
-import { syncCurrentUserToSupabase } from '../api/syncService';
+import { requestCurrentUserSync } from '../api/syncRetry';
 import { createActivityKey } from '../lib/activityIdentity';
 
 interface TaskFormParams {
@@ -23,11 +23,8 @@ interface TaskFormParams {
 }
 
 async function syncTaskData(context: string): Promise<void> {
-  try {
-    await syncCurrentUserToSupabase();
-  } catch (error) {
-    if (__DEV__) console.warn(`[sync] ${context} failed:`, error);
-  }
+  void context;
+  await requestCurrentUserSync();
 }
 
 export function useCreateTask(userId: number) {

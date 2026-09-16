@@ -3201,6 +3201,7 @@ describe('syncToSupabase', () => {
       p_last_active_local_date: '2026-08-10',
       p_timezone: 'Asia/Bangkok',
     });
+    expect(mockUpsert).not.toHaveBeenCalled();
     expect(mockRpc).toHaveBeenCalledWith('save_my_data_backup_v2', expect.objectContaining({ p_expected_revision: 0 }));
     expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', '1');
     expect(writes).toEqual(['activity-upload', 'profile']);

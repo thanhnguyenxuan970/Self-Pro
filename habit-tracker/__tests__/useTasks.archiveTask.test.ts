@@ -37,6 +37,18 @@ describe('useArchiveTask', () => {
       { id: 202, local_date: '2026-08-11', week_start: '2026-08-10', points_earned: 1, stars_delta: 1, kind: 'GOOD' },
     ]);
     jest.mocked(getDb).mockResolvedValue(db);
+    let transactionOpen = false;
+    jest.mocked(db.withTransactionAsync).mockImplementation(async callback => {
+      transactionOpen = true;
+      try {
+        await callback();
+      } finally {
+        transactionOpen = false;
+      }
+    });
+    jest.mocked(enqueuePendingActivityDeletesForUser).mockImplementationOnce(async () => {
+      expect(transactionOpen).toBe(true);
+    });
 
     const mutation = useArchiveTask(5) as unknown as Mutation;
     await mutation.mutationFn(9);

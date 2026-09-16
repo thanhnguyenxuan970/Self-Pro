@@ -11,7 +11,7 @@ import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { enqueuePendingActivityDeletesForUser } from '../game/pendingActivityDeletes';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
-import { syncCurrentUserToSupabase } from '../api/syncService';
+import { requestCurrentUserSync } from '../api/syncRetry';
 import { ANALYTICS_STAR_SOURCE, readAnalyticsYearStars } from '../analytics/yearStars';
 import { createActivityKey } from '../lib/activityIdentity';
 
@@ -295,8 +295,7 @@ export function useDeleteActivityLogs(userId: number) {
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
-      void syncCurrentUserToSupabase()
-        .catch(error => { if (__DEV__) console.warn('[sync] activity delete sync failed:', error); })
+      void requestCurrentUserSync()
         .finally(() => {
           qc.invalidateQueries({ queryKey: ['rank'] });
           qc.invalidateQueries({ queryKey: ['leaderboard'] });

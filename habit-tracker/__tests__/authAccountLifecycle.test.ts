@@ -10,15 +10,16 @@ import {
   resolveUserRow,
   RESET_PROGRESS_STATEMENTS,
   DELETE_ACCOUNT_STATEMENTS,
+  DELETE_PENDING_ACTIVITY_DELETES_BY_ACCOUNT_KEY,
 } from '../src/hooks/useAuth';
 
 function createMockDb(config: {
+  byAccountKeyResult?: { id: number } | null;
   bySubResult?: { id: number } | null;
   byEmailResult?: { id: number } | null;
   claimChanges?: number;
   newUserId?: number;
 }) {
-  let getFirstCallCount = 0;
   const runAsync = jest.fn(async (sql: string, params: unknown[]) => {
     if (sql.includes('WHERE id = 1 AND google_sub IS NULL')) {
       return { changes: config.claimChanges ?? 0 };
@@ -28,17 +29,18 @@ function createMockDb(config: {
     }
     return { changes: 1 };
   });
-  const getFirstAsync = jest.fn(async () => {
-    getFirstCallCount++;
-    // 1st call = lookup by google_sub, 2nd call = lookup by legacy email-as-sub
-    return getFirstCallCount === 1 ? (config.bySubResult ?? null) : (config.byEmailResult ?? null);
+  const getFirstAsync = jest.fn(async (sql: string) => {
+    if (sql.includes('WHERE account_key = ?')) return config.byAccountKeyResult ?? null;
+    if (sql.includes('WHERE google_sub = ?')) return config.bySubResult ?? null;
+    if (sql.includes('LOWER(TRIM(google_sub))')) return config.byEmailResult ?? null;
+    return null;
   });
   const withTransactionAsync = jest.fn(async (callback: () => Promise<void>) => callback());
   return { runAsync, getFirstAsync, withTransactionAsync } as unknown as SQLiteDatabase;
 }
 
 describe('resolveUserRow', () => {
-  it('backfills account_key when google_sub already matches', async () => {
+  it('binds the canonical account key when google_sub already matches', async () => {
     const db = createMockDb({ bySubResult: { id: 7 } });
     const result = await resolveUserRow(db, 'sub-1', ' A@B.COM ');
     expect(result).toEqual({ id: 7, isNew: false });
@@ -53,7 +55,7 @@ describe('resolveUserRow', () => {
     const result = await resolveUserRow(db, 'sub-new', 'legacy@b.com');
     expect(result).toEqual({ id: 3, isNew: false });
     expect(db.getFirstAsync).toHaveBeenNthCalledWith(
-      2,
+      3,
       'SELECT id FROM users WHERE LOWER(TRIM(google_sub)) = LOWER(TRIM(?)) ORDER BY id LIMIT 1',
       ['legacy@b.com'],
     );
@@ -89,6 +91,7 @@ describe('resolveUserRow', () => {
 
   it('reuses the previous local row when the verified email is unchanged but Google subject changes', async () => {
     const getFirstAsync = jest.fn()
+      .mockResolvedValueOnce(null) // stable account key is not bound yet
       .mockResolvedValueOnce(null) // new subject is not present
       .mockResolvedValueOnce({ id: 7 }); // previous subject owns the data
     const runAsync = jest.fn(async () => ({ changes: 1 }));
@@ -105,6 +108,23 @@ describe('resolveUserRow', () => {
       ['sub-new', 'same@example.com', 7],
     );
     expect(runAsync).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO users'), expect.anything());
+  });
+
+  it('reuses the account-key row after sign-out when Google returns a new subject', async () => {
+    const db = createMockDb({ byAccountKeyResult: { id: 7 } });
+
+    await expect(resolveUserRow(db, 'sub-after-reprovision', ' Same@Example.com '))
+      .resolves.toEqual({ id: 7, isNew: false });
+
+    expect(db.getFirstAsync).toHaveBeenCalledWith(
+      'SELECT id FROM users WHERE account_key = ?',
+      ['same@example.com'],
+    );
+    expect(db.runAsync).toHaveBeenCalledWith(
+      'UPDATE users SET google_sub = ? WHERE id = ?',
+      ['sub-after-reprovision', 7],
+    );
+    expect(db.runAsync).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO users'), expect.anything());
   });
 });
 
@@ -124,6 +144,8 @@ const TABLES_WITH_USER_ID_COLUMN = [
   'activity_log', 'achievements', 'categories', 'challenges', 'daily_summary', 'fund_transactions',
   'boost_events', 'milestone_stars', 'reward_unlocks', 'streak_freezes', 'task_types', 'treat_history', 'treats', 'weekly_summary',
 ];
+
+const TABLES_WITH_ACCOUNT_KEY_COLUMN = ['pending_activity_deletes'];
 
 describe('destructive account-delete SQL covers every per-user table', () => {
   beforeEach(() => mockCancelChallengeReminders.mockClear());
@@ -151,6 +173,13 @@ describe('destructive account-delete SQL covers every per-user table', () => {
     const deletedTables = new Set(DELETE_ACCOUNT_STATEMENTS.map(tableNameFromDeleteStatement));
     const missing = TABLES_WITH_USER_ID_COLUMN.filter(t => !deletedTables.has(t));
     expect(missing).toEqual([]);
+  });
+
+  it('purges every account-key scoped table without pretending it has user_id', () => {
+    expect(TABLES_WITH_USER_ID_COLUMN).not.toContain('pending_activity_deletes');
+    expect(TABLES_WITH_ACCOUNT_KEY_COLUMN).toEqual(['pending_activity_deletes']);
+    expect(DELETE_PENDING_ACTIVITY_DELETES_BY_ACCOUNT_KEY)
+      .toBe('DELETE FROM pending_activity_deletes WHERE account_key = ?');
   });
 
   it('resetProgress deliberately preserves user-config tables (categories, task_types, treats)', () => {

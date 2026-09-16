@@ -4,6 +4,10 @@ const identityMigration = readFileSync(
   `${process.cwd()}/supabase/migrations/073_activity_identity.sql`,
   'utf8',
 );
+const historyMigration = readFileSync(
+  `${process.cwd()}/supabase/migrations/074_user_data_backup_history.sql`,
+  'utf8',
+);
 const activityDeleteKeyMigration = readFileSync(
   `${process.cwd()}/supabase/migrations/075_delete_activity_keys.sql`,
   'utf8',
@@ -44,6 +48,23 @@ describe('activity server gate migration contract', () => {
     expect(activityServerGateMigration).toMatch(/DROP FUNCTION IF EXISTS public\.delete_my_activity_rows\(bigint\[\]\)/i);
     expect(activityServerGateMigration).toMatch(/CREATE FUNCTION public\.delete_my_activity_rows\(p_local_ids bigint\[\]\)/i);
     expect(activityServerGateMigration).not.toMatch(/CREATE OR REPLACE FUNCTION public\.delete_my_activity_rows/i);
+  });
+});
+
+describe('backup history migration contract', () => {
+  it('stores immutable revisions with a bounded retention window', () => {
+    expect(historyMigration).toMatch(/CREATE TABLE IF NOT EXISTS public\.user_data_backup_history/i);
+    expect(historyMigration).toMatch(/SET search_path = pg_catalog, public, pg_temp/i);
+    expect(historyMigration).toMatch(/PRIMARY KEY \(auth_user_id, revision\)/i);
+    expect(historyMigration).toMatch(/INSERT INTO public\.user_data_backup_history/i);
+    expect(historyMigration).toMatch(/FROM public\.user_data_backups AS backup/i);
+    expect(historyMigration).toMatch(/revision >= 0/i);
+    expect(historyMigration).toMatch(/marker\.applied_revision/i);
+    expect(historyMigration).toMatch(/revision < next_revision - 29/i);
+    expect(historyMigration).toMatch(/list_my_data_backup_history\(p_limit integer\)/i);
+    expect(historyMigration).toMatch(/restore_my_data_backup_revision\(p_revision bigint\)/i);
+    expect(historyMigration).toMatch(/GRANT EXECUTE ON FUNCTION public\.list_my_data_backup_history/i);
+    expect(historyMigration).toMatch(/GRANT EXECUTE ON FUNCTION public\.restore_my_data_backup_revision/i);
   });
 });
 

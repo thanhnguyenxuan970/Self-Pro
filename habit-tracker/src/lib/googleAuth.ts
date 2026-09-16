@@ -5,7 +5,7 @@ export type GoogleSignInResponse = {
   data?: {
     user?: {
       email?: string;
-      name?: string;
+      name?: string | null;
       id?: string;
       photo?: string | null;
     };

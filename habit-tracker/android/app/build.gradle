@@ -4,6 +4,8 @@ apply plugin: "com.facebook.react"
 apply plugin: "com.google.gms.google-services"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
+def habiBuildTarget = (findProperty('habiBuildTarget') ?: System.getenv('HABI_BUILD_TARGET') ?: '').toString()
+def stagingSupabaseEndpoint = System.getenv('EXPO_PUBLIC_SUPABASE_URL') ?: ''
 
 def keystorePropertiesFile = rootProject.file("keystore.properties")
 def keystoreProperties = new Properties()
@@ -101,6 +103,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 84
         versionName "2.0.3.p"
+        manifestPlaceholders = [habiCleartextTraffic: (habiBuildTarget == 'staging' ? 'true' : 'false')]
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
 
@@ -215,5 +218,63 @@ dependencies {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
+    }
+}
+
+// A staging build must prove it has a separate endpoint before Expo embeds the
+// JavaScript bundle. The production build remains unchanged; this gate only
+// activates when HABI_BUILD_TARGET=staging (or -PhabiBuildTarget=staging).
+tasks.register('verifyStagingEndpoint') {
+    onlyIf { habiBuildTarget == 'staging' }
+    doLast {
+        if (!stagingSupabaseEndpoint.trim()) {
+            throw new GradleException('STAGING_ENDPOINT_BLOCKED|EXPO_PUBLIC_SUPABASE_URL is missing')
+        }
+        URI endpoint
+        try {
+            endpoint = new URI(stagingSupabaseEndpoint.trim())
+        } catch (Exception error) {
+            throw new GradleException('STAGING_ENDPOINT_BLOCKED|EXPO_PUBLIC_SUPABASE_URL is not a valid URL', error)
+        }
+        if (!['http', 'https'].contains(endpoint.scheme) || !endpoint.host) {
+            throw new GradleException('STAGING_ENDPOINT_BLOCKED|EXPO_PUBLIC_SUPABASE_URL must include a supported protocol and host')
+        }
+        if (endpoint.host.equalsIgnoreCase('ebprkyplvqexzpwfasjq.supabase.co')) {
+            throw new GradleException('STAGING_ENDPOINT_BLOCKED|the Self-Pro production host is not allowed for a staging build')
+        }
+        println "STAGING_ENDPOINT_OK|${endpoint.scheme}://${endpoint.host}${endpoint.port > 0 ? ':' + endpoint.port : ''}"
+    }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn 'verifyStagingEndpoint'
+}
+
+if (habiBuildTarget == 'staging') {
+    tasks.register('verifyStagingReleaseArtifact') {
+        dependsOn 'assembleRelease'
+        doLast {
+            def apk = new File(project.projectDir, 'build/outputs/apk/release/app-release.apk')
+            if (!apk.exists()) {
+                throw new GradleException('STAGING_ENDPOINT_BLOCKED|release APK is missing')
+            }
+            def zip = new java.util.zip.ZipFile(apk)
+            try {
+                def entry = zip.getEntry('assets/index.android.bundle')
+                if (entry == null) {
+                    throw new GradleException('STAGING_ENDPOINT_BLOCKED|APK bundle is missing')
+                }
+                def bundle = zip.getInputStream(entry).getText('UTF-8')
+                if (bundle.contains('ebprkyplvqexzpwfasjq.supabase.co')) {
+                    throw new GradleException('STAGING_ENDPOINT_BLOCKED|APK contains the Self-Pro production host')
+                }
+                if (!bundle.contains(stagingSupabaseEndpoint.trim().replaceAll('/+$', ''))) {
+                    throw new GradleException('STAGING_ENDPOINT_BLOCKED|APK endpoint does not match EXPO_PUBLIC_SUPABASE_URL')
+                }
+            } finally {
+                zip.close()
+            }
+            println 'STAGING_APK_ENDPOINT_OK'
+        }
     }
 }

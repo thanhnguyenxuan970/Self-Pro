@@ -11,6 +11,9 @@ const vi = {
   delete: 'Xoá',
   confirm: 'Xác nhận',
   close: 'Đóng',
+  syncPending: 'Đã lưu trên thiết bị. Đang chờ đồng bộ.',
+  syncRetry: 'Thử lại',
+  syncWaitingForConnection: 'Chờ kết nối',
 
   // TodayScreen
   greeting: (name: string) => `Chào, ${name}`,
@@ -959,6 +962,9 @@ const en: typeof vi = {
   delete: 'Delete',
   confirm: 'Confirm',
   close: 'Close',
+  syncPending: 'Saved on this device. Waiting to sync.',
+  syncRetry: 'Retry',
+  syncWaitingForConnection: 'Waiting for connection',
 
   // TodayScreen
   greeting: (name) => `Hi, ${name}`,
