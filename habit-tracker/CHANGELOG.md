@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.0.4 - 2026-09-16
+
+- Aligned Expo, Android, and telemetry release metadata to `2.0.4` with Android versionCode `85`.
+- Disabled R8 shrinking/resource optimization because the Windows JDK 21 toolchain crashes during release minification.
+- Validation: TypeScript, 117 Jest suites/1,129 tests/1 snapshot, `git diff --check`, release AAB build, and Android emulator launch passed. AAB SHA-256: `8444474454EFBAB9C0BB5859FB2AD2FDF0E133D339DE3044B521311965ABEF6C`.
+
 ## 2.0.3.p - 2026-09-05
 
 - Fixed release ABI packaging so the Android bundle includes both `arm64-v8a` and `x86_64` native libraries, including `libreactnative.so`.

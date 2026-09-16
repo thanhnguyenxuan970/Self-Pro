@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [2.0.4] - 2026-09-16
+
+### Changed
+- **Release identity**: aligned the Expo, Android, and telemetry metadata to `2.0.4` with Android versionCode `85`.
+- **Release stability**: disabled R8 shrinking/resource optimization because the Windows JDK 21 toolchain crashes during release minification.
+
+Validation: TypeScript, 117 Jest suites/1,129 tests/1 snapshot, `git diff --check`, release AAB build, and Android emulator launch passed. Signed AAB `2.0.4` (versionCode `85`) SHA-256: `8444474454EFBAB9C0BB5859FB2AD2FDF0E133D339DE3044B521311965ABEF6C`.
+
 ## [2.0.3.17] - 2026-09-05
 
 ### Fixed

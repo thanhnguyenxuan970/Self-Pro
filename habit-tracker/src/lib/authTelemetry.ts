@@ -1,11 +1,10 @@
 import * as Sentry from '@sentry/react-native';
 import { NO_SAVED_GOOGLE_CREDENTIAL_CODE } from '../api/syncErrors';
 
-// Android's release artifact has an explicit preview suffix in Gradle. Keep
-// this value tied to android/app/build.gradle's versionName/versionCode rather
-// than the Expo manifest's display version, which omits the suffix.
-export const APP_VERSION_NAME = '2.0.3.p';
-export const APP_VERSION_CODE = 84;
+// Keep these values tied to android/app/build.gradle's versionName/versionCode
+// and the Expo manifest's display version.
+export const APP_VERSION_NAME = '2.0.4';
+export const APP_VERSION_CODE = 85;
 const APP_VERSION = `${APP_VERSION_NAME}+${APP_VERSION_CODE}`;
 const isDevBuild = () => (globalThis as typeof globalThis & { __DEV__?: unknown }).__DEV__ === true;
 // Verified against package.json, package-lock.json, and the installed package
