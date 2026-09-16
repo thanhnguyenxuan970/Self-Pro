@@ -5,6 +5,23 @@ const { readFileSync } = jest.requireActual<{
 const read = (relativePath: string) => readFileSync(`${process.cwd()}/${relativePath}`, 'utf8');
 
 describe('Android adaptive release contract', () => {
+  test('limits QA cleartext transport to the emulator host without weakening release', () => {
+    const network = read('android/app/src/qa/res/xml/network_security_config_qa.xml');
+    expect(network).toContain('<base-config cleartextTrafficPermitted="false" />');
+    expect(network.match(/<domain includeSubdomains="false">[^<]+<\/domain>/g))
+      .toEqual(['<domain includeSubdomains="false">10.0.2.2</domain>']);
+    const manifest = read('android/app/src/qa/AndroidManifest.xml');
+    expect(manifest).toContain('@xml/network_security_config_qa');
+    expect(read('android/app/src/main/AndroidManifest.xml')).not.toContain('network_security_config_qa');
+    const gradle = read('android/app/build.gradle');
+    const qa = gradle.match(/qa \{([\s\S]*?)\n        \}/)?.[1];
+    expect(qa).toContain('initWith release');
+    expect(qa).toContain('signingConfig signingConfigs.release');
+    expect(qa).toContain('minifyEnabled false');
+    expect(qa).toContain('shrinkResources false');
+    expect(read('android/gradle.properties')).toContain('android.enableMinifyInReleaseBuilds=true');
+  });
+
   test('does not ship app-owned portrait or legacy window restrictions', () => {
     const appConfig = JSON.parse(read('app.json')) as {
       expo?: {

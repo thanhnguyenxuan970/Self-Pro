@@ -224,35 +224,43 @@ describe('Challenge query helpers and hook contracts', () => {
     }
   });
 
-  test('computes weekly challenge pace and elapsed perfect weeks', async () => {
-    const db = createDb({
-      getAllAsync: jest.fn(async (sql: string) => {
-        if (sql.includes('FROM challenges WHERE user_id = ? AND status =')) {
-          return [challengeRow({ mode: 'weekly', target_days: 14, weekly_target: 3, total_weeks: 2 })];
-        }
-        if (sql.includes('FROM challenge_log WHERE challenge_id = ? ORDER BY local_date')) {
-          return [
-            { local_date: '2026-09-01', state: 'done' },
-            { local_date: '2026-09-02', state: 'done' },
-            { local_date: '2026-09-03', state: 'done' },
-          ];
-        }
-        return [];
-      }),
-    });
-    mockGetDb.mockResolvedValue(db);
+  test.each([
+    ['2026-09-03T05:00:00Z', 1, 3, 0],
+    ['2026-09-10T05:00:00Z', 2, 6, 1],
+  ])('computes weekly challenge pace at %s', async (now, weekIndex, required, perfectWeeks) => {
+    jest.useFakeTimers().setSystemTime(new Date(now));
+    try {
+      const db = createDb({
+        getAllAsync: jest.fn(async (sql: string) => {
+          if (sql.includes('FROM challenges WHERE user_id = ? AND status =')) {
+            return [challengeRow({ mode: 'weekly', target_days: 14, weekly_target: 3, total_weeks: 2 })];
+          }
+          if (sql.includes('FROM challenge_log WHERE challenge_id = ? ORDER BY local_date')) {
+            return [
+              { local_date: '2026-09-01', state: 'done' },
+              { local_date: '2026-09-02', state: 'done' },
+              { local_date: '2026-09-03', state: 'done' },
+            ];
+          }
+          return [];
+        }),
+      });
+      mockGetDb.mockResolvedValue(db);
 
-    const query = useActiveChallenges(5) as unknown as { queryFn: () => Promise<Array<Record<string, unknown>>> };
-    const [loaded] = await query.queryFn();
-    expect(loaded).toMatchObject({
-      mode: 'weekly',
-      weeklyTarget: 3,
-      totalWeeks: 2,
-      weekIndex: 1,
-      weekSessionsDone: 3,
-      weekSessionsRequired: 3,
-      perfectWeeks: 0,
-    });
+      const query = useActiveChallenges(5) as unknown as { queryFn: () => Promise<Array<Record<string, unknown>>> };
+      const [loaded] = await query.queryFn();
+      expect(loaded).toMatchObject({
+        mode: 'weekly',
+        weeklyTarget: 3,
+        totalWeeks: 2,
+        weekIndex,
+        weekSessionsDone: 3,
+        weekSessionsRequired: required,
+        perfectWeeks,
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test('persists the scheduler token only after state-aware reconciliation', async () => {
