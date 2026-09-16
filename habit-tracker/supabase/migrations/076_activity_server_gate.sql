@@ -15,7 +15,11 @@ GRANT SELECT ON TABLE public.activity_log TO authenticated;
 -- Retire the pre-cutover delete-by-local-id RPC as well as its direct table
 -- path. Keeping the signature but raising makes an accidental old-client call
 -- explicit in logs and prevents a future grant from silently reopening it.
-CREATE OR REPLACE FUNCTION public.delete_my_activity_rows(p_local_ids bigint[])
+-- Do not depend on migration 072 being present: a clean rollout may have
+-- never created the legacy function. If it exists, replace it with the same
+-- retired contract; if it does not, create the retired contract directly.
+DROP FUNCTION IF EXISTS public.delete_my_activity_rows(bigint[]);
+CREATE FUNCTION public.delete_my_activity_rows(p_local_ids bigint[])
 RETURNS TABLE (local_id bigint)
 LANGUAGE plpgsql
 SECURITY DEFINER

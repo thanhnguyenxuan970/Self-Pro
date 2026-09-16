@@ -45,6 +45,9 @@ describe('activity server gate migration contract', () => {
     expect(activityServerGateMigration).toMatch(/conflict could not be resolved/i);
     expect(activityServerGateMigration).toMatch(/SET search_path = pg_catalog, public, pg_temp/i);
     expect(activityServerGateMigration).toMatch(/GRANT EXECUTE ON FUNCTION public\.append_my_activity_rows\(jsonb\)/i);
+    expect(activityServerGateMigration).toMatch(/DROP FUNCTION IF EXISTS public\.delete_my_activity_rows\(bigint\[\]\)/i);
+    expect(activityServerGateMigration).toMatch(/CREATE FUNCTION public\.delete_my_activity_rows\(p_local_ids bigint\[\]\)/i);
+    expect(activityServerGateMigration).not.toMatch(/CREATE OR REPLACE FUNCTION public\.delete_my_activity_rows/i);
   });
 });
 

@@ -15,6 +15,10 @@ import {
 import { createQaGuardedFetch } from '../src/api/supabase';
 import { restoreStoredGoogleSession } from '../src/hooks/useAuth';
 
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  removeItem: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('../src/utils/notifications', () => ({
   cancelChallengeReminders: jest.fn().mockResolvedValue(undefined),
 }));

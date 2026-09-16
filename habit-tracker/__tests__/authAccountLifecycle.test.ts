@@ -21,7 +21,7 @@ function createMockDb(config: {
   newUserId?: number;
 }) {
   const runAsync = jest.fn(async (sql: string, params: unknown[]) => {
-    if (sql.startsWith('UPDATE users SET google_sub = ?, account_key = ? WHERE id = 1')) {
+    if (sql.includes('WHERE id = 1 AND google_sub IS NULL')) {
       return { changes: config.claimChanges ?? 0 };
     }
     if (sql.startsWith('INSERT INTO users')) {
@@ -42,7 +42,7 @@ function createMockDb(config: {
 describe('resolveUserRow', () => {
   it('binds the canonical account key when google_sub already matches', async () => {
     const db = createMockDb({ bySubResult: { id: 7 } });
-    const result = await resolveUserRow(db, 'sub-1', 'a@b.com');
+    const result = await resolveUserRow(db, 'sub-1', ' A@B.COM ');
     expect(result).toEqual({ id: 7, isNew: false });
     expect(db.runAsync).toHaveBeenCalledWith(
       'UPDATE users SET account_key = ? WHERE id = ?',
@@ -69,12 +69,20 @@ describe('resolveUserRow', () => {
     const db = createMockDb({ bySubResult: null, byEmailResult: null, claimChanges: 1 });
     const result = await resolveUserRow(db, 'sub-new', 'new@b.com');
     expect(result).toEqual({ id: 1, isNew: false });
+    expect(db.runAsync).toHaveBeenCalledWith(
+      'UPDATE users SET google_sub = ?, account_key = ? WHERE id = 1 AND google_sub IS NULL',
+      ['sub-new', 'new@b.com'],
+    );
   });
 
   it('inserts a brand-new user and seeds exactly 5 default categories when nothing matches or claims', async () => {
     const db = createMockDb({ bySubResult: null, byEmailResult: null, claimChanges: 0, newUserId: 99 });
     const result = await resolveUserRow(db, 'sub-brand-new', 'brand-new@b.com');
     expect(result).toEqual({ id: 99, isNew: true });
+    expect(db.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO users (username, timezone, carry_debt, currency, google_sub, account_key)'),
+      ['sub-brand-new', 'brand-new@b.com'],
+    );
     const categoryInserts = (db.runAsync as jest.Mock).mock.calls.filter(([sql]) =>
       typeof sql === 'string' && sql.includes('INSERT INTO categories'));
     expect(categoryInserts).toHaveLength(5);
