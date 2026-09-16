@@ -91,6 +91,17 @@ describe('cloud backup validation branches', () => {
         { id: 2, key: 'same', earned_at: '2026-01-01' },
       ],
     })).toBe(false);
+
+    const duplicateActivityKey = populatedPayload();
+    duplicateActivityKey.activity_log.push({
+      ...duplicateActivityKey.activity_log[0],
+      id: 17,
+    });
+    duplicateActivityKey.activity_log[0].activity_key = 'activity-stable-1';
+    duplicateActivityKey.activity_log[0].activity_identity_status = 'resolved';
+    duplicateActivityKey.activity_log[1].activity_key = 'activity-stable-1';
+    duplicateActivityKey.activity_log[1].activity_identity_status = 'resolved';
+    expect(isCloudBackupPayload(duplicateActivityKey)).toBe(false);
   });
 
   test('accepts a complete relationship graph and filters a historical boundary consistently', () => {
@@ -209,6 +220,62 @@ describe('backup snapshot and legacy restore seams', () => {
     await expect(restoreUserDataBackup(recalculatedTierDb, 1, tierPayload, 'sub', undefined, undefined, '2026-01-01')).resolves.toBe(true);
   });
 
+  test('blocks a same-key divergent activity before destructive restore work', async () => {
+    const db = validDb();
+    const payload = populatedPayload();
+    payload.activity_log[0].activity_key = 'activity-stable-3';
+    payload.activity_log[0].activity_identity_status = 'resolved';
+    db.getAllAsync.mockImplementation(async (sql: string) => sql.includes('activity_key IN')
+      ? [{
+        activity_key: 'activity-stable-3', task_type_id: 2, kind: 'GOOD', duration_min: 30,
+        points_earned: 99, stars_delta: 1, source: 'TASK', logged_at: 1,
+        local_date: '2026-01-01', week_start: '2025-12-29', note: null,
+      }]
+      : []);
+
+    await expect(restoreUserDataBackup(db, 1, payload))
+      .rejects.toThrow('Activity identity content conflict during restore');
+    expect(db.runAsync).not.toHaveBeenCalled();
+  });
+
+  test('compares a mirrored cloud task reference without attaching it locally', async () => {
+    const db = validDb();
+    const payload = populatedPayload();
+    payload.activity_log[0].task_type_id = null;
+    payload.activity_log[0].activity_source_task_type_id = 23;
+    payload.activity_log[0].activity_key = 'activity-mirror-23';
+    payload.activity_log[0].activity_identity_status = 'resolved';
+    db.getAllAsync.mockImplementation(async (sql: string) => sql.includes('activity_key IN')
+      ? [{
+        activity_key: 'activity-mirror-23', task_type_id: null, activity_source_task_type_id: 23, kind: 'GOOD', duration_min: 30,
+        points_earned: 5, stars_delta: 1, source: 'TASK', logged_at: 1,
+        local_date: '2026-01-01', week_start: '2025-12-29', note: null,
+      }]
+      : []);
+
+    await expect(restoreUserDataBackup(db, 1, payload)).resolves.toBe(true);
+    const activityWrite = db.runAsync.mock.calls.find(([sql]) => sql.includes('INSERT OR REPLACE INTO activity_log'));
+    expect((activityWrite?.[1] as unknown[])[2]).toBeNull();
+    expect((activityWrite?.[1] as unknown[])[14]).toBe(23);
+
+    const conflictDb = validDb();
+    conflictDb.getAllAsync.mockImplementation(async (sql: string) => sql.includes('activity_key IN')
+      ? [{
+        activity_key: 'activity-mirror-23', task_type_id: null, activity_source_task_type_id: 23, kind: 'GOOD', duration_min: 30,
+        points_earned: 5, stars_delta: 1, source: 'TASK', logged_at: 1,
+        local_date: '2026-01-01', week_start: '2025-12-29', note: null,
+      }]
+      : []);
+    const divergent = populatedPayload();
+    divergent.activity_log[0].task_type_id = null;
+    divergent.activity_log[0].activity_source_task_type_id = 24;
+    divergent.activity_log[0].activity_key = 'activity-mirror-23';
+    divergent.activity_log[0].activity_identity_status = 'resolved';
+    await expect(restoreUserDataBackup(conflictDb, 1, divergent))
+      .rejects.toThrow('Activity identity content conflict during restore');
+    expect(conflictDb.runAsync).not.toHaveBeenCalled();
+  });
+
   test('handles legacy LOGIN-only rows, filtered rows, and a complete legacy restore', async () => {
     const db = validDb();
     await expect(restoreLegacyActivityMirror(db, 1, [{ local_id: 1, source: 'LOGIN' }])).resolves.toEqual({ count: 0, maxId: 0 });
@@ -219,18 +286,39 @@ describe('backup snapshot and legacy restore seams', () => {
 
     const complete = validDb();
     const finalize = jest.fn().mockResolvedValue(undefined);
-    await expect(restoreLegacyActivityMirror(complete, 1, [validRow], undefined, undefined, false, finalize)).resolves.toEqual({ count: 1, maxId: 7 });
+    await expect(restoreLegacyActivityMirror(complete, 1, [validRow], undefined, undefined, false, finalize)).resolves.toEqual({ count: 1, maxId: 1 });
     expect(finalize).toHaveBeenCalled();
   });
 
-  test('rejects malformed legacy numeric, text, and duplicate-id rows', async () => {
+  test('preserves a valid durable key from the cloud mirror when its status column is absent', async () => {
+    const db = validDb();
+    const row = {
+      local_id: 7,
+      activity_key: 'activity-device-a-7',
+      task_type_id: 23,
+      kind: 'GOOD',
+      source: 'TASK',
+      duration_min: null,
+      points_earned: 5,
+      stars_delta: 1,
+      logged_at: 100,
+      local_date: '2026-01-01',
+      week_start: null,
+    };
+
+    await expect(restoreLegacyActivityMirror(db, 1, [row])).resolves.toEqual({ count: 1, maxId: 1 });
+    const activityWrite = db.runAsync.mock.calls.find(([sql]) => sql.includes('INSERT OR REPLACE INTO activity_log'));
+    expect(activityWrite?.[1]).toEqual(expect.arrayContaining(['activity-device-a-7', 'resolved']));
+    expect((activityWrite?.[1] as unknown[])[2]).toBeNull();
+    expect((activityWrite?.[1] as unknown[])[14]).toBe(23);
+  });
+
+  test('rejects malformed legacy numeric and text rows', async () => {
     const valid = { local_id: 7, kind: 'GOOD', source: 'TASK', duration_min: null, points_earned: 5, stars_delta: 1, logged_at: 100, local_date: '2026-01-01', week_start: null };
     await expect(restoreLegacyActivityMirror(validDb(), 1, [{ ...valid, points_earned: undefined }]))
       .rejects.toThrow('Invalid legacy activity field: points_earned');
     await expect(restoreLegacyActivityMirror(validDb(), 1, [{ ...valid, kind: ' ' }]))
       .rejects.toThrow('Invalid legacy activity row');
-    await expect(restoreLegacyActivityMirror(validDb(), 1, [valid, { ...valid }]))
-      .rejects.toThrow('Duplicate legacy activity ids');
     await expect(restoreLegacyActivityMirror(validDb(), 1, [{ ...valid, source: ' TASK ' }]))
       .rejects.toThrow('Invalid legacy activity row');
 
@@ -250,17 +338,12 @@ describe('backup snapshot and legacy restore seams', () => {
       .rejects.toThrow('Invalid legacy activity row');
   });
 
-  test('blocks cross-account legacy ids and refuses unsafe id remapping', async () => {
+  test('allocates independent local ids for legacy mirror rows', async () => {
     const valid = { local_id: 7, kind: 'GOOD', source: 'TASK', duration_min: null, points_earned: 5, stars_delta: 1, logged_at: 100, local_date: '2026-01-01', week_start: null };
-    const conflictDb = validDb();
-    conflictDb.getAllAsync.mockImplementation(async (sql: string) => sql.includes('WHERE id IN') ? [{ id: 7 }] : []);
-    await expect(restoreLegacyActivityMirror(conflictDb, 1, [valid])).rejects.toThrow('Legacy activity restore conflicts with another local account');
-
-    const overflowDb = validDb();
-    overflowDb.getAllAsync.mockImplementation(async (sql: string) => sql.includes('WHERE id IN') ? [{ id: 7 }] : []);
-    overflowDb.getFirstAsync.mockResolvedValue({ max_id: Number.MAX_SAFE_INTEGER });
-    await expect(restoreLegacyActivityMirror(overflowDb, 1, [valid], undefined, undefined, true))
-      .rejects.toThrow('Legacy activity id remap exceeds SQLite integer safety');
+    const independentIds = validDb();
+    independentIds.getFirstAsync.mockResolvedValue({ max_id: 41 });
+    await expect(restoreLegacyActivityMirror(independentIds, 1, [valid, { ...valid, local_id: 7, logged_at: 101 }]))
+      .resolves.toEqual({ count: 2, maxId: 43 });
 
     const minimal = validDb();
     (minimal as any).withExclusiveTransactionAsync = undefined;

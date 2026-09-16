@@ -56,7 +56,7 @@ export async function deleteGoogleUser(): Promise<void> {
 }
 
 export interface GoogleUser {
-  sub: string;   // stable OIDC subject id (never changes, unlike email)
+  sub: string;   // Provider subject for this identity; reprovisioning can replace it.
   email: string;
   name: string;
   picture: string;

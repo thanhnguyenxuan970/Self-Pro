@@ -8,9 +8,16 @@ import { getStoredGoogleUser } from '../lib/googleUserStorage';
 import { NoSavedGoogleCredentialError } from './syncErrors';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierRow } from '../game/lifetimeRank';
-import { readPendingActivityDeletes, clearPendingActivityDeletes } from '../game/pendingActivityDeletes';
+import { drainPendingActivityDeleteEntries } from '../game/pendingActivityDeletes';
 import { isQaSandboxActive } from '../qa/qaSandbox';
 import { getAccountActivityStartDate } from '../lib/accountActivityBoundary';
+import { isConfirmedActivityIdentity } from '../lib/activityIdentity';
+import { normalizeAccountEmail, requireNormalizedAccountEmail } from '../lib/accountIdentity';
+import {
+  logRestorePhase,
+  type RestorePhase,
+  type RestoreRpcOperation,
+} from '../lib/authTelemetry';
 import {
   buildUserDataBackup,
   CLOUD_BACKUP_SCHEMA_VERSION,
@@ -35,9 +42,35 @@ const KEY_LEGACY_RESTORE_PENDING = 'habit_sync_legacy_restore_pending';
 // fail closed; current clients route it through the recovery probe below.
 const BACKUP_CAS_CONFLICT_SENTINEL = -1;
 const BATCH = 100;
+const ACTIVITY_DELETE_RPC_REQUIRED_ERROR =
+  'Activity sync paused: delete_my_activity_keys RPC is unavailable; uploads and deletes remain pending.';
+const ACTIVITY_DELETE_IDENTITY_REQUIRED_ERROR =
+  'Activity delete paused: durable activity identity is unavailable; the pending delete remains queued.';
+const ACTIVITY_WRITE_RPC_REQUIRED_ERROR =
+  'Activity sync paused: append_my_activity_rows RPC is unavailable; uploads remain pending.';
+const ACTIVITY_IDENTITY_UNRESOLVED_ERROR =
+  'Activity sync paused: one or more local activities have unresolved identity; data remains local and pending reconciliation.';
 
 type AssertSyncActive = () => void;
 type SyncTask = (assertActive: AssertSyncActive) => Promise<void>;
+
+async function withRestoreTelemetry<T>(
+  attemptId: string | undefined,
+  phase: RestorePhase,
+  operation: RestoreRpcOperation | undefined,
+  work: () => Promise<T>,
+): Promise<T> {
+  const startedAt = Date.now();
+  logRestorePhase({ attemptId, phase, operation, outcome: 'started' });
+  try {
+    const result = await work();
+    logRestorePhase({ attemptId, phase, operation, outcome: 'success', durationMs: Date.now() - startedAt });
+    return result;
+  } catch (error) {
+    logRestorePhase({ attemptId, phase, operation, outcome: 'failure', durationMs: Date.now() - startedAt, error });
+    throw error;
+  }
+}
 
 interface AccountSyncGate {
   epoch: number;
@@ -59,7 +92,7 @@ class AccountSyncInvalidatedError extends Error {
 const accountSyncGates = new Map<string, AccountSyncGate>();
 
 function getAccountSyncGate(accountKey: string): AccountSyncGate {
-  const canonicalAccountKey = normalizedAccountEmail(accountKey);
+  const canonicalAccountKey = normalizeAccountEmail(accountKey);
   const existing = accountSyncGates.get(canonicalAccountKey);
   if (existing) return existing;
 
@@ -185,6 +218,9 @@ interface ActivityRow {
   local_date: string;
   week_start: string;
   note: string | null;
+  activity_key: string;
+  activity_identity_status?: string | null;
+  activity_source_task_type_id: number | null;
 }
 
 interface FundRow {
@@ -204,8 +240,15 @@ export type SocialProfileSignal = {
   timezone: string;
 };
 
-/** Map a Google OIDC sub to the local user row id, with email fallback for legacy rows. */
+/** Resolve the stable account key first, then Google/legacy identity fallbacks. */
 async function resolveUserId(db: SQLiteDatabase, userSub: string, userEmail: string): Promise<number | null> {
+  const accountKey = requireNormalizedAccountEmail(userEmail);
+  const byAccountKey = await db.getFirstAsync<{ id: number }>(
+    'SELECT id FROM users WHERE account_key = ?',
+    [accountKey],
+  );
+  if (byAccountKey) return byAccountKey.id;
+
   const bySub = await db.getFirstAsync<{ id: number }>(
     'SELECT id FROM users WHERE google_sub = ?',
     [userSub]
@@ -214,7 +257,7 @@ async function resolveUserId(db: SQLiteDatabase, userSub: string, userEmail: str
   // Legacy rows (pre-M3 migration) store email in google_sub
   const byEmail = await db.getFirstAsync<{ id: number }>(
     'SELECT id FROM users WHERE LOWER(TRIM(google_sub)) = LOWER(TRIM(?))',
-    [userEmail]
+    [accountKey]
   );
   return byEmail?.id ?? null;
 }
@@ -225,16 +268,68 @@ async function upsertBatch<T extends { id: number }>(
   userEmail: string,
   cursorKey: string,
   assertActive: AssertSyncActive,
+  onConflict: string,
 ): Promise<Record<string, unknown>[]> {
   assertActive();
   const { data, error } = await supabase!.from(table).upsert(
-    rows.map(({ id, ...r }) => ({ ...r as object, user_email: userEmail, local_id: id })),
-    { onConflict: 'user_email,local_id' },
+    rows.map(({ id, ...r }) => {
+      const remoteRow: Record<string, unknown> = { ...r as object, user_email: userEmail, local_id: id };
+      return remoteRow;
+    }),
+    { onConflict },
   ).select();
   if (error) throw error;
   assertActive();
   await AsyncStorage.setItem(cursorKey, String(rows[rows.length - 1].id));
   return data ?? [];
+}
+
+async function appendActivityBatch(
+  rows: ActivityRow[],
+  cursorKey: string,
+  assertActive: AssertSyncActive,
+): Promise<Record<string, unknown>[]> {
+  assertActive();
+  const payload = rows.map(({ id, user_id: _userId, activity_identity_status: _status, activity_source_task_type_id: sourceTaskTypeId, ...row }) => ({
+    ...row,
+    // Mirror hydration keeps the cloud task reference separate from the
+    // local task_type_id relationship. Send the source value back for the
+    // server's immutable-content comparison without attaching it locally.
+    task_type_id: sourceTaskTypeId ?? row.task_type_id,
+    local_id: id,
+  }));
+  const { data, error } = await supabase!.rpc('append_my_activity_rows', {
+    p_activity_rows: payload,
+  });
+  if (error && isMissingRpc(error, 'append_my_activity_rows')) {
+    throw new Error(ACTIVITY_WRITE_RPC_REQUIRED_ERROR);
+  }
+  if (error) throw error;
+  assertActive();
+  if (!Array.isArray(data)) throw new Error('Invalid activity append acknowledgement');
+  const acknowledgedKeys = new Set(data.map(row => {
+    const key = row && typeof row === 'object' && 'activity_key' in row
+      ? (row as { activity_key?: unknown }).activity_key
+      : undefined;
+    if (!isConfirmedActivityIdentity(key)) throw new Error('Invalid activity append acknowledgement');
+    return key;
+  }));
+  if (acknowledgedKeys.size !== rows.length
+      || rows.some(row => !acknowledgedKeys.has(row.activity_key))) {
+    throw new Error('Incomplete activity append acknowledgement');
+  }
+  // Advance the cursor only after every row is acknowledged. Retrying the
+  // same batch therefore resends the same immutable keys without data loss.
+  await AsyncStorage.setItem(cursorKey, String(rows[rows.length - 1].id));
+  return data as Record<string, unknown>[];
+}
+
+function isMissingRpc(error: unknown, rpcName: string): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; message?: unknown; details?: unknown };
+  const text = [candidate.message, candidate.details].filter(value => typeof value === 'string').join(' ');
+  return candidate.code === 'PGRST202'
+    || (text.includes(rpcName) && /(function|schema cache|not found|does not exist)/i.test(text));
 }
 
 /** Flags rows whose client-supplied logged_at is implausibly earlier than
@@ -252,7 +347,7 @@ async function flagClockSuspectRows(db: SQLiteDatabase, upserted: Record<string,
 // is_clock_suspect, which has no matching column on the Supabase side --
 // never silently leak into the upsert payload and break sync with a
 // PostgREST "unknown column" error.
-const ACTIVITY_SYNC_COLUMNS = 'id, user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note';
+const ACTIVITY_SYNC_COLUMNS = 'id, user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note, activity_key, activity_identity_status, activity_source_task_type_id';
 
 async function syncActivity(
   db: SQLiteDatabase,
@@ -278,7 +373,13 @@ async function syncActivity(
       [userId, lastId, activityStartDate ?? '0000-01-01', BATCH]
     );
     if (!rows.length) return;
-    const upserted = await upsertBatch('activity_log', rows, userEmail, key, assertActive);
+    if (rows.some(row => !isConfirmedActivityIdentity(
+      row.activity_key,
+      row.activity_identity_status ?? 'resolved',
+    ))) {
+      throw new Error(ACTIVITY_IDENTITY_UNRESOLVED_ERROR);
+    }
+    const upserted = await appendActivityBatch(rows, key, assertActive);
     await flagClockSuspectRows(db, upserted);
     lastId = rows[rows.length - 1].id;
     if (rows.length < BATCH) return;
@@ -293,19 +394,46 @@ async function syncActivity(
  * orphan for the same logical activity instance.
  */
 async function syncPendingActivityDeletes(
+  db: SQLiteDatabase,
   userId: number,
+  accountKey: string,
   assertActive: AssertSyncActive,
 ): Promise<void> {
-  const pendingIds = await readPendingActivityDeletes(userId);
-  if (!pendingIds.length) return;
-  assertActive();
-  const { error } = await supabase!
-    .from('activity_log')
-    .delete()
-    .in('local_id', pendingIds);
-  if (error) throw error;
-  assertActive();
-  await clearPendingActivityDeletes(userId, pendingIds);
+  await drainPendingActivityDeleteEntries(
+    db,
+    accountKey,
+    async pendingRows => {
+      assertActive();
+      const keyedRows = pendingRows.map((row) => {
+        if (!isConfirmedActivityIdentity(row.activity_key)) {
+          throw new Error(ACTIVITY_DELETE_IDENTITY_REQUIRED_ERROR);
+        }
+        return { row, activityKey: row.activity_key };
+      });
+      const activityKeys = keyedRows.map(({ activityKey }) => activityKey);
+      const { data, error } = await supabase!.rpc('delete_my_activity_keys', {
+        p_activity_keys: activityKeys,
+      });
+      if (error && isMissingRpc(error, 'delete_my_activity_keys')) {
+        throw new Error(ACTIVITY_DELETE_RPC_REQUIRED_ERROR);
+      }
+      if (error) throw error;
+      if (!Array.isArray(data)) throw new Error('Invalid activity delete acknowledgement');
+      const acknowledgedKeys = new Set(data.map(row => {
+        const activityKey = row && typeof row === 'object' && 'activity_key' in row
+          ? (row as { activity_key?: unknown }).activity_key
+          : undefined;
+        if (!isConfirmedActivityIdentity(activityKey)) {
+          throw new Error('Invalid activity delete acknowledgement');
+        }
+        return activityKey;
+      }));
+      return keyedRows
+        .filter(({ activityKey }) => acknowledgedKeys.has(activityKey))
+        .map(({ row }) => row);
+    },
+    { legacyUserId: userId, assertActive },
+  );
 }
 
 async function syncFund(
@@ -323,7 +451,7 @@ async function syncFund(
     [userId, lastId, BATCH]
   );
   if (!rows.length) return;
-  await upsertBatch('fund_transactions', rows, userEmail, key, assertActive);
+  await upsertBatch('fund_transactions', rows, userEmail, key, assertActive, 'user_email,local_id');
 }
 
 export async function readSocialProfile(
@@ -685,10 +813,6 @@ async function withSessionOperation<T>(
   }
 }
 
-function normalizedAccountEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
-
 function backupRevisionKey(accountKey: string): string {
   return `${KEY_BACKUP_REVISION}:${backupAccountKey(accountKey)}`;
 }
@@ -702,7 +826,7 @@ function backupRetryableKey(accountKey: string): string {
 }
 
 function backupAccountKey(accountKey: string): string {
-  const normalized = normalizedAccountEmail(accountKey);
+  const normalized = normalizeAccountEmail(accountKey);
   return normalized || 'unknown-account';
 }
 
@@ -852,7 +976,7 @@ function stableJson(value: unknown): string {
 
 function normalizedExpectedGoogleSub(userEmail: string, expectedGoogleSub?: ExpectedGoogleSubject): string | undefined {
   const subject = expectedGoogleSub?.trim();
-  if (!subject || normalizedAccountEmail(subject) === normalizedAccountEmail(userEmail)) {
+  if (!subject || normalizeAccountEmail(subject) === normalizeAccountEmail(userEmail)) {
     // Legacy stored identities used the email as a placeholder subject. It is
     // useful for local row lookup, but it is not a Google OIDC `sub` and must
     // not be compared with Supabase's verified provider subject.
@@ -879,7 +1003,7 @@ function hasFreshSessionForAccount(
     && typeof session.expires_at === 'number'
     && Number.isFinite(session.expires_at)
     && session.expires_at > Math.floor(Date.now() / 1000) + SESSION_EXPIRY_SKEW_SECONDS
-    && normalizedAccountEmail(session.user?.email ?? '') === normalizedAccountEmail(userEmail)
+    && normalizeAccountEmail(session.user?.email ?? '') === normalizeAccountEmail(userEmail)
     && (!normalizedSubject || googleSubjectFromSupabaseUser(session.user) === normalizedSubject);
 }
 
@@ -1064,6 +1188,13 @@ async function signInWithGoogleTokenRequest(
       };
     }
 
+    // Preserve provenance for startup recovery classification. A 401 from
+    // the Google→Supabase auth exchange is credential evidence; a 401 from
+    // bootstrap/profile/RPC code must remain retryable and is never tagged
+    // here. The marker is non-sensitive and contains no token or payload.
+    if (isUnauthorizedSupabaseError(error) && error && typeof error === 'object') {
+      (error as { source?: string }).source = 'supabase_auth';
+    }
     lastError = error;
     if (attempt === 0 && isRetryableAuthExchangeError(error)) {
       assertSessionActive(isActive);
@@ -1126,10 +1257,10 @@ function signInWithGoogleTokenInternal(
     );
   }
 
-  const accountKey = normalizedAccountEmail(userEmail);
+  const accountKey = normalizeAccountEmail(userEmail);
   const normalizedSubject = normalizedExpectedGoogleSub(userEmail, expectedGoogleSub);
   let active = inFlightGoogleTokenSignIn;
-  if (active && normalizedAccountEmail(active.userEmail) === accountKey) {
+  if (active && normalizeAccountEmail(active.userEmail) === accountKey) {
     if (!active.isActive()) {
       // The exchange may still be awaiting GoTrue and can mutate the global
       // Supabase session after cancellation. Let its operation settle before
@@ -1152,7 +1283,7 @@ function signInWithGoogleTokenInternal(
     // and runs now.
     active = null;
   }
-  if (active && normalizedAccountEmail(active.userEmail) === accountKey) {
+  if (active && normalizeAccountEmail(active.userEmail) === accountKey) {
     const sameExpectedSubject = (active.expectedGoogleSub?.trim() || null) === (normalizedSubject || null);
     const canReuseActiveExchange = !forceExchange || active.forceExchange;
     if (active.idToken === idToken && sameExpectedSubject && canReuseActiveExchange) {
@@ -1185,7 +1316,7 @@ function signInWithGoogleTokenInternal(
       exchangeCompleted = true;
       exchangeAccessToken = exchange.accessToken;
       exchangeRefreshToken = exchange.refreshToken;
-      if (normalizedAccountEmail(exchange.returnedEmail) !== normalizedAccountEmail(userEmail)) {
+      if (normalizeAccountEmail(exchange.returnedEmail) !== normalizeAccountEmail(userEmail)) {
         cleanupRequired = true;
         throw new Error('Google token does not match the signed-in user');
       }
@@ -1198,7 +1329,7 @@ function signInWithGoogleTokenInternal(
         lastAcceptedGoogleSession = {
           accessToken: exchangeAccessToken,
           refreshToken: exchangeRefreshToken,
-          email: normalizedAccountEmail(userEmail),
+          email: normalizeAccountEmail(userEmail),
         };
       }
     } catch (error) {
@@ -1289,7 +1420,7 @@ function refreshSupabaseSessionOnce(
   let activeRefresh = inFlightSessionRefresh;
   if (activeRefresh) {
     if (
-      normalizedAccountEmail(activeRefresh.userEmail) === normalizedAccountEmail(userEmail)
+      normalizeAccountEmail(activeRefresh.userEmail) === normalizeAccountEmail(userEmail)
       && (activeRefresh.expectedGoogleSub?.trim() || null) === (normalizedSubject || null)
       && (!forceExchange || activeRefresh.forceExchange)
     ) {
@@ -1373,7 +1504,7 @@ async function ensureSupabaseSessionUnlocked(
     // re-logins. A strict `!==` here silently blocked every sync for any
     // account that ever picked up a casing difference, with no error
     // surfaced anywhere the failure could be diagnosed from.
-    if (session!.user?.email?.trim().toLowerCase() !== userEmail.trim().toLowerCase()) {
+    if (normalizeAccountEmail(session!.user?.email ?? '') !== normalizeAccountEmail(userEmail)) {
       throw new Error('Supabase session does not match the signed-in user');
     }
     if (forceExchange) {
@@ -1733,6 +1864,7 @@ export async function restoreUserDataIfNeeded(
   // raw error message — matches this project's short-validated-code-only
   // diagnostics convention (see SignInScreen's native Google error handling).
   onFailureReasonRaw?: (reason: string) => void,
+  telemetryAttemptId?: string,
 ): Promise<UserDataRestoreResult> {
   // A timed-out restore can still be mid-flight when its abort signal
   // surfaces as a second, differently-classified failure (timeout, then a
@@ -1755,7 +1887,7 @@ export async function restoreUserDataIfNeeded(
   // restore, reset, delete, and normal upload. The Google subject still
   // authenticates the Supabase RPC, but must not create a second local CAS
   // namespace for the same account.
-  const accountKey = normalizedAccountEmail(userEmail);
+  const accountKey = normalizeAccountEmail(userEmail);
   const activityStartDate = getAccountActivityStartDate(userEmail);
   let result: UserDataRestoreResult = 'unavailable';
   let keepBackupRestoreBlocked = false;
@@ -1831,12 +1963,16 @@ export async function restoreUserDataIfNeeded(
           'SELECT id, tier_order, rank_name, stars_required FROM tiers ORDER BY tier_order',
         );
         const legacyRows: LegacyActivityMirrorRow[] = [];
-        let lastLocalId = 0;
+        let lastCloudId = 0;
         for (;;) {
+          // Keep this fallback compatible with pre-identity mirrors. Capability
+          // is established by the durable append/delete RPCs; selecting
+          // activity_key here would manufacture 42703 on those schemas. Rows
+          // restored without an explicit key remain unresolved and fail closed.
           const legacyRequest = supabase!.from('activity_log')
-            .select('local_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note')
-            .gt('local_id', lastLocalId)
-            .order('local_id', { ascending: true });
+            .select('id, local_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note')
+            .gt('id', lastCloudId)
+            .order('id', { ascending: true });
           const range = (legacyRequest as unknown as {
             range?: (from: number, to: number) => unknown;
           }).range;
@@ -1856,14 +1992,14 @@ export async function restoreUserDataIfNeeded(
           if (!Array.isArray(data)) {
             throw new Error('Legacy activity restore returned an invalid page');
           }
-          const page = data as LegacyActivityMirrorRow[];
+          const page = data as unknown as LegacyActivityMirrorRow[];
           if (!page.length) break;
-          const pageIds = page.map(row => Number(row.local_id));
-          if (pageIds.some(id => !Number.isSafeInteger(id) || id <= lastLocalId)) {
+          const pageIds = page.map(row => Number(row.id));
+          if (pageIds.some(id => !Number.isSafeInteger(id) || id <= lastCloudId)) {
             throw new Error('Legacy activity restore returned a non-advancing page');
           }
-          lastLocalId = pageIds.reduce((max, id) => Math.max(max, id), lastLocalId);
-          legacyRows.push(...page);
+          lastCloudId = pageIds.reduce((max, id) => Math.max(max, id), lastCloudId);
+          legacyRows.push(...page.map(row => ({ ...row, cloud_id: row.id })));
           if (legacyRows.length > MAX_LEGACY_ACTIVITY_ROWS) {
             throw new Error('Legacy activity mirror exceeds the restore safety limit');
           }
@@ -2017,43 +2153,98 @@ export async function restoreUserDataIfNeeded(
         }
         await withSupabaseSession(userEmail, expectedGoogleSub, async () => {
           assertRestoreActive();
-          const { data, error } = await withSupabaseAbortSignal(
-            supabase!.rpc('restore_my_data_backup_v2'),
-            restoreAbortController.signal,
+          const { data } = await withRestoreTelemetry(
+            telemetryAttemptId,
+            'rpc_load',
+            'restore_my_data_backup_v2',
+            async () => {
+              const response = await withSupabaseAbortSignal(
+                supabase!.rpc('restore_my_data_backup_v2'),
+                restoreAbortController.signal,
+              );
+              if (response.error) throw response.error;
+              return response;
+            },
           );
-          if (error) throw error;
           assertRestoreActive();
 
-          const envelope = parseCloudBackupEnvelope(data);
-          if (!envelope) throw new Error('Invalid cloud backup envelope');
+          const envelope = await withRestoreTelemetry(
+            telemetryAttemptId,
+            'parse_envelope',
+            undefined,
+            async () => {
+              const parsed = parseCloudBackupEnvelope(data);
+              if (!parsed) {
+                throw Object.assign(new Error('Invalid cloud backup envelope'), {
+                  code: 'INVALID_CLOUD_BACKUP_ENVELOPE',
+                });
+              }
+              return parsed;
+            },
+          );
+
+          await withRestoreTelemetry(
+            telemetryAttemptId,
+            'validate_payload',
+            undefined,
+            async () => {
+              if (envelope.payload === null) return;
+              if (!isCloudBackupPayload(envelope.payload)) {
+                throw Object.assign(new Error('Unsupported cloud backup payload'), {
+                  code: 'UNSUPPORTED_CLOUD_BACKUP_PAYLOAD',
+                });
+              }
+              if (isPartialInconsistentCloudBackup(envelope.payload)) {
+                throw Object.assign(new Error('Cloud backup is partial while the account still has remote progress'), {
+                  code: 'CLOUD_BACKUP_PARTIAL',
+                });
+              }
+            },
+          );
 
           if (envelope.payload === null) {
             // An older app version never stored Challenges/tasks remotely. Recover
             // the legacy activity mirror before allowing the empty local database
             // to become the new cloud snapshot.
-            result = await restoreLegacyActivityWithFinalization(db);
+            result = await withRestoreTelemetry(
+              telemetryAttemptId,
+              'sqlite_transaction',
+              undefined,
+              () => restoreLegacyActivityWithFinalization(db),
+            );
           } else if (isCloudBackupPayload(envelope.payload)) {
-            if (isPartialInconsistentCloudBackup(envelope.payload)) {
+            const payload = envelope.payload;
+            if (isPartialInconsistentCloudBackup(payload)) {
               throw new Error('Cloud backup is partial while the account still has remote progress');
             }
-            if (isInconsistentEmptyCloudBackup(envelope.payload)) {
+            if (isInconsistentEmptyCloudBackup(payload)) {
               // A newer release may have overwritten the full snapshot with a
               // valid-looking but empty payload after reinstall. The legacy
               // activity mirror is still safe to recover because it is
               // validated and rebuilt without reattaching task ids.
-              result = await restoreLegacyActivityWithFinalization(
-                db,
-                snapshotTierId(envelope.payload),
+              result = await withRestoreTelemetry(
+                telemetryAttemptId,
+                'sqlite_transaction',
+                undefined,
+                () => restoreLegacyActivityWithFinalization(
+                  db,
+                  snapshotTierId(payload),
+                ),
               );
             } else {
-              const restored = await restoreUserDataBackup(
-                db,
-                userId,
-                envelope.payload,
-                expectedGoogleSub,
-                assertRestoreActive,
-                transactionDb => isLocalAccountFresh(transactionDb, userId, activityStartDate),
-                activityStartDate,
+              const restored = await withRestoreTelemetry(
+                telemetryAttemptId,
+                'sqlite_transaction',
+                undefined,
+                () => restoreUserDataBackup(
+                  db,
+                  userId,
+                  payload,
+                  expectedGoogleSub,
+                  assertRestoreActive,
+                  transactionDb => isLocalAccountFresh(transactionDb, userId, activityStartDate),
+                  activityStartDate,
+                ),
               );
               if (!restored) {
                 // A populated local account must not be overwritten, but its
@@ -2248,7 +2439,7 @@ export async function signOutSupabaseSession(): Promise<void> {
  */
 export async function syncToSupabase(userSub: string, userEmail: string): Promise<void> {
   if (isQaSandboxActive() || !supabase) return;
-  const canonicalEmail = normalizedAccountEmail(userEmail);
+  const canonicalEmail = normalizeAccountEmail(userEmail);
   const activityStartDate = getAccountActivityStartDate(canonicalEmail);
   if (await isBackupRestoreBlocked(canonicalEmail)) return;
   await runAccountSync(canonicalEmail, async (assertActive) => {
@@ -2272,7 +2463,11 @@ export async function syncToSupabase(userSub: string, userEmail: string): Promis
       // or advanced this account, no legacy activity/fund/profile write may
       // run before the stale device is rejected.
       await syncUserDataBackup(db, userId, canonicalEmail, assertActive, activityStartDate);
-      await syncPendingActivityDeletes(userId, assertActive);
+      // Activity writes are fail-closed at the durable RPC boundary. Do not
+      // probe a potentially missing activity_log.activity_key column here:
+      // the append/delete RPCs are the capability contract and report a
+      // missing cutover as PGRST202 without manufacturing a SQL 42703.
+      await syncPendingActivityDeletes(db, userId, canonicalEmail, assertActive);
       await Promise.all([
         syncActivity(db, userId, canonicalEmail, assertActive, activityStartDate),
         syncFund(db, userId, canonicalEmail, assertActive),
@@ -2355,10 +2550,13 @@ export async function restoreLifetimeStarsFromSupabase(
 }
 
 /** Sync all pending rows for the currently stored Google account. */
-export async function syncCurrentUserToSupabase(): Promise<void> {
+export async function syncCurrentUserToSupabase(expectedAccountSub?: string): Promise<void> {
   if (isQaSandboxActive()) return;
   const user = await getStoredGoogleUser();
   if (!user) return;
+  if (expectedAccountSub && user.sub !== expectedAccountSub) {
+    throw new Error('Sync account changed before upload');
+  }
   try {
     await syncToSupabase(user.sub, user.email);
   } catch (error) {
@@ -2437,7 +2635,7 @@ export async function resetUserProgressInSupabase(
     if (timedOut) throw new Error('Supabase reset cancelled');
     const envelope = parseCloudBackupEnvelope(data);
     if (!envelope) throw new Error('Invalid cloud backup envelope after reset');
-    const accountKey = normalizedAccountEmail(userEmail);
+    const accountKey = normalizeAccountEmail(userEmail);
     if (timedOut) throw new Error('Supabase reset cancelled');
     await writeBackupRevision(accountKey, envelope.revision);
   }, () => !timedOut);
@@ -2469,7 +2667,7 @@ export async function deleteUserFromSupabase(
     });
     if (error) throw error;
   });
-  const accountKey = normalizedAccountEmail(userEmail);
+  const accountKey = normalizeAccountEmail(userEmail);
   // Keep the restore-block marker until the caller has purged local SQLite.
   // If Android dies between this remote delete and the local purge, startup
   // must remain unable to upload the stale local snapshot.

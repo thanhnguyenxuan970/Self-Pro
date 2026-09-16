@@ -24,6 +24,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: mockGetItem,
   setItem: mockSetItem,
   removeItem: mockRemoveItem,
+  multiRemove: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../src/lib/googleUserStorage', () => ({
@@ -105,6 +106,7 @@ describe('interactive Google sign-in recovery', () => {
       undefined,
       true,
       expect.any(Function),
+      expect.any(String),
     );
   });
 
@@ -175,5 +177,58 @@ describe('interactive Google sign-in recovery', () => {
     }
 
     expect((caught as { code?: string }).code).toBe('RESTORE_ERROR');
+  });
+
+  it('fences SecureStore and UI publication when sign-out invalidates an older attempt', async () => {
+    let releaseRestore!: (value: 'empty') => void;
+    mockRestoreUserDataIfNeeded.mockImplementation(() => new Promise<'empty'>(resolve => {
+      releaseRestore = resolve;
+    }));
+    const auth = useAuth();
+    const user = {
+      sub: 'google-sub',
+      email: 'user@example.com',
+      name: 'Test User',
+      picture: 'https://example.com/photo.jpg',
+    };
+
+    const signIn = auth.signInWithGoogle(user, 'google-id-token');
+    for (let i = 0; i < 20; i += 1) await new Promise<void>(resolve => setTimeout(resolve, 0));
+    expect(mockRestoreUserDataIfNeeded).toHaveBeenCalled();
+
+    const signOut = auth.signOut();
+    releaseRestore('empty');
+
+    await expect(signIn).rejects.toThrow('Google sign-in cancelled');
+    await expect(signOut).resolves.toBeUndefined();
+    expect(mockCancelSupabaseSessionRestore).toHaveBeenCalled();
+    expect(mockWriteGoogleUser).not.toHaveBeenCalled();
+    expect(mockSetState).not.toHaveBeenCalledWith(true);
+  });
+
+  it('waits for an in-flight SecureStore write before clearing the old identity', async () => {
+    let releaseWrite!: () => void;
+    mockWriteGoogleUser.mockImplementation(() => new Promise<void>(resolve => {
+      releaseWrite = resolve;
+    }));
+    const auth = useAuth();
+    const user = {
+      sub: 'google-sub',
+      email: 'user@example.com',
+      name: 'Test User',
+      picture: 'https://example.com/photo.jpg',
+    };
+
+    const signIn = auth.signInWithGoogle(user, 'google-id-token');
+    for (let i = 0; i < 20 && !mockWriteGoogleUser.mock.calls.length; i += 1) {
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+    }
+    expect(mockWriteGoogleUser).toHaveBeenCalledTimes(1);
+
+    const signOut = auth.signOut();
+    releaseWrite();
+    await expect(signIn).rejects.toThrow('Google sign-in cancelled');
+    await expect(signOut).resolves.toBeUndefined();
+    expect(mockDeleteGoogleUser).toHaveBeenCalled();
   });
 });

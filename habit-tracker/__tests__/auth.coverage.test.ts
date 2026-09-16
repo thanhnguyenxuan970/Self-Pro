@@ -96,6 +96,7 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { cancelChallengeReminders } from '../src/utils/notifications';
+import { NoSavedGoogleCredentialError } from '../src/api/syncErrors';
 import {
   cancelUserChallengeReminders,
   resolveUserRow,
@@ -208,6 +209,83 @@ describe('useAuth lifecycle actions', () => {
     expect(stateSetters[1]).toHaveBeenCalledWith(false);
     expect(stateSetters[2]).toHaveBeenCalledWith(null);
   });
+
+  test('keeps a stored account retryable after a transient startup failure and recovers on retry', async () => {
+    mockReadGoogleUser.mockResolvedValue(JSON.stringify(user));
+    mockGetItem.mockResolvedValue('true');
+    mockEnsureSupabaseSession
+      .mockRejectedValueOnce(Object.assign(new Error('gateway timeout'), { status: 504 }))
+      .mockResolvedValueOnce(undefined);
+    const auth = useAuth();
+    const firstCleanup = effectCallbacks[0]();
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+
+    expect(stateSetters[1]).toHaveBeenLastCalledWith(true);
+    expect(stateSetters[2]).toHaveBeenLastCalledWith(user);
+    expect(stateSetters[3]).toHaveBeenLastCalledWith('retryable');
+    expect(mockDeleteGoogleUser).not.toHaveBeenCalled();
+
+    auth.retryStartupRecovery();
+    expect(stateSetters[3]).toHaveBeenLastCalledWith('recovering');
+    const retryCleanup = effectCallbacks[0]();
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+
+    expect(stateSetters[3]).toHaveBeenLastCalledWith('ready');
+    expect(stateSetters[1]).toHaveBeenLastCalledWith(true);
+    expect(stateSetters[2]).toHaveBeenLastCalledWith(user);
+    firstCleanup?.();
+    retryCleanup?.();
+  });
+
+  test('moves to reauthentication only after a confirmed missing credential', async () => {
+    mockReadGoogleUser.mockResolvedValue(JSON.stringify(user));
+    mockGetItem.mockResolvedValue('true');
+    mockEnsureSupabaseSession.mockRejectedValue(new NoSavedGoogleCredentialError());
+    const auth = useAuth();
+    const cleanup = effectCallbacks[0]();
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+
+    expect(stateSetters[3]).toHaveBeenLastCalledWith('reauth_required');
+    expect(stateSetters[1]).toHaveBeenLastCalledWith(false);
+    expect(stateSetters[2]).toHaveBeenLastCalledWith(null);
+    expect(mockDeleteGoogleUser).not.toHaveBeenCalled();
+    expect(mockRemoveItem).toHaveBeenCalledWith('habit_tracker_onboarded');
+    cleanup?.();
+  });
+
+  test('ignores a late completion from an older startup attempt', async () => {
+    mockReadGoogleUser.mockResolvedValue(JSON.stringify(user));
+    mockGetItem.mockResolvedValue('true');
+    let releaseOld!: () => void;
+    mockEnsureSupabaseSession
+      .mockImplementationOnce(() => new Promise<void>(resolve => { releaseOld = resolve; }))
+      .mockResolvedValueOnce(undefined);
+    const auth = useAuth();
+    const oldCleanup = effectCallbacks[0]();
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+    oldCleanup?.();
+
+    auth.retryStartupRecovery();
+    const newCleanup = effectCallbacks[0]();
+    releaseOld?.();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(stateSetters[3]).not.toHaveBeenCalledWith('retryable');
+    expect(stateSetters[3]).toHaveBeenLastCalledWith('ready');
+    expect(mockCancelSupabaseSessionRestore).toHaveBeenCalled();
+    expect(mockWriteGoogleUser).not.toHaveBeenCalled();
+    expect(mockRemoveItem).not.toHaveBeenCalledWith('habit_tracker_google_user');
+    newCleanup?.();
+  });
+
+  test('deduplicates repeated startup retry taps while one retry is active', () => {
+    const auth = useAuth();
+    auth.retryStartupRecovery();
+    auth.retryStartupRecovery();
+
+    expect(stateSetters[4]).toHaveBeenCalledTimes(1);
+  });
 });
 
 const operationId = '123e4567-e89b-42d3-a456-426614174000';
@@ -228,6 +306,7 @@ describe('account lifecycle safety branches', () => {
     let active = false;
     await expect(resolveUserRow(db as never, user.sub, user.email, () => active))
       .rejects.toThrow('Google sign-in cancelled');
+    expect(db.runAsync).not.toHaveBeenCalled();
 
     active = true;
     let checks = 0;
@@ -242,11 +321,13 @@ describe('account lifecycle safety branches', () => {
     };
     await expect(resolveUserRow(cancelAfterLookup as never, user.sub, user.email, () => active))
       .rejects.toThrow('Google sign-in cancelled');
+    expect(cancelAfterLookup.runAsync).not.toHaveBeenCalled();
   });
 
   test('updates a previous subject and migrates a legacy email subject', async () => {
     const previousDb = {
       getFirstAsync: jest.fn()
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ id: 4 }),
       runAsync: jest.fn().mockResolvedValue({ changes: 1 }),
@@ -258,6 +339,7 @@ describe('account lifecycle safety branches', () => {
     const legacyDb = {
       getFirstAsync: jest.fn()
         .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ id: 5 }),
       runAsync: jest.fn().mockResolvedValue({ changes: 1 }),
       withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => callback()),
@@ -265,7 +347,8 @@ describe('account lifecycle safety branches', () => {
     await expect(resolveUserRow(legacyDb as never, 'new-sub', user.email))
       .resolves.toEqual({ id: 5, isNew: false });
     expect(legacyDb.runAsync).toHaveBeenCalledWith(
-      'UPDATE users SET google_sub = ? WHERE id = ?', ['new-sub', 5],
+      'UPDATE users SET google_sub = ?, account_key = ? WHERE id = ?',
+      ['new-sub', 'user@example.com', 5],
     );
   });
 
@@ -274,6 +357,10 @@ describe('account lifecycle safety branches', () => {
     await expect(auth.resetProgress(7)).resolves.toBeUndefined();
     expect(defaultDb.withTransactionAsync).toHaveBeenCalled();
     expect(defaultDb.runAsync.mock.calls.filter(([sql]) => String(sql).startsWith('DELETE FROM '))).toHaveLength(13);
+    expect(defaultDb.runAsync).not.toHaveBeenCalledWith(
+      'DELETE FROM pending_activity_deletes WHERE account_key = ?',
+      expect.anything(),
+    );
     expect(defaultDb.runAsync).toHaveBeenCalledWith(expect.stringContaining('UPDATE users SET'), [7]);
     expect(mockResetSyncCursors).toHaveBeenCalled();
   });
@@ -292,6 +379,11 @@ describe('account lifecycle safety branches', () => {
 
     await expect(auth.completePendingReset()).resolves.toBe(true);
     expect(mockResetUserProgressInSupabase).toHaveBeenCalledWith(user.email, user.sub, operationId, false);
+    expect(defaultDb.runAsync).toHaveBeenCalledWith(
+      'DELETE FROM pending_activity_deletes WHERE account_key = ?',
+      ['user@example.com'],
+    );
+    expect(mockRemoveItem).toHaveBeenCalledWith('pending_activity_deletes:7');
     expect(mockClearBackupRestoreBlocked).toHaveBeenCalledWith(user.email);
     expect(mockRemoveItem).toHaveBeenCalledWith('habit_tracker_pending_progress_reset:user%40example.com');
     expect(release).toHaveBeenCalled();
@@ -318,6 +410,10 @@ describe('account lifecycle safety branches', () => {
     mockResetUserProgressInSupabase.mockRejectedValueOnce(new Error('remote reset failed'));
     await expect(auth.completePendingReset()).resolves.toBe(false);
     expect(mockMarkBackupRestoreBlocked).toHaveBeenCalledWith(user.email);
+    expect(defaultDb.runAsync).not.toHaveBeenCalledWith(
+      'DELETE FROM pending_activity_deletes WHERE account_key = ?',
+      expect.anything(),
+    );
     warn.mockRestore();
   });
 
@@ -331,6 +427,11 @@ describe('account lifecycle safety branches', () => {
     const auth = useAuth();
     await expect(auth.completePendingDelete()).resolves.toBe('deleted');
     expect(mockDeleteUserFromSupabase).toHaveBeenCalledWith(user.email, user.sub, operationId, false);
+    expect(defaultDb.runAsync).toHaveBeenCalledWith(
+      'DELETE FROM pending_activity_deletes WHERE account_key = ?',
+      ['user@example.com'],
+    );
+    expect(mockRemoveItem).toHaveBeenCalledWith('pending_activity_deletes:7');
     expect(defaultDb.runAsync).toHaveBeenCalledWith('DELETE FROM users WHERE id = ?', [7]);
     expect(mockMultiRemove).toHaveBeenCalled();
     expect(stateSetters[1]).toHaveBeenCalledWith(false);
@@ -348,6 +449,10 @@ describe('account lifecycle safety branches', () => {
     const auth = useAuth();
     await expect(auth.completePendingDelete()).resolves.toBe('blocked');
     expect(mockMarkBackupRestoreBlocked).toHaveBeenCalledWith(user.email);
+    expect(defaultDb.runAsync).not.toHaveBeenCalledWith(
+      'DELETE FROM pending_activity_deletes WHERE account_key = ?',
+      expect.anything(),
+    );
 
     mockIsQaSandboxIdentity.mockReturnValue(true);
     await expect(auth.completePendingDelete(user)).resolves.toBe('none');
@@ -364,7 +469,17 @@ describe('account lifecycle safety branches', () => {
     const auth = useAuth();
     await expect(auth.signInWithGoogle(user, ' token ')).resolves.toBe(false);
     expect(mockSignInWithGoogleToken).toHaveBeenCalledWith(user.email, 'token', expect.any(Function), user.sub);
-    expect(mockRestoreUserDataIfNeeded).toHaveBeenCalledWith(3, user.email, user.sub, expect.any(Function), true, undefined, true, expect.any(Function));
+    expect(mockRestoreUserDataIfNeeded).toHaveBeenCalledWith(
+      3,
+      user.email,
+      user.sub,
+      expect.any(Function),
+      true,
+      undefined,
+      true,
+      expect.any(Function),
+      expect.any(String),
+    );
     expect(mockWriteGoogleUser).toHaveBeenCalledWith(JSON.stringify(user));
     expect(stateSetters[2]).toHaveBeenCalledWith(user);
 

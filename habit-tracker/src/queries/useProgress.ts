@@ -9,10 +9,11 @@ import { AnalyticsDashboard, AnalyticsRange, AnalyticsDaily, AnalyticsLog, analy
 import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
-import { enqueuePendingActivityDeletes } from '../game/pendingActivityDeletes';
+import { enqueuePendingActivityDeletesForUser } from '../game/pendingActivityDeletes';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
-import { syncCurrentUserToSupabase } from '../api/syncService';
+import { requestCurrentUserSync } from '../api/syncRetry';
 import { ANALYTICS_STAR_SOURCE, readAnalyticsYearStars } from '../analytics/yearStars';
+import { createActivityKey } from '../lib/activityIdentity';
 
 export type ActivityLogEntry = {
   id: number;
@@ -190,9 +191,9 @@ async function revertDailySummariesForDelete(
       deletedActivityIds.push(...staleRows.map(row => row.id));
       await db.runAsync(`DELETE FROM activity_log WHERE user_id = ? AND local_date = ? AND source = 'DAILY_BONUS'`, [userId, date]);
       if (remainingBonusStars > 0) await db.runAsync(
-        `INSERT INTO activity_log (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
-         VALUES (?, NULL, 'DAILY_BONUS', NULL, 0, ?, 'DAILY_BONUS', ?, ?, ?)`,
-        [userId, remainingBonusStars, Date.now(), date, entry.weekStart],
+        `INSERT INTO activity_log (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, activity_key)
+         VALUES (?, NULL, 'DAILY_BONUS', NULL, 0, ?, 'DAILY_BONUS', ?, ?, ?, ?)`,
+        [userId, remainingBonusStars, Date.now(), date, entry.weekStart, createActivityKey()],
       );
     }
     if (remaining <= 0) {
@@ -283,8 +284,8 @@ export function useDeleteActivityLogs(userId: number) {
           [userId, ...ids]
         );
         deletedActivityIds = [...rows.map(row => row.id), ...bonusRowIds];
+        await enqueuePendingActivityDeletesForUser(db, userId, deletedActivityIds);
       });
-      await enqueuePendingActivityDeletes(userId, deletedActivityIds);
 
       return { lifetimeCrossings };
     },
@@ -294,8 +295,7 @@ export function useDeleteActivityLogs(userId: number) {
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
-      void syncCurrentUserToSupabase()
-        .catch(error => { if (__DEV__) console.warn('[sync] activity delete sync failed:', error); })
+      void requestCurrentUserSync()
         .finally(() => {
           qc.invalidateQueries({ queryKey: ['rank'] });
           qc.invalidateQueries({ queryKey: ['leaderboard'] });

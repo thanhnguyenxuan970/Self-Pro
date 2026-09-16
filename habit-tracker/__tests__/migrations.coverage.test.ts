@@ -27,7 +27,7 @@ describe('full migration chain contract', () => {
 
     await expect(runMigrations(db as never)).resolves.toBeUndefined();
 
-    expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 29');
+    expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 35');
     expect(db.withTransactionAsync).toHaveBeenCalled();
     expect(db.execAsync.mock.calls.some(([sql]) => String(sql).includes('CREATE TABLE challenges_new'))).toBe(true);
     expect(db.runAsync.mock.calls.some(([sql]) => String(sql).includes("UPDATE tiers SET rank_name = 'Cosmic'"))).toBe(true);
@@ -46,7 +46,7 @@ describe('full migration chain contract', () => {
     });
 
     await expect(runMigrations(db as never)).resolves.toBeUndefined();
-    expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 29');
+    expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 35');
   });
 
   test('rethrows a non-duplicate ALTER TABLE failure', async () => {
@@ -109,7 +109,7 @@ describe('full migration chain contract', () => {
       return null;
     });
     await expect(runMigrations(db as never)).resolves.toBeUndefined();
-    expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 29');
+    expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 35');
   });
 
   test('repairs v27 challenge dates defensively and supports old adapters without transactions', async () => {
@@ -126,6 +126,7 @@ describe('full migration chain contract', () => {
     await expect(runMigrations(db as never)).resolves.toBeUndefined();
     expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 28');
     expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 29');
+    expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 35');
     expect(db.runAsync).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE challenges SET start_date'), expect.anything());
   });
 });

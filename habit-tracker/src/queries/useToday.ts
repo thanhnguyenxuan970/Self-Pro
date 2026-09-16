@@ -2,7 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDb } from '../db/client';
 import { getStoredGoogleUser } from '../hooks/useAuth';
-import { syncCurrentUserToSupabase, syncUserStreak } from '../api/syncService';
+import { syncUserStreak } from '../api/syncService';
+import { requestCurrentUserSync } from '../api/syncRetry';
 import { cancelTerminalChallengeReminders, logActiveChallengeDay, reconcileUnloggedLinkedChallenges, restoreReactivatedChallengeReminders, syncActiveChallengeReminders, type ReactivatedLinkedChallenge } from './useChallenge';
 import { computeLogTaskRows } from '../game/logTask';
 import { getLocalDate, getLocalDateFor, getWeekStart } from '../utils/formatters';
@@ -19,11 +20,12 @@ import {
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
-import { enqueuePendingActivityDeletes } from '../game/pendingActivityDeletes';
+import { enqueuePendingActivityDeletesForUser } from '../game/pendingActivityDeletes';
 import { markSurveyD0Pending } from '../game/pendingSurveyD0';
 import { notifyFirstEverLog } from '../hooks/useSurveyD0Intent';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { recordFirstUse, scheduleStoreReviewPrompt } from '../lib/storeReview';
+import { createActivityKey } from '../lib/activityIdentity';
 import { useLanguage } from '../hooks/useSettings';
 
 type FullTierRow = LifetimeTierRow;
@@ -153,6 +155,7 @@ type ActivityLogInsert = {
   user_id: number; task_type_id: number | null; kind: string;
   duration_min: number | null; points_earned: number; stars_delta: number;
   source: string; logged_at: number; local_date: string; week_start: string;
+  activity_key?: string;
 };
 
 async function insertLogRows(
@@ -161,19 +164,16 @@ async function insertLogRows(
   bonusRow: ActivityLogInsert | null,
 ): Promise<void> {
   const sql = `INSERT INTO activity_log
-    (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-  await db.runAsync(sql, [
-    activityRow.user_id, activityRow.task_type_id, activityRow.kind,
-    activityRow.duration_min, activityRow.points_earned, activityRow.stars_delta,
-    activityRow.source, activityRow.logged_at, activityRow.local_date, activityRow.week_start,
-  ]);
+    (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, activity_key)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  const args = (row: ActivityLogInsert) => [
+    row.user_id, row.task_type_id, row.kind, row.duration_min,
+    row.points_earned, row.stars_delta, row.source, row.logged_at,
+    row.local_date, row.week_start, row.activity_key ?? createActivityKey(),
+  ];
+  await db.runAsync(sql, args(activityRow));
   if (bonusRow) {
-    await db.runAsync(sql, [
-      bonusRow.user_id, bonusRow.task_type_id, bonusRow.kind, bonusRow.duration_min,
-      bonusRow.points_earned, bonusRow.stars_delta, bonusRow.source,
-      bonusRow.logged_at, bonusRow.local_date, bonusRow.week_start,
-    ]);
+    await db.runAsync(sql, args(bonusRow));
   }
 }
 
@@ -191,9 +191,9 @@ async function replaceDailyBonusRows(
   if (stars > 0) {
     await db.runAsync(
       `INSERT INTO activity_log
-       (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start)
-       VALUES (?, NULL, 'DAILY_BONUS', NULL, 0, ?, 'DAILY_BONUS', ?, ?, ?)`,
-      [userId, stars, Date.now(), localDate, weekStart],
+       (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, activity_key)
+       VALUES (?, NULL, 'DAILY_BONUS', NULL, 0, ?, 'DAILY_BONUS', ?, ?, ?, ?)`,
+      [userId, stars, Date.now(), localDate, weekStart, createActivityKey()],
     );
   }
   return staleRows.map(row => row.id);
@@ -527,7 +527,7 @@ export function useLogTask(userId: number) {
       getStoredGoogleUser()
         .then(user => user && Promise.all([
           syncUserStreak(user.email, data.newStreak, user.sub),
-          syncCurrentUserToSupabase(),
+          requestCurrentUserSync(),
         ]))
         .then(() => {
           qc.invalidateQueries({ queryKey: ['rank'] });
@@ -620,12 +620,12 @@ export function useUnlogTask(userId: number) {
         lifetimeCrossings = [...lifetimeCrossings, ...reconciliation.lifetimeCrossings];
         reactivatedChallenges = reconciliation.reactivatedChallenges;
         deletedActivityIds.push(...reconciliation.deletedActivityIds);
+        await enqueuePendingActivityDeletesForUser(db, userId, deletedActivityIds);
       });
       await restoreReactivatedChallengeReminders(db, reactivatedChallenges);
       try {
         await syncActiveChallengeReminders(userId, lang);
       } catch {}
-      await enqueuePendingActivityDeletes(userId, deletedActivityIds);
 
       return { lifetimeCrossings };
     },
@@ -636,8 +636,7 @@ export function useUnlogTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
       qc.invalidateQueries({ queryKey: ['challenge'] });
-      void syncCurrentUserToSupabase()
-        .catch(error => { if (__DEV__) console.warn('[sync] activity delete sync failed:', error); })
+      void requestCurrentUserSync()
         .finally(() => {
           qc.invalidateQueries({ queryKey: ['rank'] });
           qc.invalidateQueries({ queryKey: ['leaderboard'] });

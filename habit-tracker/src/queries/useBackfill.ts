@@ -5,13 +5,14 @@ import { getLocalDate, getLocalDateFor, getWeekStart, getWeekStartFor } from '..
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { crossedStreakMilestone, type StreakMilestone } from '../game/streakMilestones';
 import { boostEndOfDayMs } from '../game/boost';
-import { syncCurrentUserToSupabase } from '../api/syncService';
+import { requestCurrentUserSync } from '../api/syncRetry';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierCrossing, LifetimeTierRow } from '../game/lifetimeRank';
 import { enqueuePendingLevelUps } from '../game/pendingLevelUpQueue';
 import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { cancelTerminalChallengeReminders, logActiveChallengeDay, syncActiveChallengeReminders } from './useChallenge';
 import { useLanguage } from '../hooks/useSettings';
+import { createActivityKey } from '../lib/activityIdentity';
 
 export type BackfillEntryParams = BackfillSessionEntry;
 
@@ -79,7 +80,7 @@ async function recomputeStreakChain(
 interface ActivityLogInsert {
   user_id: number; task_type_id: number | null; kind: string;
   duration_min: number | null | undefined; points_earned: number;
-  stars_delta: number; source: string;
+  stars_delta: number; source: string; activity_key?: string;
 }
 
 async function insertActivityRows(
@@ -89,11 +90,12 @@ async function insertActivityRows(
 ): Promise<void> {
   const sql = `INSERT INTO activity_log
     (user_id, task_type_id, kind, duration_min, points_earned, stars_delta,
-     source, logged_at, local_date, week_start, is_backfill)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`;
+     source, logged_at, local_date, week_start, activity_key, is_backfill)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`;
   const args = (r: ActivityLogInsert) => [
     r.user_id, r.task_type_id, r.kind, r.duration_min ?? null,
     r.points_earned, r.stars_delta, r.source, nowMs, backfillDate, backfillWeekStart,
+    r.activity_key ?? createActivityKey(),
   ];
   await db.runAsync(sql, args(activityRow));
   if (bonusRow) await db.runAsync(sql, args(bonusRow));
@@ -288,8 +290,7 @@ export function useBackfillDay(userId: number) {
       qc.invalidateQueries({ queryKey: ['treats'] });
       qc.invalidateQueries({ queryKey: ['achievements'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
-      void syncCurrentUserToSupabase()
-        .catch(error => { if (__DEV__) console.warn('[sync] activity log sync failed:', error); })
+      void requestCurrentUserSync()
         .finally(() => {
           qc.invalidateQueries({ queryKey: ['rank'] });
           qc.invalidateQueries({ queryKey: ['leaderboard'] });

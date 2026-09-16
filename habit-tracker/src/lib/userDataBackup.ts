@@ -5,6 +5,11 @@ import {
   isActivityDateIncluded,
   sumPositiveStarsFromRows,
 } from './accountActivityBoundary';
+import {
+  normalizeMirroredActivityIdentity,
+  normalizeStoredActivityIdentity,
+  type ActivityIdentityStatus,
+} from './activityIdentity';
 
 export const CLOUD_BACKUP_SCHEMA_VERSION = 1 as const;
 
@@ -114,7 +119,9 @@ export async function buildUserDataBackup(
                                  FROM task_types WHERE user_id = ? ORDER BY id`, userId, assertActive),
     activity_log: await rows(readDb, `SELECT id, task_type_id, kind, duration_min, points_earned,
                                         stars_delta, source, logged_at, local_date, week_start,
-                                        note, is_backfill, is_clock_suspect
+                                        note, activity_key, activity_identity_status,
+                                        activity_source_task_type_id,
+                                        is_backfill, is_clock_suspect
                                    FROM activity_log WHERE user_id = ? ORDER BY id`, userId, assertActive),
     daily_summary: await rows(readDb, `SELECT id, local_date, total_points, bonus_star_awarded, streak_count
                                     FROM daily_summary WHERE user_id = ? ORDER BY id`, userId, assertActive),
@@ -222,6 +229,9 @@ const BACKUP_ROW_RULES: Record<string, Record<string, BackupFieldRule>> = {
     is_template: integerField({ optional: true, min: 0, max: 1 }),
   },
   activity_log: {
+    activity_key: stringField({ optional: true, nullable: true, maxLength: 128 }),
+    activity_identity_status: stringField({ optional: true, values: ['resolved', 'unresolved'] }),
+    activity_source_task_type_id: integerField({ optional: true, nullable: true, min: 1, max: Number.MAX_SAFE_INTEGER }),
     task_type_id: integerField({ optional: true, nullable: true, min: 1, max: Number.MAX_SAFE_INTEGER }),
     kind: stringField({ optional: true, nonEmpty: true }),
     duration_min: integerField({ optional: true, nullable: true, min: 0, max: MAX_BACKUP_NUMBER }),
@@ -405,7 +415,8 @@ export function isCloudBackupPayload(value: unknown): value is CloudBackupPayloa
       || hasDuplicateLogicalKey(backup.challenge_days, ['challenge_id', 'local_date'])
       || hasDuplicateLogicalKey(backup.achievements, ['key', 'source_type', 'source_id'])
       || hasDuplicateLogicalKey(backup.milestone_stars, ['milestone_days'])
-      || hasDuplicateLogicalKey(backup.boost_events, ['local_date'])) return false;
+      || hasDuplicateLogicalKey(backup.boost_events, ['local_date'])
+      || hasDuplicateConfirmedActivityKey(backup.activity_log)) return false;
 
   // Reject malformed relationship graphs before restore can clear any local
   // rows. The payload is produced by this app, but it is still untrusted JSON
@@ -454,6 +465,17 @@ function hasDuplicateLogicalKey(rows: BackupRow[], fields: string[]): boolean {
     const key = JSON.stringify(fields.map(field => hasOwn(row, field) ? row[field] : null));
     if (keys.has(key)) return true;
     keys.add(key);
+  }
+  return false;
+}
+
+function hasDuplicateConfirmedActivityKey(rows: BackupRow[]): boolean {
+  const keys = new Set<string>();
+  for (const row of rows) {
+    const identity = normalizedBackupActivityIdentity(row);
+    if (identity.activityKey === null) continue;
+    if (keys.has(identity.activityKey)) return true;
+    keys.add(identity.activityKey);
   }
   return false;
 }
@@ -513,6 +535,20 @@ function strictLegacyNumberValue(row: BackupRow, key: string, nullable = false):
   }
   if (typeof raw !== 'number' || !Number.isFinite(raw)) throw new Error(`Invalid legacy activity field: ${key}`);
   return raw;
+}
+
+function normalizedBackupActivityIdentity(row: BackupRow): {
+  activityKey: string | null;
+  activityIdentityStatus: ActivityIdentityStatus;
+} {
+  const normalized = normalizeStoredActivityIdentity(
+    value(row, 'activity_key'),
+    value(row, 'activity_identity_status'),
+  );
+  return {
+    activityKey: normalized.activityKey,
+    activityIdentityStatus: normalized.status,
+  };
 }
 
 async function insertRows(
@@ -602,37 +638,117 @@ async function assertNoCrossAccountIdConflicts(
   }
 }
 
-async function hasCrossAccountActivityIdConflict(
-  db: BackupQueryDb,
-  userId: number,
-  activityIds: number[],
-  assertActive: AssertActive,
-): Promise<boolean> {
-  const batchSize = 400;
-  const ids = [...new Set(activityIds)];
-  for (let start = 0; start < ids.length; start += batchSize) {
-    assertActive();
-    const batch = ids.slice(start, start + batchSize);
-    const placeholders = batch.map(() => '?').join(', ');
-      const conflictRows = await db.getAllAsync<{ id: number }>(
-        `SELECT id FROM activity_log
-          WHERE id IN (${placeholders}) AND user_id <> ?
-          LIMIT 1`,
-        [...batch, userId],
-      );
-      if (conflictRows.length) return true;
-  }
-  return false;
+const ACTIVITY_CONTENT_FIELDS = [
+  'task_type_id', 'kind', 'duration_min', 'points_earned', 'stars_delta',
+  'source', 'logged_at', 'local_date', 'week_start', 'note',
+] as const;
+
+function sourceTaskTypeIdValue(row: BackupRow): number | null {
+  const sourceTaskTypeId = nullableNumberValue(row, 'activity_source_task_type_id');
+  return sourceTaskTypeId ?? nullableNumberValue(row, 'task_type_id');
 }
 
-async function assertNoCrossAccountActivityIdConflicts(
+/**
+ * A restore may be retried with the same stable key, but it must never turn a
+ * same-key content change into an INSERT OR REPLACE overwrite. Compare the
+ * immutable activity content before the restore starts deleting local rows.
+ */
+async function assertNoActivityIdentityConflicts(
   db: BackupQueryDb,
   userId: number,
-  activityIds: number[],
+  payload: CloudBackupPayload,
   assertActive: AssertActive,
 ): Promise<void> {
-  if (await hasCrossAccountActivityIdConflict(db, userId, activityIds, assertActive)) {
-    throw new Error('Legacy activity restore conflicts with another local account');
+  const incoming = payload.activity_log
+    .map(row => ({ row, identity: normalizedBackupActivityIdentity(row) }))
+    .filter(({ identity }) => identity.activityKey !== null);
+  const batchSize = 200;
+  for (let start = 0; start < incoming.length; start += batchSize) {
+    assertActive();
+    const batch = incoming.slice(start, start + batchSize);
+    const placeholders = batch.map(() => '?').join(', ');
+    const existing = await db.getAllAsync<BackupRow>(
+      `SELECT activity_key, task_type_id, activity_source_task_type_id,
+              kind, duration_min, points_earned,
+              stars_delta, source, logged_at, local_date, week_start, note
+         FROM activity_log
+        WHERE user_id = ? AND activity_key IN (${placeholders})`,
+      [userId, ...batch.map(({ identity }) => identity.activityKey as string)],
+    );
+    const existingByKey = new Map(
+      existing.map(row => [String(row.activity_key), row]),
+    );
+    for (const { row, identity } of batch) {
+      const current = existingByKey.get(identity.activityKey as string);
+      if (!current) continue;
+      const differs = ACTIVITY_CONTENT_FIELDS.some(field => {
+        const expected = field === 'task_type_id'
+          ? sourceTaskTypeIdValue(row)
+          : field === 'duration_min'
+            ? nullableNumberValue(row, field)
+            : field === 'note'
+              ? nullableStringValue(row, field)
+              : field === 'kind' || field === 'source' || field === 'local_date' || field === 'week_start'
+                ? stringValue(row, field)
+                : numberValue(row, field);
+        const currentValue = field === 'task_type_id'
+          ? sourceTaskTypeIdValue(current)
+          : current[field];
+        return currentValue !== expected;
+      });
+      if (differs) {
+        throw new Error(`Activity identity content conflict during restore: ${identity.activityKey}`);
+      }
+    }
+  }
+}
+
+async function suppressActivityDeleteOutbox(
+  db: BackupQueryDb,
+  userId: number,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT OR IGNORE INTO activity_restore_suppression (user_id) VALUES (?)`,
+    [userId],
+  );
+}
+
+async function assertNoPendingActivityDeleteRestoreConflicts(
+  db: BackupQueryDb,
+  userId: number,
+  payload: CloudBackupPayload,
+  assertActive: AssertActive,
+): Promise<void> {
+  const restoredKeys = [...new Set(
+    payload.activity_log
+      .map(row => normalizedBackupActivityIdentity(row).activityKey)
+      .filter((activityKey): activityKey is string => activityKey !== null),
+  )];
+  if (restoredKeys.length === 0) return;
+
+  const account = await db.getFirstAsync<{ account_key: string | null }>(
+    'SELECT account_key FROM users WHERE id = ?',
+    [userId],
+  );
+  if (typeof account?.account_key !== 'string' || account.account_key.length === 0) return;
+
+  const batchSize = 200;
+  for (let start = 0; start < restoredKeys.length; start += batchSize) {
+    assertActive();
+    const batch = restoredKeys.slice(start, start + batchSize);
+    const placeholders = batch.map(() => '?').join(', ');
+    const conflicts = await db.getAllAsync<{ activity_key: string }>(
+      `SELECT activity_key
+         FROM pending_activity_deletes
+        WHERE account_key = ?
+          AND activity_key IN (${placeholders})`,
+      [account.account_key, ...batch],
+    );
+    if (conflicts.length > 0) {
+      throw new Error(
+        'Restore blocked: snapshot contains an activity with a pending user delete; reconcile the delete first',
+      );
+    }
   }
 }
 
@@ -659,6 +775,15 @@ export async function restoreUserDataBackup(
     }
 
     await assertNoCrossAccountIdConflicts(db, userId, payload, assertActive);
+    await assertNoActivityIdentityConflicts(db, userId, payload, assertActive);
+    await assertNoPendingActivityDeleteRestoreConflicts(db, userId, payload, assertActive);
+
+    // The replacement deletes below are not user delete intent. Keep the
+    // distinction in SQLite itself so the AFTER DELETE trigger cannot enqueue
+    // cloud deletes for rows that this same transaction is about to restore.
+    // Existing pending deletes are reconciled only for durable keys present in
+    // the incoming snapshot; unresolved or unrelated entries remain pending.
+    await suppressActivityDeleteOutbox(db, userId);
 
     const dateScopedDelete = (table: 'activity_log' | 'daily_summary' | 'weekly_summary', column: 'local_date' | 'week_start') => ({
       sql: `DELETE FROM ${table} WHERE user_id = ?${activityStartDate === null ? '' : ` AND ${column} >= ?`}`,
@@ -741,10 +866,15 @@ export async function restoreUserDataBackup(
       db,
       `INSERT OR REPLACE INTO activity_log
         (id, user_id, task_type_id, kind, duration_min, points_earned, stars_delta,
-         source, logged_at, local_date, week_start, note, is_backfill, is_clock_suspect)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         source, logged_at, local_date, week_start, note, activity_key,
+         activity_identity_status, activity_source_task_type_id,
+         is_backfill, is_clock_suspect)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       payload.activity_log,
-      row => [numberValue(row, 'id'), userId, nullableNumberValue(row, 'task_type_id'), stringValue(row, 'kind', 'GOOD'), nullableNumberValue(row, 'duration_min'), numberValue(row, 'points_earned'), numberValue(row, 'stars_delta'), stringValue(row, 'source', 'TASK'), numberValue(row, 'logged_at'), stringValue(row, 'local_date'), stringValue(row, 'week_start'), nullableStringValue(row, 'note'), numberValue(row, 'is_backfill'), numberValue(row, 'is_clock_suspect')],
+      row => {
+        const identity = normalizedBackupActivityIdentity(row);
+        return [numberValue(row, 'id'), userId, nullableNumberValue(row, 'task_type_id'), stringValue(row, 'kind', 'GOOD'), nullableNumberValue(row, 'duration_min'), numberValue(row, 'points_earned'), numberValue(row, 'stars_delta'), stringValue(row, 'source', 'TASK'), numberValue(row, 'logged_at'), stringValue(row, 'local_date'), stringValue(row, 'week_start'), nullableStringValue(row, 'note'), identity.activityKey, identity.activityIdentityStatus, nullableNumberValue(row, 'activity_source_task_type_id'), numberValue(row, 'is_backfill'), numberValue(row, 'is_clock_suspect')];
+      },
       assertActive,
     );
     await insertRows(
@@ -855,6 +985,11 @@ export async function restoreUserDataBackup(
       assertActive,
     );
 
+    await db.runAsync(
+      'DELETE FROM activity_restore_suppression WHERE user_id = ?',
+      [userId],
+    );
+
     assertActive();
   };
 
@@ -894,7 +1029,7 @@ export async function restoreLegacyActivityMirror(
   remoteRows: LegacyActivityMirrorRow[],
   assertActive: AssertActive = alwaysActive,
   isFresh?: (transactionDb: BackupQueryDb) => Promise<boolean>,
-  remapConflictingIds = false,
+  _legacyIdRemapping = false,
   finalizeRestore?: LegacyActivityRestoreFinalizer,
   activityStartDate: string | null = null,
 ): Promise<LegacyActivityRestoreResult> {
@@ -903,7 +1038,7 @@ export async function restoreLegacyActivityMirror(
     // Restoring them would create false heatmap days and streak continuity.
     .filter(row => stringValue(row, 'source', 'TASK') !== 'LOGIN')
     .map((row) => {
-      const id = strictLegacyNumberValue(row, 'local_id');
+      const sourceLocalId = strictLegacyNumberValue(row, 'local_id');
       const localDate = validDateKey(row, 'local_date');
       const rawWeekStart = value(row, 'week_start');
       const weekStart = rawWeekStart === null || rawWeekStart === undefined
@@ -913,7 +1048,7 @@ export async function restoreLegacyActivityMirror(
       const pointsEarned = strictLegacyNumberValue(row, 'points_earned');
       const starsDelta = strictLegacyNumberValue(row, 'stars_delta');
       const loggedAt = strictLegacyNumberValue(row, 'logged_at');
-      if (!Number.isSafeInteger(id) || id < 1 || pointsEarned === null
+      if (!Number.isSafeInteger(sourceLocalId) || sourceLocalId < 1 || pointsEarned === null
           || starsDelta === null || loggedAt === null || !localDate || !weekStart
           || (durationMin !== null && (!Number.isSafeInteger(durationMin) || durationMin < 0 || durationMin > MAX_BACKUP_NUMBER))
           || !Number.isSafeInteger(pointsEarned) || pointsEarned < 0 || pointsEarned > MAX_BACKUP_NUMBER
@@ -924,8 +1059,12 @@ export async function restoreLegacyActivityMirror(
       const kind = stringValue(row, 'kind', 'GOOD');
       const source = stringValue(row, 'source', 'TASK');
       const note = nullableStringValue(row, 'note');
+      const identity = normalizeMirroredActivityIdentity(value(row, 'activity_key'));
+      const sourceTaskTypeId = strictLegacyNumberValue(row, 'task_type_id', true);
       if (!kind.trim() || kind !== kind.trim() || kind.length > 64
           || !source.trim() || source !== source.trim() || source.length > 64
+          || (sourceTaskTypeId !== null
+            && (!Number.isSafeInteger(sourceTaskTypeId) || sourceTaskTypeId < 1))
           || (note !== null && note.length > MAX_BACKUP_TEXT_LENGTH)) {
         throw new Error('Invalid legacy activity row');
       }
@@ -933,7 +1072,7 @@ export async function restoreLegacyActivityMirror(
         return null;
       }
       return {
-        id,
+        sourceLocalId,
         kind,
         durationMin,
         pointsEarned,
@@ -942,18 +1081,27 @@ export async function restoreLegacyActivityMirror(
         loggedAt,
         localDate,
         weekStart,
+        activityKey: identity.activityKey,
+        activityIdentityStatus: identity.status,
+        sourceTaskTypeId,
         // The legacy mirror never carried task definitions. A raw task id may
         // belong to a different local account after switching accounts, so it
-        // must not be reattached to the restored activity.
+        // is retained only as source content and must not be reattached to
+        // the restored activity.
         taskTypeId: null,
         note,
       };
     })
     .filter((activity): activity is NonNullable<typeof activity> => activity !== null)
-    .sort((left, right) => left.localDate.localeCompare(right.localDate) || left.id - right.id);
+    .sort((left, right) => left.localDate.localeCompare(right.localDate)
+      || left.loggedAt - right.loggedAt
+      || left.sourceLocalId - right.sourceLocalId);
 
-  if (new Set(activities.map(activity => activity.id)).size !== activities.length) {
-    throw new Error('Duplicate legacy activity ids');
+  const mirroredKeys = activities
+    .map(activity => activity.activityKey)
+    .filter((activityKey): activityKey is string => activityKey !== null);
+  if (new Set(mirroredKeys).size !== mirroredKeys.length) {
+    throw new Error('Duplicate durable keys in legacy activity mirror');
   }
 
   const daily = new Map<string, { totalPoints: number; bonusStars: number }>();
@@ -972,44 +1120,27 @@ export async function restoreLegacyActivityMirror(
   }
 
   let restored = true;
-  let activitiesToInsert = activities;
+  let activitiesToInsert: Array<(typeof activities)[number] & { id: number }> = [];
   const restore = async (transactionDb: BackupQueryDb = db): Promise<void> => {
     assertActive();
     if (isFresh && !await isFresh(transactionDb)) {
       restored = false;
       return;
     }
-    // Keep the conflict check in the same exclusive transaction as the
-    // inserts. A second local account cannot appear between preflight and
-    // restore and turn INSERT OR REPLACE into a cross-account overwrite.
-    if (remapConflictingIds) {
-      const hasConflict = await hasCrossAccountActivityIdConflict(
-        transactionDb,
-        userId,
-        activities.map(activity => activity.id),
-        assertActive,
-      );
-      if (hasConflict) {
-        const maxExisting = await transactionDb.getFirstAsync<{ max_id: number | null }>(
-          'SELECT COALESCE(MAX(id), 0) AS max_id FROM activity_log',
-        );
-        const maxIncoming = activities.reduce((max, activity) => Math.max(max, activity.id), 0);
-        let nextId = Math.max(Number(maxExisting?.max_id) || 0, maxIncoming);
-        if (!Number.isSafeInteger(nextId) || nextId > Number.MAX_SAFE_INTEGER - activities.length) {
-          throw new Error('Legacy activity id remap exceeds SQLite integer safety');
-        }
-        activitiesToInsert = activities.map(activity => ({ ...activity, id: ++nextId }));
-      }
-    } else {
-      await assertNoCrossAccountActivityIdConflicts(
-        transactionDb,
-        userId,
-        activities.map(activity => activity.id),
-        assertActive,
-      );
+    // `local_id` belongs to the source device and is not a SQLite primary-key
+    // namespace. Allocate fresh local ids for every mirror row, including when
+    // two cloud rows carry the same local_id. Durable activity_key is retained
+    // independently; rows without one stay unresolved and cannot sync.
+    const maxExisting = await transactionDb.getFirstAsync<{ max_id: number | null }>(
+      'SELECT COALESCE(MAX(id), 0) AS max_id FROM activity_log',
+    );
+    let nextId = Number(maxExisting?.max_id) || 0;
+    if (!Number.isSafeInteger(nextId) || nextId > Number.MAX_SAFE_INTEGER - activities.length) {
+      throw new Error('Legacy activity local id allocation exceeds SQLite integer safety');
     }
-    const activityColumns = '(id, user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note, is_backfill, is_clock_suspect)';
-    const activityValues = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)';
+    activitiesToInsert = activities.map(activity => ({ ...activity, id: ++nextId }));
+    const activityColumns = '(id, user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, note, activity_key, activity_identity_status, activity_source_task_type_id, is_backfill, is_clock_suspect)';
+    const activityValues = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)';
     const activityBatchSize = 50;
     for (let start = 0; start < activitiesToInsert.length; start += activityBatchSize) {
       assertActive();
@@ -1020,7 +1151,8 @@ export async function restoreLegacyActivityMirror(
         batch.flatMap(activity => [
           activity.id, userId, activity.taskTypeId, activity.kind, activity.durationMin,
           activity.pointsEarned, activity.starsDelta, activity.source, activity.loggedAt,
-          activity.localDate, activity.weekStart, activity.note,
+          activity.localDate, activity.weekStart, activity.note, activity.activityKey,
+          activity.activityIdentityStatus, activity.sourceTaskTypeId,
         ]),
       );
     }

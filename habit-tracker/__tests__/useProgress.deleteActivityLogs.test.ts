@@ -7,11 +7,11 @@ jest.mock('@tanstack/react-query', () => ({
   useQueryClient: jest.fn(() => ({ invalidateQueries: jest.fn() })),
 }));
 jest.mock('../src/api/syncService', () => ({ syncCurrentUserToSupabase: jest.fn(() => Promise.resolve()) }));
-jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletes: jest.fn(() => Promise.resolve()) }));
+jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletesForUser: jest.fn(() => Promise.resolve()) }));
 jest.mock('../src/lib/rankMascotBridge', () => ({ rankMascotBridge: { ref: { current: { playRankUp: jest.fn() } }, onRankUp: jest.fn() } }));
 import { getDb } from '../src/db/client';
 import { useDeleteActivityLogs } from '../src/queries/useProgress';
-import { enqueuePendingActivityDeletes } from '../src/game/pendingActivityDeletes';
+import { enqueuePendingActivityDeletesForUser } from '../src/game/pendingActivityDeletes';
 
 type Mutation = { mutationFn: (ids: number[]) => Promise<{ lifetimeCrossings: unknown[] }> };
 
@@ -40,6 +40,18 @@ describe('useDeleteActivityLogs', () => {
       { id: 302, local_date: '2026-08-11', week_start: '2026-08-10', points_earned: 5, stars_delta: 1, kind: 'GOOD', source: 'TASK' },
     ]);
     jest.mocked(getDb).mockResolvedValue(db);
+    let transactionOpen = false;
+    jest.mocked(db.withTransactionAsync).mockImplementation(async callback => {
+      transactionOpen = true;
+      try {
+        await callback();
+      } finally {
+        transactionOpen = false;
+      }
+    });
+    jest.mocked(enqueuePendingActivityDeletesForUser).mockImplementationOnce(async () => {
+      expect(transactionOpen).toBe(true);
+    });
 
     const mutation = useDeleteActivityLogs(5) as unknown as Mutation;
     await mutation.mutationFn([301, 302]);
@@ -52,7 +64,7 @@ describe('useDeleteActivityLogs', () => {
       'UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?',
       [3, 4, 5],
     );
-    expect(enqueuePendingActivityDeletes).toHaveBeenCalledWith(5, [301, 302]);
+    expect(enqueuePendingActivityDeletesForUser).toHaveBeenCalledWith(db, 5, [301, 302]);
   });
 
   it('enqueues nothing when none of the requested ids still exist', async () => {
@@ -62,7 +74,7 @@ describe('useDeleteActivityLogs', () => {
     const mutation = useDeleteActivityLogs(5) as unknown as Mutation;
     await mutation.mutationFn([999]);
 
-    expect(enqueuePendingActivityDeletes).toHaveBeenCalledWith(5, []);
+    expect(enqueuePendingActivityDeletesForUser).not.toHaveBeenCalled();
   });
 
   it('does not subtract a selected daily bonus that is recreated at the same value', async () => {

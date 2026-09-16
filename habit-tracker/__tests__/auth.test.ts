@@ -1,4 +1,10 @@
-import { parseOnboarded, parseGoogleUser, restoreStoredGoogleSession, getAuthStateAfterRestoreFailure } from '../src/hooks/useAuth';
+import {
+  parseOnboarded,
+  parseGoogleUser,
+  restoreStoredGoogleSession,
+  getAuthStateAfterRestoreFailure,
+  classifyStartupRestoreFailure,
+} from '../src/hooks/useAuth';
 import { NoSavedGoogleCredentialError } from '../src/api/syncErrors';
 import { GOOGLE_PICTURE_PLACEHOLDER } from '../src/lib/googleUserStorage';
 
@@ -99,10 +105,57 @@ describe('restoreStoredGoogleSession', () => {
     await expect(restoring).rejects.toThrow('cancelled');
   });
 
-  test('fails closed after an unexpected startup restore failure', () => {
-    expect(getAuthStateAfterRestoreFailure()).toEqual({
+  test('retains the stored identity for a retryable startup failure', () => {
+    const storedIdentity = {
+      sub: 'google-uid-123',
+      email: 'a@b.com',
+      name: 'Test User',
+      picture: 'https://pic.jpg',
+    };
+    const failure = Object.assign(new Error('gateway timeout'), { status: 504 });
+
+    expect(classifyStartupRestoreFailure(failure)).toBe('retryable');
+    expect(classifyStartupRestoreFailure(new Error('Startup session restore timed out'))).toBe('retryable');
+    expect(getAuthStateAfterRestoreFailure(failure, {
+      isOnboarded: true,
+      googleUser: storedIdentity,
+    })).toEqual({
+      state: 'retryable',
+      isOnboarded: true,
+      googleUser: storedIdentity,
+    });
+  });
+
+  test('requires reauthentication only for a confirmed missing credential', () => {
+    const failure = new NoSavedGoogleCredentialError();
+
+    expect(classifyStartupRestoreFailure(failure)).toBe('reauth_required');
+    expect(getAuthStateAfterRestoreFailure(failure, {
+      isOnboarded: true,
+      googleUser: JSON.parse(storedUser),
+    })).toEqual({
+      state: 'reauth_required',
       isOnboarded: false,
       googleUser: null,
     });
+  });
+
+  test('does not reinterpret a bootstrap or RPC 401 as invalid Google credentials', () => {
+    expect(classifyStartupRestoreFailure({ status: 401, source: 'profile_bootstrap' })).toBe('retryable');
+    expect(classifyStartupRestoreFailure({ status: 401, source: 'rpc_bootstrap' })).toBe('retryable');
+    expect(classifyStartupRestoreFailure({ status: 401, stage: 'auth' })).toBe('retryable');
+    expect(getAuthStateAfterRestoreFailure({ status: 401, source: 'rpc_bootstrap' }, {
+      isOnboarded: true,
+      googleUser: JSON.parse(storedUser),
+    })).toEqual({
+      state: 'retryable',
+      isOnboarded: true,
+      googleUser: JSON.parse(storedUser),
+    });
+  });
+
+  test('requires reauthentication only for a provider/session 401 with provenance', () => {
+    expect(classifyStartupRestoreFailure({ status: 401, source: 'supabase_auth' })).toBe('reauth_required');
+    expect(classifyStartupRestoreFailure({ status: 401, stage: 'google_credential' })).toBe('reauth_required');
   });
 });

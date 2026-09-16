@@ -2,27 +2,37 @@ const mockGetSession = jest.fn();
 const mockSignInWithIdToken = jest.fn();
 const mockUpsert = jest.fn();
 const mockDeleteIn = jest.fn().mockResolvedValue({ error: null });
-const mockDeleteEq = jest.fn(() => ({ in: mockDeleteIn }));
 const mockDelete = jest.fn(() => ({ in: mockDeleteIn }));
 const mockLegacyActivityRange = jest.fn().mockResolvedValue({ data: [], error: null });
 const mockLegacyPage = (response: { data: unknown; error: unknown }) => {
+  const data = Array.isArray(response.data)
+    ? response.data.map(row => (
+      row && typeof row === 'object' && !('id' in row) && 'local_id' in row
+        ? { ...row, id: (row as { local_id: unknown }).local_id }
+        : row
+    ))
+    : response.data;
   mockLegacyActivityRange
-    .mockResolvedValueOnce(response)
+    .mockResolvedValueOnce({ ...response, data })
     .mockResolvedValueOnce({ data: [], error: null });
 };
 const mockLegacyActivityOrder = jest.fn(() => ({ range: mockLegacyActivityRange }));
 const mockLegacyActivityEq = jest.fn(() => ({ order: mockLegacyActivityOrder }));
 const mockLegacyActivityGt = jest.fn(() => ({ order: mockLegacyActivityOrder }));
 const mockLegacyActivitySelect = jest.fn(() => ({ gt: mockLegacyActivityGt, order: mockLegacyActivityOrder }));
-const mockRpc = jest.fn(async (name: string): Promise<{ data: unknown; error: unknown | null }> => {
+const mockSelect = jest.fn((_columns: string) => mockLegacyActivitySelect());
+const mockRpc = jest.fn(async (name: string, args?: any): Promise<{ data: unknown; error: unknown | null }> => {
   if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
   if (name === 'restore_my_data_backup_v2') return { data: { payload: null, revision: 0 }, error: null };
+  if (name === 'append_my_activity_rows') {
+    return { data: (args?.p_activity_rows ?? []).map((row: any) => ({ activity_key: row.activity_key, local_id: row.local_id })), error: null };
+  }
   return { data: null, error: null };
 });
 const mockFrom = jest.fn(() => ({
   upsert: mockUpsert,
   delete: mockDelete,
-  select: mockLegacyActivitySelect,
+  select: mockSelect,
 }));
 const mockConfigure = jest.fn();
 const mockGetTokens = jest.fn();
@@ -95,6 +105,8 @@ import {
 } from '../src/api/syncService';
 import { isCloudBackupPayload } from '../src/lib/userDataBackup';
 import { THANGUYENXUAN_EMAIL } from '../src/lib/accountActivityBoundary';
+import { enqueuePendingActivityDeletes, readPendingActivityDeletes } from '../src/game/pendingActivityDeletes';
+import { PendingActivityDeleteTestDb } from './helpers/pendingActivityDeleteDb';
 
 describe('restoreUserDataIfNeeded', () => {
   const emptyBackupPayload = (overrides: Record<string, unknown> = {}) => ({
@@ -122,13 +134,18 @@ describe('restoreUserDataIfNeeded', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mockRpc.mockReset();
-    mockRpc.mockImplementation(async (name: string) => {
+    mockRpc.mockImplementation(async (name: string, args?: { p_activity_rows?: Array<{ activity_key?: unknown; local_id?: unknown }> }) => {
       if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
       if (name === 'restore_my_data_backup_v2') return { data: { payload: null, revision: 0 }, error: null };
+      if (name === 'append_my_activity_rows') {
+        return { data: (args?.p_activity_rows ?? []).map(row => ({ activity_key: row.activity_key, local_id: row.local_id })), error: null };
+      }
       return { data: null, error: null };
     });
     mockStorageGetItem.mockReset();
     mockStorageSetItem.mockReset();
+    mockDeleteIn.mockReset();
+    mockDeleteIn.mockResolvedValue({ error: null });
   mockStorageRemoveItem.mockReset();
   mockStorageGetAllKeys.mockReset();
   mockStorageMultiRemove.mockReset();
@@ -467,7 +484,8 @@ describe('restoreUserDataIfNeeded', () => {
     await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
 
     expect(mockLegacyActivityEq).not.toHaveBeenCalled();
-    expect(mockLegacyActivityGt).toHaveBeenCalledWith('local_id', 0);
+    expect(mockLegacyActivityGt).toHaveBeenCalledWith('id', 0);
+    expect(mockSelect.mock.calls.some(([columns]) => String(columns).includes('activity_key'))).toBe(false);
     expect(writes.filter(sql => sql.includes('INSERT OR REPLACE INTO activity_log'))).toHaveLength(1);
     expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO daily_summary'));
     expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO weekly_summary'));
@@ -483,6 +501,7 @@ describe('restoreUserDataIfNeeded', () => {
     mockLegacyActivityRange
       .mockResolvedValueOnce({
         data: [{
+          id: 11,
           local_id: 11, kind: 'GOOD', duration_min: 20, points_earned: 10, stars_delta: 2,
           source: 'TASK', logged_at: 1, local_date: '2026-08-20', week_start: '2026-08-17',
         }],
@@ -490,6 +509,7 @@ describe('restoreUserDataIfNeeded', () => {
       })
       .mockResolvedValueOnce({
         data: [{
+          id: 12,
           local_id: 12, kind: 'LOGIN', duration_min: null, points_earned: 0, stars_delta: 0,
           source: 'LOGIN', logged_at: 2, local_date: '2026-08-21', week_start: '2026-08-17',
         }],
@@ -512,9 +532,9 @@ describe('restoreUserDataIfNeeded', () => {
     await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
 
     expect(mockLegacyActivityGt.mock.calls).toEqual([
-      ['local_id', 0],
-      ['local_id', 11],
-      ['local_id', 12],
+      ['id', 0],
+      ['id', 11],
+      ['id', 12],
     ]);
     expect(writes.filter(sql => sql.includes('INSERT OR REPLACE INTO activity_log'))).toHaveLength(1);
   });
@@ -734,7 +754,7 @@ describe('restoreUserDataIfNeeded', () => {
 
     await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
 
-    expect(mockLegacyActivityGt).toHaveBeenCalledWith('local_id', 0);
+    expect(mockLegacyActivityGt).toHaveBeenCalledWith('id', 0);
     expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO activity_log'));
     expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO daily_summary'));
     expect(writes).toContainEqual(expect.stringContaining('INSERT OR REPLACE INTO weekly_summary'));
@@ -1510,7 +1530,7 @@ describe('restoreUserDataIfNeeded', () => {
     expect(rpcOrder).toEqual(['restore']);
   });
 
-  it('remaps a legacy activity id that belongs to another local account', async () => {
+  it('allocates a new local id for a legacy mirror row independently of its source id', async () => {
     mockRpc.mockImplementation(async (name: string) => {
       if (name === 'restore_my_data_backup_v2') return { data: { payload: null, revision: 4 }, error: null };
       if (name === 'sync_lifetime_stars') return { data: 2, error: null };
@@ -1534,7 +1554,7 @@ describe('restoreUserDataIfNeeded', () => {
 
     await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('restored');
     const activityWrite = db.runAsync.mock.calls.find(([sql]) => sql.includes('INSERT OR REPLACE INTO activity_log'));
-    expect(activityWrite?.[1]?.[0]).toBeGreaterThan(11);
+    expect(activityWrite?.[1]?.[0]).toBe(1);
     expect(mockStorageRemoveItem).toHaveBeenCalledWith('habit_sync_backup_restore_blocked:user@example.com');
   });
 
@@ -1645,9 +1665,13 @@ describe('restoreUserDataIfNeeded', () => {
       }],
       error: null,
     });
+    let maxQueryCount = 0;
     const db = {
       getFirstAsync: jest.fn(async (sql: string) => {
-        if (sql.includes('COALESCE(MAX(id)')) return { count: 1, max_id: 11 };
+        if (sql.includes('COALESCE(MAX(id)')) {
+          maxQueryCount += 1;
+          return { count: 1, max_id: maxQueryCount === 1 ? 11 : 12 };
+        }
         return sql.includes('COUNT(*)') ? { count: 0 } : null;
       }),
       getAllAsync: jest.fn().mockResolvedValue([]),
@@ -1658,13 +1682,13 @@ describe('restoreUserDataIfNeeded', () => {
     mockGetDb.mockResolvedValue(db);
 
     await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub')).resolves.toBe('unavailable');
-    expect(pending).toBe('committed:11');
+    expect(pending).toBe('committed:12');
 
     failCursorWrite = false;
     await expect(restoreUserDataIfNeeded(1, 'user@example.com', 'google-sub', undefined, true)).resolves.toBe('restored');
     expect(pending).toBeNull();
     expect(mockLegacyActivityGt).toHaveBeenCalledTimes(2);
-    expect(mockStorageSetItem).toHaveBeenCalledWith(cursorKey, '11');
+    expect(mockStorageSetItem).toHaveBeenCalledWith(cursorKey, '12');
   });
 
   it('fails closed when a legacy activity contains a malformed numeric field', async () => {
@@ -2859,6 +2883,13 @@ describe('signInWithGoogleToken', () => {
 describe('syncToSupabase', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRpc.mockImplementation(async (name: string, args?: { p_activity_rows?: Array<{ activity_key?: unknown; local_id?: unknown }> }) => {
+      if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
+      if (name === 'append_my_activity_rows') {
+        return { data: (args?.p_activity_rows ?? []).map(row => ({ activity_key: row.activity_key, local_id: row.local_id })), error: null };
+      }
+      return { data: null, error: null };
+    });
   });
 
   const makeSyncBackupPayload = (activityLog: Record<string, unknown>[] = []) => ({
@@ -2899,6 +2930,8 @@ describe('syncToSupabase', () => {
     local_date: localDate,
     week_start: weekStart,
     note: null,
+    activity_key: `activity-test-${id}`,
+    activity_identity_status: 'resolved',
     is_backfill: 0,
     is_clock_suspect: 0,
   });
@@ -3135,7 +3168,7 @@ describe('syncToSupabase', () => {
         throw new Error(`Unexpected sync query: ${sql}`);
       }),
       getAllAsync: jest.fn((sql: string) => sql.includes('activity_log')
-        ? [{ id: 9, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 1, source: 'TASK', logged_at: 1, local_date: '2026-08-10', week_start: '2026-08-10', note: null }]
+        ? [{ id: 9, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 1, source: 'TASK', logged_at: 1, local_date: '2026-08-10', week_start: '2026-08-10', note: null, activity_key: 'activity-test-9', activity_identity_status: 'resolved' }]
         : []),
       runAsync: jest.fn(),
     };
@@ -3147,6 +3180,10 @@ describe('syncToSupabase', () => {
     mockRpc.mockImplementation(async (name: string) => {
       if (name === 'sync_user_profile_v2') writes.push('profile');
       if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
+      if (name === 'append_my_activity_rows') {
+        writes.push('activity-upload');
+        return { data: [{ activity_key: 'activity-test-9', local_id: 9 }], error: null };
+      }
       return { data: null, error: null };
     });
     const dateTimeFormat = jest.spyOn(Intl, 'DateTimeFormat').mockImplementation(() => (
@@ -3164,6 +3201,7 @@ describe('syncToSupabase', () => {
       p_last_active_local_date: '2026-08-10',
       p_timezone: 'Asia/Bangkok',
     });
+    expect(mockUpsert).not.toHaveBeenCalled();
     expect(mockRpc).toHaveBeenCalledWith('save_my_data_backup_v2', expect.objectContaining({ p_expected_revision: 0 }));
     expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_backup_revision:user@example.com', '1');
     expect(writes).toEqual(['activity-upload', 'profile']);
@@ -3172,12 +3210,13 @@ describe('syncToSupabase', () => {
   it('uses the canonical email for server row ownership', async () => {
     mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
     mockStorageGetItem.mockResolvedValue(null);
-    let uploadedRows: Array<{ user_email?: string }> = [];
+    let uploadedRows: Array<{ activity_key?: string; local_id?: number }> = [];
     mockGetDb.mockResolvedValue({
       getFirstAsync: jest.fn(async (sql: string, params: unknown[]) => {
         if (sql.includes('SELECT id FROM users')) {
+          if (sql.includes('WHERE account_key = ?') && params[0] === 'user@example.com') return { id: 1 };
           if (params[0] === 'google-sub') return null;
-          return sql.includes('LOWER(TRIM') && params[0] === ' User@Example.com '
+          return sql.includes('LOWER(TRIM') && params[0] === 'user@example.com'
             ? { id: 1 }
             : null;
         }
@@ -3187,21 +3226,159 @@ describe('syncToSupabase', () => {
         throw new Error(`Unexpected sync query: ${sql}`);
       }),
       getAllAsync: jest.fn((sql: string) => sql.includes('activity_log')
-        ? [{ id: 9, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 1, source: 'TASK', logged_at: 1, local_date: '2026-08-10', week_start: '2026-08-10', note: null }]
+        ? [{ id: 9, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 1, source: 'TASK', logged_at: 1, local_date: '2026-08-10', week_start: '2026-08-10', note: null, activity_key: 'activity-test-9', activity_identity_status: 'resolved' }]
         : []),
       runAsync: jest.fn(),
     });
-    mockUpsert.mockImplementation((rows: Array<{ user_email?: string }>) => {
-      uploadedRows = rows;
-      return { select: jest.fn().mockResolvedValue({ data: null, error: null }) };
+    mockRpc.mockImplementation(async (name: string, args?: { p_activity_rows?: Array<{ activity_key?: string; local_id?: number }> }) => {
+      if (name === 'append_my_activity_rows') {
+        uploadedRows = args?.p_activity_rows ?? [];
+        return { data: uploadedRows.map(row => ({ activity_key: row.activity_key, local_id: row.local_id })), error: null };
+      }
+      return name === 'sync_lifetime_stars' ? { data: 0, error: null } : { data: null, error: null };
     });
-    mockRpc.mockImplementation(async (name: string) => (
-      name === 'sync_lifetime_stars' ? { data: 0, error: null } : { data: null, error: null }
-    ));
 
     await syncToSupabase('google-sub', ' User@Example.com ');
 
-    expect(uploadedRows[0]?.user_email).toBe('user@example.com');
+    expect(uploadedRows[0]?.activity_key).toBe('activity-test-9');
+    expect(uploadedRows[0]?.local_id).toBe(9);
+  });
+
+  it('uses the stable activity key after the identity migration is present', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
+    mockStorageGetItem.mockResolvedValue(null);
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('SELECT id FROM users')) return { id: 1 };
+        if (sql.includes('daily_summary')) return { current_streak: 0 };
+        if (sql.includes('activity_log')) return { last_active_local_date: null };
+        if (sql.includes('lifetime_stars')) return { lifetime_stars: 0 };
+        return null;
+      }),
+      getAllAsync: jest.fn((sql: string) => sql.includes('activity_log')
+        ? [{ id: 9, user_id: 1, task_type_id: null, activity_source_task_type_id: 23, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 1, source: 'TASK', logged_at: 1, local_date: '2026-08-10', week_start: '2026-08-10', note: null, activity_key: 'activity-device-a-9' }]
+        : []),
+      runAsync: jest.fn(),
+    };
+    mockGetDb.mockResolvedValue(db);
+    let uploadedRows: Array<{ activity_key?: string; local_id?: number; task_type_id?: number | null }> = [];
+    mockRpc.mockImplementation(async (name: string, args?: { p_activity_rows?: Array<{ activity_key?: string; local_id?: number; task_type_id?: number | null }> }) => {
+      if (name === 'append_my_activity_rows') {
+        uploadedRows = args?.p_activity_rows ?? [];
+        return { data: uploadedRows.map(row => ({ activity_key: row.activity_key, local_id: row.local_id })), error: null };
+      }
+      return name === 'sync_lifetime_stars' ? { data: 0, error: null } : { data: 1, error: null };
+    });
+
+    await syncToSupabase('google-sub', 'user@example.com');
+
+    expect(uploadedRows[0]?.activity_key).toBe('activity-device-a-9');
+    expect(uploadedRows[0]?.local_id).toBe(9);
+    expect(uploadedRows[0]?.task_type_id).toBe(23);
+    expect(mockSelect).not.toHaveBeenCalledWith('activity_key', { head: true });
+  });
+
+  it('keeps an unresolved legacy activity local and pending across a retry', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
+    mockStorageGetItem.mockResolvedValue(null);
+    const unresolved = {
+      ...makeSyncActivityRow(9, '2026-08-10', '2026-08-10'),
+      activity_key: null,
+      activity_identity_status: 'unresolved',
+    };
+    let appendCalls = 0;
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('SELECT id FROM users')) return { id: 1 };
+        if (sql.includes('FROM users')) return { id: 1, lifetime_stars: 0 };
+        if (sql.includes('daily_summary')) return { current_streak: 0 };
+        if (sql.includes('activity_log')) return { last_active_local_date: null };
+        if (sql.includes('lifetime_stars')) return { lifetime_stars: 0 };
+        return null;
+      }),
+      getAllAsync: jest.fn(async (sql: string) => sql.includes('FROM activity_log') ? [unresolved] : []),
+      runAsync: jest.fn(),
+    };
+    mockGetDb.mockResolvedValue(db);
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'append_my_activity_rows') {
+        appendCalls += 1;
+        return { data: [{ activity_key: 'unexpected' }], error: null };
+      }
+      return name === 'save_my_data_backup_v2' ? { data: 1, error: null } : { data: 0, error: null };
+    });
+
+    await expect(syncToSupabase('google-sub', 'user@example.com'))
+      .rejects.toThrow('unresolved identity');
+    await expect(syncToSupabase('google-sub', 'user@example.com'))
+      .rejects.toThrow('unresolved identity');
+
+    expect(appendCalls).toBe(0);
+    expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_last_activity_id:1', expect.anything());
+    expect((await db.getAllAsync('SELECT * FROM activity_log'))[0]).toMatchObject({
+      id: 9,
+      activity_key: null,
+      activity_identity_status: 'unresolved',
+    });
+  });
+
+  it('deletes a stable outbox row by activity key after the identity migration is present', async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    const outboxDb = new PendingActivityDeleteTestDb();
+    outboxDb.setAccountKey(1, 'user@example.com');
+    await enqueuePendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com', [55]);
+    outboxDb.setActivityKey('user@example.com', 55, 'activity-device-a-55');
+    outboxDb.otherGetFirstAsync = async (sql: string) => {
+      if (sql.includes('FROM users')) return { id: 1 };
+      if (sql.includes('daily_summary')) return { current_streak: 0 };
+      if (sql.includes('activity_log')) return { last_active_local_date: null };
+      throw new Error(`Unexpected sync query: ${sql}`);
+    };
+    mockGetDb.mockResolvedValue(outboxDb.asDatabase());
+    mockRpc.mockImplementation(async (name: string, args?: { p_activity_keys?: string[] }) => {
+      if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
+      if (name === 'delete_my_activity_keys') {
+        return { data: (args?.p_activity_keys ?? []).map(activity_key => ({ activity_key })), error: null };
+      }
+      return { data: 0, error: null };
+    });
+
+    await syncToSupabase('google-sub', 'user@example.com');
+
+    expect(mockRpc).toHaveBeenCalledWith('delete_my_activity_keys', {
+      p_activity_keys: ['activity-device-a-55'],
+    });
+    expect(await readPendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com')).toEqual([]);
+  });
+
+  it('keeps upload, cursor, and outbox untouched when the stable delete RPC is missing', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
+    mockStorageGetItem.mockResolvedValue(null);
+    const outboxDb = new PendingActivityDeleteTestDb();
+    outboxDb.setAccountKey(1, 'user@example.com');
+    await enqueuePendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com', [55]);
+    outboxDb.setActivityKey('user@example.com', 55, 'activity-device-a-55');
+    outboxDb.otherGetFirstAsync = async (sql: string) => {
+      if (sql.includes('FROM users')) return { id: 1 };
+      if (sql.includes('daily_summary')) return { current_streak: 0 };
+      if (sql.includes('activity_log')) return { last_active_local_date: null };
+      throw new Error(`Unexpected sync query: ${sql}`);
+    };
+    mockGetDb.mockResolvedValue(outboxDb.asDatabase());
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
+      if (name === 'delete_my_activity_keys') {
+        return { data: null, error: { code: 'PGRST202', message: 'function delete_my_activity_keys not found' } };
+      }
+      return { data: 0, error: null };
+    });
+
+    await expect(syncToSupabase('google-sub', 'user@example.com'))
+      .rejects.toThrow('delete_my_activity_keys RPC is unavailable');
+
+    expect(mockUpsert).not.toHaveBeenCalled();
+    expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_last_activity_id:1', expect.anything());
+    expect(await readPendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com')).toEqual([55]);
   });
 
   it('surfaces an activity_log upload failure instead of swallowing it', async () => {
@@ -3210,21 +3387,49 @@ describe('syncToSupabase', () => {
     mockGetDb.mockResolvedValue({
       getFirstAsync: jest.fn().mockResolvedValue({ id: 1 }),
       getAllAsync: jest.fn((sql: string) => sql.includes('activity_log')
-        ? [{ id: 9, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 1, source: 'TASK', logged_at: 1, local_date: '2026-07-22', week_start: '2026-07-20', note: null }]
+        ? [{ id: 9, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 1, source: 'TASK', logged_at: 1, local_date: '2026-07-22', week_start: '2026-07-20', note: null, activity_key: 'activity-test-9', activity_identity_status: 'resolved' }]
         : []),
       runAsync: jest.fn(),
     });
-    mockUpsert.mockReturnValue({ select: jest.fn().mockResolvedValue({ data: null, error: new Error('RLS denied') }) });
+    mockRpc.mockImplementation(async (name: string) => (
+      name === 'append_my_activity_rows'
+        ? { data: null, error: new Error('RLS denied') }
+        : { data: 1, error: null }
+    ));
 
     await expect(syncToSupabase('google-sub', 'user@example.com')).rejects.toThrow('RLS denied');
+  });
+
+  it('keeps the activity cursor pending when the append RPC is missing', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
+    mockStorageGetItem.mockResolvedValue(null);
+    const db = {
+      getFirstAsync: jest.fn().mockResolvedValue({ id: 1 }),
+      getAllAsync: jest.fn((sql: string) => sql.includes('activity_log')
+        ? [{ id: 9, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 1, source: 'TASK', logged_at: 1, local_date: '2026-07-22', week_start: '2026-07-20', note: null, activity_key: 'activity-test-9', activity_identity_status: 'resolved' }]
+        : []),
+      runAsync: jest.fn(),
+    };
+    mockGetDb.mockResolvedValue(db);
+    mockRpc.mockImplementation(async (name: string) => (
+      name === 'append_my_activity_rows'
+        ? { data: null, error: { code: 'PGRST202', message: 'function append_my_activity_rows not found' } }
+        : { data: 1, error: null }
+    ));
+
+    await expect(syncToSupabase('google-sub', 'user@example.com'))
+      .rejects.toThrow('append_my_activity_rows RPC is unavailable');
+
+    expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_last_activity_id:1', expect.anything());
+    expect(mockSelect).not.toHaveBeenCalledWith('activity_key', { head: true });
   });
 
   it('re-uploads the signed-in user activity when the server rank total lags the local lifetime total', async () => {
     mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
     mockStorageGetItem.mockResolvedValue(null);
     const activityRows = [
-      { id: 1, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 275, source: 'TASK', logged_at: 1, local_date: '2026-08-10', week_start: '2026-08-10', note: null },
-      { id: 2, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 4, source: 'TASK', logged_at: 2, local_date: '2026-08-11', week_start: '2026-08-10', note: null },
+      { id: 1, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 275, source: 'TASK', logged_at: 1, local_date: '2026-08-10', week_start: '2026-08-10', note: null, activity_key: 'activity-test-1', activity_identity_status: 'resolved' },
+      { id: 2, user_id: 1, task_type_id: 2, kind: 'GOOD', duration_min: null, points_earned: 1, stars_delta: 4, source: 'TASK', logged_at: 2, local_date: '2026-08-11', week_start: '2026-08-10', note: null, activity_key: 'activity-test-2', activity_identity_status: 'resolved' },
     ];
     const uploadedActivityIds: number[][] = [];
     const db = {
@@ -3244,23 +3449,24 @@ describe('syncToSupabase', () => {
       runAsync: jest.fn(),
     };
     mockGetDb.mockResolvedValue(db);
-    mockUpsert.mockImplementation((rows: Array<{ local_id: number }>) => {
-      uploadedActivityIds.push(rows.map(row => row.local_id));
-      return { select: jest.fn().mockResolvedValue({ data: null, error: null }) };
-    });
-    let lifetimeSyncCalls = 0;
-    mockRpc.mockImplementation(async (name: string) => {
+    mockRpc.mockImplementation(async (name: string, args?: { p_activity_rows?: Array<{ local_id?: number; activity_key?: string }> }) => {
+      if (name === 'append_my_activity_rows') {
+        const rows = args?.p_activity_rows ?? [];
+        uploadedActivityIds.push(rows.map(row => row.local_id as number));
+        return { data: rows.map(row => ({ activity_key: row.activity_key, local_id: row.local_id })), error: null };
+      }
       if (name === 'sync_lifetime_stars') {
         lifetimeSyncCalls += 1;
         return { data: lifetimeSyncCalls === 1 ? 275 : 279, error: null };
       }
-      return { data: null, error: null };
+      return { data: 1, error: null };
     });
+    let lifetimeSyncCalls = 0;
 
     await syncToSupabase('google-sub', 'user@example.com');
 
     expect(uploadedActivityIds).toEqual([[1, 2], [1, 2]]);
-    expect(mockRpc).toHaveBeenCalledTimes(4);
+    expect(mockRpc.mock.calls.filter(([name]) => name === 'append_my_activity_rows')).toHaveLength(2);
     expect(mockRpc).toHaveBeenCalledWith('save_my_data_backup_v2', expect.any(Object));
     expect(mockRpc.mock.calls[0][0]).toBe('save_my_data_backup_v2');
   });
@@ -3307,50 +3513,156 @@ describe('syncToSupabase', () => {
     );
   });
 
-  it('deletes already-uploaded twins of locally-deleted rows before uploading, then clears the queue', async () => {
+  it('asks the JWT-scoped key RPC to clear rows, then acknowledges returned keys', async () => {
     mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
-    mockStorageGetItem.mockImplementation(async (key: string) =>
-      (key === 'pending_activity_deletes:1' ? JSON.stringify([55, 56]) : null));
-    const db = {
-      getFirstAsync: jest.fn(async (sql: string) => {
+    mockStorageGetItem.mockResolvedValue(null);
+    const outboxDb = new PendingActivityDeleteTestDb();
+    outboxDb.setAccountKey(1, 'user@example.com');
+    await enqueuePendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com', [55, 56]);
+    outboxDb.setActivityKey('user@example.com', 55, 'activity-device-a-55');
+    outboxDb.setActivityKey('user@example.com', 56, 'activity-device-a-56');
+    outboxDb.otherGetFirstAsync = async (sql: string) => {
         if (sql.includes('FROM users')) return { id: 1 };
         if (sql.includes('daily_summary')) return { current_streak: 7 };
         if (sql.includes('activity_log')) return { last_active_local_date: '2026-08-10' };
         throw new Error(`Unexpected sync query: ${sql}`);
-      }),
-      getAllAsync: jest.fn(() => []),
-      runAsync: jest.fn(),
-      withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => fn()),
     };
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
+      if (name === 'delete_my_activity_keys') {
+        return { data: [{ activity_key: 'activity-device-a-55' }, { activity_key: 'activity-device-a-56' }], error: null };
+      }
+      return { data: null, error: null };
+    });
+    const db = outboxDb.asDatabase();
     mockGetDb.mockResolvedValue(db);
     const dateTimeFormat = jest.spyOn(Intl, 'DateTimeFormat').mockImplementation(() => (
       { resolvedOptions: () => ({ timeZone: 'Asia/Bangkok' }) } as Intl.DateTimeFormat
     ));
 
     try {
-      await syncToSupabase('google-sub', 'user@example.com');
+      await syncToSupabase('google-sub', ' User@Example.com ');
     } finally {
       dateTimeFormat.mockRestore();
     }
 
-    expect(mockDeleteIn).toHaveBeenCalledWith('local_id', [55, 56]);
-    expect(mockStorageRemoveItem).toHaveBeenCalledWith('pending_activity_deletes:1');
+    expect(mockRpc).toHaveBeenCalledWith('delete_my_activity_keys', {
+      p_activity_keys: ['activity-device-a-55', 'activity-device-a-56'],
+    });
+    expect(await readPendingActivityDeletes(db, 'user@example.com')).toEqual([]);
   });
 
-  it('keeps the pending-delete queue when the remote delete fails, so the next sync retries it', async () => {
+  it('keeps an outbox row pending when its durable activity key is unknown', async () => {
     mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
-    mockStorageGetItem.mockImplementation(async (key: string) =>
-      (key === 'pending_activity_deletes:1' ? JSON.stringify([55]) : null));
-    mockGetDb.mockResolvedValue({
-      getFirstAsync: jest.fn().mockResolvedValue({ id: 1 }),
-      getAllAsync: jest.fn(() => []),
-      runAsync: jest.fn(),
+    mockStorageGetItem.mockResolvedValue(null);
+    const outboxDb = new PendingActivityDeleteTestDb();
+    outboxDb.setAccountKey(1, 'user@example.com');
+    await enqueuePendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com', [55]);
+    outboxDb.otherGetFirstAsync = async (sql: string) => {
+      if (sql.includes('FROM users')) return { id: 1 };
+      if (sql.includes('daily_summary')) return { current_streak: 0 };
+      if (sql.includes('activity_log')) return { last_active_local_date: null };
+      throw new Error(`Unexpected sync query: ${sql}`);
+    };
+    mockGetDb.mockResolvedValue(outboxDb.asDatabase());
+    mockRpc.mockImplementation(async (name: string) => (
+      name === 'save_my_data_backup_v2' ? { data: 1, error: null } : { data: [], error: null }
+    ));
+
+    await expect(syncToSupabase('google-sub', 'user@example.com'))
+      .rejects.toThrow('durable activity identity is unavailable');
+
+    expect(mockRpc).not.toHaveBeenCalledWith('delete_my_activity_keys', expect.anything());
+    expect(mockUpsert).not.toHaveBeenCalled();
+    expect(await readPendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com')).toEqual([55]);
+  });
+
+  it('treats already-absent remote rows as cleared when the key RPC confirms every requested key', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
+    mockStorageGetItem.mockResolvedValue(null);
+    const outboxDb = new PendingActivityDeleteTestDb();
+    outboxDb.setAccountKey(1, 'user@example.com');
+    await enqueuePendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com', [55]);
+    outboxDb.setActivityKey('user@example.com', 55, 'activity-device-a-55');
+    outboxDb.otherGetFirstAsync = async () => ({ id: 1 });
+    mockGetDb.mockResolvedValue(outboxDb.asDatabase());
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
+      if (name === 'delete_my_activity_keys') {
+        return { data: [{ activity_key: 'activity-device-a-55' }], error: null };
+      }
+      return { data: null, error: null };
     });
-    mockDeleteIn.mockResolvedValueOnce({ error: new Error('RLS denied') });
+
+    await expect(syncToSupabase('google-sub', 'user@example.com')).resolves.toBeUndefined();
+    expect(await readPendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com')).toEqual([]);
+  });
+
+  it('keeps the pending-delete queue when the key RPC fails, so the next sync retries it', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
+    mockStorageGetItem.mockResolvedValue(null);
+    const outboxDb = new PendingActivityDeleteTestDb();
+    outboxDb.setAccountKey(1, 'user@example.com');
+    await enqueuePendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com', [55]);
+    outboxDb.setActivityKey('user@example.com', 55, 'activity-device-a-55');
+    outboxDb.otherGetFirstAsync = async () => ({ id: 1 });
+    const db = outboxDb.asDatabase();
+    mockGetDb.mockResolvedValue(db);
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
+      if (name === 'delete_my_activity_keys') return { data: null, error: new Error('RLS denied') };
+      return { data: null, error: null };
+    });
 
     await expect(syncToSupabase('google-sub', 'user@example.com')).rejects.toThrow('RLS denied');
 
-    expect(mockStorageRemoveItem).not.toHaveBeenCalled();
+    expect(await readPendingActivityDeletes(db, 'user@example.com')).toEqual([55]);
+  });
+
+  it('acknowledges only keys returned by the RPC and preserves the rest after a later failure', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
+    mockStorageGetItem.mockResolvedValue(null);
+    const outboxDb = new PendingActivityDeleteTestDb();
+    outboxDb.setAccountKey(1, 'user@example.com');
+    await enqueuePendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com', [55, 56]);
+    outboxDb.setActivityKey('user@example.com', 55, 'activity-device-a-55');
+    outboxDb.setActivityKey('user@example.com', 56, 'activity-device-a-56');
+    outboxDb.otherGetFirstAsync = async () => ({ id: 1 });
+    mockGetDb.mockResolvedValue(outboxDb.asDatabase());
+    let deleteCalls = 0;
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
+      if (name === 'delete_my_activity_keys') {
+        deleteCalls += 1;
+        return deleteCalls === 1
+          ? { data: [{ activity_key: 'activity-device-a-55' }], error: null }
+          : { data: null, error: new Error('SECOND_RPC_FAILED') };
+      }
+      return { data: null, error: null };
+    });
+
+    await expect(syncToSupabase('google-sub', 'user@example.com')).rejects.toThrow('SECOND_RPC_FAILED');
+    expect(await readPendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com')).toEqual([56]);
+  });
+
+  it('does not acknowledge anything when the RPC returns an invalid or foreign key', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
+    mockStorageGetItem.mockResolvedValue(null);
+    const outboxDb = new PendingActivityDeleteTestDb();
+    outboxDb.setAccountKey(1, 'user@example.com');
+    await enqueuePendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com', [55]);
+    outboxDb.setActivityKey('user@example.com', 55, 'activity-device-a-55');
+    outboxDb.otherGetFirstAsync = async () => ({ id: 1 });
+    mockGetDb.mockResolvedValue(outboxDb.asDatabase());
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
+      if (name === 'delete_my_activity_keys') return { data: [{ activity_key: 'activity-device-b-999' }], error: null };
+      return { data: null, error: null };
+    });
+
+    await expect(syncToSupabase('google-sub', 'user@example.com'))
+      .rejects.toThrow('Invalid activity delete acknowledgement');
+    expect(await readPendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com')).toEqual([55]);
   });
 });
 

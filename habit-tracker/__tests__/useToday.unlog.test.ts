@@ -30,14 +30,14 @@ jest.mock('../src/game/streakMilestones', () => ({ crossedStreakMilestone: jest.
 jest.mock('../src/game/boost', () => ({ boostEndOfDayMs: jest.fn(), isBoostActiveAt: jest.fn(), summarizeBoostLogs: jest.fn() }));
 jest.mock('../src/game/lifetimeRankWrites', () => ({ applyLifetimeStarsDelta: jest.fn() }));
 jest.mock('../src/game/pendingLevelUpQueue', () => ({ enqueuePendingLevelUps: jest.fn() }));
-jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletes: jest.fn() }));
+jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletesForUser: jest.fn() }));
 jest.mock('../src/lib/rankMascotBridge', () => ({ rankMascotBridge: {} }));
 
 import { useUnlogTask } from '../src/queries/useToday';
 import { getDb } from '../src/db/client';
 import { reconcileUnloggedLinkedChallenges } from '../src/queries/useChallenge';
 import { applyLifetimeStarsDelta } from '../src/game/lifetimeRankWrites';
-import { enqueuePendingActivityDeletes } from '../src/game/pendingActivityDeletes';
+import { enqueuePendingActivityDeletesForUser } from '../src/game/pendingActivityDeletes';
 import { dailyBonusStarsForPoints } from '../src/config/constants';
 
 describe('useUnlogTask', () => {
@@ -63,6 +63,7 @@ describe('useUnlogTask', () => {
     });
 
     const runAsync = jest.fn(async () => ({ changes: 1 }));
+    let transactionOpen = false;
     const db = {
       getAllAsync: jest.fn(async (sql: string) => {
         if (sql.includes('FROM tiers')) return [];
@@ -74,9 +75,19 @@ describe('useUnlogTask', () => {
         sql.includes('daily_summary') ? { total_points: 1, bonus_star_awarded: 0 } : null
       )),
       runAsync,
-      withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => callback()),
+      withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => {
+        transactionOpen = true;
+        try {
+          await callback();
+        } finally {
+          transactionOpen = false;
+        }
+      }),
     };
     jest.mocked(getDb).mockResolvedValue(db as never);
+    jest.mocked(enqueuePendingActivityDeletesForUser).mockImplementationOnce(async () => {
+      expect(transactionOpen).toBe(true);
+    });
 
     const mutation = useUnlogTask(5) as unknown as {
       mutationFn: (params: { taskTypeId: number; kind: 'GOOD' | 'BAD' }) => Promise<{ lifetimeCrossings: unknown[] }>;
@@ -84,6 +95,6 @@ describe('useUnlogTask', () => {
     await mutation.mutationFn({ taskTypeId: 7, kind: 'GOOD' });
 
     expect(runAsync).toHaveBeenCalledWith('DELETE FROM activity_log WHERE id IN (?)', [42]);
-    expect(enqueuePendingActivityDeletes).toHaveBeenCalledWith(5, [42]);
+    expect(enqueuePendingActivityDeletesForUser).toHaveBeenCalledWith(db, 5, [42]);
   });
 });

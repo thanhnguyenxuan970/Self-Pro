@@ -225,6 +225,7 @@ describe('Challenge query helpers and hook contracts', () => {
   });
 
   test('computes weekly challenge pace and elapsed perfect weeks', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-09-04T12:00:00.000Z'));
     const db = createDb({
       getAllAsync: jest.fn(async (sql: string) => {
         if (sql.includes('FROM challenges WHERE user_id = ? AND status =')) {
@@ -242,17 +243,21 @@ describe('Challenge query helpers and hook contracts', () => {
     });
     mockGetDb.mockResolvedValue(db);
 
-    const query = useActiveChallenges(5) as unknown as { queryFn: () => Promise<Array<Record<string, unknown>>> };
-    const [loaded] = await query.queryFn();
-    expect(loaded).toMatchObject({
-      mode: 'weekly',
-      weeklyTarget: 3,
-      totalWeeks: 2,
-      weekIndex: 1,
-      weekSessionsDone: 3,
-      weekSessionsRequired: 3,
-      perfectWeeks: 0,
-    });
+    try {
+      const query = useActiveChallenges(5) as unknown as { queryFn: () => Promise<Array<Record<string, unknown>>> };
+      const [loaded] = await query.queryFn();
+      expect(loaded).toMatchObject({
+        mode: 'weekly',
+        weeklyTarget: 3,
+        totalWeeks: 2,
+        weekIndex: 1,
+        weekSessionsDone: 3,
+        weekSessionsRequired: 3,
+        perfectWeeks: 0,
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test('persists the scheduler token only after state-aware reconciliation', async () => {

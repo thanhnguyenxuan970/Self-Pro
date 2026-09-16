@@ -8,12 +8,12 @@ jest.mock('@tanstack/react-query', () => ({
   useMutation: jest.fn((options) => options),
   useQueryClient: jest.fn(() => ({ invalidateQueries: jest.fn() })),
 }));
-jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletes: jest.fn() }));
+jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletesForUser: jest.fn() }));
 jest.mock('../src/api/syncService', () => ({ syncCurrentUserToSupabase: jest.fn() }));
 import * as Notifications from 'expo-notifications';
 import { getDb } from '../src/db/client';
 import { deleteChallengeById, deleteChallengesById, useDeleteChallenge } from '../src/queries/useChallenge';
-import { enqueuePendingActivityDeletes } from '../src/game/pendingActivityDeletes';
+import { enqueuePendingActivityDeletesForUser } from '../src/game/pendingActivityDeletes';
 import { syncCurrentUserToSupabase } from '../src/api/syncService';
 
 function createDeleteDb(config: {
@@ -228,15 +228,26 @@ describe('deleteChallengeById', () => {
       challenge: { status: 'done', completed_at: '2026-07-03' },
       rewardRow: { id: 77, week_start: '2026-06-29', stars_delta: 3 },
     });
+    let transactionOpen = false;
     const db = {
-      withExclusiveTransactionAsync: jest.fn(async (callback: (inner: SQLiteDatabase) => Promise<void>) => callback(txn)),
+      withExclusiveTransactionAsync: jest.fn(async (callback: (inner: SQLiteDatabase) => Promise<void>) => {
+        transactionOpen = true;
+        try {
+          await callback(txn);
+        } finally {
+          transactionOpen = false;
+        }
+      }),
     } as unknown as SQLiteDatabase;
     jest.mocked(getDb).mockResolvedValue(db);
+    jest.mocked(enqueuePendingActivityDeletesForUser).mockImplementationOnce(async () => {
+      expect(transactionOpen).toBe(true);
+    });
 
     const mutation = useDeleteChallenge(5) as unknown as { mutationFn: (challengeId: number) => Promise<void> };
     await mutation.mutationFn(11);
 
-    expect(enqueuePendingActivityDeletes).toHaveBeenCalledWith(5, [77]);
+    expect(enqueuePendingActivityDeletesForUser).toHaveBeenCalledWith(txn, 5, [77]);
   });
 
   it('waits for the cloud backup after a challenge deletion', async () => {

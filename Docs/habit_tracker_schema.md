@@ -51,7 +51,7 @@ CREATE TABLE task_types (
 CREATE TABLE activity_log (
   id            INTEGER PRIMARY KEY,
   user_id       INTEGER NOT NULL REFERENCES users(id),
-  task_type_id  INTEGER NOT NULL REFERENCES task_types(id),
+  task_type_id  INTEGER REFERENCES task_types(id),          -- NULL for detached mirror references
   kind          TEXT NOT NULL CHECK (kind IN ('GOOD','BAD')),
   duration_min  INTEGER,                                    -- NULL for non-timed / bad habits
   points_earned INTEGER NOT NULL DEFAULT 0,
@@ -61,10 +61,19 @@ CREATE TABLE activity_log (
   logged_at     TEXT NOT NULL DEFAULT (datetime('now')),
   local_date    TEXT NOT NULL,                              -- YYYY-MM-DD in user tz
   week_start    TEXT NOT NULL,                              -- Monday YYYY-MM-DD in user tz
-  note          TEXT
+  note          TEXT,
+  activity_key  TEXT,                                          -- NULL = unresolved legacy/server telemetry
+  activity_identity_status TEXT NOT NULL DEFAULT 'resolved',
+  activity_source_task_type_id INTEGER                         -- cloud mirror task id; never a local FK
 );
 CREATE INDEX idx_log_user_week ON activity_log(user_id, week_start);
 CREATE INDEX idx_log_user_date ON activity_log(user_id, local_date);
+CREATE UNIQUE INDEX idx_log_user_activity_key ON activity_log(user_id, activity_key)
+  WHERE activity_key IS NOT NULL;
+
+-- A future NOT NULL cutover is allowed only after every legacy row is
+-- explicitly provenance-confirmed; ambiguous rows are quarantined rather than
+-- inferred from local_id. New rows use an opaque key.
 
 -- 4. TIERS (config — same thresholds drive BOTH rank name AND monetary reward)
 CREATE TABLE tiers (
@@ -276,3 +285,49 @@ UPDATE reward_unlocks SET claimed = 1, claimed_at = datetime('now') WHERE id = ?
 | Timezone / DST on Monday reset | All dates computed in `users.timezone` |
 | Audit / undo | `activity_log` is append-only; rollups are rebuildable from it |
 ```
+
+## 8. Sync and recovery invariants
+
+- Supabase activity appends use the server `append_my_activity_rows` RPC and
+  compare `(user_email, activity_key)` without overwriting content. The
+  device-local `local_id` is diagnostic metadata only. A `legacy:<local_id>`
+  key is valid only after its source mapping is provenance-confirmed; it is
+  not an automatic merge rule.
+- Legacy mirror hydration pages by the cloud `activity_log.id`, not by
+  `local_id`. The source `local_id` is retained only as provenance metadata;
+  SQLite receives a newly allocated local primary key for each mirrored row.
+  Mirror keys use an explicit cloud-mirror trust rule, while missing or
+  legacy-shaped keys remain unresolved.
+- Restore replacement deletes run under a local transaction-scoped suppression
+  marker. The delete trigger does not enqueue those replacement deletes. If a
+  snapshot contains a durable key with an existing pending user delete, the
+  restore is blocked until that intent is explicitly reconciled; restore never
+  clears pre-existing pending deletes by key alone. Unrelated and unresolved
+  pending entries remain.
+- Legacy mirror hydration stores a cloud row's task reference in
+  `activity_source_task_type_id` while leaving the local `task_type_id` null.
+  Sync uses the source value only for immutable cloud-content comparison; it
+  never attaches a cloud task id as a local task foreign key.
+- Local hard deletes are journaled before the row disappears. The outbox keeps
+  the stable key. If the key's provenance is unknown, the row remains pending;
+  neither upload nor delete may fall back to `local_id`.
+- Backup writes use compare-and-swap on the latest revision. Each successful
+  revision is copied to `user_data_backup_history`; the latest 30 revisions are
+  retained and can be listed/restored without replacing the current snapshot.
+- Before cutover, resolve or quarantine every `legacy:<local_id>` mapping; do
+  not assume equal local IDs identify equal activities. The server must also
+  reject legacy writes that omit `activity_key` (and reject the legacy
+  local-id delete RPC) before the new client is allowed to resume sync. Shipping
+  a new client alone does not stop an old client from writing.
+- Staging must cover two clients on one account with the same local ID, retry,
+  delete-then-retry, and restore-then-sync. Test success requires no overwrite,
+  no duplicate, and retained outbox/cursor state on a missing schema or RPC.
+- This project currently has no PITR. Rollback is a pre-cutover independent
+  export restore, not an inverse SQL migration: export `activity_log`, the
+  latest backup, relevant schema/functions, and migration metadata; also export
+  all post-cutover writes separately and reconcile them before any rollback.
+  Restoring only the pre-cutover export necessarily loses writes made after
+  cutover. Restore and validate the export on an isolated clone first; if 073
+  has been applied, do not release an old client against it. A failed later
+  migration should be fixed forward or the whole pre-073 export restored,
+  never by dropping only one identity index.

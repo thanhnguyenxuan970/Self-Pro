@@ -14,9 +14,19 @@ function createDb(config: {
   incompleteCount: number;
   currentTierId?: number | null;
 }) {
-  const runAsync = jest.fn().mockResolvedValue({});
+  const runAsync = jest.fn(async (sql: string) => {
+    // A real SQLite connection rejects ADD COLUMN when the column already
+    // exists.  The production helper deliberately catches that duplicate
+    // error so the auth-only-v30 reconciliation remains idempotent.  Model
+    // that behavior here instead of letting the double silently accept an
+    // ALTER and making the assertion observe a fake schema mutation.
+    if (sql === 'ALTER TABLE users ADD COLUMN account_key TEXT') {
+      throw new Error('duplicate column name: account_key');
+    }
+    return {};
+  });
   const getFirstAsync = jest.fn(async (sql: string) => {
-    if (sql === 'PRAGMA user_version') return { user_version: 27 };
+    if (sql === 'PRAGMA user_version') return { user_version: 30 };
     if (sql.includes('COUNT(*) AS count')) {
       return { count: config.currentTierId == null ? config.incompleteCount : 0 };
     }
@@ -25,8 +35,13 @@ function createDb(config: {
   });
   const getAllAsync = jest.fn(async (sql: string) => {
     if (sql.startsWith('PRAGMA table_info(users)')) {
-      // Both rank columns already exist -- the ALTER TABLE branch must not fire.
-      return [{ name: 'id' }, { name: 'lifetime_stars' }, { name: 'current_tier_id' }];
+      // Rank and account-key columns already exist -- no migration branch may fire.
+      return [
+        { name: 'id' },
+        { name: 'lifetime_stars' },
+        { name: 'current_tier_id' },
+        { name: 'account_key' },
+      ];
     }
     if (sql.includes('SELECT id, lifetime_stars FROM users')) {
       return [{ id: 5, lifetime_stars: config.userLifetimeStars }];
@@ -45,8 +60,16 @@ test('repairs a user whose recorded lifetime total lags activity_log even though
 
   await runMigrations(db as never);
 
-  // Never touches the schema -- both columns already exist.
-  expect(db.runAsync).not.toHaveBeenCalledWith(expect.stringContaining('ALTER TABLE'));
+  // The full build reconciles auth-only v30 by attempting the account-key
+  // ADD COLUMN and handling SQLite's duplicate-column error. No rank-column
+  // ALTER is allowed when those columns are already present.
+  expect(db.runAsync).toHaveBeenCalledWith('ALTER TABLE users ADD COLUMN account_key TEXT');
+  expect(db.runAsync).not.toHaveBeenCalledWith(
+    'ALTER TABLE users ADD COLUMN lifetime_stars REAL NOT NULL DEFAULT 0',
+  );
+  expect(db.runAsync).not.toHaveBeenCalledWith(
+    'ALTER TABLE users ADD COLUMN current_tier_id INTEGER',
+  );
   // Repairs the lagging total up to the activity_log-derived value.
   expect(db.runAsync).toHaveBeenCalledWith(
     'UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?',
@@ -59,7 +82,13 @@ test('does not scan or rewrite any user when the incomplete-row probe reports ze
 
   await runMigrations(db as never);
 
-  expect(db.runAsync).not.toHaveBeenCalled();
+  // Reconciliation still probes the auth-only account-key column; it must
+  // not rewrite any rank/user row when the incomplete-row probe is empty.
+  expect(db.runAsync).toHaveBeenCalledWith('ALTER TABLE users ADD COLUMN account_key TEXT');
+  expect(db.runAsync).not.toHaveBeenCalledWith(
+    'UPDATE users SET lifetime_stars = ?, current_tier_id = ? WHERE id = ?',
+    expect.anything(),
+  );
   expect(db.getAllAsync).not.toHaveBeenCalledWith(
     'SELECT id, lifetime_stars FROM users',
   );
