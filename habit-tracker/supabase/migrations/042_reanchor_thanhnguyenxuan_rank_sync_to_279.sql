@@ -9,6 +9,17 @@ DO $$
 DECLARE
   activity_stars real;
 BEGIN
+  -- Fresh databases do not contain this account-specific legacy profile.
+  -- Treat that as a no-op; an existing profile must still satisfy the guarded
+  -- state below or the migration must fail for deliberate review.
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public.users
+     WHERE user_email = 'thanhnguyenxuan970@gmail.com'
+  ) THEN
+    RETURN;
+  END IF;
+
   SELECT COALESCE(SUM(GREATEST(stars_delta, 0)), 0)::real
     INTO activity_stars
     FROM public.activity_log
