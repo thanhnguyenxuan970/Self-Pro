@@ -1,6 +1,6 @@
 {
   "name": "habit-tracker",
-  "version": "2.0.4.a",
+  "version": "2.0.4.c",
   "main": "index.ts",
   "dependencies": {
     "@expo-google-fonts/be-vietnam-pro": "^0.4.1",

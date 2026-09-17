@@ -48,8 +48,6 @@ const ACTIVITY_DELETE_IDENTITY_REQUIRED_ERROR =
   'Activity delete paused: durable activity identity is unavailable; the pending delete remains queued.';
 const ACTIVITY_WRITE_RPC_REQUIRED_ERROR =
   'Activity sync paused: append_my_activity_rows RPC is unavailable; uploads remain pending.';
-const ACTIVITY_IDENTITY_UNRESOLVED_ERROR =
-  'Activity sync paused: one or more local activities have unresolved identity; data remains local and pending reconciliation.';
 
 type AssertSyncActive = () => void;
 type SyncTask = (assertActive: AssertSyncActive) => Promise<void>;
@@ -373,15 +371,27 @@ async function syncActivity(
       [userId, lastId, activityStartDate ?? '0000-01-01', BATCH]
     );
     if (!rows.length) return;
-    if (rows.some(row => !isConfirmedActivityIdentity(
+    assertActive();
+    // Rows imported from the pre-durable-identity activity mirror are kept in
+    // the backup snapshot, but they cannot be appended to the new server
+    // contract without provenance. Quarantine them from the append batch so a
+    // legacy install does not remain permanently "waiting to sync" while new
+    // rows continue to sync normally.
+    const syncableRows = rows.filter(row => isConfirmedActivityIdentity(
       row.activity_key,
       row.activity_identity_status ?? 'resolved',
-    ))) {
-      throw new Error(ACTIVITY_IDENTITY_UNRESOLVED_ERROR);
+    ));
+    if (syncableRows.length > 0) {
+      const upserted = await appendActivityBatch(syncableRows, key, assertActive);
+      await flagClockSuspectRows(db, upserted);
     }
-    const upserted = await appendActivityBatch(rows, key, assertActive);
-    await flagClockSuspectRows(db, upserted);
     lastId = rows[rows.length - 1].id;
+    // appendActivityBatch advances the cursor to the last appended row. Move
+    // it past the quarantined legacy tail as well; otherwise every retry would
+    // rescan the same immutable legacy rows and recreate the pending banner.
+    if (syncableRows.length === 0 || lastId > syncableRows[syncableRows.length - 1].id) {
+      await AsyncStorage.setItem(key, String(lastId));
+    }
     if (rows.length < BATCH) return;
   }
 }

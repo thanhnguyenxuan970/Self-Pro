@@ -3293,7 +3293,7 @@ describe('syncToSupabase', () => {
     expect(mockSelect).not.toHaveBeenCalledWith('activity_key', { head: true });
   });
 
-  it('keeps an unresolved legacy activity local and pending across a retry', async () => {
+  it('quarantines unresolved legacy activities without keeping the sync banner pending', async () => {
     mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
     mockStorageGetItem.mockResolvedValue(null);
     const unresolved = {
@@ -3323,18 +3323,58 @@ describe('syncToSupabase', () => {
       return name === 'save_my_data_backup_v2' ? { data: 1, error: null } : { data: 0, error: null };
     });
 
-    await expect(syncToSupabase('google-sub', 'user@example.com'))
-      .rejects.toThrow('unresolved identity');
-    await expect(syncToSupabase('google-sub', 'user@example.com'))
-      .rejects.toThrow('unresolved identity');
+    await expect(syncToSupabase('google-sub', 'user@example.com')).resolves.toBeUndefined();
+    await expect(syncToSupabase('google-sub', 'user@example.com')).resolves.toBeUndefined();
 
     expect(appendCalls).toBe(0);
-    expect(mockStorageSetItem).not.toHaveBeenCalledWith('habit_sync_last_activity_id:1', expect.anything());
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_last_activity_id:1', '9');
     expect((await db.getAllAsync('SELECT * FROM activity_log'))[0]).toMatchObject({
       id: 9,
       activity_key: null,
       activity_identity_status: 'unresolved',
     });
+  });
+
+  it('uploads confirmed rows around quarantined legacy activities and advances the cursor', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
+    mockStorageGetItem.mockResolvedValue(null);
+    const rows = [
+      makeSyncActivityRow(9, '2026-08-10', '2026-08-10'),
+      {
+        ...makeSyncActivityRow(10, '2026-08-11', '2026-08-10'),
+        activity_key: null,
+        activity_identity_status: 'unresolved',
+      },
+      makeSyncActivityRow(11, '2026-08-12', '2026-08-10'),
+    ];
+    const db = {
+      getFirstAsync: jest.fn(async (sql: string) => {
+        if (sql.includes('SELECT id FROM users')) return { id: 1 };
+        if (sql.includes('FROM users')) return { id: 1, lifetime_stars: 0 };
+        if (sql.includes('daily_summary')) return { current_streak: 0 };
+        if (sql.includes('activity_log')) return { last_active_local_date: null };
+        if (sql.includes('lifetime_stars')) return { lifetime_stars: 0 };
+        return null;
+      }),
+      getAllAsync: jest.fn(async (sql: string) => sql.includes('FROM activity_log') ? rows : []),
+      runAsync: jest.fn(),
+    };
+    mockGetDb.mockResolvedValue(db);
+    let uploadedKeys: unknown[] = [];
+    mockRpc.mockImplementation(async (name: string, args?: { p_activity_rows?: Array<{ activity_key?: unknown; local_id?: unknown }> }) => {
+      if (name === 'append_my_activity_rows') {
+        const uploadedRows = args?.p_activity_rows ?? [];
+        uploadedKeys = uploadedRows.map(row => row.activity_key);
+        return { data: uploadedRows.map(row => ({ activity_key: row.activity_key, local_id: row.local_id })), error: null };
+      }
+      return name === 'save_my_data_backup_v2' ? { data: 1, error: null } : { data: 0, error: null };
+    });
+
+    await expect(syncToSupabase('google-sub', 'user@example.com')).resolves.toBeUndefined();
+
+    expect(uploadedKeys).toEqual(['activity-test-9', 'activity-test-11']);
+    expect(mockStorageSetItem).toHaveBeenCalledWith('habit_sync_last_activity_id:1', '11');
+    expect(rows[1]).toMatchObject({ activity_key: null, activity_identity_status: 'unresolved' });
   });
 
   it('deletes a stable outbox row by activity key after the identity migration is present', async () => {

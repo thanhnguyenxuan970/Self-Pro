@@ -101,8 +101,8 @@ android {
         applicationId 'com.habitring.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 86
-        versionName "2.0.4.a"
+        versionCode 88
+        versionName "2.0.4.c"
         manifestPlaceholders = [habiCleartextTraffic: (habiBuildTarget == 'staging' ? 'true' : 'false')]
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""

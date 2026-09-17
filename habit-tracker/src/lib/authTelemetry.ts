@@ -3,8 +3,8 @@ import { NO_SAVED_GOOGLE_CREDENTIAL_CODE } from '../api/syncErrors';
 
 // Keep these values tied to android/app/build.gradle's versionName/versionCode
 // and the Expo manifest's display version.
-export const APP_VERSION_NAME = '2.0.4';
-export const APP_VERSION_CODE = 85;
+export const APP_VERSION_NAME = '2.0.4.c';
+export const APP_VERSION_CODE = 88;
 const APP_VERSION = `${APP_VERSION_NAME}+${APP_VERSION_CODE}`;
 const isDevBuild = () => (globalThis as typeof globalThis & { __DEV__?: unknown }).__DEV__ === true;
 // Verified against package.json, package-lock.json, and the installed package
