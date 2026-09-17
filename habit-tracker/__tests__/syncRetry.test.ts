@@ -4,6 +4,10 @@ jest.mock('../src/api/syncService', () => ({
 
 import { createSyncRetryCoordinator } from '../src/api/syncRetry';
 
+async function flushPersistence(): Promise<void> {
+  for (let i = 0; i < 10; i += 1) await Promise.resolve();
+}
+
 describe('sync retry coordinator', () => {
   it('keeps a local save visibly pending until the next online retry completes', async () => {
     const runSync = jest.fn()
@@ -19,11 +23,13 @@ describe('sync retry coordinator', () => {
 
     await coordinator.hydrate();
     await coordinator.requestSync();
+    await flushPersistence();
 
     expect(coordinator.getSnapshot()).toBe('pending');
     expect(persistPending).toHaveBeenLastCalledWith('account-a', true);
 
     await coordinator.retryWhenOnline(true);
+    await flushPersistence();
 
     expect(runSync).toHaveBeenCalledTimes(2);
     expect(coordinator.getSnapshot()).toBe('idle');
@@ -95,6 +101,7 @@ describe('sync retry coordinator', () => {
     expect(coordinator.getSnapshot()).toBe('syncing');
     releaseFirst?.();
     await Promise.all([first, second]);
+    await flushPersistence();
 
     expect(runSync).toHaveBeenCalledTimes(2);
     expect(runSync).toHaveBeenNthCalledWith(1, 'account-a');
@@ -120,6 +127,7 @@ describe('sync retry coordinator', () => {
     await coordinator.hydrate();
     currentAccount = 'account-b';
     await coordinator.requestSync();
+    await flushPersistence();
 
     expect(runSync).toHaveBeenCalledWith('account-a');
     expect(coordinator.getSnapshot()).toBe('pending');
@@ -160,5 +168,40 @@ describe('sync retry coordinator', () => {
       payload: JSON.stringify({ activity_key: 'activity-device-a-7', stars_delta: 1 }),
     });
     expect(coordinator.getSnapshot()).toBe('idle');
+  });
+
+  it('does not let a delayed failure marker resurrect after a successful retry', async () => {
+    let storedPending = false;
+    let releaseDelayedFailure: (() => void) | undefined;
+    const persistPending = jest.fn(async (_accountKey: string, pending: boolean) => {
+      if (pending) {
+        await new Promise<void>(resolve => { releaseDelayedFailure = resolve; });
+      }
+      storedPending = pending;
+    });
+    const runSync = jest.fn()
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValueOnce(undefined);
+    const coordinator = createSyncRetryCoordinator({
+      getAccountKey: jest.fn().mockResolvedValue('account-a'),
+      runSync,
+      readPending: jest.fn().mockResolvedValue(false),
+      persistPending,
+    });
+
+    await coordinator.hydrate();
+    await coordinator.requestSync();
+    await flushPersistence();
+    expect(coordinator.getSnapshot()).toBe('pending');
+
+    const retry = coordinator.retryWhenOnline(true);
+    await retry;
+    expect(coordinator.getSnapshot()).toBe('idle');
+    expect(persistPending).not.toHaveBeenCalledWith('account-a', false);
+
+    releaseDelayedFailure?.();
+    await flushPersistence();
+
+    expect(storedPending).toBe(false);
   });
 });

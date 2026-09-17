@@ -18,6 +18,7 @@ jest.mock('../src/api/supabase', () => ({
 jest.mock('../src/qa/qaSandbox', () => ({ isQaSandboxActive: jest.fn(() => false) }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import appConfig from '../app.json';
 import { submitFeedback } from '../src/api/feedbackService';
 
 const mockSupabase = jest.requireMock('../src/api/supabase') as {
@@ -54,7 +55,7 @@ test('invokes the feedback-submit Edge Function with the expected payload and re
         userEmail: 'a@b.com',
         type: 'BUG',
         message: 'The button is broken',
-        appVersion: '2.0.4',
+        appVersion: appConfig.expo.version,
         platform: 'android',
       }),
     }),
@@ -82,7 +83,7 @@ test('includes screen, error context, and local diagnostics in a bug report', as
     'feedback-submit',
     expect.objectContaining({
       body: expect.objectContaining({
-        appVersion: '2.0.4',
+        appVersion: appConfig.expo.version,
         platform: 'android',
         appLanguage: 'vi',
         localDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),

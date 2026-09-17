@@ -1047,15 +1047,22 @@ function isRetryableAuthExchangeError(error: unknown): boolean {
     .join(' ')
     .toLowerCase();
   const status = typeof details.status === 'number' ? details.status : undefined;
+  const transactionContextCancelled = (
+    text.includes('context canceled')
+    || text.includes('context cancelled')
+  ) && text.includes('transaction');
 
   // GoTrue may expose either the PostgreSQL constraint, its generic 500 wrapper,
-  // or an infrastructure 5xx. One bounded retry is safe: if another request
-  // won the user insert race, GoTrue now finds that request's Google identity;
-  // if the token/provider is actually invalid, the 4xx response is surfaced.
+  // an infrastructure 5xx, or a transaction context cancellation as HTTP 400.
+  // One bounded retry is safe: if another request won the user insert race, or
+  // the request context was canceled while GoTrue opened its transaction,
+  // GoTrue gets one chance to complete the same exchange; invalid credentials
+  // still surface after the first response.
   return (status != null && status >= 500 && status <= 599)
     || text.includes('users_email_partial_key')
     || text.includes('database error saving new user')
-    || text.includes('23505');
+    || text.includes('23505')
+    || transactionContextCancelled;
 }
 
 function isTransientBackupRestoreError(error: unknown): boolean {

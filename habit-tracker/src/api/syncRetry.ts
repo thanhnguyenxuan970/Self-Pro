@@ -28,6 +28,7 @@ export function createSyncRetryCoordinator(dependencies: SyncRetryDependencies) 
   let inFlight: Promise<void> | null = null;
   let requestedRevision = 0;
   const listeners = new Set<SyncStatusListener>();
+  const persistenceTails = new Map<string, Promise<void>>();
 
   const publish = (nextStatus: SyncStatus) => {
     if (status === nextStatus) return;
@@ -35,14 +36,28 @@ export function createSyncRetryCoordinator(dependencies: SyncRetryDependencies) 
     listeners.forEach(listener => listener());
   };
 
-  const persist = async (accountKey: string, pending: boolean) => {
-    try {
-      await dependencies.persistPending(accountKey, pending);
-    } catch {
-      // A successful cloud write remains successful when this display hint
-      // cannot be updated. Retaining a stale pending marker only causes a
-      // safe, idempotent retry after a later restart.
-    }
+  const persist = (accountKey: string, pending: boolean): Promise<void> => {
+    // A failed upload and its successful retry can finish their AsyncStorage
+    // writes out of order. Serialize the marker per account so the latest
+    // sync result always wins; otherwise a delayed `true` can resurrect the
+    // banner after the retry already published `idle`.
+    const previous = persistenceTails.get(accountKey) ?? Promise.resolve();
+    const next = previous
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          await dependencies.persistPending(accountKey, pending);
+        } catch {
+          // A successful cloud write remains successful when this display hint
+          // cannot be updated. Retaining a stale pending marker only causes a
+          // safe, idempotent retry after a later restart.
+        }
+      });
+    persistenceTails.set(accountKey, next);
+    void next.finally(() => {
+      if (persistenceTails.get(accountKey) === next) persistenceTails.delete(accountKey);
+    });
+    return next;
   };
 
   const startSync = (revision: number): Promise<void> => {

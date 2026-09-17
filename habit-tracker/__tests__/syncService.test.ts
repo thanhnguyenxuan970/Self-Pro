@@ -2721,6 +2721,21 @@ describe('signInWithGoogleToken', () => {
     expect(mockSignInWithIdToken).toHaveBeenCalledTimes(2);
   });
 
+  it('retries GoTrue transaction context cancellation returned as HTTP 400', async () => {
+    mockSignInWithIdToken
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          status: 400,
+          message: "couldn't start a new transaction: could not create new transaction: context canceled",
+        },
+      })
+      .mockResolvedValueOnce(successfulTokenResponse());
+
+    await expect(signInWithGoogleToken('user@example.com', 'google-token')).resolves.toBeUndefined();
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(2);
+  });
+
   it('does not retry a transient auth error after the caller is canceled', async () => {
     let active = true;
     mockSignInWithIdToken
