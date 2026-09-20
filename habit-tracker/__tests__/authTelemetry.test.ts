@@ -33,8 +33,8 @@ describe('auth telemetry safety', () => {
     expect(attemptId).toMatch(/^auth-[a-z0-9]+-[a-z0-9]+$/);
     const serialized = String(info.mock.calls[0]?.[1]);
     expect(serialized).toContain('"attempt_id"');
-    expect(serialized).toContain('"version_name":"2.0.4.c"');
-    expect(serialized).toContain('"version_code":88');
+    expect(serialized).toContain('"version_name":"2.0.4.d"');
+    expect(serialized).toContain('"version_code":89');
     expect(serialized).toContain('"error_code":"UNKNOWN"');
     expect(serialized).not.toContain('untrusted_code');
     expect(serialized).not.toContain('token');

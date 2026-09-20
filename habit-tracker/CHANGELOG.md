@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.0.4.d - 2026-09-20
+
+- Maintenance release compared with `2.0.4.c`; no new user-facing features. This build carries forward the sync reliability fix for legacy activity rows that could remain stuck in “Waiting to sync”.
+- Android release metadata is `2.0.4.d` (versionCode `89`); Expo, package, Gradle, and telemetry metadata are kept in lockstep.
+- Validation: TypeScript, 117 Jest suites/1,132 tests/1 snapshot, diff hygiene, and the signed release AAB build passed. AAB SHA-256: `186BCE68208C0722B9A76695454A39A854CA5FA0E310A5614D7E5E5E72200D09`.
+
 ## 2.0.4.c - 2026-09-17
 
 - Fixed legacy activity rows without a durable identity trapping the app in the persistent “Waiting to sync” state. The rows remain in the local/cloud backup audit trail, while confirmed activity rows continue to upload and the sync cursor advances past the unsyncable legacy data.
