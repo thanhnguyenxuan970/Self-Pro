@@ -6,7 +6,7 @@
 
 - Fixed legacy activity rows without a durable identity trapping the app in the persistent “Waiting to sync” state. The rows remain in the local/cloud backup audit trail, while confirmed activity rows continue to upload and the sync cursor advances past the unsyncable legacy data.
 - Android release metadata is `2.0.4.c` (versionCode `88`); Expo, package, Gradle, and telemetry metadata are kept in lockstep.
-- Validation: TypeScript, 117 Jest suites/1,132 tests/1 snapshot, diff hygiene, and signed release AAB build passed. AAB SHA-256: `DBAB3E4E365F248905D5C993744AFD04FC523E7B3D3B2251B216B41F8321AF4A`.
+- Validation: TypeScript, 117 Jest suites/1,132 tests/1 snapshot, diff hygiene, and a forced signed release AAB build with R8/resource optimization passed. AAB SHA-256: `2CB901209CB9D7477973B441F69AFD821AB732F17183ECFB0F836F9C24F224B3`.
 
 ## 2.0.4 - 2026-09-16
 
