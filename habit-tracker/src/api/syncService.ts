@@ -44,8 +44,6 @@ const BACKUP_CAS_CONFLICT_SENTINEL = -1;
 const BATCH = 100;
 const ACTIVITY_DELETE_RPC_REQUIRED_ERROR =
   'Activity sync paused: delete_my_activity_keys RPC is unavailable; uploads and deletes remain pending.';
-const ACTIVITY_DELETE_IDENTITY_REQUIRED_ERROR =
-  'Activity delete paused: durable activity identity is unavailable; the pending delete remains queued.';
 const ACTIVITY_WRITE_RPC_REQUIRED_ERROR =
   'Activity sync paused: append_my_activity_rows RPC is unavailable; uploads remain pending.';
 
@@ -414,12 +412,19 @@ async function syncPendingActivityDeletes(
     accountKey,
     async pendingRows => {
       assertActive();
-      const keyedRows = pendingRows.map((row) => {
-        if (!isConfirmedActivityIdentity(row.activity_key)) {
-          throw new Error(ACTIVITY_DELETE_IDENTITY_REQUIRED_ERROR);
-        }
-        return { row, activityKey: row.activity_key };
-      });
+      // The backup snapshot has committed before this drain starts. A legacy
+      // deletion without a durable key therefore has no RPC-safe target and
+      // is already represented by that snapshot; keeping it in this outbox
+      // would permanently fail every Retry. Quarantine and acknowledge only
+      // those impossible legacy deletes, while preserving normal retry
+      // semantics for every confirmed remote activity key.
+      const quarantinedRows = pendingRows.filter(
+        row => !isConfirmedActivityIdentity(row.activity_key),
+      );
+      const keyedRows = pendingRows
+        .filter(row => isConfirmedActivityIdentity(row.activity_key))
+        .map(row => ({ row, activityKey: row.activity_key as string }));
+      if (keyedRows.length === 0) return quarantinedRows;
       const activityKeys = keyedRows.map(({ activityKey }) => activityKey);
       const { data, error } = await supabase!.rpc('delete_my_activity_keys', {
         p_activity_keys: activityKeys,
@@ -438,9 +443,12 @@ async function syncPendingActivityDeletes(
         }
         return activityKey;
       }));
-      return keyedRows
-        .filter(({ activityKey }) => acknowledgedKeys.has(activityKey))
-        .map(({ row }) => row);
+      return [
+        ...quarantinedRows,
+        ...keyedRows
+          .filter(({ activityKey }) => acknowledgedKeys.has(activityKey))
+          .map(({ row }) => row),
+      ];
     },
     { legacyUserId: userId, assertActive },
   );

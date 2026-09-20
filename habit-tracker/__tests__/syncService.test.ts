@@ -3607,7 +3607,7 @@ describe('syncToSupabase', () => {
     expect(await readPendingActivityDeletes(db, 'user@example.com')).toEqual([]);
   });
 
-  it('keeps an outbox row pending when its durable activity key is unknown', async () => {
+  it('quarantines a legacy outbox row without a durable key so it cannot hold Retry pending', async () => {
     mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
     mockStorageGetItem.mockResolvedValue(null);
     const outboxDb = new PendingActivityDeleteTestDb();
@@ -3624,12 +3624,35 @@ describe('syncToSupabase', () => {
       name === 'save_my_data_backup_v2' ? { data: 1, error: null } : { data: [], error: null }
     ));
 
-    await expect(syncToSupabase('google-sub', 'user@example.com'))
-      .rejects.toThrow('durable activity identity is unavailable');
+    await expect(syncToSupabase('google-sub', 'user@example.com')).resolves.toBeUndefined();
 
     expect(mockRpc).not.toHaveBeenCalledWith('delete_my_activity_keys', expect.anything());
-    expect(mockUpsert).not.toHaveBeenCalled();
-    expect(await readPendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com')).toEqual([55]);
+    expect(await readPendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com')).toEqual([]);
+  });
+
+  it('drains a legacy outbox row without withholding a confirmed delete', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: freshSession('user@example.com') }, error: null });
+    mockStorageGetItem.mockResolvedValue(null);
+    const outboxDb = new PendingActivityDeleteTestDb();
+    outboxDb.setAccountKey(1, 'user@example.com');
+    await enqueuePendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com', [55, 56]);
+    outboxDb.setActivityKey('user@example.com', 56, 'activity-device-a-56');
+    outboxDb.otherGetFirstAsync = async () => ({ id: 1 });
+    mockGetDb.mockResolvedValue(outboxDb.asDatabase());
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === 'save_my_data_backup_v2') return { data: 1, error: null };
+      if (name === 'delete_my_activity_keys') {
+        return { data: [{ activity_key: 'activity-device-a-56' }], error: null };
+      }
+      return { data: null, error: null };
+    });
+
+    await expect(syncToSupabase('google-sub', 'user@example.com')).resolves.toBeUndefined();
+
+    expect(mockRpc).toHaveBeenCalledWith('delete_my_activity_keys', {
+      p_activity_keys: ['activity-device-a-56'],
+    });
+    expect(await readPendingActivityDeletes(outboxDb.asDatabase(), 'user@example.com')).toEqual([]);
   });
 
   it('treats already-absent remote rows as cleared when the key RPC confirms every requested key', async () => {
