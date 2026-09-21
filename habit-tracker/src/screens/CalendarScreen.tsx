@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AppState,
   View,
   Text,
   TouchableOpacity,
@@ -18,7 +19,8 @@ import { BackfillFlow } from '../components/BackfillFlow';
 import { StreakMilestoneCelebrationModal } from '../components/StreakMilestoneCelebrationModal';
 import { canBackfill } from '../game/backfill';
 import type { StreakMilestone } from '../game/streakMilestones';
-import { getLocalDate, getWeekStart, getWeekStartFor } from '../utils/formatters';
+import { getMillisecondsUntilLocalMidnight, getWeekStartFor } from '../utils/formatters';
+import { getCalendarToday } from '../utils/calendarToday';
 import { getCalendarLayout } from '../utils/calendarLayout';
 import type { CalendarLayout } from '../utils/calendarLayout';
 
@@ -111,15 +113,41 @@ export function CalendarScreen({ qaBannerVisible = false }: { qaBannerVisible?: 
   const [yearMonth, setYearMonth] = useState(() => toYearMonth(new Date()));
   const [backfillDate, setBackfillDate] = useState<string | null>(null);
   const [pendingStreakMilestone, setPendingStreakMilestone] = useState<StreakMilestone | null>(null);
+  const [calendarToday, setCalendarToday] = useState(getCalendarToday);
+
+  const refreshToday = useCallback(() => {
+    setCalendarToday(current => {
+      const next = getCalendarToday();
+      return next.date === current.date ? current : next;
+    });
+  }, []);
+
+  useEffect(() => {
+    let midnightTimer: ReturnType<typeof setTimeout>;
+    const scheduleMidnightRefresh = () => {
+      midnightTimer = setTimeout(() => {
+        refreshToday();
+        scheduleMidnightRefresh();
+      }, getMillisecondsUntilLocalMidnight());
+    };
+    scheduleMidnightRefresh();
+    const appStateSubscription = AppState.addEventListener('change', state => {
+      if (state === 'active') refreshToday();
+    });
+    return () => {
+      clearTimeout(midnightTimer);
+      appStateSubscription.remove();
+    };
+  }, [refreshToday]);
 
   const { data: days = [] } = useCalendarData(userId, yearMonth);
   const { data: backfillStatus } = useBackfillStatus(userId);
 
-  const todayStr = getLocalDate();
-  const currentWeekStart = getWeekStart();
+  const todayStr = calendarToday.date;
+  const currentWeekStart = calendarToday.weekStart;
 
-  const today = toYearMonth(new Date()) === yearMonth
-    ? new Date().getDate()
+  const today = calendarToday.yearMonth === yearMonth
+    ? calendarToday.day
     : -1;
 
   const dayMap = useMemo(() => {
