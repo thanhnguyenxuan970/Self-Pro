@@ -65,6 +65,7 @@ export function useCreateTask(userId: number) {
     },
     onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['today', 'tasks'] });
+      qc.invalidateQueries({ queryKey: ['activity-picker', userId] });
       await syncTaskData('created task');
     },
   });

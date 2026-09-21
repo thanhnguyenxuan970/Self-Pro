@@ -37,6 +37,15 @@ export function activityMatches(task: Pick<PickerTask, 'name'>, query: string): 
   return normalizeActivityName(task.name).includes(normalizeActivityName(query));
 }
 
+/** Keep the picker result list authoritative when a template also matches the query. */
+export function filterDuplicateActivitySuggestions<T extends Pick<PickerTask, 'name'>>(
+  suggestions: T[],
+  searchResults: Array<Pick<PickerTask, 'name'>>,
+): T[] {
+  const searchNames = new Set(searchResults.map(task => normalizeActivityName(task.name)));
+  return suggestions.filter(suggestion => !searchNames.has(normalizeActivityName(suggestion.name)));
+}
+
 /** Resolve a preset activity name (e.g. a challenge's linked habit) to its
  *  existing task record, so callers can wire it up as the selected task
  *  instead of treating it as a brand-new name. Name matching is ambiguous

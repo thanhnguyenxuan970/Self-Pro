@@ -45,6 +45,11 @@ export function backfillRemaining(usedThisWeek: number, quotaPerWeek = WEEKLY_BA
   return Math.max(0, quotaPerWeek - usedThisWeek);
 }
 
+/** Keep the locked result visible even when saving the session consumes the last quota. */
+export function shouldShowBackfillQuotaExhausted(remaining: number, locked: boolean): boolean {
+  return remaining <= 0 && !locked;
+}
+
 /**
  * Tính lại streak_count cho 1 dải ngày LIÊN TIẾP.
  * @param days   mảng "ngày đó có hoạt động?" theo thứ tự thời gian tăng dần

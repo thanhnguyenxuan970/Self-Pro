@@ -1,9 +1,16 @@
-import { activityGroup, activityMatches, activityPinAccessibilityLabel, buildPresetTaskLogParams, findPresetTask, normalizeActivityName, resolvePresetTask } from '../src/utils/activityPicker';
+import { activityGroup, activityMatches, activityPinAccessibilityLabel, buildPresetTaskLogParams, filterDuplicateActivitySuggestions, findPresetTask, normalizeActivityName, resolvePresetTask } from '../src/utils/activityPicker';
 
 describe('activity picker matching', () => {
   test('matches Vietnamese names without accents or casing', () => {
     expect(normalizeActivityName('Đá bóng')).toBe('da bong');
     expect(activityMatches({ name: 'Chạy bộ' }, 'CHAY BO')).toBe(true);
+  });
+
+  test('hides a template suggestion when the matching activity already appears in search results', () => {
+    const suggestions = [{ name: 'Gym' }, { name: 'Chạy bộ' }];
+    const searchResults = [{ name: 'Gym' }];
+
+    expect(filterDuplicateActivitySuggestions(suggestions, searchResults)).toEqual([{ name: 'Chạy bộ' }]);
   });
 
   test('infers a useful group for a custom activity', () => {

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback, useDeferredValue } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity,
   Alert, StyleSheet, ActivityIndicator, Animated, useWindowDimensions, ScrollView,
@@ -16,12 +16,33 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 import { Strings } from '../config/i18n';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
-import { activityGroup, activityMatches, activityPinAccessibilityLabel, buildPresetTaskLogParams, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask, resolvePresetTask } from '../utils/activityPicker';
+import { activityGroup, activityMatches, activityPinAccessibilityLabel, buildPresetTaskLogParams, filterDuplicateActivitySuggestions, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask, resolvePresetTask } from '../utils/activityPicker';
 import { DurationClockInput } from '../components/DurationClockInput';
 import { DurationPresetChips } from '../components/DurationPresetChips';
 import { clockMinutes } from '../utils/durationClock';
 
-interface Props { visible: boolean; onClose: () => void; presetName?: string | null; presetTaskId?: number | null; }
+export type ActivityAddedResult = {
+  id: number;
+  name: string;
+  icon?: string | null;
+  kind: 'GOOD' | 'BAD';
+  basePoints: number;
+  starPenalty: number;
+  isTimeBased: boolean;
+  durationMin: number | null;
+};
+
+interface Props {
+  visible: boolean;
+  onClose: () => void;
+  presetName?: string | null;
+  presetTaskId?: number | null;
+  onActivityAdded?: (activity: ActivityAddedResult) => void;
+  hideRecent?: boolean;
+  hideBrowseAll?: boolean;
+  showBackButton?: boolean;
+  inputPlaceholder?: string;
+}
 
 type SuggestionChipProps = {
   s: TemplateTask;
@@ -133,7 +154,17 @@ function DurationStep({ pendingTaskName, isPending, onLogDuration, onBack, onClo
 }
 
 // fallow-ignore-next-line complexity
-export function AddActivitySheet({ visible, onClose, presetName, presetTaskId }: Props) {
+export function AddActivitySheet({
+  visible,
+  onClose,
+  presetName,
+  presetTaskId,
+  onActivityAdded,
+  hideRecent = false,
+  hideBrowseAll = false,
+  showBackButton = false,
+  inputPlaceholder,
+}: Props) {
   const userId = useAuthUser();
   const { colors } = useTheme();
   const t = useTranslations();
@@ -157,7 +188,7 @@ export function AddActivitySheet({ visible, onClose, presetName, presetTaskId }:
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const submittingRef = useRef(false);
 
-  type PendingTask = { id: number; name: string; basePoints: number; starPenalty: number; isTemplate: boolean };
+  type PendingTask = { id: number; name: string; icon?: string | null; kind: 'GOOD' | 'BAD'; basePoints: number; starPenalty: number; isTemplate: boolean };
   const [step, setStep] = useState<'create' | 'duration'>('create');
   const [pendingTask, setPendingTask] = useState<PendingTask | null>(null);
 
@@ -289,6 +320,8 @@ export function AddActivitySheet({ visible, onClose, presetName, presetTaskId }:
           setPendingTask({
             id: selectedExistingTask.id,
             name: selectedExistingTask.name,
+            icon: selectedExistingTask.icon,
+            kind: selectedExistingTask.kind as 'GOOD' | 'BAD',
             basePoints: selectedExistingTask.base_points,
             starPenalty: selectedExistingTask.star_penalty,
             isTemplate: selectedExistingTask.is_template === 1,
@@ -321,10 +354,32 @@ export function AddActivitySheet({ visible, onClose, presetName, presetTaskId }:
 
       if (isTimeBased) {
         Keyboard.dismiss();
-        setPendingTask({ id: taskId, name: storeName, basePoints: taskBasePoints, starPenalty: 0, isTemplate: !!selectedSuggestion });
+        setPendingTask({
+          id: taskId,
+          name: storeName,
+          icon: selectedExistingTask?.icon ?? selectedSuggestion?.icon,
+          kind: (selectedExistingTask?.kind ?? selectedSuggestion?.kind ?? 'GOOD') as 'GOOD' | 'BAD',
+          basePoints: taskBasePoints,
+          starPenalty: selectedExistingTask?.star_penalty ?? selectedSuggestion?.starPenalty ?? 0,
+          isTemplate: !!selectedSuggestion,
+        });
         setStep('duration');
         submittingRef.current = false;
       } else {
+        if (onActivityAdded) {
+          onActivityAdded({
+            id: taskId,
+            name: storeName,
+            icon: selectedExistingTask?.icon ?? selectedSuggestion?.icon,
+            kind: (selectedExistingTask?.kind ?? selectedSuggestion?.kind ?? 'GOOD') as 'GOOD' | 'BAD',
+            basePoints: taskBasePoints,
+            starPenalty: selectedExistingTask?.star_penalty ?? selectedSuggestion?.starPenalty ?? 0,
+            isTimeBased: false,
+            durationMin: null,
+          });
+          handleClose();
+          return;
+        }
         Toast.show({ type: 'success', text1: t.taskAdded, text2: resolveTaskDisplayName(storeName, t, !!selectedSuggestion), visibilityTime: 2000 });
         handleClose();
       }
@@ -337,6 +392,20 @@ export function AddActivitySheet({ visible, onClose, presetName, presetTaskId }:
   async function handleLogDuration(mins: number) {
     if (!pendingTask) return;
     try {
+      if (onActivityAdded) {
+        onActivityAdded({
+          id: pendingTask.id,
+          name: pendingTask.name,
+          icon: pendingTask.icon,
+          kind: pendingTask.kind,
+          basePoints: pendingTask.basePoints,
+          starPenalty: pendingTask.starPenalty,
+          isTimeBased: true,
+          durationMin: mins,
+        });
+        handleClose();
+        return;
+      }
       await logTask.mutateAsync({
         taskTypeId: pendingTask.id,
         kind: 'GOOD',
@@ -359,12 +428,15 @@ export function AddActivitySheet({ visible, onClose, presetName, presetTaskId }:
   }
 
   const suggestions = useMemo(() => TEMPLATE_CATEGORIES.flatMap(c => c.tasks), []);
-  const query = name.trim();
+  const query = useDeferredValue(name.trim());
   const activePickerTasks = useMemo(() => pickerTasks.filter(task => task.archived === 0), [pickerTasks]);
   const pinnedTasks = useMemo(() => activePickerTasks.filter(task => task.is_pinned === 1), [activePickerTasks]);
   const recentTasks = useMemo(() => activePickerTasks.filter(task => task.is_pinned === 0 && task.last_used_date !== null), [activePickerTasks]);
   const searchTasks = useMemo(() => query ? pickerTasks.filter(task => activityMatches(task, query)) : [], [pickerTasks, query]);
-  const matchingSuggestions = useMemo(() => suggestions.filter(task => activityMatches(task, query)), [suggestions, query]);
+  const matchingSuggestions = useMemo(() => filterDuplicateActivitySuggestions(
+    suggestions.filter(task => activityMatches(task, query)),
+    searchTasks,
+  ), [searchTasks, suggestions, query]);
   const groupedTasks = useMemo(() => activePickerTasks.reduce<Record<string, PickerTask[]>>((groups, task) => {
     const group = activityGroup(task.name);
     (groups[group] ??= []).push(task);
@@ -376,7 +448,7 @@ export function AddActivitySheet({ visible, onClose, presetName, presetTaskId }:
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose} statusBarTranslucent navigationBarTranslucent>
-      <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={styles.kav} behavior="padding">
       <View style={styles.backdrop}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim, opacity: backdropOpacity }]}>
           <TouchableOpacity
@@ -390,9 +462,26 @@ export function AddActivitySheet({ visible, onClose, presetName, presetTaskId }:
 
         <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}>
 
+          {showBackButton ? (
+            <View style={styles.titleBar}>
+              <TouchableOpacity
+                style={styles.headerBackButton}
+                onPress={handleClose}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t.back}
+              >
+                <Text style={styles.headerBackText}>←</Text>
+              </TouchableOpacity>
+              <Text style={styles.titleText}>{t.addActivityTitle}</Text>
+              <View style={styles.headerBackSpacer} />
+            </View>
+          ) : (
+            <Text style={styles.title}>{t.addActivityTitle}</Text>
+          )}
+
           {step === 'create' ? (
             <>
-              <Text style={styles.title}>{t.addActivityTitle}</Text>
               <ScrollView
                 style={styles.scroll}
                 keyboardShouldPersistTaps="handled"
@@ -402,7 +491,7 @@ export function AddActivitySheet({ visible, onClose, presetName, presetTaskId }:
                   style={styles.input}
                   value={name}
                   onChangeText={text => { setName(text); setSelectedSuggestion(null); setSelectedExistingTask(null); }}
-                  placeholder={t.addActivityNamePlaceholder}
+                  placeholder={inputPlaceholder ?? t.addActivityNamePlaceholder}
                   placeholderTextColor={colors.faint}
                   returnKeyType="done"
                   maxLength={50}
@@ -425,14 +514,14 @@ export function AddActivitySheet({ visible, onClose, presetName, presetTaskId }:
                   </>
                 )}
 
-                {presetName == null && query.length === 0 && recentTasks.length > 0 && (
+                {presetName == null && !hideRecent && query.length === 0 && recentTasks.length > 0 && (
                   <>
                     <Text style={styles.suggestionsLabel}>{t.activityRecent}</Text>
                     {recentTasks.slice(0, 6).map(renderPickerTaskRow)}
                   </>
                 )}
 
-                {presetName == null && query.length === 0 && activePickerTasks.length > 0 && (
+                {presetName == null && !hideBrowseAll && query.length === 0 && activePickerTasks.length > 0 && (
                   <>
                     <TouchableOpacity style={styles.browseButton} onPress={() => setShowAll(value => !value)} accessibilityRole="button" accessibilityLabel={showAll ? t.activityHideAll : t.activityBrowseAll} accessibilityState={{ expanded: showAll }}><Text style={styles.browseText}>{showAll ? t.activityHideAll : t.activityBrowseAll}</Text></TouchableOpacity>
                     {showAll && Object.entries(groupedTasks).map(([group, tasks]) => <View key={group}>
@@ -539,6 +628,17 @@ function makeStyles(C: AppColors, bottomInset: number) {
       paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg,
       borderBottomWidth: 1, borderColor: C.line,
     },
+    titleBar: {
+      minHeight: 58,
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderBottomWidth: 1,
+      borderColor: C.line,
+    },
+    titleText: { flex: 1, ...Typography.bodyStrong, color: C.inkDark, textAlign: 'center' },
+    headerBackButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    headerBackText: { color: C.primaryText, fontSize: 28, lineHeight: 30, fontFamily: FontFamily.semiBold },
+    headerBackSpacer: { width: 44 },
     scroll: { paddingHorizontal: Spacing.lg },
     input: {
       backgroundColor: C.surface2, color: C.inkDark, padding: 13,
