@@ -208,11 +208,13 @@ function MainTabs({ onFABPress, googleUser }: { onFABPress: () => void; googleUs
 function AppStack({
   googleUser,
   onEnterQaSandbox,
+  onResetQaSandbox,
   onSignOut,
   onDeleteAccount,
 }: {
   googleUser: GoogleUser;
   onEnterQaSandbox: () => Promise<boolean>;
+  onResetQaSandbox: () => Promise<void>;
   onSignOut: () => Promise<void>;
   onDeleteAccount: (userId: number) => Promise<void>;
 }) {
@@ -258,7 +260,7 @@ function AppStack({
           name="Profile"
           options={{ ...modalHeaderOptions, title: t.screenProfile }}
         >
-          {() => <ProfileScreen googleUser={googleUser} onEnterQaSandbox={onEnterQaSandbox} onSignOut={onSignOut} />}
+          {() => <ProfileScreen googleUser={googleUser} onEnterQaSandbox={onEnterQaSandbox} onResetQaSandbox={onResetQaSandbox} onSignOut={onSignOut} />}
         </Stack.Screen>
         <Stack.Screen
           name="Settings"
@@ -320,6 +322,7 @@ export function RootNavigator({
   onCompleteOnboarding,
   onSignInWithGoogle,
   onEnterQaSandbox,
+  onResetQaSandbox,
   onSignOut,
   onDeleteAccount,
 }: {
@@ -328,6 +331,7 @@ export function RootNavigator({
   onCompleteOnboarding: () => Promise<void>;
   onSignInWithGoogle: (user: GoogleUser, idToken: string, attemptId?: string) => Promise<boolean>;
   onEnterQaSandbox: () => Promise<boolean>;
+  onResetQaSandbox: () => Promise<void>;
   onSignOut: () => Promise<void>;
   onDeleteAccount: (userId: number) => Promise<void>;
 }) {
@@ -338,7 +342,7 @@ export function RootNavigator({
         barStyle={isDark ? 'light-content' : 'dark-content'}
       />
       {googleUser !== null && isOnboarded ? (
-        <AppStack googleUser={googleUser} onEnterQaSandbox={onEnterQaSandbox} onSignOut={onSignOut} onDeleteAccount={onDeleteAccount} />
+        <AppStack googleUser={googleUser} onEnterQaSandbox={onEnterQaSandbox} onResetQaSandbox={onResetQaSandbox} onSignOut={onSignOut} onDeleteAccount={onDeleteAccount} />
       ) : (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="SignIn">

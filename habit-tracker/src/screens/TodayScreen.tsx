@@ -52,6 +52,7 @@ import { DurationPresetChips } from '../components/DurationPresetChips';
 import { clockMinutes } from '../utils/durationClock';
 import { getHomeBackfillNudge } from '../game/homeBackfillNudge';
 import { getLocalDate, getWeekStart } from '../utils/formatters';
+import { createActivityKey } from '../lib/activityIdentity';
 import type { StreakMilestone } from '../game/streakMilestones';
 import { deriveBoostPhase, nextBoostPhaseAt, type BoostPhase } from '../game/boost';
 
@@ -222,6 +223,8 @@ export function TodayScreen({ qaBannerVisible = false }: { qaBannerVisible?: boo
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [justLoggedIds, setJustLoggedIds] = useState<Set<number>>(new Set());
   const pendingLogTaskIds = useRef(new Set<number>());
+  const nonTimedLogOperationKeys = useRef(new Map<number, string>());
+  const timedLogOperationRef = useRef<{ intent: string; key: string } | null>(null);
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set());
   const [levelUpQueue, setLevelUpQueue] = useState<PendingLevelUpItem[]>([]);
   const pendingLevelUp = levelUpQueue[0] ?? null;
@@ -447,14 +450,18 @@ export function TodayScreen({ qaBannerVisible = false }: { qaBannerVisible?: boo
   const tryUnlog = useCallback(async (task: Task) => {
     try {
       await unlogTask.mutateAsync({ taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD' });
+      nonTimedLogOperationKeys.current.delete(task.id);
     } catch { Alert.alert(t.error, t.cantLog); }
   }, [unlogTask, t]);
 
   const logNonTimedTask = useCallback(async (task: { id: number; kind: string; base_points: number; star_penalty: number }) => {
+    const operationKey = nonTimedLogOperationKeys.current.get(task.id) ?? createActivityKey();
+    nonTimedLogOperationKeys.current.set(task.id, operationKey);
     const result = await logTask.mutateAsync({
       taskTypeId: task.id, kind: task.kind as 'GOOD' | 'BAD',
-      isTimeBased: false, basePoints: task.base_points, starPenalty: task.star_penalty,
+      isTimeBased: false, basePoints: task.base_points, starPenalty: task.star_penalty, operationKey,
     });
+    nonTimedLogOperationKeys.current.delete(task.id);
     showStreakToast(result.newStreak, result.prevStreak, result.milestone);
     return result;
   }, [logTask, showStreakToast]);
@@ -490,11 +497,17 @@ export function TodayScreen({ qaBannerVisible = false }: { qaBannerVisible?: boo
   async function handleLogTime(mins: number) {
     if (!modalTask) return;
     try {
+      const intent = `${modalTask.id}:${mins}`;
+      const operationKey = timedLogOperationRef.current?.intent === intent
+        ? timedLogOperationRef.current.key
+        : createActivityKey();
+      timedLogOperationRef.current = { intent, key: operationKey };
       const result = await logTask.mutateAsync({
         taskTypeId: modalTask.id, kind: modalTask.kind as 'GOOD' | 'BAD',
         isTimeBased: true, basePoints: modalTask.base_points,
-        starPenalty: modalTask.star_penalty, durationMin: mins,
+        starPenalty: modalTask.star_penalty, durationMin: mins, operationKey,
       });
+      timedLogOperationRef.current = null;
       showStreakToast(result.newStreak, result.prevStreak, result.milestone);
       closeModal();
     } catch { Alert.alert(t.error, t.cantLog); }
@@ -532,6 +545,7 @@ export function TodayScreen({ qaBannerVisible = false }: { qaBannerVisible?: boo
   }
 
   function closeModal() {
+    timedLogOperationRef.current = null;
     setModalTask(null);
   }
 

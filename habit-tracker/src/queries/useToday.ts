@@ -162,19 +162,25 @@ async function insertLogRows(
   db: SQLiteDatabase,
   activityRow: ActivityLogInsert,
   bonusRow: ActivityLogInsert | null,
-): Promise<void> {
+): Promise<boolean> {
   const sql = `INSERT INTO activity_log
     (user_id, task_type_id, kind, duration_min, points_earned, stars_delta, source, logged_at, local_date, week_start, activity_key)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, activity_key) WHERE activity_key IS NOT NULL DO NOTHING`;
   const args = (row: ActivityLogInsert) => [
     row.user_id, row.task_type_id, row.kind, row.duration_min,
     row.points_earned, row.stars_delta, row.source, row.logged_at,
     row.local_date, row.week_start, row.activity_key ?? createActivityKey(),
   ];
-  await db.runAsync(sql, args(activityRow));
+  const activityInsert = await db.runAsync(sql, args(activityRow));
+  // A caller that retries the same user operation supplies the original
+  // activity_key. The local unique index then makes the retry a no-op, before
+  // any derived summaries or bonus rows can be mutated a second time.
+  if (activityInsert.changes === 0) return false;
   if (bonusRow) {
     await db.runAsync(sql, args(bonusRow));
   }
+  return true;
 }
 
 async function replaceDailyBonusRows(
@@ -377,9 +383,13 @@ export function useLogTask(userId: number) {
       basePoints: number;
       starPenalty: number;
       durationMin?: number;
+      // Generated once by an interaction and retained only for a retry of
+      // that same interaction. Omit it for a deliberately new check-in.
+      operationKey?: string;
     }): Promise<{
       newStreak: number; prevStreak: number; milestone: StreakMilestone | null;
       lifetimeCrossings: LifetimeTierCrossing[]; isFirstEverLog: boolean;
+      duplicateOperation: boolean;
     }> => {
       const db = await getDb();
       const today = getLocalDate();
@@ -400,6 +410,7 @@ export function useLogTask(userId: number) {
       let milestone: StreakMilestone | null = null;
       let lifetimeCrossings: LifetimeTierCrossing[] = [];
       let isFirstEverLog = false;
+      let duplicateOperation = false;
 
       // All volatile reads + computation + writes inside one transaction.
       // This prevents TOCTOU: two concurrent mutateAsync calls can no longer
@@ -451,8 +462,15 @@ export function useLogTask(userId: number) {
           loggedAt: now, localDate: today, weekStart,
         });
 
+        const activityRowForOperation = params.operationKey
+          ? { ...activityRow, activity_key: params.operationKey }
+          : activityRow;
+        const inserted = await insertLogRows(db, activityRowForOperation, bonusRow);
+        if (!inserted) {
+          duplicateOperation = true;
+          return;
+        }
         const totalStarsDelta = activityRow.stars_delta + (bonusRow?.stars_delta ?? 0);
-        await insertLogRows(db, activityRow, bonusRow);
 
         // Cheap, indexed (user_id is the leading column of idx_log_user_date/
         // idx_log_user_week) — count() === 1 right after this insert means
@@ -495,12 +513,15 @@ export function useLogTask(userId: number) {
         });
         lifetimeCrossings = [...lifetimeCrossings, ...challengeResult.lifetimeCrossings];
       });
+      if (duplicateOperation) {
+        return { ...streakResult, milestone, lifetimeCrossings, isFirstEverLog, duplicateOperation };
+      }
       await cancelTerminalChallengeReminders(db, userId);
       try {
         await syncActiveChallengeReminders(userId, lang);
       } catch {}
 
-      return { ...streakResult, milestone, lifetimeCrossings, isFirstEverLog };
+      return { ...streakResult, milestone, lifetimeCrossings, isFirstEverLog, duplicateOperation };
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['today'] });
@@ -511,6 +532,13 @@ export function useLogTask(userId: number) {
       qc.invalidateQueries({ queryKey: ['rank'] });
       qc.invalidateQueries({ queryKey: ['challenge'] });
       qc.invalidateQueries({ queryKey: ['achievements'] });
+      if (data.duplicateOperation) {
+        // The first attempt may have committed locally just before an
+        // interruption. Re-request sync, but never replay rewards/prompts.
+        void requestCurrentUserSync()
+          .finally(() => qc.invalidateQueries({ queryKey: ['rank'] }));
+        return;
+      }
       if (data.lifetimeCrossings.length > 0) {
         rankMascotBridge.ref?.current?.playRankUp();
         rankMascotBridge.onRankUp?.(data.lifetimeCrossings);

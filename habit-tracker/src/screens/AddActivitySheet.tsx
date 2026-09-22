@@ -8,6 +8,7 @@ import Toast from 'react-native-toast-message';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useActivityPickerTasks, useCreateTask, useRestoreTask, useSetTaskPinned } from '../queries/useTasks';
 import { useLogTask } from '../queries/useToday';
+import { createActivityKey } from '../lib/activityIdentity';
 import { cueModalOpen, cueModalClose } from '../audio/uiSounds';
 import { useAuthUser } from '../hooks/useAuth';
 import { Typography, Radii, Spacing, Shadows, AppColors, FontFamily } from '../config/theme';
@@ -188,10 +189,18 @@ export function AddActivitySheet({
   const [showAll, setShowAll] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const submittingRef = useRef(false);
+  const logOperationRef = useRef<{ intent: string; key: string } | null>(null);
 
   type PendingTask = { id: number; name: string; icon?: string | null; kind: 'GOOD' | 'BAD'; basePoints: number; starPenalty: number; isTemplate: boolean };
   const [step, setStep] = useState<'create' | 'duration'>('create');
   const [pendingTask, setPendingTask] = useState<PendingTask | null>(null);
+
+  function getLogOperationKey(intent: string) {
+    if (logOperationRef.current?.intent === intent) return logOperationRef.current.key;
+    const key = createActivityKey();
+    logOperationRef.current = { intent, key };
+    return key;
+  }
 
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(sheetHiddenY)).current;
@@ -238,6 +247,7 @@ export function AddActivitySheet({
       setStep('create');
       setPendingTask(null);
       submittingRef.current = false;
+      logOperationRef.current = null;
       onClose();
       return;
     }
@@ -251,6 +261,7 @@ export function AddActivitySheet({
       setStep('create');
       setPendingTask(null);
       submittingRef.current = false;
+      logOperationRef.current = null;
       onClose();
       backdropOpacity.setValue(0);
       sheetTranslateY.setValue(sheetHiddenY);
@@ -258,12 +269,14 @@ export function AddActivitySheet({
   }
 
   const handleSuggestionTap = useCallback((task: TemplateTask) => {
+    logOperationRef.current = null;
     setName((t as Record<string, unknown>)[task.nameKey] as string ?? task.name);
     setSelectedSuggestion(task);
     setSelectedExistingTask(null);
   }, [t]);
 
   const handlePickerTask = useCallback(async (task: PickerTask) => {
+    logOperationRef.current = null;
     if (task.archived === 1) await restoreTaskMutateAsync(task.id);
     setName(task.name);
     setSelectedSuggestion(null);
@@ -284,6 +297,7 @@ export function AddActivitySheet({
 
   function openDurationForExistingTask(task: PickerTask) {
     Keyboard.dismiss();
+    logOperationRef.current = null;
     setPendingTask({
       id: task.id,
       name: task.name,
@@ -298,7 +312,9 @@ export function AddActivitySheet({
   }
 
   async function logExistingTask(task: PickerTask) {
-    await logTask.mutateAsync(buildPresetTaskLogParams(task));
+    const operationKey = getLogOperationKey(`existing:${task.id}:non-timed`);
+    await logTask.mutateAsync({ ...buildPresetTaskLogParams(task), operationKey });
+    logOperationRef.current = null;
     Toast.show({
       type: 'success',
       text1: t.activityLogged,
@@ -425,6 +441,8 @@ export function AddActivitySheet({
 
   async function handleLogDuration(mins: number) {
     if (!pendingTask) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     try {
       if (onActivityAdded) {
         onActivityAdded({
@@ -440,6 +458,7 @@ export function AddActivitySheet({
         handleClose();
         return;
       }
+      const operationKey = getLogOperationKey(`timed:${pendingTask.id}:${mins}`);
       await logTask.mutateAsync({
         taskTypeId: pendingTask.id,
         kind: 'GOOD',
@@ -447,16 +466,20 @@ export function AddActivitySheet({
         basePoints: pendingTask.basePoints,
         starPenalty: pendingTask.starPenalty,
         durationMin: mins,
+        operationKey,
       });
+      logOperationRef.current = null;
       Toast.show({ type: 'success', text1: t.activityLogged, text2: resolveTaskDisplayName(pendingTask.name, t, pendingTask.isTemplate), visibilityTime: 2000 });
       handleClose();
     } catch {
       Alert.alert(t.error, t.cantLog);
+      submittingRef.current = false;
     }
   }
 
   function handleBackToCreate() {
     Keyboard.dismiss();
+    logOperationRef.current = null;
     setPendingTask(null);
     setStep('create');
   }
@@ -524,7 +547,7 @@ export function AddActivitySheet({
                 <TextInput
                   style={styles.input}
                   value={name}
-                  onChangeText={text => { setName(text); setSelectedSuggestion(null); setSelectedExistingTask(null); }}
+                  onChangeText={text => { logOperationRef.current = null; setName(text); setSelectedSuggestion(null); setSelectedExistingTask(null); }}
                   placeholder={inputPlaceholder ?? t.addActivityNamePlaceholder}
                   placeholderTextColor={colors.faint}
                   returnKeyType="done"

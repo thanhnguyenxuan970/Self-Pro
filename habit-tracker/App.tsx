@@ -24,7 +24,7 @@ import { createToastConfig } from './src/config/toastConfig';
 import { TutorialProvider } from './src/hooks/useTutorial';
 import { rolloverChallenge, syncActiveChallengeReminders } from './src/queries/useChallenge';
 import { activateChallengeReminderSync, scheduleAllHabitReminders } from './src/utils/notifications';
-import { createQaSandboxUser, isQaSandboxBuildAvailable, isQaSandboxIdentity, purgeQaSandbox, seedQaSandbox } from './src/qa/qaSandbox';
+import { createQaSandboxUser, isQaSandboxBuildAvailable, isQaSandboxIdentity, purgeQaSandbox, resetQaSandbox, seedQaSandbox } from './src/qa/qaSandbox';
 import { normalizeAccountEmail } from './src/lib/accountIdentity';
 import { AuthRecoveryScreen } from './src/components/AuthRecoveryScreen';
 import { SyncStatusBanner } from './src/components/SyncStatusBanner';
@@ -116,6 +116,23 @@ function AppInner() {
   } = useAuth();
   const googleUserRef = useRef(googleUser);
   googleUserRef.current = googleUser;
+
+  const handleQaSandboxReset = useCallback(async () => {
+    const qaUser = googleUser;
+    if (!qaUser || !isQaSandboxBuildAvailable() || !isQaSandboxIdentity(qaUser)) {
+      throw new Error('QA sandbox reset is unavailable for this account');
+    }
+    qaSeedInFlight.current = true;
+    try {
+      const db = await getDb();
+      const resolvedQaUserId = await resetQaSandbox(db);
+      qaSeededForSub.current = qaUser.sub;
+      queryClient.clear();
+      setResolvedUserId(resolvedQaUserId);
+    } finally {
+      qaSeedInFlight.current = false;
+    }
+  }, [googleUser, setResolvedUserId]);
 
   const handleAccountRecoveryRetry = useCallback(() => {
     if (startupRecoveryState === 'retryable') {
@@ -447,6 +464,7 @@ function AppInner() {
           onCompleteOnboarding={completeOnboarding}
           onSignInWithGoogle={signInWithGoogle}
           onEnterQaSandbox={() => signInWithGoogle(createQaSandboxUser())}
+          onResetQaSandbox={handleQaSandboxReset}
           onSignOut={signOut}
           onDeleteAccount={deleteAccount}
         />

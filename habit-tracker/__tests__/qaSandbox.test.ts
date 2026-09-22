@@ -9,6 +9,7 @@ import {
   isQaSandboxActive,
   isQaSandboxIdentity,
   purgeQaSandbox,
+  resetQaSandbox,
   seedQaSandbox,
   setQaSandboxNetworkBlocked,
 } from '../src/qa/qaSandbox';
@@ -161,6 +162,39 @@ describe('QA sandbox identity and fixture contract', () => {
       expect.arrayContaining(['qa-sandbox-local-v1', 'qa-sandbox@local.habi']),
     );
     expect(isQaSandboxActive()).toBe(true);
+  });
+
+  it('keeps an existing fixture through a cold restart instead of reseeding it', async () => {
+    const db = {
+      getFirstAsync: jest.fn().mockResolvedValue({ id: 77 }),
+      getAllAsync: jest.fn(),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(),
+    };
+
+    await expect(seedQaSandbox(db as never)).resolves.toBe(77);
+    expect(db.withTransactionAsync).not.toHaveBeenCalled();
+    expect(db.runAsync).not.toHaveBeenCalled();
+    expect(isQaSandboxActive()).toBe(true);
+  });
+
+  it('resets only after an explicit reset request', async () => {
+    let nextId = 100;
+    const db = {
+      getFirstAsync: jest.fn()
+        .mockResolvedValueOnce({ id: 77 })
+        .mockResolvedValueOnce(null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn().mockImplementation(async () => ({ changes: 1, lastInsertRowId: ++nextId })),
+      withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => callback()),
+    };
+
+    await expect(resetQaSandbox(db as never, new Date('2026-08-22T10:00:00+07:00'))).resolves.toBeGreaterThan(0);
+    expect(db.runAsync).toHaveBeenCalledWith('DELETE FROM users WHERE id = ?', [77]);
+    expect(db.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('google_sub, account_key, treat_stars'),
+      expect.arrayContaining(['qa-sandbox-local-v1', 'qa-sandbox@local.habi']),
+    );
   });
 
   it('seeds safely when no rank tiers exist yet', async () => {

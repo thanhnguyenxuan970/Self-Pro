@@ -949,6 +949,10 @@ const vi = {
   qaSandboxButton: 'Mở sandbox QA trên máy này',
   qaSandboxSwitch: 'Chuyển sang sandbox QA cục bộ',
   qaSandboxBanner: 'SANDBOX QA · Dữ liệu giả cục bộ · Không đồng bộ',
+  qaSandboxReset: 'Đặt lại dữ liệu sandbox QA',
+  qaSandboxResetTitle: 'Đặt lại sandbox QA?',
+  qaSandboxResetBody: 'Thao tác này xoá fixture QA cục bộ và tạo lại dữ liệu mẫu. Không ảnh hưởng tài khoản hoặc dữ liệu Production.',
+  qaSandboxResetConfirm: 'Đặt lại sandbox',
 
   // CalendarScreen DOW (Mon-Sun order)
   calDow: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
@@ -1898,6 +1902,10 @@ const en: typeof vi = {
   qaSandboxButton: 'Open local QA sandbox',
   qaSandboxSwitch: 'Switch to local QA sandbox',
   qaSandboxBanner: 'QA SANDBOX · Local fixture data · Sync disabled',
+  qaSandboxReset: 'Reset QA sandbox data',
+  qaSandboxResetTitle: 'Reset QA sandbox?',
+  qaSandboxResetBody: 'This removes the local QA fixture and creates a new sample dataset. It does not affect Production accounts or data.',
+  qaSandboxResetConfirm: 'Reset sandbox',
 
   // CalendarScreen DOW (Mon-Sun order)
   calDow: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'],

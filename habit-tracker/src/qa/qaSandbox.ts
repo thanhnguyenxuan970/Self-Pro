@@ -10,8 +10,8 @@ import { createActivityKey } from '../lib/activityIdentity';
  * Reserved identity for the emulator-only QA sandbox.
  *
  * This is deliberately not an email account and must never be accepted by a
- * production build or sent to Supabase. The local row is recreated from
- * fixtures on every app start and purged on QA sign-out.
+ * production build or sent to Supabase. The local fixture survives app
+ * restarts and is reset only by an explicit QA action.
  */
 export const QA_SANDBOX_SUB = 'qa-sandbox-local-v1';
 export const QA_SANDBOX_EMAIL = 'qa-sandbox@local.habi';
@@ -19,6 +19,7 @@ export const QA_SANDBOX_NAME = 'QA Sandbox';
 
 let qaSandboxNetworkBlocked = false;
 let qaSeedInFlight: Promise<number> | null = null;
+let qaResetInFlight: Promise<number> | null = null;
 const QA_SANDBOX_DEV_BUILD = typeof __DEV__ === 'boolean' ? __DEV__ : process.env.NODE_ENV !== 'production';
 
 export class QaSandboxNetworkBlockedError extends Error {
@@ -449,10 +450,11 @@ export async function purgeQaSandbox(db: SQLiteDatabase, deleteUser = true): Pro
  * Seeds the QA identity and all local fixture tables in one transaction.
  *
  * Auth and startup reconciliation can both request the fixture around the
- * same render. Share the in-flight promise so two callers cannot purge and
- * recreate the reserved rows concurrently.
+ * same render. Reuse the reserved local fixture when it exists; a reset is
+ * deliberately a separate explicit operation.
  */
 export function seedQaSandbox(db: SQLiteDatabase, now: Date = new Date()): Promise<number> {
+  if (qaResetInFlight) return qaResetInFlight;
   if (qaSeedInFlight) return qaSeedInFlight;
   qaSeedInFlight = seedQaSandboxInternal(db, now).finally(() => {
     qaSeedInFlight = null;
@@ -460,9 +462,27 @@ export function seedQaSandbox(db: SQLiteDatabase, now: Date = new Date()): Promi
   return qaSeedInFlight;
 }
 
+/** Reset the reserved fixture only when a tester explicitly requests it. */
+export function resetQaSandbox(db: SQLiteDatabase, now: Date = new Date()): Promise<number> {
+  if (qaResetInFlight) return qaResetInFlight;
+  qaResetInFlight = (async () => {
+    await qaSeedInFlight;
+    setQaSandboxNetworkBlocked(true);
+    await purgeQaSandbox(db);
+    return seedQaSandboxInternal(db, now);
+  })().finally(() => {
+    qaResetInFlight = null;
+  });
+  return qaResetInFlight;
+}
+
 async function seedQaSandboxInternal(db: SQLiteDatabase, now: Date): Promise<number> {
   setQaSandboxNetworkBlocked(true);
-  await purgeQaSandbox(db);
+  const existingFixture = await db.getFirstAsync<{ id: number }>(
+    'SELECT id FROM users WHERE google_sub = ?',
+    [QA_SANDBOX_SUB],
+  );
+  if (existingFixture) return existingFixture.id;
   const fixture = buildQaSandboxFixture(now);
   let userId = 0;
 

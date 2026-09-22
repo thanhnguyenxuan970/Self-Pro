@@ -38,7 +38,7 @@ Supabase CLI chưa được link vào project (không có `supabase/config.toml`
 2. Một linked Supabase CLI hoặc credential chỉ-đọc tạm thời cho đúng project.
 3. Quyền xem analytics event/raw export và Play Console version breakdown sau khi đủ dữ liệu.
 
-Khi có quyền, lấy bảy ngày hoàn chỉnh gần nhất, tách cohort theo versionCode/rollout date; luôn báo cỡ mẫu và không diễn giải một tỷ lệ đơn lẻ. Trước khi thêm telemetry mới, cần QA event idempotency/deduplication; hiện chưa thêm hệ đo mới.
+Khi có quyền, lấy bảy ngày hoàn chỉnh gần nhất, tách cohort theo versionCode/rollout date; luôn báo cỡ mẫu và không diễn giải một tỷ lệ đơn lẻ. Đặc tả telemetry đã được chốt nhưng chưa có collector/outbox hay hệ đo mới được thêm vào.
 
 ## Vấn đề cản trở check-in đã xác minh trong mã
 
@@ -52,14 +52,19 @@ Patch trên branch này chuyển riêng trường hợp chọn **habit có sẵn
 | --- | --- |
 | Unit test quyết định luồng (existing/non-timed, timed, new, Backfill) | Pass: 5/5. |
 | TypeScript | Pass: `npx tsc --noEmit`. |
-| Jest toàn bộ | Pass: 120 suites, **1,169 tests** tại commit `8aa350e`. Các console warning từ fixture auth/secure-store có sẵn nhưng không làm test thất bại. |
+| Unit test sandbox + idempotency retry | Pass: 23/23 (`qaSandbox.test.ts`, `useToday.coverage.test.ts`). Cùng `operationKey` là no-op cho `activity_log` và rollup; operationKey mới vẫn ghi check-in mới. Upsert chỉ no-op ở partial unique index `(user_id, activity_key)`; lỗi `NOT NULL` vẫn reject. |
+| Jest toàn bộ | Pass: 120 suites, **1,172 tests**, 1 snapshot. Đây là kết quả trên cây patch cuối, thay cho số 1,169 của commit cũ. Các console warning từ fixture auth/secure-store có sẵn nhưng không làm test thất bại. |
 | Native debug QA | Pass build cục bộ: APK `com.habitring.app.qa`, version `2.0.4.d-qa` / versionCode 89, ký debug, cài song song với `com.habitring.app`; không ghi Production. Native bundle chạy được với `expo-notifications` (khác với Expo Go). |
-| Runtime local write | `Drink water` (habit có sẵn, không timed) từ 0 lên đúng 1 `activity_log` hôm nay, tổng 11 → 12, 25 → 30 điểm; UI heatmap phản ánh 30 điểm và toast native hiển thị “Activity checked in”. Sandbox có banner “Local fixture data · Sync disabled”, vì vậy đây chỉ là local success, không phải sync success. |
+| QA fixture reset | Pass: chỉ hiện trong package debug `.qa` + identity QA. Nút `Reset QA sandbox data` yêu cầu xác nhận, purge fixture rồi seed lại; nó không có đường gọi nào trong Production. Khởi động bình thường chỉ kiểm tra fixture đã có, không reseed. |
+| Runtime local write | Pass: sau reset tường minh, `Drink water` (habit có sẵn, không timed) tăng `activity_log` 422 → 423 và task 30 tăng 59 → 60, sinh key `activity-mucue5m0-sjlkjpgg3dk`. Banner xác nhận “Local fixture data · Sync disabled”; đây chỉ là local success, không phải sync success. |
 | Nhánh luồng | Existing timed + “No timer” mở chọn thời lượng, không quick-log. Habit mới `QA_New_Local` tạo task với 0 `activity_log` hôm nay. Backfill không có ngày eligible trong fixture hiện tại; nhánh parent được phủ bởi unit test (không auto-log). |
-| Double-submit | Hai tap cách 50 ms trên “No timer” tạo đúng một dòng mới (11 → 12, một `activity_key`); tap thứ hai sau khi sheet đóng đã điều hướng tab Rank. Không có duplicate write trong phép thử, nhưng đây là vấn đề UX cần theo dõi. |
-| Persistence sau cold start | **Chưa PASS.** `seedQaSandbox()` gọi `purgeQaSandbox()` mỗi process start, nên fixture quay về 25 điểm và `Drink water` về 0 sau relaunch. Điều này chặn việc chứng minh persistence của ứng dụng bằng sandbox; không được diễn giải là mất dữ liệu của bản Production. Cần QA sandbox có reset tường minh thay vì reseed lúc cold start, hoặc một debug account/local DB không reseed. |
+| Double-tap UI | Pass: hai tap liên tiếp trên “No timer” cho `Dọn dẹp` sinh đúng một row mới (tổng 423 → 424; task 29 key `activity-mucufpwj-ds1drqm7it6`). Guard UI khác với retry bền vững: double-tap bị chặn khi đang submit; retry chỉ reuse cùng operationKey. |
+| Persistence sau cold start | Pass: trong run persistence riêng (baseline sau check-in: tổng 423, task 30 là 60), force-stop rồi launch lại vẫn giữ tổng 423, task 30 là 60, và key `activity-mucue5m0-sjlkjpgg3dk` tồn tại. Run double-tap sau đó là run riêng, tăng 423 → 424. Đây là bằng chứng SQLite local của sandbox, không phải bằng chứng sync cloud. |
+| Android SQLite targeted upsert | Pass: source bundle hiện tại ghi thêm `Drink water` qua `ON CONFLICT(user_id, activity_key) WHERE activity_key IS NOT NULL DO NOTHING`: tổng 424 → 425, task 30 là 60 → 61, row 1271 key `activity-mucuqz6n-sygyko4f2wk`. |
 
 Runtime evidence được lưu trong `.visual-verify/` của worktree QA tạm thời, không được commit. Không kiểm tra sync Production và không đưa local success ra làm sync success.
+
+Không triển khai collector/outbox trong buổi này: thiết kế yêu cầu quyết định privacy/retention và migration SQLite có review riêng. Không có request mạng telemetry nào được bật từ QA hay Production.
 
 Gradle safety: biến thể `debug` và `qa` có package `.qa`/debug signing. `qa` không phải fixture
 sandbox; nó bị chặn trừ khi có `-PhabiBuildTarget=staging`, sau đó bắt buộc endpoint staging hợp
@@ -81,4 +86,4 @@ người dùng để làm cho diff nhỏ lại.
 
 1. Lấp lỗ hổng build provenance: release record phải giữ versionName, versionCode, Git SHA và artifact SHA; hiện code 90 không truy ngược được commit.
 2. Mở đường truy vấn Production chỉ-đọc, lấy baseline check-in bảy ngày và version segment sau rollout.
-3. Chỉ sau khi QA dedupe, thiết kế event tối thiểu cho `app_open`, `habit_create_success`, `first_check_in`, `return_day_check_in`, với event ID ổn định và phân biệt `local_write_success` / `sync_success`.
+3. Khi privacy/retention được duyệt, triển khai local-only outbox theo đặc tả: chỉ `app_opened`, `habit_create_local_success`, `check_in_local_success`; first/return là chỉ số suy ra, và sync vẫn tách riêng/chưa quan sát.
