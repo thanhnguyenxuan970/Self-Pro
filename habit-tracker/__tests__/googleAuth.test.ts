@@ -94,6 +94,7 @@ describe('getGoogleSignInFailureKind', () => {
     expect(getGoogleSignInFailureKind('DEVELOPER_ERROR')).toBe('provider_configuration');
     expect(getGoogleSignInFailureKind('10')).toBe('provider_configuration');
     expect(getGoogleSignInFailureKind('RESTORE_PROVIDER_ERROR')).toBe('unknown');
+    expect(getGoogleSignInFailureKind('GOOGLE_ID_TOKEN_EXPIRED')).toBe('unknown');
     expect(getGoogleSignInFailureKind('SIGN_IN_CANCELLED')).toBe('unknown');
     expect(getGoogleSignInFailureKind(null)).toBe('unknown');
   });
