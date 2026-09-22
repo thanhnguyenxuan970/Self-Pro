@@ -1,11 +1,31 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
-apply plugin: "com.google.gms.google-services"
+
+// google-services.json is intentionally ignored. Local QA uses the sandbox
+// without Google sign-in, so it may opt out only while building a debug/QA
+// task. Release and Production variants always keep their configuration.
+def habiSkipGoogleServices = (findProperty('habiSkipGoogleServices') ?: 'false').toBoolean()
+if (habiSkipGoogleServices && gradle.startParameter.taskNames.any {
+    def taskName = it.toLowerCase()
+    !taskName.contains('debug') && !taskName.contains('qa') && !taskName.endsWith('clean')
+}) {
+    throw new GradleException('habiSkipGoogleServices is allowed only for local debug/QA tasks')
+}
+if (!habiSkipGoogleServices) {
+    apply plugin: "com.google.gms.google-services"
+}
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 def habiBuildTarget = (findProperty('habiBuildTarget') ?: System.getenv('HABI_BUILD_TARGET') ?: '').toString()
 def stagingSupabaseEndpoint = System.getenv('EXPO_PUBLIC_SUPABASE_URL') ?: ''
+def habiQaTaskRequested = gradle.startParameter.taskNames.any { it.toLowerCase().contains('qa') }
+
+// `qa` is a staging-only artifact, not the local fixture sandbox (which runs
+// in the debug build). Fail before configuration can embed Production values.
+if (habiQaTaskRequested && habiBuildTarget != 'staging') {
+    throw new GradleException('QA_BUILD_TARGET_BLOCKED|qa tasks require -PhabiBuildTarget=staging')
+}
 
 def keystorePropertiesFile = rootProject.file("keystore.properties")
 def keystoreProperties = new Properties()
@@ -135,6 +155,11 @@ android {
     }
     buildTypes {
         debug {
+            // Keep local development/QA installs beside the Play package so
+            // emulator verification never replaces the user's app or SQLite
+            // database. This variant must never be submitted to Play.
+            applicationIdSuffix '.qa'
+            versionNameSuffix '-qa'
             signingConfig signingConfigs.debug
         }
         release {
@@ -155,7 +180,11 @@ android {
         qa {
             initWith release
             matchingFallbacks = ['release']
-            signingConfig signingConfigs.release
+            // The local QA artifact must never overwrite the Play package or
+            // share its signing identity. It is intentionally not publishable.
+            applicationIdSuffix '.qa'
+            versionNameSuffix '-qa'
+            signingConfig signingConfigs.debug
             minifyEnabled false
             shrinkResources false
             crunchPngs false

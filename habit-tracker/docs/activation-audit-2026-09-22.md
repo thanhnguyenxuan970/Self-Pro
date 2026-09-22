@@ -52,10 +52,30 @@ Patch trên branch này chuyển riêng trường hợp chọn **habit có sẵn
 | --- | --- |
 | Unit test quyết định luồng (existing/non-timed, timed, new, Backfill) | Pass: 5/5. |
 | TypeScript | Pass: `npx tsc --noEmit`. |
-| Jest toàn bộ | Pass: 120 suites, 1,168 tests. Các console warning từ fixture auth/secure-store có sẵn nhưng không làm test thất bại. |
-| Runtime local QA sandbox | Đã đi qua Add Activity → chọn habit có sẵn `Drink water` → `No timer`, một lần chạm, trong sandbox ghi rõ “Sync disabled”. Sau đó Expo Go chặn runtime vì `expo-notifications` remote push không còn hỗ trợ trên Android Expo Go (SDK 53+), nên không quan sát được toast cuối. Đây là giới hạn môi trường QA, không phải bằng chứng patch không hoạt động. |
+| Jest toàn bộ | Pass: 120 suites, **1,169 tests** tại commit `8aa350e`. Các console warning từ fixture auth/secure-store có sẵn nhưng không làm test thất bại. |
+| Native debug QA | Pass build cục bộ: APK `com.habitring.app.qa`, version `2.0.4.d-qa` / versionCode 89, ký debug, cài song song với `com.habitring.app`; không ghi Production. Native bundle chạy được với `expo-notifications` (khác với Expo Go). |
+| Runtime local write | `Drink water` (habit có sẵn, không timed) từ 0 lên đúng 1 `activity_log` hôm nay, tổng 11 → 12, 25 → 30 điểm; UI heatmap phản ánh 30 điểm và toast native hiển thị “Activity checked in”. Sandbox có banner “Local fixture data · Sync disabled”, vì vậy đây chỉ là local success, không phải sync success. |
+| Nhánh luồng | Existing timed + “No timer” mở chọn thời lượng, không quick-log. Habit mới `QA_New_Local` tạo task với 0 `activity_log` hôm nay. Backfill không có ngày eligible trong fixture hiện tại; nhánh parent được phủ bởi unit test (không auto-log). |
+| Double-submit | Hai tap cách 50 ms trên “No timer” tạo đúng một dòng mới (11 → 12, một `activity_key`); tap thứ hai sau khi sheet đóng đã điều hướng tab Rank. Không có duplicate write trong phép thử, nhưng đây là vấn đề UX cần theo dõi. |
+| Persistence sau cold start | **Chưa PASS.** `seedQaSandbox()` gọi `purgeQaSandbox()` mỗi process start, nên fixture quay về 25 điểm và `Drink water` về 0 sau relaunch. Điều này chặn việc chứng minh persistence của ứng dụng bằng sandbox; không được diễn giải là mất dữ liệu của bản Production. Cần QA sandbox có reset tường minh thay vì reseed lúc cold start, hoặc một debug account/local DB không reseed. |
 
-Không lặp lại thao tác để tránh tạo check-in trùng. Xác minh runtime đầy đủ cần development build hoặc APK debug có native notifications tương thích, rồi kiểm tra một lần ghi local và trạng thái sync riêng.
+Runtime evidence được lưu trong `.visual-verify/` của worktree QA tạm thời, không được commit. Không kiểm tra sync Production và không đưa local success ra làm sync success.
+
+Gradle safety: biến thể `debug` và `qa` có package `.qa`/debug signing. `qa` không phải fixture
+sandbox; nó bị chặn trừ khi có `-PhabiBuildTarget=staging`, sau đó bắt buộc endpoint staging hợp
+lệ và không phải host Production trước khi bundle được tạo.
+
+## PR base và phạm vi
+
+`HEAD` kế thừa `b7ef07b` (local `codex/release-2.0.4`), nhưng remote
+`origin/codex/release-2.0.4` chưa có 12 commit nền đó. Diff hiện tại so với remote
+base là 46 files / 1,833 insertions / 286 deletions; so với `origin/main` là 48 files /
+1,848 insertions / 288 deletions. Cả hai đều không phải PR base của patch này.
+
+Không tạo draft PR cho đến khi branch base chứa `b7ef07b` được publish hoặc người sở hữu
+xác nhận base khác. PR đúng chỉ được bao gồm thay đổi activation patch, QA build isolation,
+và tài liệu; tuyệt đối không push/cherry-pick 46 file nền hay các thay đổi chưa commit của
+người dùng để làm cho diff nhỏ lại.
 
 ## Việc tiếp theo ưu tiên
 
