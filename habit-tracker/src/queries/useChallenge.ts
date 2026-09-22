@@ -191,21 +191,22 @@ export async function restoreReactivatedChallengeReminders(
 }
 
 /**
- * A linked Challenge derives its checked days from activity_log. If its final
- * Daily activity is unchecked on the completion date, restore the Challenge
- * to active and reverse only the completion side effects that this Challenge
- * created. This runs in the same transaction as the Daily uncheck.
+ * A linked Challenge derives its checked days from activity_log. If an activity
+ * on or before its completion date makes a completed Challenge incomplete,
+ * restore the Challenge to active and reverse only the completion side effects
+ * that this Challenge created. This runs in the same transaction as the delete.
  */
 export async function reconcileUnloggedLinkedChallenges(
   db: ChallengeLogDb,
   params: { userId: number; taskTypeId: number; localDate: string },
 ): Promise<{ lifetimeCrossings: LifetimeTierCrossing[]; reactivatedChallenges: ReactivatedLinkedChallenge[]; deletedActivityIds: number[] }> {
-  const rows = await db.getAllAsync<ChallengeLogRow & { name: string; notifications_enabled: number; notification_id: string | null }>(
-    `SELECT id, name, task_type_id, target_days, mode, weekly_target, total_weeks, start_date, min_duration, min_count, notifications_enabled, notification_id
-     FROM challenges
-     WHERE user_id = ? AND task_type_id = ? AND status = 'done' AND mode = 'streak' AND completed_at = ?
-     ORDER BY id ASC`,
-    [params.userId, params.taskTypeId, params.localDate],
+  const rows = await db.getAllAsync<ChallengeLogRow & { name: string; completed_at: string; notifications_enabled: number; notification_id: string | null }>(
+    `SELECT id, name, task_type_id, target_days, mode, weekly_target, total_weeks, start_date, completed_at, min_duration, min_count, notifications_enabled, notification_id
+      FROM challenges
+      WHERE user_id = ? AND task_type_id = ? AND status = 'done' AND mode = 'streak'
+        AND completed_at >= ? AND start_date <= ?
+      ORDER BY id ASC`,
+    [params.userId, params.taskTypeId, params.localDate, params.localDate],
   );
   const lifetimeCrossings: LifetimeTierCrossing[] = [];
   const reactivatedChallenges: ReactivatedLinkedChallenge[] = [];
@@ -236,7 +237,7 @@ export async function reconcileUnloggedLinkedChallenges(
          )
        ORDER BY is_exact DESC, reward.id DESC
        LIMIT 1`,
-      [`challenge:${row.id}`, params.userId, params.localDate, `challenge:${row.id}`, row.id],
+      [`challenge:${row.id}`, params.userId, row.completed_at, `challenge:${row.id}`, row.id],
     );
     if (rewardRow) {
       if (rewardRow.is_exact !== 1 && (rewardRow.candidate_count ?? 0) > 1) {

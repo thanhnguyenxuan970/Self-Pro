@@ -1,22 +1,29 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 (globalThis as { __DEV__?: boolean }).__DEV__ = true;
+const invalidateQueries = jest.fn();
 jest.mock('../src/db/client', () => ({ getDb: jest.fn() }));
 jest.mock('@tanstack/react-query', () => ({
   useMutation: jest.fn((options) => options),
   useQuery: jest.fn(),
-  useQueryClient: jest.fn(() => ({ invalidateQueries: jest.fn() })),
+  useQueryClient: jest.fn(() => ({ invalidateQueries })),
 }));
 jest.mock('../src/api/syncService', () => ({ syncCurrentUserToSupabase: jest.fn(() => Promise.resolve()) }));
 jest.mock('../src/game/pendingActivityDeletes', () => ({ enqueuePendingActivityDeletesForUser: jest.fn(() => Promise.resolve()) }));
 jest.mock('../src/lib/rankMascotBridge', () => ({ rankMascotBridge: { ref: { current: { playRankUp: jest.fn() } }, onRankUp: jest.fn() } }));
+jest.mock('../src/queries/useChallenge', () => ({
+  reconcileUnloggedLinkedChallenges: jest.fn(async () => ({
+    lifetimeCrossings: [], reactivatedChallenges: [], deletedActivityIds: [],
+  })),
+}));
 import { getDb } from '../src/db/client';
 import { useDeleteActivityLogs } from '../src/queries/useProgress';
 import { enqueuePendingActivityDeletesForUser } from '../src/game/pendingActivityDeletes';
+import { reconcileUnloggedLinkedChallenges } from '../src/queries/useChallenge';
 
 type Mutation = { mutationFn: (ids: number[]) => Promise<{ lifetimeCrossings: unknown[] }> };
 
 function createDb(
-  rows: { id: number; local_date: string; week_start: string; points_earned: number; stars_delta: number; kind: string; source: string }[],
+  rows: { id: number; task_type_id?: number | null; local_date: string; week_start: string; points_earned: number; stars_delta: number; kind: string; source: string }[],
   dailyRows: { local_date: string; total_points: number; bonus_star_awarded: number }[] = [],
 ) {
   const getFirstAsync = jest.fn(async () => ({ lifetime_stars: 5, current_tier_id: 4 }));
@@ -32,6 +39,41 @@ function createDb(
 describe('useDeleteActivityLogs', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('reconciles linked Challenges after deleting task activity', async () => {
+    const db = createDb([
+      { id: 305, task_type_id: 42, local_date: '2026-08-17', week_start: '2026-08-17', points_earned: 5, stars_delta: 1, kind: 'GOOD', source: 'TASK' },
+    ]);
+    jest.mocked(getDb).mockResolvedValue(db);
+
+    const mutation = useDeleteActivityLogs(5) as unknown as {
+      mutationFn: (ids: number[]) => Promise<{ lifetimeCrossings: unknown[] }>;
+      onSuccess: (data: { lifetimeCrossings: unknown[] }) => void;
+    };
+    await mutation.mutationFn([305]);
+
+    expect(reconcileUnloggedLinkedChallenges).toHaveBeenCalledWith(db, {
+      userId: 5, taskTypeId: 42, localDate: '2026-08-17',
+    });
+    mutation.onSuccess({ lifetimeCrossings: [] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['challenge'] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['treats'] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['achievements'] });
+  });
+
+  it('rejects deleting Challenge completion rewards', async () => {
+    const db = createDb([
+      { id: 306, task_type_id: 42, local_date: '2026-08-17', week_start: '2026-08-17', points_earned: 0, stars_delta: 3, kind: 'CHALLENGE', source: 'CHALLENGE' },
+    ]);
+    jest.mocked(getDb).mockResolvedValue(db);
+
+    const mutation = useDeleteActivityLogs(5) as unknown as {
+      mutationFn: (ids: number[]) => Promise<unknown>;
+    };
+    await expect(mutation.mutationFn([306])).rejects.toThrow('CHALLENGE_REWARD_NOT_DELETABLE');
+    expect(db.runAsync).not.toHaveBeenCalledWith(expect.stringContaining('DELETE FROM activity_log'), expect.anything());
+    expect(reconcileUnloggedLinkedChallenges).not.toHaveBeenCalled();
   });
 
   it('enqueues the deleted activity_log rows for remote cleanup', async () => {

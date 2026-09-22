@@ -77,11 +77,15 @@ describe('reconcileUnloggedLinkedChallenges', () => {
       if (sql.includes("status = 'done'") && sql.includes('task_type_id = ?')) {
         return [{
           id: 17,
+          name: 'Read',
           task_type_id: 42,
           target_days: 3,
+          mode: 'streak',
           start_date: '2026-08-15',
+          completed_at: '2026-08-17',
           min_duration: null,
           min_count: null,
+          notifications_enabled: 0,
         }];
       }
       if (sql.includes('FROM activity_log') && sql.includes('source != \'CHALLENGE\'')) return [];
@@ -122,7 +126,7 @@ describe('reconcileUnloggedLinkedChallenges', () => {
   it('reverses a legacy completion reward without a challenge note', async () => {
     const getAllAsync = jest.fn(async (sql: string) => {
       if (sql.includes("status = 'done'") && sql.includes('task_type_id = ?')) {
-        return [{ id: 19, name: 'Read', task_type_id: 42, target_days: 3, mode: 'streak', start_date: '2026-08-15', min_duration: null, min_count: null, notifications_enabled: 0 }];
+        return [{ id: 19, name: 'Read', task_type_id: 42, target_days: 3, mode: 'streak', start_date: '2026-08-15', completed_at: '2026-08-17', min_duration: null, min_count: null, notifications_enabled: 0 }];
       }
       if (sql.includes('FROM activity_log') && sql.includes('source != \'CHALLENGE\'')) return [];
       if (sql.includes('FROM tiers ORDER BY stars_required ASC')) return [];
@@ -141,5 +145,34 @@ describe('reconcileUnloggedLinkedChallenges', () => {
       [3, 5, '2026-08-17'],
     );
     expect(runAsync).toHaveBeenCalledWith('DELETE FROM activity_log WHERE id = ? AND user_id = ?', [92, 5]);
+  });
+
+  it('reopens a linked Challenge when an earlier activity is deleted after completion', async () => {
+    const getAllAsync = jest.fn(async (sql: string) => {
+      if (sql.includes("status = 'done'") && sql.includes('task_type_id = ?')) {
+        return [{ id: 20, name: 'Read', task_type_id: 42, target_days: 3, mode: 'streak', start_date: '2026-08-10', completed_at: '2026-08-17', min_duration: null, min_count: null, notifications_enabled: 0 }];
+      }
+      if (sql.includes('FROM activity_log') && sql.includes("source != 'CHALLENGE'")) return [];
+      return [];
+    });
+    const getFirstAsync = jest.fn(async (sql: string) => (
+      sql.includes("source = 'CHALLENGE'") ? { id: 93, week_start: '2026-08-17', stars_delta: 3 } : null
+    ));
+    const runAsync = jest.fn(async () => ({ changes: 1 }));
+    const db = { getAllAsync, getFirstAsync, runAsync } as unknown as SQLiteDatabase;
+
+    const result = await reconcileUnloggedLinkedChallenges(db, { userId: 5, taskTypeId: 42, localDate: '2026-08-15' });
+
+    expect(getAllAsync).toHaveBeenCalledWith(expect.stringContaining('completed_at >= ?'), [5, 42, '2026-08-15', '2026-08-15']);
+    expect(getFirstAsync).toHaveBeenCalledWith(
+      expect.stringContaining('reward.local_date = ?'),
+      ['challenge:20', 5, '2026-08-17', 'challenge:20', 20],
+    );
+    expect(result.deletedActivityIds).toEqual([93]);
+    expect(runAsync).toHaveBeenCalledWith('DELETE FROM activity_log WHERE id = ? AND user_id = ?', [93, 5]);
+    expect(runAsync).toHaveBeenCalledWith(
+      expect.stringContaining("SET status = 'active', completed_at = NULL, streak_current = ?"),
+      expect.arrayContaining([0, 20, 5]),
+    );
   });
 });

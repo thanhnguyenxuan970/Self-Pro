@@ -14,6 +14,7 @@ import { rankMascotBridge } from '../lib/rankMascotBridge';
 import { requestCurrentUserSync } from '../api/syncRetry';
 import { ANALYTICS_STAR_SOURCE, readAnalyticsYearStars } from '../analytics/yearStars';
 import { createActivityKey } from '../lib/activityIdentity';
+import { reconcileUnloggedLinkedChallenges } from './useChallenge';
 
 export type ActivityLogEntry = {
   id: number;
@@ -142,7 +143,16 @@ export function useRecentActivityLogs(userId: number, limit = 50, fromDate?: str
   });
 }
 
-type DeleteRow = { id: number; local_date: string; week_start: string; points_earned: number; stars_delta: number; kind: string; source: string };
+type DeleteRow = {
+  id: number;
+  task_type_id: number | null;
+  local_date: string;
+  week_start: string;
+  points_earned: number;
+  stars_delta: number;
+  kind: string;
+  source: string;
+};
 type DateEntry = { points: number; stars: number; selectedBonus: boolean; weekStart: string };
 
 function groupDeleteRows(rows: DeleteRow[]): { byDate: Map<string, DateEntry>; goodStarsDelta: number; badPenaltyAmt: number } {
@@ -244,11 +254,14 @@ export function useDeleteActivityLogs(userId: number) {
 
       await db.withTransactionAsync(async () => {
         const rows = await db.getAllAsync<DeleteRow>(
-          `SELECT id, local_date, week_start, points_earned, stars_delta, kind, source
+          `SELECT id, task_type_id, local_date, week_start, points_earned, stars_delta, kind, source
            FROM activity_log WHERE user_id = ? AND id IN (${placeholders})`,
           [userId, ...ids]
         );
         if (rows.length === 0) return;
+        if (rows.some(row => row.source === 'CHALLENGE')) {
+          throw new Error('CHALLENGE_REWARD_NOT_DELETABLE');
+        }
 
         const { byDate, goodStarsDelta, badPenaltyAmt } = groupDeleteRows(rows);
         const { bonusStarsRemoved, deletedActivityIds: bonusRowIds } = await revertDailySummariesForDelete(db, userId, byDate);
@@ -283,6 +296,23 @@ export function useDeleteActivityLogs(userId: number) {
           [userId, ...ids]
         );
         deletedActivityIds = [...rows.map(row => row.id), ...bonusRowIds];
+        const linkedActivityDates = new Map<string, { taskTypeId: number; localDate: string }>();
+        for (const row of rows) {
+          if (row.source !== 'TASK' || row.task_type_id == null) continue;
+          linkedActivityDates.set(`${row.task_type_id}:${row.local_date}`, {
+            taskTypeId: row.task_type_id,
+            localDate: row.local_date,
+          });
+        }
+        for (const { taskTypeId, localDate } of linkedActivityDates.values()) {
+          const reconciliation = await reconcileUnloggedLinkedChallenges(db, {
+            userId,
+            taskTypeId,
+            localDate,
+          });
+          lifetimeCrossings = [...lifetimeCrossings, ...reconciliation.lifetimeCrossings];
+          deletedActivityIds.push(...reconciliation.deletedActivityIds);
+        }
         await enqueuePendingActivityDeletesForUser(db, userId, deletedActivityIds);
       });
 
@@ -294,6 +324,9 @@ export function useDeleteActivityLogs(userId: number) {
       qc.invalidateQueries({ queryKey: ['today'] });
       qc.invalidateQueries({ queryKey: ['week'] });
       qc.invalidateQueries({ queryKey: ['rank'] });
+      qc.invalidateQueries({ queryKey: ['challenge'] });
+      qc.invalidateQueries({ queryKey: ['treats'] });
+      qc.invalidateQueries({ queryKey: ['achievements'] });
       void requestCurrentUserSync()
         .finally(() => {
           qc.invalidateQueries({ queryKey: ['rank'] });

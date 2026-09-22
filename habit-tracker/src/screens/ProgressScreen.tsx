@@ -59,19 +59,20 @@ const ProgressLogRow = React.memo(function ProgressLogRow({ item, isLast, select
 }) {
   const timeStr = new Date(item.logged_at).toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' });
   const name = item.source === 'DAILY_BONUS' ? bonusDay : item.task_name != null ? resolveTaskDisplayName(item.task_name, t, item.is_template === 1) : item.source;
+  const deletable = item.source !== 'CHALLENGE';
   return (
     <TouchableOpacity
       style={[styles.logRow, isLast && styles.logRowLast, selected && styles.logRowSelected]}
-      onPress={selectionMode ? () => toggleSelect(item.id) : undefined}
-      onLongPress={() => enterSelection(item.id)}
+      onPress={deletable && selectionMode ? () => toggleSelect(item.id) : undefined}
+      onLongPress={deletable ? () => enterSelection(item.id) : undefined}
       delayLongPress={300}
       activeOpacity={0.7}
-      accessibilityRole={selectionMode ? 'checkbox' : 'button'}
+      accessibilityRole={!deletable ? 'text' : selectionMode ? 'checkbox' : 'button'}
       accessibilityLabel={name}
-      accessibilityState={selectionMode ? { checked: selected } : undefined}
-      accessibilityHint={selectionMode ? undefined : t.progressLogRowHint}
+      accessibilityState={deletable && selectionMode ? { checked: selected } : undefined}
+      accessibilityHint={deletable && !selectionMode ? t.progressLogRowHint : undefined}
     >
-      {selectionMode && (
+      {selectionMode && deletable && (
         <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
           {selected && <Text style={styles.checkmark}>✓</Text>}
         </View>
@@ -296,8 +297,9 @@ export function ProgressScreen({ qaBannerVisible = false }: { qaBannerVisible?: 
     filterDate ?? undefined,
   );
   const deleteLogs = useDeleteActivityLogs(userId);
+  const deletableActLogs = useMemo(() => actLogs.filter(item => item.source !== 'CHALLENGE'), [actLogs]);
 
-  const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(actLogs);
+  const { selectionMode, selectedIds, enterSelection, toggleSelect, selectAll, cancelSelection } = useSelectionMode(deletableActLogs);
   const [addSheetVisible, setAddSheetVisible] = useState(false);
 
   const RANGES = useMemo(() => [
