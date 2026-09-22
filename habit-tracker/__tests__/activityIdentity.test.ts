@@ -1,5 +1,6 @@
 import {
   createActivityKey,
+  legacyActivityKey,
   isConfirmedActivityIdentity,
   normalizeMirroredActivityIdentity,
   normalizeStoredActivityIdentity,
@@ -40,5 +41,26 @@ describe('activity identity rules', () => {
       activityKey: null,
       status: 'unresolved',
     });
+  });
+
+  it('uses the non-Web-Crypto fallback and rejects malformed legacy keys', () => {
+    const previousCrypto = (globalThis as { crypto?: unknown }).crypto;
+    Object.defineProperty(globalThis, 'crypto', { configurable: true, value: {} });
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1700000000000);
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.123456);
+    try {
+      expect(createActivityKey()).toMatch(/^activity-[a-z0-9]+-[a-z0-9]+$/);
+      expect(() => legacyActivityKey(0)).toThrow('positive legacy activity id');
+      expect(() => legacyActivityKey(-1)).toThrow('positive legacy activity id');
+      expect(legacyActivityKey(42)).toBe('legacy:42');
+      expect(isConfirmedActivityIdentity('', 'resolved')).toBe(false);
+      expect(isConfirmedActivityIdentity(`activity-${'x'.repeat(129)}`, 'resolved')).toBe(false);
+      expect(isConfirmedActivityIdentity(' activity-key', 'resolved')).toBe(false);
+      expect(isConfirmedActivityIdentity('activity-key', 'unresolved')).toBe(false);
+    } finally {
+      nowSpy.mockRestore();
+      randomSpy.mockRestore();
+      Object.defineProperty(globalThis, 'crypto', { configurable: true, value: previousCrypto });
+    }
   });
 });

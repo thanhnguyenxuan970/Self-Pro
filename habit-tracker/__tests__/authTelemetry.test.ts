@@ -1,3 +1,5 @@
+jest.mock('@sentry/react-native', () => ({ addBreadcrumb: jest.fn() }));
+
 import {
   createAuthAttemptId,
   getGoogleSignInResponseTelemetry,
@@ -5,7 +7,10 @@ import {
   logAuthStage,
   logRestorePhase,
   safeAuthErrorCode,
+  isConfirmedInvalidCredential,
+  createAuthStageReporter,
 } from '../src/lib/authTelemetry';
+import * as Sentry from '@sentry/react-native';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = true;
 
@@ -163,6 +168,132 @@ describe('auth telemetry safety', () => {
       expect(serialized).not.toContain('subject');
     } finally {
       info.mockRestore();
+    }
+  });
+
+  test('covers safe error classification boundaries without leaking raw messages', () => {
+    expect(safeAuthErrorCode({ status: 401 })).toBe('HTTP_401');
+    expect(safeAuthErrorCode({ status: 0 })).toBe('NETWORK_ERROR');
+    expect(safeAuthErrorCode({ status: 408 })).toBe('NETWORK_ERROR');
+    expect(safeAuthErrorCode({ status: 425 })).toBe('NETWORK_ERROR');
+    expect(safeAuthErrorCode({ status: 429 })).toBe('NETWORK_ERROR');
+    expect(safeAuthErrorCode({ code: 'GOOGLE_ID_TOKEN_EXPIRED' })).toBe('GOOGLE_ID_TOKEN_EXPIRED');
+    expect(safeAuthErrorCode({ message: 'request timed out' })).toBe('AUTH_TIMEOUT');
+    expect(safeAuthErrorCode({ message: 'does not match the signed-in Google account' })).toBe('GOOGLE_IDENTITY_MISMATCH');
+    expect(safeAuthErrorCode({ message: 'does not match the signed-in user' })).toBe('GOOGLE_EMAIL_MISMATCH');
+    expect(safeAuthErrorCode({ message: 'request canceled by user' })).toBe('CANCELLED');
+    expect(safeAuthErrorCode({ message: 'network is offline; fetch failed' })).toBe('NETWORK_ERROR');
+    expect(safeAuthErrorCode({ message: 'session unavailable' })).toBe('SESSION_UNAVAILABLE');
+    expect(safeAuthErrorCode('raw primitive')).toBe('UNKNOWN');
+
+    expect(isConfirmedInvalidCredential({ code: 'GOOGLE_ID_TOKEN_EXPIRED' })).toBe(true);
+    expect(isConfirmedInvalidCredential({ code: 'UNTRUSTED' })).toBe(false);
+    expect(isConfirmedInvalidCredential({ status: 401 })).toBe(false);
+    expect(isConfirmedInvalidCredential({ status: 401, source: 'supabase_auth' })).toBe(true);
+    expect(isConfirmedInvalidCredential({ status: 401, stage: 'google_credential' })).toBe(true);
+    expect(isConfirmedInvalidCredential({ status: 401, authStage: 'other' })).toBe(false);
+  });
+
+  test('handles empty native response shapes and bounded response types', () => {
+    expect(getGoogleSignInResponseTelemetry({
+      type: 'x'.repeat(65),
+      data: null,
+      user: null,
+    })).toEqual({
+      google_signin_library_version: '16.1.2',
+      has_data: false,
+      has_data_user: false,
+      has_outer_user: false,
+      id_type: 'undefined',
+      id_present: false,
+      email_type: 'undefined',
+      email_present: false,
+      name_type: 'undefined',
+      name_present: false,
+      id_token_type: 'undefined',
+      id_token_present: false,
+      id_token_length: null,
+    });
+    expect(getGoogleSignInResponseTelemetry({
+      data: { user: { id: 0, email: ' ', name: null }, idToken: 0 },
+    }).id_present).toBe(true);
+  });
+
+  test('maps restore diagnostics across HTTP, network, allowlisted, and structured-error paths', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const previousDev = (globalThis as { __DEV__?: boolean }).__DEV__;
+    (globalThis as { __DEV__?: boolean }).__DEV__ = false;
+    try {
+      const errors: unknown[] = [
+        { status: 401 },
+        { status: 404 },
+        { status: 500 },
+        { status: 0 },
+        { status: 408 },
+        { status: 429 },
+        { status: 425 },
+        { code: 'PGRST202' },
+        { code: '23505' },
+        { code: 'INVALID_CLOUD_BACKUP_ENVELOPE' },
+        { code: '12345' },
+        { code: 'untrusted', message: '{"secret":"value"}' },
+        { message: '   ' },
+        undefined,
+      ];
+      for (const error of errors) {
+        logRestorePhase({ phase: 'validate_payload', outcome: 'success', error });
+      }
+      expect(warn).toHaveBeenCalledTimes(errors.length);
+      expect(String(warn.mock.calls[11]?.[1])).toContain('<redacted-structured-error>');
+    } finally {
+      (globalThis as { __DEV__?: boolean }).__DEV__ = previousDev;
+      warn.mockRestore();
+    }
+  });
+
+  test('reports stage completion with and without a recorded start', () => {
+    const info = jest.spyOn(console, 'info').mockImplementation(() => {});
+    try {
+      const reporter = createAuthStageReporter(createAuthAttemptId(1700000000300));
+      reporter.end('google_native', 'success');
+      reporter.start('supabase_exchange');
+      reporter.end('supabase_exchange', 'failure', { status: 429, message: 'rate limited' });
+      expect(info).toHaveBeenCalledTimes(3);
+      expect(String(info.mock.calls[2]?.[1])).toContain('"error_code":"NETWORK_ERROR"');
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  test('sends safe breadcrumbs and keeps diagnostics non-fatal when Sentry throws', () => {
+    const addBreadcrumb = (Sentry as typeof Sentry & { addBreadcrumb: jest.Mock }).addBreadcrumb;
+    addBreadcrumb.mockReset();
+    const info = jest.spyOn(console, 'info').mockImplementation(() => {});
+    try {
+      logRestorePhase({ phase: 'rpc_load', outcome: 'success' });
+      logGoogleSignInResponseTelemetry({ attemptId: 'attempt', response: {}, failureStep: 'native_sign_in' });
+      logAuthStage({ attemptId: 'attempt', stage: 'google_native', outcome: 'success' });
+      expect(addBreadcrumb).toHaveBeenCalledTimes(3);
+
+      addBreadcrumb.mockImplementation(() => { throw new Error('sentry unavailable'); });
+      expect(() => logRestorePhase({ phase: 'rpc_load', outcome: 'failure', error: { status: 500 } })).not.toThrow();
+      expect(() => logGoogleSignInResponseTelemetry({ attemptId: 'attempt', response: {} })).not.toThrow();
+      expect(() => logAuthStage({ attemptId: 'attempt', stage: 'google_native', outcome: 'failure' })).not.toThrow();
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  test('uses the release logger for Google response telemetry', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const previousDev = (globalThis as { __DEV__?: boolean }).__DEV__;
+    (globalThis as { __DEV__?: boolean }).__DEV__ = false;
+    try {
+      logGoogleSignInResponseTelemetry({ attemptId: 'attempt', response: {} });
+      expect(warn).toHaveBeenCalledWith('[auth-google]', expect.any(String));
+    } finally {
+      (globalThis as { __DEV__?: boolean }).__DEV__ = previousDev;
+      warn.mockRestore();
     }
   });
 });

@@ -61,4 +61,23 @@ describe('startup recovery behavior', () => {
     expect(ensureSession).toHaveBeenCalledTimes(2);
     expect(state).toBe('ready');
   });
+
+  test('busy recovery renders the busy label and disables Retry', () => {
+    const recoveryScreen = AuthRecoveryScreen({
+      backgroundColor: '#fff',
+      textColor: '#111',
+      buttonColor: '#0a0',
+      buttonTextColor: '#fff',
+      message: 'retrying',
+      buttonLabel: 'Retry',
+      busyLabel: 'Retrying…',
+      busy: true,
+      onRetry: jest.fn(),
+    });
+    const [, button] = childrenOf(recoveryScreen) as Array<{ props: { children?: unknown; disabled?: boolean; accessibilityLabel?: string } }>;
+
+    expect(button.props.children).toBeDefined();
+    expect(button.props.disabled).toBe(true);
+    expect(button.props.accessibilityLabel).toBe('Retrying…');
+  });
 });

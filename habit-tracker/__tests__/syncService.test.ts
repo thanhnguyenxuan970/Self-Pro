@@ -2284,6 +2284,78 @@ describe('ensureSupabaseSession', () => {
     mockGetTokens.mockResolvedValue({ idToken: null });
     await expect(ensureSupabaseSession('no-token@example.com')).rejects.toThrow('did not provide an ID token');
   });
+
+  it('does not send an expired Google ID token to Supabase', async () => {
+    const expiredPayload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 1 }))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '');
+    const expiredGoogleIdToken = `header.${expiredPayload}.signature`;
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: {} });
+    mockGetTokens.mockResolvedValue({ idToken: expiredGoogleIdToken });
+    mockSignInWithIdToken.mockResolvedValue(successfulTokenResponse('expired@example.com'));
+
+    await expect(ensureSupabaseSession('expired@example.com')).rejects.toMatchObject({
+      code: 'GOOGLE_ID_TOKEN_EXPIRED',
+    });
+    expect(mockSignInWithIdToken).not.toHaveBeenCalled();
+  });
+
+  it('classifies Supabase expired-token responses as reauthentication-required', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: {} });
+    mockGetTokens.mockResolvedValue({ idToken: 'opaque-google-id-token' });
+    mockSignInWithIdToken.mockResolvedValue({
+      data: null,
+      error: { status: 400, message: 'oidc: token is expired (Token Expiry: 2026-09-21 08:45:35 +0000 UTC)' },
+    });
+
+    await expect(ensureSupabaseSession('expired@example.com')).rejects.toMatchObject({
+      code: 'GOOGLE_ID_TOKEN_EXPIRED',
+    });
+  });
+
+  it('accepts future JWT expiries and safely ignores malformed or non-numeric expiry claims', async () => {
+    const future = Math.floor(Date.now() / 1000) + 600;
+    const tokens = [
+      `header.${btoa(JSON.stringify({ exp: future, marker: 'a' })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')}.signature`,
+      `header.${btoa(JSON.stringify({ exp: String(future) })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')}.signature`,
+      `header.${btoa(JSON.stringify({ subject: 'opaque' })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')}.signature`,
+      'header.a.signature',
+    ];
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    mockSignInWithIdToken.mockResolvedValue(successfulTokenResponse('future@example.com'));
+
+    for (const token of tokens) {
+      await expect(signInWithGoogleToken('future@example.com', token)).resolves.toBeUndefined();
+    }
+
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(tokens.length);
+  });
+
+  it('reads an expiry from a binary-invalid payload fallback without authenticating the token locally', async () => {
+    const future = Math.floor(Date.now() / 1000) + 600;
+    const malformedJsonWithExpiry = `{"x":"${String.fromCharCode(1)}","exp":${future}}`;
+    const payload = btoa(malformedJsonWithExpiry).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    mockSignInWithIdToken.mockResolvedValue(successfulTokenResponse('fallback@example.com'));
+
+    await expect(signInWithGoogleToken('fallback@example.com', `header.${payload}.signature`))
+      .resolves.toBeUndefined();
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('classifies the provider fallback expiry wording and does not retry it', async () => {
+    mockSignInWithIdToken.mockResolvedValue({
+      data: null,
+      error: 'token is expired',
+    });
+
+    await expect(signInWithGoogleToken('expired@example.com', 'opaque-google-id-token'))
+      .rejects.toMatchObject({ code: 'GOOGLE_ID_TOKEN_EXPIRED' });
+    expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('withSupabaseSession', () => {

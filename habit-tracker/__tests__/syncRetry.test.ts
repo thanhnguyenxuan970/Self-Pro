@@ -204,4 +204,136 @@ describe('sync retry coordinator', () => {
 
     expect(storedPending).toBe(false);
   });
+
+  it('notifies subscribers for state transitions and stops after unsubscribe', async () => {
+    const listener = jest.fn();
+    const coordinator = createSyncRetryCoordinator({
+      getAccountKey: jest.fn().mockResolvedValue('account-a'),
+      runSync: jest.fn().mockResolvedValue(undefined),
+      readPending: jest.fn().mockResolvedValue(false),
+      persistPending: jest.fn().mockResolvedValue(undefined),
+    });
+
+    const unsubscribe = coordinator.subscribe(listener);
+    await coordinator.hydrate();
+    await coordinator.requestSync();
+    expect(listener).toHaveBeenCalledTimes(2);
+
+    unsubscribe();
+    await coordinator.requestSync();
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+
+  it('fails closed when startup dependencies throw synchronously or during hydration', async () => {
+    const syncThrowing = createSyncRetryCoordinator({
+      getAccountKey: () => { throw new Error('secure store unavailable'); },
+      runSync: jest.fn().mockResolvedValue(undefined),
+      readPending: jest.fn().mockResolvedValue(false),
+      persistPending: jest.fn().mockResolvedValue(undefined),
+    });
+    await syncThrowing.requestSync();
+    expect(syncThrowing.getSnapshot()).toBe('pending');
+
+    const runThrowing = createSyncRetryCoordinator({
+      getAccountKey: jest.fn().mockResolvedValue('account-a'),
+      runSync: () => { throw new Error('sync unavailable'); },
+      readPending: jest.fn().mockResolvedValue(false),
+      persistPending: jest.fn().mockResolvedValue(undefined),
+    });
+    await runThrowing.requestSync();
+    expect(runThrowing.getSnapshot()).toBe('pending');
+
+    const hydrateThrowing = createSyncRetryCoordinator({
+      getAccountKey: jest.fn().mockRejectedValue(new Error('corrupt marker')),
+      runSync: jest.fn().mockResolvedValue(undefined),
+      readPending: jest.fn().mockResolvedValue(false),
+      persistPending: jest.fn().mockResolvedValue(undefined),
+    });
+    await expect(hydrateThrowing.hydrate()).resolves.toBeUndefined();
+    expect(hydrateThrowing.getSnapshot()).toBe('idle');
+  });
+
+  it('does not upload without an account and rejects an account switch before publishing success', async () => {
+    const noAccountSync = jest.fn().mockResolvedValue(undefined);
+    const noAccount = createSyncRetryCoordinator({
+      getAccountKey: jest.fn().mockResolvedValue(null),
+      runSync: noAccountSync,
+      readPending: jest.fn().mockResolvedValue(false),
+      persistPending: jest.fn().mockResolvedValue(undefined),
+    });
+    await noAccount.hydrate();
+    await noAccount.requestSync();
+    await noAccount.retryWhenOnline(true);
+    expect(noAccount.getSnapshot()).toBe('idle');
+    expect(noAccountSync).toHaveBeenCalledWith('unknown');
+
+    const getAccountKey = jest.fn()
+      .mockResolvedValueOnce('account-a')
+      .mockResolvedValueOnce('account-b');
+    const runSync = jest.fn().mockResolvedValue(undefined);
+    const switched = createSyncRetryCoordinator({
+      getAccountKey,
+      runSync,
+      readPending: jest.fn().mockResolvedValue(false),
+      persistPending: jest.fn().mockResolvedValue(undefined),
+    });
+    await switched.hydrate();
+    await switched.requestSync();
+
+    expect(runSync).toHaveBeenCalledWith('account-a');
+    expect(switched.getSnapshot()).toBe('pending');
+  });
+
+  it('keeps the local state retryable when persistence itself fails', async () => {
+    const coordinator = createSyncRetryCoordinator({
+      getAccountKey: jest.fn().mockResolvedValue('account-a'),
+      runSync: jest.fn().mockRejectedValue(new Error('offline')),
+      readPending: jest.fn().mockResolvedValue(false),
+      persistPending: jest.fn().mockRejectedValue(new Error('storage unavailable')),
+    });
+
+    await coordinator.hydrate();
+    await coordinator.requestSync();
+    await flushPersistence();
+
+    expect(coordinator.getSnapshot()).toBe('pending');
+  });
+
+  it('handles a cold-start request race, idempotent hydration, and corrupt pending metadata', async () => {
+    let resolveAccount!: (account: string | null) => void;
+    const accountRead = new Promise<string | null>(resolve => { resolveAccount = resolve; });
+    const runSync = jest.fn().mockResolvedValue(undefined);
+    const coordinator = createSyncRetryCoordinator({
+      getAccountKey: jest.fn(() => accountRead),
+      runSync,
+      readPending: jest.fn().mockResolvedValue(false),
+      persistPending: jest.fn().mockResolvedValue(undefined),
+    });
+
+    const first = coordinator.requestSync();
+    const second = coordinator.requestSync();
+    resolveAccount(null);
+    await Promise.all([first, second]);
+    await coordinator.retryWhenOnline(false);
+    expect(runSync).toHaveBeenCalledTimes(2);
+
+    const stable = createSyncRetryCoordinator({
+      getAccountKey: jest.fn().mockResolvedValue('account-a'),
+      runSync: jest.fn().mockResolvedValue(undefined),
+      readPending: jest.fn().mockResolvedValue(false),
+      persistPending: jest.fn().mockResolvedValue(undefined),
+    });
+    await stable.hydrate();
+    await stable.hydrate();
+    expect(stable.getSnapshot()).toBe('idle');
+
+    const corruptMarker = createSyncRetryCoordinator({
+      getAccountKey: jest.fn().mockResolvedValue('account-a'),
+      runSync: jest.fn().mockResolvedValue(undefined),
+      readPending: jest.fn().mockRejectedValue(new Error('marker unavailable')),
+      persistPending: jest.fn().mockResolvedValue(undefined),
+    });
+    await expect(corruptMarker.hydrate()).resolves.toBeUndefined();
+    expect(corruptMarker.getSnapshot()).toBe('idle');
+  });
 });

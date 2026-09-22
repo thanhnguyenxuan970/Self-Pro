@@ -13,8 +13,16 @@ const mockRefreshSupabaseSessionForAccount = jest.fn().mockResolvedValue(undefin
 const mockMapFriendDashboardRows = jest.fn((rows: unknown[], fallback: string) => ({ rows, fallback }));
 const invalidateQueries = jest.fn();
 const mockQueryResult = { error: null as unknown, refetch: jest.fn().mockResolvedValue({ isError: false, data: 'fresh' }) };
+const mockRetryIdentityRef = { current: null as { email: string | null; sub: string | null } | null };
 
-jest.mock('react', () => ({ useRef: <T,>(value: T) => ({ current: value }) }));
+jest.mock('react', () => ({
+  useRef: (value: unknown) => {
+    if (mockRetryIdentityRef.current === null) {
+      mockRetryIdentityRef.current = value as { email: string | null; sub: string | null };
+    }
+    return mockRetryIdentityRef;
+  },
+}));
 jest.mock('@tanstack/react-query', () => ({
   useQuery: jest.fn((options) => Object.assign(mockQueryResult, options)),
   useMutation: jest.fn((options) => options),
@@ -60,6 +68,7 @@ import {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockRetryIdentityRef.current = null;
   mockQueryResult.error = null;
   mockQueryResult.refetch.mockResolvedValue({ isError: false, data: 'fresh' });
   mockRefreshSupabaseSessionForAccount.mockResolvedValue(undefined);
@@ -114,6 +123,37 @@ describe('friends query and mutation contracts', () => {
     expect((useFriendPendingCount(null, null) as unknown as { enabled: boolean }).enabled).toBe(false);
     expect((useFriendDashboard(null, null, 'Me', true) as unknown as { enabled: boolean }).enabled).toBe(false);
     expect((useBlockedAccounts(null, null, true) as unknown as { enabled: boolean }).enabled).toBe(false);
+  });
+
+  test('drops a stale retry when the hook identity changes while recovery is in flight', async () => {
+    useFriendCode('first@example.com', 'sub-first', true);
+    useFriendCode('second@example.com', 'sub-second', true);
+
+    let rejectRefresh!: (error: Error) => void;
+    mockRefreshSupabaseSessionForAccount.mockImplementationOnce(() => new Promise((_, reject) => {
+      rejectRefresh = reject;
+    }));
+    const retry = useFriendCode('second@example.com', 'sub-second', true).retryCode();
+    await Promise.resolve();
+    useFriendCode('third@example.com', 'sub-third', true);
+    rejectRefresh(new Error('stale refresh failed'));
+
+    await expect(retry).resolves.toBeUndefined();
+  });
+
+  test('does not refetch after a successful recovery for a replaced identity', async () => {
+    useFriendCode('first@example.com', 'sub-first', true);
+    let resolveRefresh!: () => void;
+    mockRefreshSupabaseSessionForAccount.mockImplementationOnce(() => new Promise<void>(resolve => {
+      resolveRefresh = resolve;
+    }));
+    const retry = useFriendCode('first@example.com', 'sub-first', true).retryCode();
+    await Promise.resolve();
+    useFriendCode('replacement@example.com', 'sub-replacement', true);
+    resolveRefresh();
+
+    await expect(retry).resolves.toBeUndefined();
+    expect(mockQueryResult.refetch).not.toHaveBeenCalled();
   });
 
   test('runs friend mutations and invalidates only the affected caches', async () => {

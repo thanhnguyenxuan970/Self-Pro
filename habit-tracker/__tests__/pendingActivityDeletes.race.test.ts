@@ -48,9 +48,12 @@ import { dailyBonusStarsForPoints } from '../src/config/constants';
 import { applyLifetimeStarsDelta } from '../src/game/lifetimeRankWrites';
 import {
   acknowledgePendingActivityDeletes,
+  acknowledgePendingActivityDeleteEntries,
   drainPendingActivityDeletes,
+  drainPendingActivityDeleteEntries,
   enqueuePendingActivityDeletes,
   readPendingActivityDeletes,
+  readPendingActivityDeleteEntries,
 } from '../src/game/pendingActivityDeletes';
 import { useUnlogTask } from '../src/queries/useToday';
 import { PendingActivityDeleteTestDb } from './helpers/pendingActivityDeleteDb';
@@ -335,4 +338,57 @@ test('same local_activity_id enqueued during drain is the same immutable delete 
 
   expect(deleteRemoteBatch).toHaveBeenCalledTimes(1);
   expect(await readPendingActivityDeletes(db.asDatabase(), ACCOUNT_A)).toEqual([]);
+});
+
+test('identity-aware outbox reads and acknowledges both legacy and keyed rows', async () => {
+  const db = new PendingActivityDeleteTestDb();
+  await enqueuePendingActivityDeletes(db.asDatabase(), ACCOUNT_A, [101, 102]);
+  db.setActivityKey(ACCOUNT_A, 102, 'activity-key-102');
+
+  const rows = await readPendingActivityDeleteEntries(db.asDatabase(), ACCOUNT_A);
+  expect(rows).toEqual([
+    { local_activity_id: 101, activity_key: null },
+    { local_activity_id: 102, activity_key: 'activity-key-102' },
+  ]);
+
+  await acknowledgePendingActivityDeleteEntries(db.asDatabase(), ACCOUNT_A, rows);
+  expect(await readPendingActivityDeleteEntries(db.asDatabase(), ACCOUNT_A)).toEqual([]);
+});
+
+test('identity-aware drain preserves immutable keys and rejects malformed acknowledgements', async () => {
+  const db = new PendingActivityDeleteTestDb();
+  await enqueuePendingActivityDeletes(db.asDatabase(), ACCOUNT_A, [101]);
+  db.setActivityKey(ACCOUNT_A, 101, 'activity-key-101');
+  const remoteDelete = jest.fn().mockResolvedValue([
+    { local_activity_id: 101, activity_key: 'activity-key-101' },
+  ]);
+
+  await drainPendingActivityDeleteEntries(db.asDatabase(), ACCOUNT_A, remoteDelete);
+  expect(remoteDelete).toHaveBeenCalledWith([
+    { local_activity_id: 101, activity_key: 'activity-key-101' },
+  ]);
+  expect(await readPendingActivityDeleteEntries(db.asDatabase(), ACCOUNT_A)).toEqual([]);
+
+  const invalidAcknowledgements: unknown[] = [
+    null,
+    [],
+    [null],
+    [{ local_activity_id: 0, activity_key: 'activity-key-101' }],
+    [{ local_activity_id: 101, activity_key: '' }],
+    [{ local_activity_id: 999, activity_key: 'activity-key-101' }],
+    [
+      { local_activity_id: 101, activity_key: 'activity-key-101' },
+      { local_activity_id: 101, activity_key: 'activity-key-101' },
+    ],
+  ];
+  for (const acknowledgement of invalidAcknowledgements) {
+    const invalidDb = new PendingActivityDeleteTestDb();
+    await enqueuePendingActivityDeletes(invalidDb.asDatabase(), ACCOUNT_A, [101]);
+    invalidDb.setActivityKey(ACCOUNT_A, 101, 'activity-key-101');
+    await expect(drainPendingActivityDeleteEntries(
+      invalidDb.asDatabase(),
+      ACCOUNT_A,
+      jest.fn().mockResolvedValue(acknowledgement),
+    )).rejects.toThrow('Invalid activity delete acknowledgement');
+  }
 });

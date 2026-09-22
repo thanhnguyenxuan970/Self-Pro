@@ -107,8 +107,8 @@ export function initialsFromName(name: string | null | undefined, fallback: stri
     return firstChars.slice(0, 2).join('').toUpperCase();
   }
   const lastChars = Array.from(tokens[tokens.length - 1]);
-  const first = firstChars[0] ?? '';
-  const last = lastChars[0] ?? '';
+  const first = firstChars[0]!;
+  const last = lastChars[0]!;
   return `${first}${last}`.toUpperCase();
 }
 
@@ -156,7 +156,7 @@ export function mapFriendDashboardRows(
       yearStars: normalizeAnalyticsYearStars(row.year_stars),
       friendRank: Math.max(1, Number(row.friend_rank) || 1),
       isCurrentUser: row.is_current_user === true,
-      tiedCount: rankCounts.get(row.friend_rank ?? 0) ?? 1,
+      tiedCount: rankCounts.get(row.friend_rank ?? 0)!,
     }))
     .sort((a, b) => a.friendRank - b.friendRank || a.playerId.localeCompare(b.playerId));
 

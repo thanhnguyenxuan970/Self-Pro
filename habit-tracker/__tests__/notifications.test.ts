@@ -17,6 +17,7 @@ import {
   syncChallengeReminders,
 } from '../src/utils/notifications';
 import * as Notifications from 'expo-notifications';
+import * as ChallengeNotificationPlan from '../src/lib/challengeNotificationPlan';
 
 test('valid time returns hours and minutes', () => {
   expect(parseNotificationTime('08:30')).toEqual({ hours: 8, minutes: 30 });
@@ -244,6 +245,47 @@ describe('state-aware Challenge reminders', () => {
     (Notifications.getAllScheduledNotificationsAsync as jest.Mock).mockRejectedValueOnce(new Error('queue unavailable'));
     (Notifications.cancelScheduledNotificationAsync as jest.Mock).mockRejectedValueOnce(new Error('cancel failed'));
     await expect(cancelChallengeReminders(['legacy-id'])).resolves.toBe(1);
+  });
+
+  test('skips orphaned planned slots and falls back to the slot date for an outcome message', async () => {
+    const planSpy = jest.spyOn(ChallengeNotificationPlan, 'planAllChallengeReminders');
+    planSpy.mockReturnValueOnce({
+      slots: [{
+        identifier: 'habi-ch-999-normal-2026-08-21',
+        challengeId: 999,
+        challengeName: 'Orphan',
+        mode: 'streak',
+        tone: 'normal',
+        date: '2026-08-21',
+        triggerAt: new Date(2026, 7, 21, 20),
+      }],
+      candidateCount: 1,
+      omittedCount: 0,
+    });
+    await expect(syncChallengeReminders([], 'en')).resolves.toMatchObject({ scheduled: 0 });
+    planSpy.mockRestore();
+
+    planSpy.mockReturnValueOnce({
+      slots: [{
+        identifier: 'habi-ch-7-outcome-2026-08-22',
+        challengeId: 7,
+        challengeName: 'Streak',
+        mode: 'streak',
+        tone: 'outcome',
+        date: '2026-08-22',
+        triggerAt: new Date(2026, 7, 22, 9),
+      }],
+      candidateCount: 1,
+      omittedCount: 0,
+    });
+    try {
+      await syncChallengeReminders([baseState], 'en', { now: new Date(2026, 7, 20, 8) });
+      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith(expect.objectContaining({
+        content: expect.objectContaining({ body: expect.any(String) }),
+      }));
+    } finally {
+      planSpy.mockRestore();
+    }
   });
 
   test('swallows prefix queue reads and exercises the permission-request path', async () => {

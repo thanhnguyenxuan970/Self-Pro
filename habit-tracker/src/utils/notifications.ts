@@ -215,15 +215,16 @@ async function syncChallengeRemindersInternal(
     if (previousRequest && options.forceReschedule) {
       rehydrationCancelled += await cancelExactNotificationIds(Notifications, [slot.identifier]);
     }
-    const state = stateById.get(slot.challengeId);
-    if (!state) continue;
+    // planAllChallengeReminders derives every slot from the same states array.
+    const state = stateById.get(slot.challengeId)!;
     try {
       await Notifications.scheduleNotificationAsync({
         identifier: slot.identifier,
         content: {
           title: 'Habi 💪',
           body: slot.tone === 'outcome'
-            ? getTranslations(lang).challengeOutcomeNotifBody(state.challengeName, state.mode, slot.consequenceDate ?? slot.date)
+            ? getTranslations(lang).challengeOutcomeNotifBody(state.challengeName, state.mode,
+              slot.consequenceDate!)
             : getTranslations(lang).challengeReminderNotifBody(state.challengeName),
           sound: true,
           data: { challengeId: state.challengeId, reminderTone: slot.tone },

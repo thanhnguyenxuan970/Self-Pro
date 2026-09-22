@@ -148,6 +148,36 @@ describe('backfill mutation guards and transaction seam', () => {
     expect(db.runAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT OR IGNORE INTO boost_events'), expect.any(Array));
   });
 
+  test('writes a daily-bonus row and keeps notification failures non-fatal in release mode', async () => {
+    const db = {
+      getFirstAsync: jest.fn().mockResolvedValue(null),
+      getAllAsync: jest.fn().mockResolvedValue([{ local_date: '2026-06-17', total_points: 0 }]),
+      runAsync: jest.fn().mockResolvedValue({ changes: 1 }),
+    } as unknown as SQLiteDatabase;
+    await runBackfillTx(
+      db,
+      [{ taskTypeId: 7, kind: 'GOOD', isTimeBased: true, durationMin: 1500, basePoints: 20, starPenalty: 0 }],
+      5, '2026-06-17', '2026-06-15', '2026-06-15', '2026-06-19',
+    );
+    expect((db.runAsync as jest.Mock).mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO activity_log'))).toHaveLength(2);
+
+    const previousDev = (globalThis as { __DEV__?: boolean }).__DEV__;
+    (globalThis as { __DEV__?: boolean }).__DEV__ = false;
+    mockCancelTerminalChallengeReminders.mockRejectedValueOnce(new Error('cleanup unavailable'));
+    mockSyncActiveChallengeReminders.mockRejectedValueOnce(new Error('schedule unavailable'));
+    try {
+      const mutation = useBackfillDay(5) as unknown as {
+        mutationFn: (params: { date: string; entries: Array<{ taskTypeId: number; kind: 'GOOD'; isTimeBased: boolean; basePoints: number; starPenalty: number }> }) => Promise<unknown>;
+      };
+      await expect(mutation.mutationFn({
+        date: '2026-06-17',
+        entries: [{ taskTypeId: 7, kind: 'GOOD', isTimeBased: false, basePoints: 5, starPenalty: 0 }],
+      })).resolves.toEqual(expect.objectContaining({ newStreak: expect.any(Number) }));
+    } finally {
+      (globalThis as { __DEV__?: boolean }).__DEV__ = previousDev;
+    }
+  });
+
   test('rechecks quota and existing-day denial inside the transaction', async () => {
     const mutation = useBackfillDay(5) as unknown as { mutationFn: (params: { date: string; entries: unknown[] }) => Promise<unknown> };
     const db = {

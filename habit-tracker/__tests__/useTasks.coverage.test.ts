@@ -225,6 +225,25 @@ describe('task query and mutation contracts', () => {
     );
   });
 
+  test('keeps archived activity safe when a daily summary row is already missing', async () => {
+    const db = createDb();
+    const all = db.getAllAsync as unknown as jest.Mock;
+    const first = db.getFirstAsync as unknown as jest.Mock;
+    first.mockResolvedValue(null);
+    all.mockImplementation(async (sql: string) => {
+      if (sql.includes("source = 'TASK'")) {
+        return [{ id: 31, local_date: '2026-09-04', week_start: '2026-08-31', points_earned: 5, stars_delta: 1, kind: 'GOOD' }];
+      }
+      if (sql.includes('daily_summary') && sql.includes('total_points')) return [];
+      if (sql.includes('SELECT id, local_date FROM daily_summary')) return [];
+      return [];
+    });
+    mockGetDb.mockResolvedValue(db);
+    const archive = useArchiveTask(5) as unknown as { mutationFn: (id: number) => Promise<unknown> };
+
+    await expect(archive.mutationFn(8)).resolves.toEqual({ lifetimeCrossings: [] });
+  });
+
   test('runs the archive rank-up callback when crossings are present', async () => {
     const playRankUp = jest.fn();
     const onRankUp = jest.fn();

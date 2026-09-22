@@ -1,4 +1,5 @@
 export const NO_SAVED_GOOGLE_CREDENTIAL_CODE = 'NO_SAVED_GOOGLE_CREDENTIAL';
+export const GOOGLE_ID_TOKEN_EXPIRED_CODE = 'GOOGLE_ID_TOKEN_EXPIRED';
 
 export class NoSavedGoogleCredentialError extends Error {
   // Read via a structural cast in useAuth.ts, invisible to static analysis.
@@ -8,5 +9,14 @@ export class NoSavedGoogleCredentialError extends Error {
   constructor() {
     super('No saved Google credential to refresh the sync session');
     this.name = 'NoSavedGoogleCredentialError';
+  }
+}
+
+export class ExpiredGoogleIdTokenError extends Error {
+  readonly code = GOOGLE_ID_TOKEN_EXPIRED_CODE;
+
+  constructor() {
+    super('Google ID token is expired; interactive sign-in is required');
+    this.name = 'ExpiredGoogleIdTokenError';
   }
 }

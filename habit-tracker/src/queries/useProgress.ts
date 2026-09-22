@@ -167,7 +167,6 @@ async function revertDailySummariesForDelete(
   let bonusStarsRemoved = 0;
   const deletedActivityIds: number[] = [];
   const dates = [...byDate.keys()];
-  if (dates.length === 0) return { bonusStarsRemoved, deletedActivityIds };
   // Batched into one query instead of one round-trip per date.
   const datePlaceholders = dates.map(() => '?').join(',');
   const dailyRows = await db.getAllAsync<{ local_date: string; total_points: number; bonus_star_awarded: number }>(

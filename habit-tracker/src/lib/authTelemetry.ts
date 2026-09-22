@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/react-native';
-import { NO_SAVED_GOOGLE_CREDENTIAL_CODE } from '../api/syncErrors';
+import { GOOGLE_ID_TOKEN_EXPIRED_CODE, NO_SAVED_GOOGLE_CREDENTIAL_CODE } from '../api/syncErrors';
 
 // Keep these values tied to android/app/build.gradle's versionName/versionCode
 // and the Expo manifest's display version.
@@ -60,6 +60,7 @@ export type GoogleSignInResponseTelemetry = {
 
 const SAFE_ERROR_CODES = new Set([
   NO_SAVED_GOOGLE_CREDENTIAL_CODE,
+  GOOGLE_ID_TOKEN_EXPIRED_CODE,
   'AUTH_TIMEOUT',
   'NETWORK_ERROR',
   'HTTP_401',
@@ -150,10 +151,10 @@ const SAFE_RESTORE_ERROR_CODES = new Set([
 function safeRestoreErrorCode(error: unknown): string {
   const record = errorRecord(error);
   const status = numericStatus(error);
+  if (status === 0 || status === 408 || status === 425 || status === 429) return 'NETWORK_ERROR';
   if (status === 401) return 'HTTP_401';
   if (status !== undefined && status >= 400 && status <= 499) return 'HTTP_4XX';
   if (status !== undefined && status >= 500 && status <= 599) return 'HTTP_5XX';
-  if (status === 0 || status === 408 || status === 425 || status === 429) return 'NETWORK_ERROR';
   if (typeof record.code === 'string') {
     if (SAFE_RESTORE_ERROR_CODES.has(record.code)) return record.code;
     if (/^PGRST\d{3}$/.test(record.code) || /^\d{5}$/.test(record.code)) return record.code;
@@ -320,7 +321,7 @@ export function safeAuthErrorCode(error: unknown): string {
 /** Only classify credential loss when the provider/session layer explicitly proves it. */
 export function isConfirmedInvalidCredential(error: unknown): boolean {
   const code = safeAuthErrorCode(error);
-  if (code === NO_SAVED_GOOGLE_CREDENTIAL_CODE) return true;
+  if (code === NO_SAVED_GOOGLE_CREDENTIAL_CODE || code === GOOGLE_ID_TOKEN_EXPIRED_CODE) return true;
 
   // HTTP 401 is ambiguous outside the provider/session layer: bootstrap RPCs,
   // profile reads, and other protected calls can all return it. Reauthentication

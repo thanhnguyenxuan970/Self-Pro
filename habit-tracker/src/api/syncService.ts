@@ -5,7 +5,7 @@ import { supabase } from './supabase';
 import { getDb } from '../db/client';
 import { selectClockSuspectLocalIds } from '../lib/clockSuspect';
 import { getStoredGoogleUser } from '../lib/googleUserStorage';
-import { NoSavedGoogleCredentialError } from './syncErrors';
+import { ExpiredGoogleIdTokenError, NoSavedGoogleCredentialError } from './syncErrors';
 import { applyLifetimeStarsDelta } from '../game/lifetimeRankWrites';
 import type { LifetimeTierRow } from '../game/lifetimeRank';
 import { drainPendingActivityDeleteEntries } from '../game/pendingActivityDeletes';
@@ -1056,6 +1056,49 @@ function withSupabaseAbortSignal<T>(request: PromiseLike<T>, signal: AbortSignal
     : request;
 }
 
+function decodeBase64Url(value: string): string | null {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  if (normalized.length % 4 === 1 || !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) return null;
+  const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), '=');
+  let decoded = '';
+  for (let index = 0; index < padded.length; index += 4) {
+    const first = alphabet.indexOf(padded[index]);
+    const second = alphabet.indexOf(padded[index + 1]);
+    const third = padded[index + 2] === '=' ? 64 : alphabet.indexOf(padded[index + 2]);
+    const fourth = padded[index + 3] === '=' ? 64 : alphabet.indexOf(padded[index + 3]);
+    if (first < 0 || second < 0 || third < 0 || fourth < 0 || (third === 64 && fourth !== 64)) return null;
+    decoded += String.fromCharCode((first << 2) | (second >> 4));
+    if (third !== 64) decoded += String.fromCharCode(((second & 0x0f) << 4) | (third >> 2));
+    if (fourth !== 64) decoded += String.fromCharCode(((third & 0x03) << 6) | fourth);
+  }
+  return decoded;
+}
+
+function googleIdTokenExpiry(idToken: string): number | null {
+  const parts = idToken.split('.');
+  if (parts.length !== 3) return null;
+  const payloadText = decodeBase64Url(parts[1]);
+  if (payloadText === null) return null;
+  try {
+    const payload = JSON.parse(payloadText) as { exp?: unknown };
+    if (typeof payload.exp === 'number' && Number.isFinite(payload.exp)) return payload.exp;
+  } catch {
+    // The payload may contain non-ASCII claims; exp itself is ASCII and can
+    // still be read from the binary-safe base64 output below.
+  }
+  const expMatch = payloadText.match(/"exp"\s*:\s*(\d+(?:\.\d+)?)/);
+  const expiresAt = expMatch ? Number(expMatch[1]) : NaN;
+  return Number.isFinite(expiresAt) ? expiresAt : null;
+}
+
+function assertGoogleIdTokenFresh(idToken: string): void {
+  const expiresAt = googleIdTokenExpiry(idToken);
+  if (expiresAt !== null && expiresAt <= Math.floor(Date.now() / 1000) + SESSION_EXPIRY_SKEW_SECONDS) {
+    throw new ExpiredGoogleIdTokenError();
+  }
+}
+
 function isRetryableAuthExchangeError(error: unknown): boolean {
   const details = error && typeof error === 'object'
     ? error as { code?: unknown; message?: unknown; details?: unknown; status?: unknown }
@@ -1081,6 +1124,18 @@ function isRetryableAuthExchangeError(error: unknown): boolean {
     || text.includes('database error saving new user')
     || text.includes('23505')
     || transactionContextCancelled;
+}
+
+function isExpiredGoogleIdTokenError(error: unknown): boolean {
+  const details = error && typeof error === 'object'
+    ? error as { code?: unknown; message?: unknown; details?: unknown }
+    : {};
+  const text = [details.code, details.message, details.details, String(error)]
+    .filter(value => value != null)
+    .join(' ')
+    .toLowerCase();
+  return text.includes('oidc: token is expired')
+    || text.includes('token is expired');
 }
 
 function isTransientBackupRestoreError(error: unknown): boolean {
@@ -1159,6 +1214,7 @@ async function signInWithGoogleTokenRequest(
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     assertSessionActive(isActive);
+    assertGoogleIdTokenFresh(idToken);
     const exchangeRequest = supabase!.auth.signInWithIdToken({ provider: 'google', token: idToken });
     let timedOut = false;
     // A timed-out GoTrue request cannot be cancelled by every Supabase client
@@ -1211,6 +1267,10 @@ async function signInWithGoogleTokenRequest(
           ? data.session.refresh_token
           : null,
       };
+    }
+
+    if (isExpiredGoogleIdTokenError(error)) {
+      throw new ExpiredGoogleIdTokenError();
     }
 
     // Preserve provenance for startup recovery classification. A 401 from
