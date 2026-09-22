@@ -20,6 +20,7 @@ import { activityGroup, activityMatches, activityPinAccessibilityLabel, buildPre
 import { DurationClockInput } from '../components/DurationClockInput';
 import { DurationPresetChips } from '../components/DurationPresetChips';
 import { clockMinutes } from '../utils/durationClock';
+import { resolveExistingActivityFlow } from '../utils/addActivityFlow';
 
 export type ActivityAddedResult = {
   id: number;
@@ -281,6 +282,32 @@ export function AddActivitySheet({
     return <PickerTaskRow key={task.id} task={task} onPress={handlePickerTask} onPin={handlePin} styles={styles} t={t} />;
   }
 
+  function openDurationForExistingTask(task: PickerTask) {
+    Keyboard.dismiss();
+    setPendingTask({
+      id: task.id,
+      name: task.name,
+      icon: task.icon,
+      kind: task.kind as 'GOOD' | 'BAD',
+      basePoints: task.base_points,
+      starPenalty: task.star_penalty,
+      isTemplate: task.is_template === 1,
+    });
+    setStep('duration');
+    submittingRef.current = false;
+  }
+
+  async function logExistingTask(task: PickerTask) {
+    await logTask.mutateAsync(buildPresetTaskLogParams(task));
+    Toast.show({
+      type: 'success',
+      text1: t.activityLogged,
+      text2: resolveTaskDisplayName(task.name, t, task.is_template === 1),
+      visibilityTime: 2000,
+    });
+    handleClose();
+  }
+
   // fallow-ignore-next-line complexity
   async function handleCreate(isTimeBased: boolean) {
     if (submittingRef.current) return;
@@ -315,30 +342,37 @@ export function AddActivitySheet({
       // branch only upserted the task and reported success without writing an
       // activity_log row, leaving the Challenge at "Not logged today".
       if (presetName != null && selectedExistingTask != null) {
-        if (isTimeBased) {
-          Keyboard.dismiss();
-          setPendingTask({
-            id: selectedExistingTask.id,
-            name: selectedExistingTask.name,
-            icon: selectedExistingTask.icon,
-            kind: selectedExistingTask.kind as 'GOOD' | 'BAD',
-            basePoints: selectedExistingTask.base_points,
-            starPenalty: selectedExistingTask.star_penalty,
-            isTemplate: selectedExistingTask.is_template === 1,
-          });
-          setStep('duration');
-          submittingRef.current = false;
+        const challengeFlow = resolveExistingActivityFlow({
+          hasExistingTask: true,
+          isExistingTaskTimeBased: selectedExistingTask.is_time_based === 1,
+          requestedTimeBased: isTimeBased,
+          hasActivityAddedHandler: false,
+        });
+        if (challengeFlow === 'duration') {
+          openDurationForExistingTask(selectedExistingTask);
           return;
         }
+        await logExistingTask(selectedExistingTask);
+        return;
+      }
 
-        await logTask.mutateAsync(buildPresetTaskLogParams(selectedExistingTask));
-        Toast.show({
-          type: 'success',
-          text1: t.taskAdded,
-          text2: resolveTaskDisplayName(selectedExistingTask.name, t, selectedExistingTask.is_template === 1),
-          visibilityTime: 2000,
-        });
-        handleClose();
+      // Picking a saved non-timed habit from Recent/Pinned/Browse is the
+      // check-in action. Previously this fell through to useCreateTask, which
+      // only upserted the existing row and showed a success toast without ever
+      // appending activity_log. Do not apply this to Backfill (the parent owns
+      // its draft) or timed habits (the user still must choose a duration).
+      const existingActivityFlow = resolveExistingActivityFlow({
+        hasExistingTask: selectedExistingTask != null,
+        isExistingTaskTimeBased: selectedExistingTask?.is_time_based === 1,
+        requestedTimeBased: isTimeBased,
+        hasActivityAddedHandler: onActivityAdded != null,
+      });
+      if (existingActivityFlow === 'duration') {
+        openDurationForExistingTask(selectedExistingTask!);
+        return;
+      }
+      if (existingActivityFlow === 'quick-log') {
+        await logExistingTask(selectedExistingTask!);
         return;
       }
 
@@ -414,7 +448,7 @@ export function AddActivitySheet({
         starPenalty: pendingTask.starPenalty,
         durationMin: mins,
       });
-      Toast.show({ type: 'success', text1: t.taskAdded, text2: resolveTaskDisplayName(pendingTask.name, t, pendingTask.isTemplate), visibilityTime: 2000 });
+      Toast.show({ type: 'success', text1: t.activityLogged, text2: resolveTaskDisplayName(pendingTask.name, t, pendingTask.isTemplate), visibilityTime: 2000 });
       handleClose();
     } catch {
       Alert.alert(t.error, t.cantLog);
