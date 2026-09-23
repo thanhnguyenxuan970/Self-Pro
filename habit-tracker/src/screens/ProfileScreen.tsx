@@ -19,10 +19,11 @@ import { FeedbackSheet } from './FeedbackSheet';
 type Props = {
   googleUser: { sub: string; email: string; name: string; picture: string };
   onEnterQaSandbox: () => Promise<boolean>;
+  onResetQaSandbox: () => Promise<void>;
   onSignOut: () => Promise<void>;
 };
 
-export function ProfileScreen({ googleUser, onEnterQaSandbox, onSignOut }: Props) {
+export function ProfileScreen({ googleUser, onEnterQaSandbox, onResetQaSandbox, onSignOut }: Props) {
   const userId = useAuthUser();
   const navigation = useNavigation();
   const { colors } = useTheme();
@@ -63,6 +64,20 @@ export function ProfileScreen({ googleUser, onEnterQaSandbox, onSignOut }: Props
     } catch (error: unknown) {
       Alert.alert(t.error, error instanceof Error ? error.message : String(error));
     }
+  };
+  const handleQaSandboxReset = () => {
+    Alert.alert(t.qaSandboxResetTitle, t.qaSandboxResetBody, [
+      { text: t.cancel, style: 'cancel' },
+      {
+        text: t.qaSandboxResetConfirm,
+        style: 'destructive',
+        onPress: () => {
+          void onResetQaSandbox().catch((error: unknown) => {
+            Alert.alert(t.error, error instanceof Error ? error.message : String(error));
+          });
+        },
+      },
+    ]);
   };
 
   return (
@@ -120,6 +135,19 @@ export function ProfileScreen({ googleUser, onEnterQaSandbox, onSignOut }: Props
             <Text style={styles.qaSwitchBtnText}>{t.qaSandboxSwitch}</Text>
           </TouchableOpacity>
         )}
+        {isQaSandboxBuildAvailable() && isQaSandboxIdentity(googleUser) && (
+          <TouchableOpacity
+            style={styles.qaResetBtn}
+            onPress={handleQaSandboxReset}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t.qaSandboxReset}
+            accessibilityHint={t.qaSandboxResetBody}
+            testID="qa-sandbox-reset-button"
+          >
+            <Text style={styles.qaResetBtnText} numberOfLines={1}>{t.qaSandboxReset}</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={styles.logoutBtn} onPress={onSignOut} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t.signOut}><Text style={styles.logoutBtnText}>{t.signOut}</Text></TouchableOpacity>
       </ScrollView>
       <FeedbackSheet
@@ -139,6 +167,8 @@ function makeStyles(C: AppColors) {
     logoutBtnText: { color: C.ink2, fontSize: 15, fontFamily: FontFamily.bold },
     qaSwitchBtn: { marginHorizontal: Spacing.lg, marginTop: 24, minHeight: 44, paddingHorizontal: Spacing.md, borderRadius: Radii.md, borderWidth: 1, borderColor: C.primaryLine, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
     qaSwitchBtnText: { color: C.primaryText, fontSize: 14, fontFamily: FontFamily.semiBold, textAlign: 'center' },
+    qaResetBtn: { marginHorizontal: Spacing.lg, marginTop: 24, minHeight: 44, paddingHorizontal: Spacing.md, borderRadius: Radii.md, borderWidth: 1, borderColor: C.dangerText, backgroundColor: C.dangerSoft, alignItems: 'center', justifyContent: 'center' },
+    qaResetBtnText: { color: C.dangerText, fontSize: 14, fontFamily: FontFamily.semiBold, textAlign: 'center' },
   });
 }
 

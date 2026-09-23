@@ -211,6 +211,54 @@ describe('today query and boost contracts', () => {
       .resolves.toMatchObject({ prevStreak: 0, newStreak: 1, isFirstEverLog: false });
   });
 
+  test('deduplicates a retried log operation without blocking a new check-in', async () => {
+    const db = createDb();
+    const insertedKeys = new Set<string>();
+    db.runAsync.mockImplementation(async (sql: string, params: unknown[] = []) => {
+      if (sql.includes('INSERT INTO activity_log')) {
+        const activityKey = params[10] as string;
+        if (insertedKeys.has(activityKey)) return { changes: 0, lastInsertRowId: 0 };
+        insertedKeys.add(activityKey);
+      }
+      return { changes: 1, lastInsertRowId: 12 };
+    });
+    mockGetDb.mockResolvedValue(db);
+
+    const mutation = useLogTask(5) as unknown as {
+      mutationFn: (params: {
+        taskTypeId: number; kind: 'GOOD'; isTimeBased: boolean; basePoints: number;
+        starPenalty: number; operationKey: string;
+      }) => Promise<{ duplicateOperation: boolean }>;
+    };
+    const base = {
+      taskTypeId: 9, kind: 'GOOD' as const, isTimeBased: false, basePoints: 1, starPenalty: 0,
+    };
+
+    await expect(mutation.mutationFn({ ...base, operationKey: 'operation-retry-1' }))
+      .resolves.toEqual(expect.objectContaining({ duplicateOperation: false }));
+    await expect(mutation.mutationFn({ ...base, operationKey: 'operation-retry-1' }))
+      .resolves.toEqual(expect.objectContaining({ duplicateOperation: true }));
+    await expect(mutation.mutationFn({ ...base, operationKey: 'operation-new-2' }))
+      .resolves.toEqual(expect.objectContaining({ duplicateOperation: false }));
+
+    const taskInserts = db.runAsync.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO activity_log'));
+    const dailySummaryWrites = db.runAsync.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO daily_summary'));
+    expect(taskInserts).toHaveLength(3);
+    expect(taskInserts.map(([, params]) => (params as unknown[])[10]))
+      .toEqual(['operation-retry-1', 'operation-retry-1', 'operation-new-2']);
+    expect(taskInserts[0][0]).toContain('ON CONFLICT(user_id, activity_key) WHERE activity_key IS NOT NULL DO NOTHING');
+    expect(dailySummaryWrites).toHaveLength(2);
+
+    const failedDb = createDb();
+    failedDb.runAsync.mockImplementation(async (sql: string) => {
+      if (sql.includes('INSERT INTO activity_log')) throw new Error('NOT NULL constraint failed: activity_log.source');
+      return { changes: 1, lastInsertRowId: 12 };
+    });
+    mockGetDb.mockResolvedValue(failedDb);
+    await expect(mutation.mutationFn({ ...base, operationKey: 'operation-invalid-3' }))
+      .rejects.toThrow('NOT NULL constraint failed');
+  });
+
   test('continues yesterday streaks and fires log rank callbacks', async () => {
     const db = createDb();
     db.getFirstAsync.mockImplementation(async (sql: string) => {

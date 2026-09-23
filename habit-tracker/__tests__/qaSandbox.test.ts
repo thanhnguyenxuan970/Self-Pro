@@ -9,6 +9,7 @@ import {
   isQaSandboxActive,
   isQaSandboxIdentity,
   purgeQaSandbox,
+  resetQaSandbox,
   seedQaSandbox,
   setQaSandboxNetworkBlocked,
 } from '../src/qa/qaSandbox';
@@ -44,13 +45,17 @@ describe('QA sandbox identity and fixture contract', () => {
     const second = buildQaSandboxFixture(now);
 
     expect(second).toEqual(first);
-    expect(first.tasks).toHaveLength(8);
+    expect(first.tasks).toHaveLength(9);
     expect(first.activities.length).toBeGreaterThan(300);
     expect(first.dailySummaries.length).toBeGreaterThan(150);
     expect(first.activities.some(row => row.kind === 'BAD' && row.starsDelta < 0)).toBe(true);
     expect(first.activities.some(row => row.source === 'DAILY_BONUS' && row.starsDelta > 0)).toBe(true);
     expect(first.dailySummaries.some(row => row.localDate === '2026-08-22' && row.totalPoints > 0)).toBe(true);
     expect(first.dailySummaries.length).toBe(new Set(first.dailySummaries.map(row => row.localDate)).size);
+    const challenge = first.challenges.find(row => row.key === 'non-timed-check-in');
+    expect(challenge).toMatchObject({ taskKey: 'challenge-check-in', status: 'active', minDuration: null, minCount: 1 });
+    expect(first.activities.some(row => row.taskKey === 'challenge-check-in' && row.localDate === '2026-08-22')).toBe(false);
+    expect(first.challengeLogs.some(row => row.challengeKey === 'non-timed-check-in' && row.localDate === '2026-08-22')).toBe(false);
   });
 
   it('builds an in-memory leaderboard without adding rows to the local fixture', () => {
@@ -161,6 +166,39 @@ describe('QA sandbox identity and fixture contract', () => {
       expect.arrayContaining(['qa-sandbox-local-v1', 'qa-sandbox@local.habi']),
     );
     expect(isQaSandboxActive()).toBe(true);
+  });
+
+  it('keeps an existing fixture through a cold restart instead of reseeding it', async () => {
+    const db = {
+      getFirstAsync: jest.fn().mockResolvedValue({ id: 77 }),
+      getAllAsync: jest.fn(),
+      runAsync: jest.fn(),
+      withTransactionAsync: jest.fn(),
+    };
+
+    await expect(seedQaSandbox(db as never)).resolves.toBe(77);
+    expect(db.withTransactionAsync).not.toHaveBeenCalled();
+    expect(db.runAsync).not.toHaveBeenCalled();
+    expect(isQaSandboxActive()).toBe(true);
+  });
+
+  it('resets only after an explicit reset request', async () => {
+    let nextId = 100;
+    const db = {
+      getFirstAsync: jest.fn()
+        .mockResolvedValueOnce({ id: 77 })
+        .mockResolvedValueOnce(null),
+      getAllAsync: jest.fn().mockResolvedValue([]),
+      runAsync: jest.fn().mockImplementation(async () => ({ changes: 1, lastInsertRowId: ++nextId })),
+      withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => callback()),
+    };
+
+    await expect(resetQaSandbox(db as never, new Date('2026-08-22T10:00:00+07:00'))).resolves.toBeGreaterThan(0);
+    expect(db.runAsync).toHaveBeenCalledWith('DELETE FROM users WHERE id = ?', [77]);
+    expect(db.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('google_sub, account_key, treat_stars'),
+      expect.arrayContaining(['qa-sandbox-local-v1', 'qa-sandbox@local.habi']),
+    );
   });
 
   it('seeds safely when no rank tiers exist yet', async () => {

@@ -10,8 +10,8 @@ import { createActivityKey } from '../lib/activityIdentity';
  * Reserved identity for the emulator-only QA sandbox.
  *
  * This is deliberately not an email account and must never be accepted by a
- * production build or sent to Supabase. The local row is recreated from
- * fixtures on every app start and purged on QA sign-out.
+ * production build or sent to Supabase. The local fixture survives app
+ * restarts and is reset only by an explicit QA action.
  */
 export const QA_SANDBOX_SUB = 'qa-sandbox-local-v1';
 export const QA_SANDBOX_EMAIL = 'qa-sandbox@local.habi';
@@ -19,6 +19,7 @@ export const QA_SANDBOX_NAME = 'QA Sandbox';
 
 let qaSandboxNetworkBlocked = false;
 let qaSeedInFlight: Promise<number> | null = null;
+let qaResetInFlight: Promise<number> | null = null;
 const QA_SANDBOX_DEV_BUILD = typeof __DEV__ === 'boolean' ? __DEV__ : process.env.NODE_ENV !== 'production';
 
 export class QaSandboxNetworkBlockedError extends Error {
@@ -255,7 +256,13 @@ export function buildQaSandboxFixture(now: Date = new Date()): QaFixture {
     { key: 'cleaning', name: 'Dọn dẹp', kind: 'GOOD', isTimeBased: false, basePoints: 5, starPenalty: 0, categoryKey: 'home', icon: '🧹', sortOrder: 6, isTemplate: true },
     { key: 'water', name: 'Drink water', kind: 'GOOD', isTimeBased: false, basePoints: 5, starPenalty: 0, categoryKey: 'health', icon: '💧', sortOrder: 7, isTemplate: false },
     { key: 'scrolling', name: 'Late-night scrolling', kind: 'BAD', isTimeBased: false, basePoints: 0, starPenalty: 2, categoryKey: 'qa', icon: '📱', sortOrder: 8, isTemplate: false },
+    // This task stays absent from today's seeded activity_log rows so the
+    // linked active challenge exercises the P1 non-timed check-in path.
+    { key: 'challenge-check-in', name: 'Challenge check-in', kind: 'GOOD', isTimeBased: false, basePoints: 5, starPenalty: 0, categoryKey: 'qa', icon: '🧪', sortOrder: 9, isTemplate: false },
   ];
+  // Keep the pre-existing history stable; this task is reserved for the
+  // active, unchecked challenge below.
+  const historyTasks = tasks.filter(task => task.key !== 'challenge-check-in');
 
   const activities: QaFixtureActivity[] = [];
   const dailySummaries: QaFixtureDailySummary[] = [];
@@ -277,7 +284,7 @@ export function buildQaSandboxFixture(now: Date = new Date()): QaFixture {
 
     for (let index = 0; index < count; index += 1) {
       const forcedToday = offset === 0 ? ['running', 'reading', 'work', 'scrolling'][index] : null;
-      const candidate = forcedToday ?? tasks[(Math.abs(offset) * 3 + index * 2) % (tasks.length - 1)].key;
+      const candidate = forcedToday ?? historyTasks[(Math.abs(offset) * 3 + index * 2) % (historyTasks.length - 1)].key;
       const task = tasks.find(item => item.key === candidate) ?? tasks[0];
       const durationMin = task.isTimeBased ? [30, 45, 60, 90][(Math.abs(offset) + index) % 4] : null;
       const pointsEarned = task.kind === 'BAD'
@@ -331,6 +338,11 @@ export function buildQaSandboxFixture(now: Date = new Date()): QaFixture {
       weeklyTarget: null, totalWeeks: null, startDate: dateText(now, -18), status: 'failed', freezesLeft: 0,
       freezeUsed: 1, streakCurrent: 0, completedAt: isoAtOffset(now, -9, 20), minDuration: null, minCount: null,
     },
+    {
+      key: 'non-timed-check-in', name: 'Non-timed check-in', taskKey: 'challenge-check-in', mode: 'streak', targetDays: 7,
+      weeklyTarget: null, totalWeeks: null, startDate: dateText(now, -3), status: 'active', freezesLeft: 0,
+      freezeUsed: 0, streakCurrent: 3, completedAt: null, minDuration: null, minCount: 1,
+    },
   ];
 
   const challengeLogs: QaFixtureChallengeLog[] = [];
@@ -342,6 +354,9 @@ export function buildQaSandboxFixture(now: Date = new Date()): QaFixture {
   }
   for (let index = 0; index < 4; index += 1) {
     challengeLogs.push({ challengeKey: 'reset-recovery', localDate: dateText(now, -18 + index), state: index === 3 ? 'reset' : 'done' });
+  }
+  for (let offset = -3; offset < 0; offset += 1) {
+    challengeLogs.push({ challengeKey: 'non-timed-check-in', localDate: dateText(now, offset), state: 'done' });
   }
 
   const treats: QaFixtureTreat[] = [
@@ -449,10 +464,11 @@ export async function purgeQaSandbox(db: SQLiteDatabase, deleteUser = true): Pro
  * Seeds the QA identity and all local fixture tables in one transaction.
  *
  * Auth and startup reconciliation can both request the fixture around the
- * same render. Share the in-flight promise so two callers cannot purge and
- * recreate the reserved rows concurrently.
+ * same render. Reuse the reserved local fixture when it exists; a reset is
+ * deliberately a separate explicit operation.
  */
 export function seedQaSandbox(db: SQLiteDatabase, now: Date = new Date()): Promise<number> {
+  if (qaResetInFlight) return qaResetInFlight;
   if (qaSeedInFlight) return qaSeedInFlight;
   qaSeedInFlight = seedQaSandboxInternal(db, now).finally(() => {
     qaSeedInFlight = null;
@@ -460,9 +476,27 @@ export function seedQaSandbox(db: SQLiteDatabase, now: Date = new Date()): Promi
   return qaSeedInFlight;
 }
 
+/** Reset the reserved fixture only when a tester explicitly requests it. */
+export function resetQaSandbox(db: SQLiteDatabase, now: Date = new Date()): Promise<number> {
+  if (qaResetInFlight) return qaResetInFlight;
+  qaResetInFlight = (async () => {
+    await qaSeedInFlight;
+    setQaSandboxNetworkBlocked(true);
+    await purgeQaSandbox(db);
+    return seedQaSandboxInternal(db, now);
+  })().finally(() => {
+    qaResetInFlight = null;
+  });
+  return qaResetInFlight;
+}
+
 async function seedQaSandboxInternal(db: SQLiteDatabase, now: Date): Promise<number> {
   setQaSandboxNetworkBlocked(true);
-  await purgeQaSandbox(db);
+  const existingFixture = await db.getFirstAsync<{ id: number }>(
+    'SELECT id FROM users WHERE google_sub = ?',
+    [QA_SANDBOX_SUB],
+  );
+  if (existingFixture) return existingFixture.id;
   const fixture = buildQaSandboxFixture(now);
   let userId = 0;
 
