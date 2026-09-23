@@ -46,10 +46,50 @@ Chọn một habit không tính giờ đã tồn tại từ Recent/Pinned/Browse
 
 Patch trên branch này chuyển riêng trường hợp chọn **habit có sẵn, không tính giờ, từ global Add Activity** sang `useLogTask`, tức append activity do người dùng chủ động chọn. `useLogTask` dùng đường ghi log chuẩn và cơ chế mutation hiện hữu; patch không tự ghi nhận completion cho habit mới.
 
+## P1 challenge preset — 2026-09-23
+
+Hai commit sau `45f6b95215f0687bb213153fda8825ea1e7bab22` đóng P1:
+`776ff57e6399db7bc72abed0ce0614ef7e849f63` (guard/runtime UI) và
+`0da2ac0ce8d76e1d60d342133759f5582d1decda` (test quyết định action).
+Chúng vẫn chỉ thuộc draft PR này, base `b7ef07bfed7ddc3c4223f1d5115a14ca0d61843c`.
+
+- Preset có bốn trạng thái rõ ràng: `loading`, `resolved`, `not-found`, `error`.
+  Chỉ `resolved` đi tới log/duration; ba trạng thái còn lại chặn action.
+- Khi caller có `presetTaskId`, resolver chỉ chọn exact ID; một task trùng tên không
+  được dùng thay thế. Query đang fetch cũng được coi là `loading` dù cache còn data,
+  nên kết quả của preset cũ không được dùng khi đóng/mở hoặc đổi preset.
+- `not-found`/`error` hiện nút Retry và Close. Không có đường fallback nào từ preset
+  vào `useCreateTask`; resolved non-timed đi `quick-log`, resolved timed đi duration.
+- Luồng không-preset (habit mới, existing timed, Backfill và submit guard) giữ resolver
+  cũ. Focused tests hiện phủ loading/error/not-found/stale ID, exact-ID non-timed,
+  timed, new, Backfill và retry/rollup.
+
+### Runtime Android QA P1
+
+Đã chạy một cold-start trên emulator package `com.habitring.app.qa` với banner
+`QA SANDBOX · Local fixture data · Sync disabled`. Harness detached dùng native
+debug-host đã có ở `c398b71b9c3b3506a791eaae6e901974ebd1aa3b` và cherry-pick source
+P1 `776ff57…`; nó chỉ tiêm độ trễ picker 120 giây và một trigger QA cục bộ của cùng
+`requestAddActivity → RootNavigator → AddActivitySheet` rồi đã được gỡ, không commit
+vào branch nào.
+
+Khi query chưa trả dữ liệu, sheet hiển thị `Verifying the challenge activity…`; cả
+`Timed` lẫn `No timer` có `enabled=false`. Tap `No timer` trong trạng thái đó vẫn giữ
+sheet chờ, không xuất hiện toast success hay lỗi JS/bundle. Vì UI và handler đều chặn
+trước `createTask`/`logTask`, run này xác minh nhánh P1 "chưa resolve không tạo/log".
+
+Fixture challenge hiện có chỉ liên kết task timed và, sau restart, detail fixture hiển
+thị đã log hôm nay; do đó run Android này không dùng fixture để tuyên bố một check-in
+non-timed challenge end-to-end hoặc đếm `activity_log`. Điều đó được chứng minh ở
+resolver/action test và mã gọi `useLogTask`; cần một fixture linked non-timed chưa log
+trong ngày nếu muốn thêm bằng chứng UI end-to-end riêng. Đây là giới hạn QA fixture,
+không phải fallback create.
+
 ## Kiểm thử
 
 | Kiểm tra | Kết quả |
 | --- | --- |
+| P1 preset focused tests | Pass: 34 tests / 3 suites (`addActivityFlow`, `useToday.coverage`, `qaSandbox`); không chạy lại full Jest vì không đổi shared test/runtime ngoài flow preset. |
 | Unit test quyết định luồng (existing/non-timed, timed, new, Backfill) | Pass: 5/5. |
 | TypeScript | Pass: `npx tsc --noEmit`. |
 | Unit test sandbox + idempotency retry | Pass: 23/23 (`qaSandbox.test.ts`, `useToday.coverage.test.ts`). Cùng `operationKey` là no-op cho `activity_log` và rollup; operationKey mới vẫn ghi check-in mới. Upsert chỉ no-op ở partial unique index `(user_id, activity_key)`; lỗi `NOT NULL` vẫn reject. |
