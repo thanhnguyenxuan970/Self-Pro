@@ -256,7 +256,13 @@ export function buildQaSandboxFixture(now: Date = new Date()): QaFixture {
     { key: 'cleaning', name: 'Dọn dẹp', kind: 'GOOD', isTimeBased: false, basePoints: 5, starPenalty: 0, categoryKey: 'home', icon: '🧹', sortOrder: 6, isTemplate: true },
     { key: 'water', name: 'Drink water', kind: 'GOOD', isTimeBased: false, basePoints: 5, starPenalty: 0, categoryKey: 'health', icon: '💧', sortOrder: 7, isTemplate: false },
     { key: 'scrolling', name: 'Late-night scrolling', kind: 'BAD', isTimeBased: false, basePoints: 0, starPenalty: 2, categoryKey: 'qa', icon: '📱', sortOrder: 8, isTemplate: false },
+    // This task stays absent from today's seeded activity_log rows so the
+    // linked active challenge exercises the P1 non-timed check-in path.
+    { key: 'challenge-check-in', name: 'Challenge check-in', kind: 'GOOD', isTimeBased: false, basePoints: 5, starPenalty: 0, categoryKey: 'qa', icon: '🧪', sortOrder: 9, isTemplate: false },
   ];
+  // Keep the pre-existing history stable; this task is reserved for the
+  // active, unchecked challenge below.
+  const historyTasks = tasks.filter(task => task.key !== 'challenge-check-in');
 
   const activities: QaFixtureActivity[] = [];
   const dailySummaries: QaFixtureDailySummary[] = [];
@@ -278,7 +284,7 @@ export function buildQaSandboxFixture(now: Date = new Date()): QaFixture {
 
     for (let index = 0; index < count; index += 1) {
       const forcedToday = offset === 0 ? ['running', 'reading', 'work', 'scrolling'][index] : null;
-      const candidate = forcedToday ?? tasks[(Math.abs(offset) * 3 + index * 2) % (tasks.length - 1)].key;
+      const candidate = forcedToday ?? historyTasks[(Math.abs(offset) * 3 + index * 2) % (historyTasks.length - 1)].key;
       const task = tasks.find(item => item.key === candidate) ?? tasks[0];
       const durationMin = task.isTimeBased ? [30, 45, 60, 90][(Math.abs(offset) + index) % 4] : null;
       const pointsEarned = task.kind === 'BAD'
@@ -332,6 +338,11 @@ export function buildQaSandboxFixture(now: Date = new Date()): QaFixture {
       weeklyTarget: null, totalWeeks: null, startDate: dateText(now, -18), status: 'failed', freezesLeft: 0,
       freezeUsed: 1, streakCurrent: 0, completedAt: isoAtOffset(now, -9, 20), minDuration: null, minCount: null,
     },
+    {
+      key: 'non-timed-check-in', name: 'Non-timed check-in', taskKey: 'challenge-check-in', mode: 'streak', targetDays: 7,
+      weeklyTarget: null, totalWeeks: null, startDate: dateText(now, -3), status: 'active', freezesLeft: 0,
+      freezeUsed: 0, streakCurrent: 3, completedAt: null, minDuration: null, minCount: 1,
+    },
   ];
 
   const challengeLogs: QaFixtureChallengeLog[] = [];
@@ -343,6 +354,9 @@ export function buildQaSandboxFixture(now: Date = new Date()): QaFixture {
   }
   for (let index = 0; index < 4; index += 1) {
     challengeLogs.push({ challengeKey: 'reset-recovery', localDate: dateText(now, -18 + index), state: index === 3 ? 'reset' : 'done' });
+  }
+  for (let offset = -3; offset < 0; offset += 1) {
+    challengeLogs.push({ challengeKey: 'non-timed-check-in', localDate: dateText(now, offset), state: 'done' });
   }
 
   const treats: QaFixtureTreat[] = [

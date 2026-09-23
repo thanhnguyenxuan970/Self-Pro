@@ -45,13 +45,17 @@ describe('QA sandbox identity and fixture contract', () => {
     const second = buildQaSandboxFixture(now);
 
     expect(second).toEqual(first);
-    expect(first.tasks).toHaveLength(8);
+    expect(first.tasks).toHaveLength(9);
     expect(first.activities.length).toBeGreaterThan(300);
     expect(first.dailySummaries.length).toBeGreaterThan(150);
     expect(first.activities.some(row => row.kind === 'BAD' && row.starsDelta < 0)).toBe(true);
     expect(first.activities.some(row => row.source === 'DAILY_BONUS' && row.starsDelta > 0)).toBe(true);
     expect(first.dailySummaries.some(row => row.localDate === '2026-08-22' && row.totalPoints > 0)).toBe(true);
     expect(first.dailySummaries.length).toBe(new Set(first.dailySummaries.map(row => row.localDate)).size);
+    const challenge = first.challenges.find(row => row.key === 'non-timed-check-in');
+    expect(challenge).toMatchObject({ taskKey: 'challenge-check-in', status: 'active', minDuration: null, minCount: 1 });
+    expect(first.activities.some(row => row.taskKey === 'challenge-check-in' && row.localDate === '2026-08-22')).toBe(false);
+    expect(first.challengeLogs.some(row => row.challengeKey === 'non-timed-check-in' && row.localDate === '2026-08-22')).toBe(false);
   });
 
   it('builds an in-memory leaderboard without adding rows to the local fixture', () => {
