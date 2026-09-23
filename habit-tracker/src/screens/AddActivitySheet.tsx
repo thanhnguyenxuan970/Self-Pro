@@ -17,11 +17,11 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { TEMPLATE_CATEGORIES, TemplateTask } from '../config/constants';
 import { Strings } from '../config/i18n';
 import { resolveTaskDisplayName } from '../utils/resolveTaskDisplayName';
-import { activityGroup, activityMatches, activityPinAccessibilityLabel, buildPresetTaskLogParams, filterDuplicateActivitySuggestions, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask, resolvePresetTask } from '../utils/activityPicker';
+import { activityGroup, activityMatches, activityPinAccessibilityLabel, buildPresetTaskLogParams, filterDuplicateActivitySuggestions, MAX_PINNED_ACTIVITIES, normalizeActivityName, PickerTask } from '../utils/activityPicker';
 import { DurationClockInput } from '../components/DurationClockInput';
 import { DurationPresetChips } from '../components/DurationPresetChips';
 import { clockMinutes } from '../utils/durationClock';
-import { resolveExistingActivityFlow } from '../utils/addActivityFlow';
+import { isPresetTaskActionBlocked, resolveExistingActivityFlow, resolvePresetTaskResolution } from '../utils/addActivityFlow';
 
 export type ActivityAddedResult = {
   id: number;
@@ -177,7 +177,8 @@ export function AddActivitySheet({
 
   const createTask = useCreateTask(userId);
   const logTask = useLogTask(userId);
-  const { data: pickerTasks = [] } = useActivityPickerTasks(userId);
+  const pickerTasksQuery = useActivityPickerTasks(userId);
+  const pickerTasks = pickerTasksQuery.data ?? [];
   const setTaskPinned = useSetTaskPinned(userId);
   const restoreTask = useRestoreTask(userId);
   const { mutateAsync: setTaskPinnedMutateAsync } = setTaskPinned;
@@ -204,21 +205,28 @@ export function AddActivitySheet({
 
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(sheetHiddenY)).current;
+  const hasPreset = visible && presetName != null;
+  const presetTaskResolution = useMemo(() => resolvePresetTaskResolution({
+    hasPreset,
+    isFetching: pickerTasksQuery.isFetching,
+    isError: pickerTasksQuery.isError,
+    tasks: pickerTasks,
+    presetName,
+    presetTaskId,
+  }), [hasPreset, pickerTasksQuery.isFetching, pickerTasksQuery.isError, pickerTasks, presetName, presetTaskId]);
+  const resolvedPresetTask = presetTaskResolution.status === 'resolved' ? presetTaskResolution.task : null;
+  const presetActionBlocked = isPresetTaskActionBlocked(presetTaskResolution);
 
   useEffect(() => {
-    if (visible && presetName) {
+    if (visible && presetName != null) {
       setName(presetName);
       setSelectedSuggestion(null);
-      // A preset name always names an existing task (e.g. a challenge's linked
-      // habit) -- wire it up here so the duplicate-name guard in handleCreate
-      // doesn't reject it as a name collision with itself. Prefer the exact
-      // task id when the caller has it (e.g. challenge.taskTypeId): two tasks
-      // can have different exact names that collide once normalized (accent/
-      // case-insensitive), so a name-only lookup could resolve to the wrong
-      // task and silently misattribute the log.
-      setSelectedExistingTask(resolvePresetTask(pickerTasks, presetName, presetTaskId));
+      // Preset resolution is derived from the *current* query and preset props.
+      // Do not retain a prior task here: a close/reopen or preset change can
+      // otherwise apply a late query result to the wrong challenge.
+      setSelectedExistingTask(null);
     }
-  }, [visible, presetName, presetTaskId, pickerTasks]);
+  }, [visible, presetName, presetTaskId]);
 
   useEffect(() => {
     if (visible) {
@@ -328,6 +336,33 @@ export function AddActivitySheet({
   async function handleCreate(isTimeBased: boolean) {
     if (submittingRef.current) return;
     submittingRef.current = true;
+
+    // A challenge preset can only log the task verified by the picker query.
+    // Loading, an error, or no matching id/name is not a creation fallback.
+    if (hasPreset) {
+      if (!resolvedPresetTask) {
+        submittingRef.current = false;
+        return;
+      }
+      try {
+        const challengeFlow = resolveExistingActivityFlow({
+          hasExistingTask: true,
+          isExistingTaskTimeBased: resolvedPresetTask.is_time_based === 1,
+          requestedTimeBased: isTimeBased,
+          hasActivityAddedHandler: false,
+        });
+        if (challengeFlow === 'duration') {
+          openDurationForExistingTask(resolvedPresetTask);
+          return;
+        }
+        await logExistingTask(resolvedPresetTask);
+      } catch {
+        Alert.alert(t.error, t.cantLog);
+        submittingRef.current = false;
+      }
+      return;
+    }
+
     const trimmed = name.trim();
     if (!trimmed) { submittingRef.current = false; return; }
 
@@ -353,25 +388,6 @@ export function AddActivitySheet({
       : (selectedExistingTask?.base_points ?? selectedSuggestion?.basePoints ?? 5);
 
     try {
-      // Challenge linked-task CTAs preset an existing habit. In that flow the
-      // user is logging the habit, not creating/reconfiguring it; the old
-      // branch only upserted the task and reported success without writing an
-      // activity_log row, leaving the Challenge at "Not logged today".
-      if (presetName != null && selectedExistingTask != null) {
-        const challengeFlow = resolveExistingActivityFlow({
-          hasExistingTask: true,
-          isExistingTaskTimeBased: selectedExistingTask.is_time_based === 1,
-          requestedTimeBased: isTimeBased,
-          hasActivityAddedHandler: false,
-        });
-        if (challengeFlow === 'duration') {
-          openDurationForExistingTask(selectedExistingTask);
-          return;
-        }
-        await logExistingTask(selectedExistingTask);
-        return;
-      }
-
       // Picking a saved non-timed habit from Recent/Pinned/Browse is the
       // check-in action. Previously this fell through to useCreateTask, which
       // only upserted the existing row and showed a success toast without ever
@@ -500,7 +516,8 @@ export function AddActivitySheet({
     return groups;
   }, {}), [activePickerTasks]);
 
-  const hasName = name.trim().length > 0;
+  const displayName = resolvedPresetTask?.name ?? name;
+  const hasName = displayName.trim().length > 0;
   const isPending = createTask.isPending || logTask.isPending;
 
   return (
@@ -546,15 +563,38 @@ export function AddActivitySheet({
               >
                 <TextInput
                   style={styles.input}
-                  value={name}
+                  value={hasPreset ? (resolvedPresetTask?.name ?? presetName ?? '') : name}
                   onChangeText={text => { logOperationRef.current = null; setName(text); setSelectedSuggestion(null); setSelectedExistingTask(null); }}
                   placeholder={inputPlaceholder ?? t.addActivityNamePlaceholder}
                   placeholderTextColor={colors.faint}
                   returnKeyType="done"
                   maxLength={50}
-                  editable={presetName == null}
+                  editable={!hasPreset}
                   accessibilityLabel={t.addActivityNameLabel}
                 />
+
+                {hasPreset && presetTaskResolution.status === 'loading' && (
+                  <View style={styles.presetStatus} accessibilityRole="alert" accessibilityLiveRegion="polite">
+                    <ActivityIndicator size="small" color={colors.primary} />
+                    <Text style={styles.presetStatusText}>{t.activityPresetLoading}</Text>
+                  </View>
+                )}
+
+                {hasPreset && (presetTaskResolution.status === 'error' || presetTaskResolution.status === 'not-found') && (
+                  <View style={styles.presetStatus} accessibilityRole="alert">
+                    <Text style={styles.presetStatusText}>
+                      {presetTaskResolution.status === 'error' ? t.activityPresetError : t.activityPresetNotFound}
+                    </Text>
+                    <View style={styles.presetActions}>
+                      <TouchableOpacity style={styles.presetRetry} onPress={() => { void pickerTasksQuery.refetch(); }} accessibilityRole="button" accessibilityLabel={t.activityPresetRetry}>
+                        <Text style={styles.presetRetryText}>{t.activityPresetRetry}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.presetClose} onPress={handleClose} accessibilityRole="button" accessibilityLabel={t.close}>
+                        <Text style={styles.presetCloseText}>{t.close}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
 
                 {presetName == null && query.length > 0 && (
                   <>
@@ -617,13 +657,13 @@ export function AddActivitySheet({
                 )}
 
                 <TouchableOpacity
-                  style={[styles.durationChip, !hasName && styles.durationChipDim]}
+                  style={[styles.durationChip, (!hasName || presetActionBlocked) && styles.durationChipDim]}
                   onPress={() => handleCreate(true)}
-                  disabled={!hasName || isPending}
+                  disabled={!hasName || isPending || presetActionBlocked}
                   activeOpacity={0.8}
                   accessibilityRole="button"
                   accessibilityLabel={t.addActivityTimedBtn}
-                  accessibilityState={{ disabled: !hasName || isPending }}
+                  accessibilityState={{ disabled: !hasName || isPending || presetActionBlocked }}
                 >
                   {createTask.isPending ? (
                     <ActivityIndicator color={colors.onAccent} />
@@ -633,15 +673,15 @@ export function AddActivitySheet({
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.noTimerBtn, !hasName && styles.noTimerBtnDisabled]}
+                  style={[styles.noTimerBtn, (!hasName || presetActionBlocked) && styles.noTimerBtnDisabled]}
                   onPress={() => handleCreate(false)}
-                  disabled={!hasName || isPending}
+                  disabled={!hasName || isPending || presetActionBlocked}
                   activeOpacity={0.8}
                   accessibilityRole="button"
                   accessibilityLabel={t.addActivityNoTimer}
-                  accessibilityState={{ disabled: !hasName || isPending }}
+                  accessibilityState={{ disabled: !hasName || isPending || presetActionBlocked }}
                 >
-                  <Text style={[styles.noTimerText, !hasName && styles.noTimerTextDim]}>
+                  <Text style={[styles.noTimerText, (!hasName || presetActionBlocked) && styles.noTimerTextDim]}>
                     {t.addActivityNoTimer}
                   </Text>
                 </TouchableOpacity>
@@ -737,6 +777,17 @@ function makeStyles(C: AppColors, bottomInset: number) {
       color: C.muted,
       marginBottom: Spacing.sm,
     },
+    presetStatus: {
+      flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.sm,
+      marginTop: Spacing.md, padding: Spacing.sm, borderRadius: Radii.md,
+      backgroundColor: C.surface2,
+    },
+    presetStatusText: { flex: 1, ...Typography.caption, color: C.ink2 },
+    presetActions: { flexDirection: 'row', gap: Spacing.sm, width: '100%' },
+    presetRetry: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: Radii.md, backgroundColor: C.primarySoft },
+    presetRetryText: { color: C.primaryText, fontFamily: FontFamily.bold, fontSize: 14 },
+    presetClose: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: Radii.md, borderWidth: 1, borderColor: C.line2 },
+    presetCloseText: { color: C.ink2, fontFamily: FontFamily.semiBold, fontSize: 14 },
     durationChip: {
       backgroundColor: C.primary, borderRadius: Radii.md,
       paddingVertical: 13, paddingHorizontal: 20,
