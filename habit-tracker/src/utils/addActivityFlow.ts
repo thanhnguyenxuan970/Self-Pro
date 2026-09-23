@@ -50,6 +50,15 @@ export function isPresetTaskActionBlocked(resolution: PresetTaskResolution): boo
   return resolution.status !== 'none' && resolution.status !== 'resolved';
 }
 
+/** A resolved preset always logs its existing task; it never enters task creation. */
+export function resolveChallengePresetActivityFlow(
+  resolution: PresetTaskResolution,
+  requestedTimeBased: boolean,
+): 'blocked' | 'quick-log' | 'duration' {
+  if (resolution.status !== 'resolved') return 'blocked';
+  return resolution.task.is_time_based === 1 || requestedTimeBased ? 'duration' : 'quick-log';
+}
+
 export function resolveExistingActivityFlow({
   hasExistingTask,
   isExistingTaskTimeBased,

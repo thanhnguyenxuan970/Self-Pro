@@ -21,7 +21,7 @@ import { activityGroup, activityMatches, activityPinAccessibilityLabel, buildPre
 import { DurationClockInput } from '../components/DurationClockInput';
 import { DurationPresetChips } from '../components/DurationPresetChips';
 import { clockMinutes } from '../utils/durationClock';
-import { isPresetTaskActionBlocked, resolveExistingActivityFlow, resolvePresetTaskResolution } from '../utils/addActivityFlow';
+import { isPresetTaskActionBlocked, resolveChallengePresetActivityFlow, resolveExistingActivityFlow, resolvePresetTaskResolution } from '../utils/addActivityFlow';
 
 export type ActivityAddedResult = {
   id: number;
@@ -345,12 +345,11 @@ export function AddActivitySheet({
         return;
       }
       try {
-        const challengeFlow = resolveExistingActivityFlow({
-          hasExistingTask: true,
-          isExistingTaskTimeBased: resolvedPresetTask.is_time_based === 1,
-          requestedTimeBased: isTimeBased,
-          hasActivityAddedHandler: false,
-        });
+        const challengeFlow = resolveChallengePresetActivityFlow(presetTaskResolution, isTimeBased);
+        if (challengeFlow === 'blocked') {
+          submittingRef.current = false;
+          return;
+        }
         if (challengeFlow === 'duration') {
           openDurationForExistingTask(resolvedPresetTask);
           return;

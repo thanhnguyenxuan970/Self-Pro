@@ -1,4 +1,4 @@
-import { isPresetTaskActionBlocked, resolveExistingActivityFlow, resolvePresetTaskResolution } from '../src/utils/addActivityFlow';
+import { isPresetTaskActionBlocked, resolveChallengePresetActivityFlow, resolveExistingActivityFlow, resolvePresetTaskResolution } from '../src/utils/addActivityFlow';
 import { PickerTask } from '../src/utils/activityPicker';
 
 const pickerTask = (id: number, name = 'Read'): PickerTask => ({
@@ -38,6 +38,7 @@ describe('resolvePresetTaskResolution', () => {
     });
     expect(resolution).toEqual({ status: 'loading' });
     expect(isPresetTaskActionBlocked(resolution)).toBe(true);
+    expect(resolveChallengePresetActivityFlow(resolution, false)).toBe('blocked');
   });
 
   it('uses the verified preset id, not a same-name task, once the query resolves', () => {
@@ -48,6 +49,7 @@ describe('resolvePresetTaskResolution', () => {
     });
     expect(resolution).toEqual({ status: 'resolved', task: matchingId });
     expect(isPresetTaskActionBlocked(resolution)).toBe(false);
+    expect(resolveChallengePresetActivityFlow(resolution, false)).toBe('quick-log');
   });
 
   it.each([
@@ -59,6 +61,7 @@ describe('resolvePresetTaskResolution', () => {
     });
     expect(resolution.status).toBe(expected);
     expect(isPresetTaskActionBlocked(resolution)).toBe(true);
+    expect(resolveChallengePresetActivityFlow(resolution, false)).toBe('blocked');
   });
 
   it('does not reuse an old task when a new preset id is loading or absent', () => {
@@ -72,5 +75,13 @@ describe('resolvePresetTaskResolution', () => {
     expect(absent.status).toBe('not-found');
     expect(isPresetTaskActionBlocked(loading)).toBe(true);
     expect(isPresetTaskActionBlocked(absent)).toBe(true);
+  });
+
+  it('keeps a resolved timed preset on the duration path', () => {
+    const timed = { ...pickerTask(7), is_time_based: 1 };
+    const resolution = resolvePresetTaskResolution({
+      hasPreset: true, isFetching: false, isError: false, tasks: [timed], presetName: 'Read', presetTaskId: 7,
+    });
+    expect(resolveChallengePresetActivityFlow(resolution, false)).toBe('duration');
   });
 });
